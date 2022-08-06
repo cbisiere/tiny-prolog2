@@ -1,0 +1,12 @@
+
+
+dif(x,y) -> { x <> y };
+
+> dif(toto(x),toto(y)) ?
+> dif(x,x) ?
+> dif(1,1) ?
+> dif(1,2) ?
+> dif(x,1) ?
+> dif(x,y) ?
+
+.

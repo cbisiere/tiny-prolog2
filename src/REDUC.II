@@ -1,0 +1,446 @@
+{----------------------------------------------------------------------------}
+{                                                                            }
+{   Application : PROLOG II                                                  }
+{   Fichier     : Reduc.ii                                                   }
+{   Auteur      : Christophe BISIERE                                         }
+{   Date        : 07/01/88                                                   }
+{                                                                            }
+{----------------------------------------------------------------------------}
+{                                                                            }
+{         A L G O R I T H M E   D E   R E D U C T I O N   D ' U N            }
+{                                                                            }
+{  S Y S T E M E   D ' E Q U A T I O N S   E T   D ' I N E Q U A T I O N S   }
+{                                                                            }
+{      D'après "Equations et Inequations sur les arbres finis et infinis"    }
+{                                                                            }
+{                      Alain COLMERAUER - Mai 1984                           }
+{                                                                            }
+{----------------------------------------------------------------------------}
+{                                                                            }
+{           F. Typ (T : Integer ) : Tterme;                                  }
+{           P. Swap (Var T1,T2 : Integer);                                   }
+{           P. AjouteTravail (Car : Char; T1,T2 : Integer );                 }
+{           P. TrierSysteme( ButeeDroite : Integer );                        }
+{           F. ReductionEquation(     BreakIt     : Boolean;                 }
+{                                 Var VarProd     : Integer;                 }
+{                                     ButeeDroite : Integer ) : Boolean;     }
+{           F. ReductionSysteme( ButeeDroite : Integer ) : Boolean;          }
+{                                                                            }
+{                                                                            }
+{----------------------------------------------------------------------------}
+
+{$R+} { Directive de Compilation : Verifier les Indices de Tableaux.      }
+{$V-} { Directive de Compilation : Ne pas verifier la taille des Chaines. }
+
+
+Type Tterme = (Variable,Constante,SymboleF,Dummy); { Types de termes }
+
+{-----------------------------------------------------------------------}
+{ Function Typ (T : Integer ) : Tterme;                                 }
+{-----------------------------------------------------------------------}
+{ La fonction Typ retourne le type du terme pointé par T.               }
+{-----------------------------------------------------------------------}
+
+Function Typ( T : Integer ) : Tterme;
+Begin
+  Typ := Dummy;
+  If T <> 0 Then
+    Case Chr(Memoire[T]) Of
+      'C' : Typ := Constante;
+      '*' : Typ := Variable;
+      'F' : Typ := SymboleF
+    End;
+End;
+
+
+{----------------------------------------------------------------------------}
+{ Procedure Swap (Var T1,T2 : Integer);                                      }
+{----------------------------------------------------------------------------}
+{ Swap échange le contenu de deux variables Turbo-Pascal.                    }
+{----------------------------------------------------------------------------}
+
+Procedure Swap( Var T1,T2 : Integer );
+Var Ts : Integer;
+Begin
+  Ts := T1;
+  T1 := T2;
+  T2 := Ts
+End;
+
+
+{----------------------------------------------------------------------------}
+{ Procedure AjouteTravail (Car : Char; T1,T2 : Integer );                    }
+{----------------------------------------------------------------------------}
+{ AjouteTravail crée une nouvelle équation (Car='=') ou inéquation (Car='<') }
+{ de forme T1 = T2 dans la pile droite de la mémoire principale.             }
+{                                                                            }
+{----------------------------------------------------------------------------}
+
+Procedure AjouteTravail( Car : Char; T1,T2 : Integer );
+Var Adr : Integer;
+Begin
+  Adr := PtrRight - 1;
+  AllocRight(3);
+  Memoire[Adr  ] := Ord(Car);
+  Memoire[Adr-1] := T1;
+  Memoire[Adr-2] := T2;
+End;
+
+
+{----------------------------------------------------------------------------}
+{ Procedure TrierSysteme( ButeeDroite : Integer );                           }
+{----------------------------------------------------------------------------}
+{ TrierSysteme modifie les équations et inéquations du sommet de la pile     }
+{ droite ( sans dépasser ButeeDroite ) de telle sorte que les équations      }
+{ se trouvent toutes avant les inéquations. Cette procédure est indispen-    }
+{ sable parce-que la Procedure ReductionEquation peut, au cours de son       }
+{ travail, ajouter des inéquations (remise en cause d'inéquations) à droite. }
+{----------------------------------------------------------------------------}
+
+Procedure TrierSysteme( ButeeDroite : Integer );
+Var Stop : Boolean;
+    I    : Integer;
+Begin
+  Repeat
+    Stop := True;
+    I := ButeeDroite - 3;
+    While ( I > PtrRight) Do
+      Begin
+        If (Chr(Memoire[I+2]) = '=') And (Chr(Memoire[I+2-3]) = '<') Then
+          Begin
+            Swap(Memoire[I  ],Memoire[I - 3]);
+            Swap(Memoire[I+1],Memoire[I - 2]);
+            Swap(Memoire[I+2],Memoire[I - 1]);
+            Stop := False;
+          End;
+        I := I - 3
+      End;
+  Until Stop;
+End;
+
+{----------------------------------------------------------------------------}
+{                                                                            }
+{     Algoritme de reduction ( SYSTEME D'EQUATIONS )                         }
+{                                                                            }
+{         On veut reduire un systeme fini de la forme "S U T", ou "S" est    }
+{     deja reduit et ou "T" est l'ensemble des equations apparaissant dans   }
+{     une suite finie "Z" d'equations. On considere le couple "<S,Z>" et on  }
+{     le modifie autant de fois que possible par l'operation de base qui     }
+{     suit. Si dans ce processus une operation de base se deroule anormale-  }
+{     ment, le systeme initial "S U T" est insoluble. Sinon on aboutit a un  }
+{     couple finial de la forme "< S' , () >". Le sous-ensemble des equa-    }
+{     tions de "S" dont les membres gauches sont des variables constitue     }
+{     alors un systeme reduit, equivalent au systeme initial "S U T" et      }
+{     contenant toujours le systeme initial "S".                             }
+{                                                                            }
+{----------------------------------------------------------------------------}
+
+Function ReductionEquation(     BreakIt     : Boolean;
+                            Var VarProd     : Integer;
+                                ButeeDroite : Integer ) : Boolean;
+
+Var Possible    : Boolean;
+    Anormal     : Boolean;
+    PtrLeftSave : Integer;
+
+        {---------------------------------------------------------}
+        {                                                         }
+        {  OPERATION DE BASE :                                    }
+        {                                                         }
+        {      Choisir dans "Z" une occurence de contraine s'=t', }
+        {  et l'enlever. Poser s = rep[s',S] et t = rep[t',S].    }
+        {  Si s=t l'operation est finie, sinon trois cas se pre-  }
+        {  sentent :                                              }
+        {                                                         }
+        {      . L'un au moins des termes de "s" ou "t" est une   }
+        {  variable; on ajoute alors a "S" l'une des equations    }
+        {  "s=t" ou "t=s", pourvu que le membre gauche de l'equa- }
+        {  tion ajoutee soit une variable;                        }
+        {                                                         }
+        {      . Les termes "s" et "t" sont respectivement de la  }
+        {  forme "f s1...sn" et "f t1...tn", avec "n>=1"; On      }
+        {  ajoute alors a "S" l'une des equations "s=t" ou "t=s"  }
+        {  et l'on intercale, n'importe ou dans "Z", la suite     }
+        {  d'equations "s1=t1 ... sn=tn";                         }
+        {                                                         }
+        {      . Les termes "s" et "t" sont respectivement de la  }
+        {  forme "f s1...sm" et "g t1...tn", "f" et "g" etant des }
+        {  symboles fonctionnels distaincts, avec "m>=1" et       }
+        {  "n>=1"; dans ce seul cas le deroulement de l'operation }
+        {  est considere comme anormal.                           }
+        {                                                         }
+        {---------------------------------------------------------}
+
+  Procedure OperationDeBase;
+  Var Tg,Td : Integer;
+
+    { Unification de deux termes }
+
+    Procedure Unifier( Tg,Td : Integer );
+    Var T1,T2 : Integer;
+
+      { Calcul du representant du terme pointe par Ter}
+
+      Function Representant( Ter : Integer ) : Integer;
+      Begin
+        If Ter = 0 Then Representant := 0
+        Else
+          Case Typ(Ter) Of
+            Constante : Representant := Ter;
+            Variable  : If Memoire[Ter+2] = 1 Then
+                          Representant := Representant(Memoire[Ter+4])
+                        Else Representant := Ter;
+            SymboleF  : If Memoire[Ter+1] <> 0 Then
+                          Representant := Representant(Memoire[Ter+1])
+                        Else Representant := Ter;
+          End;
+      End;
+
+      { Creer une equation, de forme T1 = T2, dans le système reduit }
+
+      Procedure CreerLiaison( T1,T2 : Integer );
+      Var P : Integer;
+      Begin
+        If Typ(T1) = Variable Then
+          Begin
+            SetMem(T1+2,1);   { Une Equation }
+            SetMem(T1+4,T2);  { Liaison      }
+
+            { L'Etape2 de la Resolution de systeme est traitée ici }
+
+            If Memoire[T1+3] = 1 Then { x surveillait deja une liaison ! }
+              Begin
+                SetMem(T1+3,0);
+                P := Memoire[T1 + 5];
+                Repeat
+                  AjouteTravail('<',Memoire[P],Memoire[P+1]);
+                  P := Memoire[P + 2];
+                Until P = 0
+              End;
+
+          End
+        Else
+          Memoire[T1+1] := T2;
+      End;
+
+
+      { Creation d'une liaison dans le systeme reduit de la forme x = terme }
+
+      Procedure Production(T1,T2 : Integer);
+      Var P : Integer;
+      Begin
+        If BreakIt Then  { Breaker la reduction si production x = terme }
+          VarProd := T1
+        Else
+          CreerLiaison(T1,T2);
+      End;
+
+      { Test de deux pointeurs }
+
+      Function Test( T1,T2 : Integer ) : Integer;
+      Begin
+        If (Typ(T1) = Variable) Then
+          If (Typ(T2) = Variable) Then Test := 3  { Deux variables        }
+          Else Test := 1                          { Une seule variable T1 }
+        Else
+          If (Typ(T2) = Variable) Then Test := 2  { Une seule variable T2 }
+          Else Test := 0 ;                        { Pas de variables      }
+      End;
+
+    Begin     { Unifier }
+      T1 := Representant(Tg);  { Representant du premier terme  }
+      T2 := Representant(Td);  { Representant du deuxieme terme }
+      If (T1<>T2) And
+         Not( (Typ(T1)=Constante) And (Typ(T2)=Constante) And
+            (Memoire[T1+1] = Memoire[T2+1]) ) Then    { Deux termes differents }
+        Case Test(T1,T2) Of
+          0 : If (Typ(T1) = SymboleF) And (Typ(T2) = SymboleF) Then
+                Begin
+                  CreerLiaison(T1,T2);{ Creer l'equation dans le systeme reduit }
+                  Push(T1);           { Sauve liaison terme = terme }
+                  AjouteTravail('=',Memoire[T1+3],Memoire[T2+3] ); { Nouvelle equation  }
+                  AjouteTravail('=',Memoire[T1+2],Memoire[T2+2] ); { Nouvelle equation  }
+                End
+              Else                     { Deux constantes differentes }
+                Anormal := True;
+          1 : Production(T1,T2);
+          2 : Production(T2,T1);
+          3 : Begin
+                If T2 < T1 Then Swap(T1,T2); { Ordonne T1 et T2 }
+                Production(T1,T2)
+              End
+        End;
+    End;      { End Unifier }
+
+  Begin                          { OperationDeBase }
+    Tg := Memoire[PtrRight+1];
+    Td := Memoire[PtrRight  ];
+    PtrRight := PtrRight + 3;
+    Unifier(Tg,Td);
+  End;                           { End OperationDeBase }
+
+Begin
+  VarProd     := 0;
+  PtrLeftSave := PtrLeft;
+  Anormal     := False;
+  Repeat
+    Possible := PtrRight <> ButeeDroite ;
+    TrierSysteme(ButeeDroite); { Because Etape2 traitee en meme temps ici }
+    If Possible Then
+      Possible := Chr(Memoire[PtrRight+2]) = '=';
+    If Possible Then
+      OperationDeBase
+  Until Not(Possible) Or (Anormal) Or (BreakIt And (VarProd<>0));
+  While (PtrLeft > PtrLeftSave) Do
+    Begin
+      Memoire[Memoire[PtrLeft]+1] := 0; { Defait liaison }
+      PtrLeft := PtrLeft - 1
+    End;
+  ReductionEquation := Not Anormal;
+End;
+
+{----------------------------------------------------------------------------}
+{                                                                            }
+{     Algoritme de reduction ( SYSTEME D'EQUATIONS ET D'INEQUATIONS )        }
+{                                                                            }
+{         On veut reduire un ensemble fini de contraintes qui est de la      }
+{     forme ( S= U S<> ) U ( Z'= U Z'<> ), ou ( S= U S<> ) est deja reduit,  }
+{     ou Z'= est l'ensemble des equations apparaissant dans une suite finie  }
+{     Z= d'equations et ou Z'<> est l'ensemble des contraintes du type <>    }
+{     apparaissant dans une suite finie Z<> de contraintes de type <>.       }
+{                                                                            }
+{         L'algorithme se deroule en trois etapes :                          }
+{                                                                            }
+{----------------------------------------------------------------------------}
+
+Function ReductionSysteme( ButeeDroite : Integer ) : Boolean;
+Var Echec : Boolean;
+
+{---------------------------------------------------------}
+{                                                         }
+{  ETAPE 1 : On modifie l'ensemble S= en appliquant       }
+{  l'algoritme  de reduction d'equations sur le couple    }
+{  < S= , Z= >. Si l'algorithme echoue, le systeme        }
+{  initial n'est pas soluble et le processus s'arrete la. }
+{                                                         }
+{---------------------------------------------------------}
+
+  Procedure Etape1;
+  Var DummyVar : Integer;
+  Begin
+    If Not ReductionEquation(False,DummyVar,ButeeDroite) Then Echec := True
+  End;
+
+{---------------------------------------------------------}
+{                                                         }
+{  ETAPE 2 : On modifie l'ensemble S<> et la suite Z<>    }
+{  comme suit : de l'ensemble S<> on retire chaque        }
+{  contrainte de la forme s <x> t, avec x membre gauche   }
+{  d'une equation de S=, et on l'insere sous la forme     }
+{  s <> t dans Z<>.                                       }
+{                                                         }
+{---------------------------------------------------------}
+
+{ L'etape 2 est actuellement rejetee dans La Resolution d'Equations }
+
+  Procedure Etape2;
+  Begin
+  End;
+
+{---------------------------------------------------------}
+{                                                         }
+{  ETAPE 3 : On considere le couple < S= U S<> , Z<> > et }
+{  on le modifie autant de fois que possible par l'ope-   }
+{  ration de base definie ci-dessous. Si dans le proces-  }
+{  sus une operation de base se deroule anormalement, le  }
+{  systeme initial est insoluble. Sinon on aboutit a un   }
+{  couple final de la forme < S= U S<> , ^ >. Le systeme  }
+{  S= U S<> constitue alors un systeme reduit equivalent  }
+{  au systeme initial.                                    }
+{                                                         }
+{---------------------------------------------------------}
+
+    Procedure Etape3;
+    Var Possible,
+        Anormal   : Boolean;
+
+        {---------------------------------------------------------}
+        {                                                         }
+        {  OPERATION DE BASE :                                    }
+        {                                                         }
+        {      Choisir dans Z<> une occurence de contraine s<>t,  }
+        {  l'enlever et appliquer l'algorithme de reduction       }
+        {  d'equations sur le couple <S=,(s=t)>. Trois situations }
+        {  peuvent se presenter :                                 }
+        {                                                         }
+        {      (1) L'algorithme de reduction d'equations termine  }
+        {  sur un echec : l'operation de base est terminee.       }
+        {  au systeme initial.                                    }
+        {                                                         }
+        {      (2) L'algorithme de reduction d'equations est      }
+        {  amene a ajouter a S= une equation de la forme x = r :  }
+        {  au lieu de cela on ajoute a S<> la contrainte s<x>t.   }
+        {                                                         }
+        {      (3) Ni la situation (1), ni la situation (2) ne    }
+        {  se presentent et on aboutit a la configuration finale  }
+        {  < S=,^ > : l'operation de base se deroule anormal-     }
+        {  ement.                                                 }
+        {                                                         }
+        {---------------------------------------------------------}
+
+      Procedure OperationDeBase;
+        Var    P            : Integer;
+               Tg,Td        : Integer;   Var I : Integer;
+               VarProd      : Integer;
+               Butee        : Integer;
+               Ok           : Boolean;
+      Begin
+        Memoire[PtrRight+2] := Ord('='); { Transforme derniere ineq en eq }
+        Tg := Memoire[PtrRight+1];
+        Td := Memoire[PtrRight];
+        Butee    := PtrRight + 3;           { Traite juste une equation }
+        Ok       := ReductionEquation(True,VarProd,Butee);
+        PtrRight := Butee;
+        If Ok Then
+        Begin
+          If VarProd<>0 Then
+            Begin
+              If Memoire[VarProd+3] <> 1 Then
+                Begin
+                  SetMem(VarProd+3,1); { Une Inequation }
+                  SetMem(VarProd+5,0);
+                End;
+              P := VarProd + 3;
+              While(Memoire[P+2]<>0) Do P := Memoire[P+2];
+              SetMem(P+2,PtrLeft + 1);
+              Push(Tg);
+              Push(Td);
+              Push(0)
+            End
+          Else Anormal := True;
+        End
+      End;
+
+    Begin
+      Anormal  := False;
+      Repeat
+        Possible := PtrRight <> ButeeDroite;
+        If Possible Then
+          OperationDeBase
+      Until Not(Possible) Or Anormal;
+      Echec    := Anormal;
+    End;
+
+Begin
+  TrierSysteme( ButeeDroite );
+  Echec := False;
+  Etape1;
+  If Not Echec Then
+    Begin
+      Etape2;
+      Etape3
+    End;
+  PtrRight := ButeeDroite;
+  ReductionSysteme := Not Echec;
+End;
+
