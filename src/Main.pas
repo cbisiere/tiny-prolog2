@@ -78,7 +78,7 @@ Var Car : Char;
 Begin
   Writeln;
   Write('Ok ');
-  Read(kbd,Car);
+  Readln;
   Writeln;
 End;
 
