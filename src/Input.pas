@@ -72,7 +72,7 @@ Procedure OpenFic;
 Var NomFic : AnyStr;
 Begin
   Repeat
-    Write('Nom du programme Prolog : ');
+    Write('Prolog file to execute: ');
     Readln(NomFic);
     Writeln;
     If NomFic <> '' Then
@@ -166,7 +166,7 @@ Procedure UnGetChar( c : Char );
 Begin
   If PtrIn = SizeBufIn Then
     Begin
-      Write('Erreur UnGetChar : Buffer Plein.');
+      Write('Error in UnGetChar: Buffer is full.');
       Halt
     End
   Else
@@ -223,7 +223,7 @@ Begin
       Ok := GetChar(Calu) = Ch[I];
       I  := I + 1
     End;
-  If Not Ok Then Erreur(Ch+' attendu');
+  If Not Ok Then Erreur(Ch+' expected');
   UnGetChar(GetCharNb(Calu))
 End;
 

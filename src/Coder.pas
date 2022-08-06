@@ -302,7 +302,7 @@ Begin
     End
   Else
     Begin
-      Erreur( Fin+' attendu');
+      Erreur(Fin+' expected');
       GetArgument := 0
     End
 End;
@@ -334,7 +334,7 @@ Begin
             Begin
               Calu := GetChar(Calu);
               Adr  := LireTerme;
-              If GetCharNb(Calu) <> ')' Then Erreur(' ) attendue ')
+              If GetCharNb(Calu) <> ')' Then Erreur(' ) expected ')
               Else UnGetChar(GetCharNb(Calu))
             End
           Else
@@ -344,7 +344,7 @@ Begin
               Adr  := GetArgument('>')
             End
           Else
-            Erreur('Erreur de Syntaxe')
+            Erreur('Syntax error')
         End;
     1 : Begin                      { une variable }
           Get(Ch,Chiffre);
@@ -411,10 +411,10 @@ Begin
     Calu := GetCharNb(Calu);
     Case Calu Of
       '=' : Memoire[Adr] := Ord('=');               { 1 : Code 'Equation'   }
-      '<' : If GetCharNb(Calu) <> '>' Then Erreur('> attendu')
+      '<' : If GetCharNb(Calu) <> '>' Then Erreur('> expected')
             Else
               Memoire[Adr] := Ord('<');             { 1 : Code 'Inéquation'   }
-      Else Erreur('= ou <> attendu')
+      Else Erreur('= or <> expected')
     End;
   End;
   If Not Error Then
@@ -442,13 +442,13 @@ End;
 
 Procedure LireSysteme;
 Begin
-  If GetCharNb(Calu) <> '{' Then Erreur('Manque {')
+  If GetCharNb(Calu) <> '{' Then Erreur('Missing {')
   Else
     Begin
       Repeat
         LireEquation
       Until (Error) Or (GetCharNb(Calu) <> ',');
-      If (Not Error) And (Calu <> '}') Then Erreur('Manque }')
+      If (Not Error) And (Calu <> '}') Then Erreur('Missing }')
     End
 
 End;
@@ -591,7 +591,7 @@ Begin
           LireSysteme;
           InitRestore;
           If Not ReductionSysteme(Butee) Then
-            Erreur('Contrainte insatisfaisable')
+            Erreur('Constraint cannot be satisfied')
         End;
       Verifier(';');
       Memoire[Adr]   := PtrLeft - Adr;
@@ -697,7 +697,7 @@ Begin
       Entete(Adr,1,0,0);
     End
   Else
-    Erreur('Pas de Question ! ');
+    Erreur('No queries!');
   UnGetChar(GetCharNb(Calu))
 End;
 
