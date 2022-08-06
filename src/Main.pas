@@ -18,18 +18,18 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-{$R+} { Directive de Compilation : Verifier les Indices de Tableaux.      }
-{$V-} { Directive de Compilation : Ne pas verifier la taille des Chaines. }
+{$R+} { Directive de compilation : Vérifier les indices des tableaux.     }
+{$V-} { Directive de compilation : Ne pas vérifier la taille des chaînes. }
 
 { Inclusion des Modules : }
 
-{$I Input.pas   }  { Module : Lecture du Flot d'Entrée           }
-{$I Dico.pas    }  { Module : Gestion des Dictionnaires          }
+{$I Input.pas   }  { Module : Lecture du flot d'entrée           }
+{$I Dico.pas    }  { Module : Gestion des dictionnaires          }
 {$I Memoire.pas }  { Module : Gestion de la mémoire principale   }
 {$I Restore.pas }  { Module : Gestion de la pile de restauration }
 {$I Reduc.pas   }  { Module : Algorithme de réduction            }
-{$I Coder.pas   }  { Module : Codage des Objets                  }
-{$I Decoder.pas }  { Module : Decodage des Objets                }
+{$I Coder.pas   }  { Module : Codage des objets                  }
+{$I Decoder.pas }  { Module : Décodage des objets                }
 {$I Horloge.pas }  { Module : Horloge Prolog                     }
 
 {$I Init.pas    }  { Module : Initialisations                    }
@@ -39,13 +39,13 @@
 { Procedure InitPointeurs;                                                   }
 {----------------------------------------------------------------------------}
 { Initialisation des pointeurs qui permettent de traiter plusieurs questions }
-{ pour un meme programme codé.                                               }
+{ pour un même programme codé.                                               }
 {----------------------------------------------------------------------------}
 
 Procedure InitPointeurs;
 Begin
-  TopVar     := NbVar   + 1;  { Debut de la recherche dans DicoVar         }
-  FirstVar   := NbVar   + 1;  { Premiere variable définie dans la Question }
+  TopVar     := NbVar   + 1;  { Début de la recherche dans DicoVar         }
+  FirstVar   := NbVar   + 1;  { Première variable définie dans la question }
   FirstConst := NbConst + 1;  { Première constante locale à la question    }
   SommetRegles    := PtrLeft; { Pointeur vers le sommet des règles codées  }
   SommetProgramme := PtrLeft; { Actuel sommet du programme complet         }
@@ -55,11 +55,11 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure EnleverQuestion;                                                 }
 {----------------------------------------------------------------------------}
-{ Enleve la question qui est au sommet de la pile (si il y en a une).        }
+{ Enlève la question qui est au sommet de la pile (si il y en a une).        }
 {----------------------------------------------------------------------------}
 
 Procedure EnleverQuestion;
-Begin                          { On depile :                               }
+Begin                          { On dépile :                               }
   PtrLeft := SommetRegles;     {   - le code de la question                }
   NbVar   := FirstVar   - 1;   {   - les variables de cette question       }
   NbConst := FirstConst - 1;   {   - les constantes définies dans celle-ci }
@@ -97,9 +97,9 @@ Begin
   RestituerProgramme;            { Le restitue à l'écran                     }
   If Not Error Then
     Repeat
-      EnleverQuestion;            { Enleve la question précedente            }
+      EnleverQuestion;            { Enlève la question précédente            }
       CompilerQuestion;           { Code la nouvelle question                }
-      SommetProgramme := PtrLeft; { Note ou est le sommet du Pgm complet     }
+      SommetProgramme := PtrLeft; { Note où est le sommet du Pgm complet     }
       Writeln;
       RestituerQuestion;
       Writeln;

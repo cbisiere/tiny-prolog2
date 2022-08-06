@@ -11,26 +11,26 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
-{      P. InitRestore;                   Initialisation Pile                 }
+{      P. InitRestore;                   Initialisation pile                 }
 {      P. PushRestore (A,V : Integer);   Empile doublet (Adresse,Valeur)     }
-{      P. SetMem( A,V : Integer );       Affecte et Sauve                    }
-{      P. Restore( P : Integer );        Restaure Memoire                    }
+{      P. SetMem( A,V : Integer );       Affecte et sauve                    }
+{      P. Restore( P : Integer );        Restaure mémoire                    }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-{$R+} { Directive de Compilation : Verifier les Indices de Tableaux.      }
-{$V-} { Directive de Compilation : Ne pas verifier la taille des Chaines. }
+{$R+} { Directive de compilation : Vérifier les indices des tableaux.     }
+{$V-} { Directive de compilation : Ne pas vérifier la taille des chaînes. }
 
 
 Const MaxSizeRestore = 3000;                   { Taille pile de restauration }
 
 Var PileRestore : Array[1..MaxSizeRestore] Of  { Pile de restauration        }
       Record
-        Ad    : Integer;                       { Sauve Adresse               }
-        Value : Integer                        { Sauve Valeur                }
+        Ad    : Integer;                       { Sauve adresse               }
+        Value : Integer                        { Sauve valeur                }
       End;
 
-Var PtrRestore : Integer;                      { Sommet de la Pile           }
+Var PtrRestore : Integer;                      { Sommet de la pile           }
 
 {----------------------------------------------------------------------------}
 { Procedure InitRestore;                                                     }

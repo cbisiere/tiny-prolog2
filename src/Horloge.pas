@@ -33,8 +33,8 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-{$R+} { Directive de Compilation : Verifier les Indices de Tableaux.      }
-{$V-} { Directive de Compilation : Ne pas verifier la taille des Chaines. }
+{$R+} { Directive de compilation : Vérifier les indices des tableaux.     }
+{$V-} { Directive de compilation : Ne pas vérifier la taille des chaînes. }
 
 
 Var Temps : Integer;                          { Temps de l'horloge PROLOG    }
@@ -48,8 +48,8 @@ Var Temps : Integer;                          { Temps de l'horloge PROLOG    }
 {----------------------------------------------------------------------------}
 { Function Unifiable (A1,A2 : Integer) : Boolean;                            }
 {----------------------------------------------------------------------------}
-{ Unifiable détermine si les deux termes A1 et A2 sont à prioris unifiables. }
-{ Ils ne le sont pas lorsque ils ont pour accès une constante differente.    }
+{ Unifiable détermine si les deux termes A1 et A2 sont a priori unifiables.  }
+{ Ils ne le sont pas lorsque ils ont pour accès une constante différente.    }
 { Ce test permet d'économiser un grand nombre de recopies de règles.         }
 {----------------------------------------------------------------------------}
 
@@ -88,11 +88,11 @@ End;
 {----------------------------------------------------------------------------}
 { Function NextRegleOk( R,T : Integer ) : Integer;                           }
 {----------------------------------------------------------------------------}
-{ Sachant que le terme T pouvait s'unifier avec la tete de la règle R, la    }
+{ Sachant que le terme T pouvait s'unifier avec la tête de la règle R, la    }
 { fonction NextRegleOk retourne un pointeur vers la règle qui suit R, si la  }
-{ tete de cette dernière peut s'unifier avec le terme T, et 0 dans le cas    }
+{ tête de cette dernière peut s'unifier avec le terme T, et 0 dans le cas    }
 { contraire.                                                                 }
-{ Cette logique impose qu'un ensemble de règles ayant meme accès doit etre   }
+{ Cette logique impose qu'un ensemble de règles ayant même accès doit être   }
 { écrit à la suite dans le fichier source.                                   }
 {----------------------------------------------------------------------------}
 
@@ -161,7 +161,7 @@ End;
 { Function PushRegle( R : Integer ) : Integer;                               }
 {----------------------------------------------------------------------------}
 { PushRegle réalise une recopie rapide de la suite de termes qui composent   }
-{ la règle pointée par R. Elle retourne l'adresse ou à été recopié cette     }
+{ la règle pointée par R. Elle retourne l'adresse où a été recopiée cette    }
 { suite.                                                                     }
 {----------------------------------------------------------------------------}
 
@@ -179,7 +179,7 @@ End;
 { Procedure MiseAJour( Ad,Depl : Integer );                                  }
 {----------------------------------------------------------------------------}
 { MiseAJour ajoute au contenu de la case d'adresse Ad la valeur Depl. On ne  }
-{ met bien sur pas à jour le pointeur nul.                                   }
+{ met bien sûr pas à jour le pointeur nul.                                   }
 {----------------------------------------------------------------------------}
 
 Procedure MiseAJour( Ad,Depl : Integer );
@@ -191,7 +191,7 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure MiseAJourInequation( E,d : Integer );                            }
 {----------------------------------------------------------------------------}
-{ MiseAJourInequation met à jour une chaine d'inéquations pointée par E avec }
+{ MiseAJourInequation met à jour une chaîne d'inéquations pointée par E avec }
 { le déplacement d.                                                          }
 {----------------------------------------------------------------------------}
 
@@ -213,7 +213,7 @@ End;
 { MiseAJourTerme met à jour le terme T avec la valeur d. Elle doit faire     }
 { attention à ne pas mettre à jour une variable qui l'a déjà été. En effet   }
 { une seule allocation mémoire est réalisée pour une variable, et celle-ci   }
-{ peut donc etre pointée plusieurs fois. La fonction doit donc s'aider d'un  }
+{ peut donc être pointée plusieurs fois. La fonction doit donc s'aider d'un  }
 { dictionnaire (DicoAdr) des adresses des variables déjà mises à jour.       }
 {----------------------------------------------------------------------------}
 
@@ -246,7 +246,7 @@ End;
 {----------------------------------------------------------------------------}
 { C'est la fonction de recopie et mise à jour d'une règle. La nécessité de   }
 { la mise à jour des adresses utilisées dans la règle provient de l'utili-   }
-{ sation d'adresses absolues plutot que d'adresses relatives.                }
+{ sation d'adresses absolues plutôt que d'adresses relatives.                }
 { NewRegle retourne l'adresse de la copie de la règle R.                     }
 {----------------------------------------------------------------------------}
 
@@ -277,22 +277,22 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure Horloge;                                                         }
 {----------------------------------------------------------------------------}
-{ C'est l'Horloge Prolog.                                                    }
+{ C'est l'horloge Prolog.                                                    }
 {----------------------------------------------------------------------------}
 
 Procedure Horloge;
 
 Var PtrLeftSave : Integer;  { Sauvegarde sommet de pile                     }
     Soluble     : Boolean;  { Système de contraintes soluble ?              }
-    Butee       : Integer;  { Delimite les équations à réduire dans la pile }
+    Butee       : Integer;  { Délimite les équations à réduire dans la pile }
     PtrT,PtrR,T : Integer;  { Divers pointeurs                              }
-    Fin         : Boolean;  { Fin de l'Horloge ?                            }
+    Fin         : Boolean;  { Fin de l'horloge ?                            }
 
 
 {------------------------------------------------------------------}
 { Procedure InitHorloge;                                           }
 {------------------------------------------------------------------}
-{ Initialise l'Horloge Prolog;                                     }
+{ Initialise l'horloge Prolog;                                     }
 {------------------------------------------------------------------}
 
   Procedure InitHorloge;
@@ -300,20 +300,20 @@ Var PtrLeftSave : Integer;  { Sauvegarde sommet de pile                     }
     Fin   := False;             { Ce n'est pas encore la fin !              }
     InitRestore;                { Initialise la pile de restauration        }
     Temps := 0;                 { Temps 0                                   }
-    Butee := PtrRight;          { Systeme soluble au debut (pas d'équation) }
+    Butee := PtrRight;          { Système soluble au début (pas d'équation) }
   End;
 
 {------------------------------------------------------------------}
 { Procedure LancerReduction;                                       }
 {------------------------------------------------------------------}
 { LancerReduction fait un appel à ReductionSysteme pour tester la  }
-{ solvabilité de l'ensemble de contrainte et s'occupe en plus de   }
-{ de deux problèmes particuliers :                                 }
+{ solvabilité de l'ensemble de contraintes et s'occupe en plus de  }
+{ deux problèmes particuliers :                                    }
 {                                                                  }
-{ (1) La procédure de réduction a peut-etre crée des inéquations,  }
-{     et dans ce cas ces triplets <Tg,Td,Next> ont été crées après }
-{     les quatre pointeur qui se trouvaient en tete de pile.       }
-{     Il faut alors remettre ce bloc de quatre pointeurs en tete.  }
+{ (1) La procédure de réduction a peut-être crée des inéquations,  }
+{     et dans ce cas ces triplets <Tg,Td,Next> ont été créés après }
+{     les quatre pointeurs qui se trouvaient en tête de pile.      }
+{     Il faut alors remettre ce bloc de quatre pointeurs en tête.  }
 {                                                                  }
 { (2) Il faut positionner le pointeur de restauration pour pouvoir }
 {     retrouver l'état antérieur.                                  }
@@ -324,14 +324,14 @@ Var PtrLeftSave : Integer;  { Sauvegarde sommet de pile                     }
   Begin
     PtrLeftSave := PtrLeft;
     Soluble     := ReductionSysteme(Butee);
-    If PtrLeftSave <> PtrLeft Then { Des inequations ont ete crees }
+    If PtrLeftSave <> PtrLeft Then { Des inéquations ont été créées }
       Begin
-        Push(Memoire[PtrLeftSave-3]);   { On Remet la tete en tete ! }
+        Push(Memoire[PtrLeftSave-3]);   { On remet la tête en tête ! }
         Push(Memoire[PtrLeftSave-2]);
         Push(Memoire[PtrLeftSave-1]);
         Push(Memoire[PtrLeftSave  ]);
       End;
-    Memoire[PtrLeft-1] := PtrRestore; { Sauve Pointeur de Restauration }
+    Memoire[PtrLeft-1] := PtrRestore; { Sauve pointeur de restauration }
   End;
 
 
@@ -353,23 +353,23 @@ Var PtrLeftSave : Integer;  { Sauvegarde sommet de pile                     }
 {----------------------------------------------------------------------------}
 { Procedure BackTracking( Var Fin : Boolean );                               }
 {----------------------------------------------------------------------------}
-{ La procedure BackTracking remet l'Horloge Prolog au dernier point de choix }
+{ La procédure BackTracking remet l'horloge Prolog au dernier point de choix }
 { utilisable. Si il n'y a plus de choix à envisager, elle positionne le      }
-{ Booleen Fin à True.                                                        }
+{ booléen Fin à True.                                                        }
 {                                                                            }
 { Un retour en arrière se fait en trois étapes :                             }
 {                                                                            }
-{  (1) Dépiler la règle qui est en tête de pile grace au pointeur qui est    }
-{      au sommet;                                                            }
+{  (1) Dépiler la règle qui est en tête de pile grâce au pointeur qui est    }
+{      au sommet.                                                            }
 {                                                                            }
-{  (2) Restaurer la mémoire à l'état antérieur grace au pointeur de restau-  }
-{      ration de la nouvelle règle de tete.                                  }
+{  (2) Restaurer la mémoire à l'état antérieur grâce au pointeur de restau-  }
+{      ration de la nouvelle règle de tête.                                  }
 {                                                                            }
 {  (3) Positionner le pointeur de règle à appliquer sur la règle suivante    }
 {      à appliquer.                                                          }
 {                                                                            }
-{ Si ce dernier pointeur est nul (épuisement des règles appliquables) et     }
-{ que ce n'est pas la fin (Temps=0), on recommance l'opération.              }
+{ Si ce dernier pointeur est nul (épuisement des règles applicables) et      }
+{ que ce n'est pas la fin (Temps=0), on recommence l'opération.              }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
@@ -396,9 +396,9 @@ Var PtrLeftSave : Integer;  { Sauvegarde sommet de pile                     }
 { Procedure PremiereRegle;                                         }
 {------------------------------------------------------------------}
 { PremiereRegle tente d'initialiser le pointeur de règle à appli-  }
-{ quer avec la première règle dont la tete est peut-etre unifiable }
+{ quer avec la première règle dont la tête est peut-être unifiable }
 { avec le premier terme à effacer. Si ce terme n'a aucune chance   }
-{ d'etre effacé, la procédure fait un appel à Backtracking;        }
+{ d'être effacé, la procédure fait un appel à Backtracking;        }
 {------------------------------------------------------------------}
 
   Procedure PremiereRegle;
@@ -411,24 +411,24 @@ Var PtrLeftSave : Integer;  { Sauvegarde sommet de pile                     }
 {------------------------------------------------------------------}
 { Procedure Avancer;                                               }
 {------------------------------------------------------------------}
-{ Avancer fait avancer l'Horloge Prolog d'une période. Les diffe-  }
+{ Avancer fait avancer l'horloge Prolog d'une période. Les diffé-  }
 { rentes opérations à effectuer sont les suivantes :               }
 {                                                                  }
-{ (1) Recopier en tete de pile la règle courante à appliquer;      }
-{ (2) Creer les quatre pointeurs de tete;                          }
+{ (1) Recopier en tête de pile la règle courante à appliquer ;     }
+{ (2) Créer les quatre pointeurs de tête ;                         }
 { (3) Ajouter à l'ensemble des contraintes l'équation              }
 {                                                                  }
-{    < Premier terme à effacer  =  tete de la règle recopiée >;    }
+{    < Premier terme à effacer  =  tête de la règle recopiée >;    }
 {                                                                  }
 { (4) Positionner le pointeur de termes à effacer de la manière    }
 {     suivante :                                                   }
 {                                                                  }
-{      * Chercher le dernier bloc-terme de la règle;               }
+{      * Chercher le dernier bloc-terme de la règle ;              }
 {      * Positionner le pointeur bloc-terme-suivant de ce bloc-    }
 {        terme vers le bloc-terme suivant du premier bloc-terme    }
-{        de l'ancienne suite de termes à effacer;                  }
+{        de l'ancienne suite de termes à effacer ;                 }
 {      * Positionner le pointeur de termes à effacer vers le       }
-{        bloc-terme suivant de la tete de la règle;                }
+{        bloc-terme suivant de la tête de la règle ;               }
 {                                                                  }
 { (5) Positionner le pointeur de retour en arrière vers l'ancien   }
 {     sommet de pile (avant recopie de la règle).                  }
@@ -439,8 +439,8 @@ Var PtrLeftSave : Integer;  { Sauvegarde sommet de pile                     }
   Begin
     Temps := Temps + 1;
     PtrLeftSave := PtrLeft;
-    PtrT := Memoire[PtrLeft-3];           { Sauve Pointeur de termes    }
-    PtrR := NewRegle(Memoire[PtrLeft-2]); { Endroit ou a été copié la R }
+    PtrT := Memoire[PtrLeft-3];           { Sauve pointeur de termes    }
+    PtrR := NewRegle(Memoire[PtrLeft-2]); { Endroit où a été copié la R }
     Entete(0,0,0,0);
     Butee := PtrRight;
     AjouteTravail('=',Memoire[PtrT],Memoire[PtrR]);
@@ -456,7 +456,7 @@ Var PtrLeftSave : Integer;  { Sauvegarde sommet de pile                     }
 { Procedure Reculer;                                               }
 {------------------------------------------------------------------}
 { On est ici au bout d'une feuille de l'arbre développé par        }
-{ l'Horloge. Si l'ensemble de contraintes est soluble c'est une    }
+{ l'horloge. Si l'ensemble de contraintes est soluble c'est une    }
 { solution. Dans tous les cas on retourne au dernier point de      }
 { choix.                                                           }
 {------------------------------------------------------------------}

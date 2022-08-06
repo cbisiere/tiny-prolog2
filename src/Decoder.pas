@@ -33,8 +33,8 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-{$R+} { Directive de Compilation : Verifier les Indices de Tableaux.      }
-{$V-} { Directive de Compilation : Ne pas verifier la taille des Chaines. }
+{$R+} { Directive de compilation : Vérifier les indices des tableaux.     }
+{$V-} { Directive de compilation : Ne pas vérifier la taille des chaînes. }
 
 
 Type StakIneq = Array[1..1000] Of Integer; { Pile sauvegarde inéquations     }
@@ -138,7 +138,7 @@ Procedure EcrireTermeBis( T : Integer ; ArgList : Boolean); Forward;
 { Procedure EcrireArgument (T : Integer);                                    }
 {----------------------------------------------------------------------------}
 { EcrireArgument écrit une suite d'arguments séparés par des virgules.       }
-{ ( Voir Codage d'une suite d'arguments).                                    }
+{ (Voir Codage d'une suite d'arguments).                                     }
 {----------------------------------------------------------------------------}
 
 Procedure EcrireArgument( T : Integer );
@@ -155,9 +155,9 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure EcrireTermeBis( T : Integer ; ArgList : Boolean);                }
 {----------------------------------------------------------------------------}
-{ EcrireTermeBis écrit le terme T tout en prennant en compte le fait que     }
-{ ce terme est ou n'est pas ( Booleen ArgList ) un argument de prédicat      }
-{ (nécessaire pour le parenthesage des listes imbriquées).                   }
+{ EcrireTermeBis écrit le terme T tout en prenant en compte le fait que      }
+{ ce terme est ou n'est pas (booléen ArgList) un argument de prédicat        }
+{ (nécessaire pour le parenthésage des listes imbriquées).                   }
 {----------------------------------------------------------------------------}
 
 Procedure EcrireTermeBis;
@@ -217,7 +217,7 @@ Procedure EcrireTerme( T : Integer ); Forward;
 {----------------------------------------------------------------------------}
 { Procedure EcrireInequation( E : Integer; Var Before : Boolean );           }
 {----------------------------------------------------------------------------}
-{ Restitution des Inequations de la chaine pointée par E.                    }
+{ Restitution des Inequations de la chaîne pointée par E.                    }
 {----------------------------------------------------------------------------}
 
 Procedure EcrireInequation( E : Integer; Var Before : Boolean );
@@ -308,7 +308,7 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure RestituerSuiteDeTermes( T : Integer; CR : Boolean );             }
 {----------------------------------------------------------------------------}
-{ Restitution des termes d'une suite de bloc-terme.                          }
+{ Restitution des termes d'une suite de bloc-termes.                         }
 {----------------------------------------------------------------------------}
 
 Procedure RestituerSuiteDeTermes( T : Integer; CR : Boolean );
@@ -380,8 +380,8 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure RestituerQuestion;                                               }
 {----------------------------------------------------------------------------}
-{ Restitution de la Question ( celle-ci se trouve juste après le code des    }
-{ règles du programme.                                                       }
+{ Restitution de la Question (celle-ci se trouve juste après le code des     }
+{ règles du programme).                                                      }
 {----------------------------------------------------------------------------}
 
 Procedure RestituerQuestion;
