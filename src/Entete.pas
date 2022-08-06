@@ -12,7 +12,7 @@
 (*                                                                          *)
 (*  Language : Turbo Pascal                                                 *)
 (*                                                                          *)
-(*  Objet    : Interpreteur PROLOG II (syntaxe simplifiée)                  *)
+(*  Objet    : Interpreteur PROLOG II (syntaxe simplifiÃ©e)                  *)
 (*                                                                          *)
 (*                                                                          *)
 (****************************************************************************)

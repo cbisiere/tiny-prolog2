@@ -1,7 +1,7 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   Fichier     : Input.ii                                                   }
+{   Fichier     : Input.pas                                                   }
 {   Auteur      : Christophe BISIERE                                         }
 {   Date        : 07/01/88                                                   }
 {                                                                            }
@@ -47,8 +47,8 @@ Var   Entree  : AnyStr;                      { Chaine lue                    }
 {----------------------------------------------------------------------------}
 { Procedure Erreur( S : AnyStr );                                            }
 {----------------------------------------------------------------------------}
-{ La procédure Erreur constate une erreur de syntaxe. Elle affiche le        }
-{ message S et positionne le Booleen Error à True.                           }
+{ La procÃ©dure Erreur constate une erreur de syntaxe. Elle affiche le        }
+{ message S et positionne le Booleen Error Ã  True.                           }
 {----------------------------------------------------------------------------}
 
 Procedure Erreur( S : AnyStr );
@@ -64,8 +64,8 @@ End;
 { Procedure OpenFic;                                                         }
 {----------------------------------------------------------------------------}
 { Ouverture du Fichier Programme : Cette procedure demande le nom du fichier }
-{ contenant le programme Prolog. Si un nom est entré, elle verifie que ce    }
-{ fichier existe bien, sinon le programme est arreté (primitive Halt;).      }
+{ contenant le programme Prolog. Si un nom est entrÃ©, elle verifie que ce    }
+{ fichier existe bien, sinon le programme est arretÃ© (primitive Halt;).      }
 {----------------------------------------------------------------------------}
 
 Procedure OpenFic;
@@ -91,12 +91,12 @@ End;
 { Function GetC (Var c : Char) : Char;                                       }
 {----------------------------------------------------------------------------}
 { Lecture d'un caractere : Cette fonction teste d'abord si le Fichier        }
-{ Utilisateur a bien été ouvert. Si non elle demande l'ouverture. Puis, si   }
-{ c'est possible, elle retourne le caractere pointé par PtrInp dans la ligne }
+{ Utilisateur a bien Ã©tÃ© ouvert. Si non elle demande l'ouverture. Puis, si   }
+{ c'est possible, elle retourne le caractere pointÃ© par PtrInp dans la ligne }
 { Entree. Cette operation peut etre impossible pour deux raisons :           }
 { (1) Il n'y a plus de caractere dans Entree. GetC provoque alors la lecture }
 {     d'une nouvelle ligne et retourne le caractere Blanc (Une fin de ligne  }
-{     est considerée comme un separateur);                                   }
+{     est considerÃ©e comme un separateur);                                   }
 { (2) C'est le fin du fichier Fic. GetC retourne alors le caractere          }
 {     FinEntree.                                                             }
 {----------------------------------------------------------------------------}
@@ -135,11 +135,11 @@ End;
 {----------------------------------------------------------------------------}
 { Function GetChar (Var c : Char) : Char;                                    }
 {----------------------------------------------------------------------------}
-{ Lecture bufferisée d'un caractere : Si le buffer d'entrée BufIn est vide,  }
-{ la fonction GetChar retourne le caractere renvoyé par GetC. Dans le cas    }
-{ contraire, c'est qu'un caractere au moins a été remis dans le buffer grace }
-{ à la procedure UnGetChar. GetChar retourne alors le dernier caractere qui  }
-{ a été remis dans ce Buffer.                                                }
+{ Lecture bufferisÃ©e d'un caractere : Si le buffer d'entrÃ©e BufIn est vide,  }
+{ la fonction GetChar retourne le caractere renvoyÃ© par GetC. Dans le cas    }
+{ contraire, c'est qu'un caractere au moins a Ã©tÃ© remis dans le buffer grace }
+{ Ã  la procedure UnGetChar. GetChar retourne alors le dernier caractere qui  }
+{ a Ã©tÃ© remis dans ce Buffer.                                                }
 {----------------------------------------------------------------------------}
 
 Function GetChar( Var c : Char ) : Char;
@@ -159,7 +159,7 @@ End;
 {----------------------------------------------------------------------------}
 { Remise d'un caractere dans le buffer : cette procedure tente d'ajouter au  }
 { buffer le caractere c, pour qu'il soit relu au prochain appel de GetChar.  }
-{ Si cette operation est impossible (buffer plein), le programme est stoppé. }
+{ Si cette operation est impossible (buffer plein), le programme est stoppÃ©. }
 {----------------------------------------------------------------------------}
 
 Procedure UnGetChar( c : Char );
@@ -207,8 +207,8 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure Verifier( Ch : AnyStr);                                          }
 {----------------------------------------------------------------------------}
-{ Verifie la présence de la chaine Ch en Entrée. Appel à la procédure        }
-{ Erreur si cette chaine n'est pas trouvée.                                  }
+{ Verifie la prÃ©sence de la chaine Ch en EntrÃ©e. Appel Ã  la procÃ©dure        }
+{ Erreur si cette chaine n'est pas trouvÃ©e.                                  }
 {----------------------------------------------------------------------------}
 
 Procedure Verifier( Ch : AnyStr );

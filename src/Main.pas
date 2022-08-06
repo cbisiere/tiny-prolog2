@@ -1,8 +1,7 @@
-
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   Fichier     : Main.ii                                                    }
+{   Fichier     : Main.pas                                                    }
 {   Auteur      : Christophe BISIERE                                         }
 {   Date        : 07/01/88                                                   }
 {                                                                            }
@@ -24,31 +23,31 @@
 
 { Inclusion des Modules : }
 
-{$I Input.ii   }  { Module : Lecture du Flot d'Entrée           }
-{$I Dico.ii    }  { Module : Gestion des Dictionnaires          }
-{$I Memoire.ii }  { Module : Gestion de la mémoire principale   }
-{$I Restore.ii }  { Module : Gestion de la pile de restauration }
-{$I Reduc.ii   }  { Module : Algorithme de réduction            }
-{$I Coder.ii   }  { Module : Codage des Objets                  }
-{$I Decoder.ii }  { Module : Decodage des Objets                }
-{$I Horloge.ii }  { Module : Horloge Prolog                     }
+{$I Input.pas   }  { Module : Lecture du Flot d'EntrÃ©e           }
+{$I Dico.pas    }  { Module : Gestion des Dictionnaires          }
+{$I Memoire.pas }  { Module : Gestion de la mÃ©moire principale   }
+{$I Restore.pas }  { Module : Gestion de la pile de restauration }
+{$I Reduc.pas   }  { Module : Algorithme de rÃ©duction            }
+{$I Coder.pas   }  { Module : Codage des Objets                  }
+{$I Decoder.pas }  { Module : Decodage des Objets                }
+{$I Horloge.pas }  { Module : Horloge Prolog                     }
 
-{$I Init.ii    }  { Module : Initialisations                    }
+{$I Init.pas    }  { Module : Initialisations                    }
 
 
 {----------------------------------------------------------------------------}
 { Procedure InitPointeurs;                                                   }
 {----------------------------------------------------------------------------}
 { Initialisation des pointeurs qui permettent de traiter plusieurs questions }
-{ pour un meme programme codé.                                               }
+{ pour un meme programme codÃ©.                                               }
 {----------------------------------------------------------------------------}
 
 Procedure InitPointeurs;
 Begin
   TopVar     := NbVar   + 1;  { Debut de la recherche dans DicoVar         }
-  FirstVar   := NbVar   + 1;  { Premiere variable définie dans la Question }
-  FirstConst := NbConst + 1;  { Premiére constante locale à la question    }
-  SommetRegles    := PtrLeft; { Pointeur vers le sommet des règles codées  }
+  FirstVar   := NbVar   + 1;  { Premiere variable dÃ©finie dans la Question }
+  FirstConst := NbConst + 1;  { PremiÃ¨re constante locale Ã  la question    }
+  SommetRegles    := PtrLeft; { Pointeur vers le sommet des rÃ¨gles codÃ©es  }
   SommetProgramme := PtrLeft; { Actuel sommet du programme complet         }
 End;
 
@@ -63,15 +62,15 @@ Procedure EnleverQuestion;
 Begin                          { On depile :                               }
   PtrLeft := SommetRegles;     {   - le code de la question                }
   NbVar   := FirstVar   - 1;   {   - les variables de cette question       }
-  NbConst := FirstConst - 1;   {   - les constantes définies dans celle-ci }
+  NbConst := FirstConst - 1;   {   - les constantes dÃ©finies dans celle-ci }
 End;
 
 
 {----------------------------------------------------------------------------}
 { Procedure Temporise;                                                       }
 {----------------------------------------------------------------------------}
-{ Prévient l'utilisateur de la fin du travail de l'interpreteur et attend un }
-{ caractère au clavier pour passer à la question suivante.                   }
+{ PrÃ©vient l'utilisateur de la fin du travail de l'interpreteur et attend un }
+{ caractÃ¨re au clavier pour passer Ã  la question suivante.                   }
 {----------------------------------------------------------------------------}
 
 Procedure Temporise;
@@ -88,17 +87,17 @@ End;
 { Programme Principal;                                                       }
 {----------------------------------------------------------------------------}
 { Code le programme utilisateur et lance l'interpreteur Prolog sur chaque    }
-{ question posée.                                                            }
+{ question posÃ©e.                                                            }
 {----------------------------------------------------------------------------}
 
 Begin
   Initialisation;                { Initialise le Programme                   }
   CompilerProgramme;             { Code le Programme Prolog                  }
   InitPointeurs;                 { Initialise l'environnement de la question }
-  RestituerProgramme;            { Le restitue à l'écran                     }
+  RestituerProgramme;            { Le restitue Ã  l'Ã©cran                     }
   If Not Error Then
     Repeat
-      EnleverQuestion;            { Enleve la question précedente            }
+      EnleverQuestion;            { Enleve la question prÃ©cedente            }
       CompilerQuestion;           { Code la nouvelle question                }
       SommetProgramme := PtrLeft; { Note ou est le sommet du Pgm complet     }
       Writeln;

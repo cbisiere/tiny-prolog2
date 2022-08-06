@@ -1,7 +1,7 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   Fichier     : Memoire.ii                                                 }
+{   Fichier     : Memoire.pas                                                 }
 {   Auteur      : Christophe BISIERE                                         }
 {   Date        : 07/01/88                                                   }
 {                                                                            }
@@ -24,20 +24,20 @@
 
 {----------------------------------------------------------------------------}
 {                                                                            }
-{      Le tableau Memoire represente le memoire Principale utilisée par      }
+{      Le tableau Memoire represente le memoire Principale utilisÃ©e par      }
 {      l'interpreteur Prolog. Il contiendra notamment :                      }
 {                                                                            }
 {   (1) Dans sa partie gauche :                                              }
 {                                                                            }
-{         - Les règles du programme;                                         }
-{         - Le système reduit (codé dans les termes des règles);             }
-{         - La question posée par l'utilisateur;                             }
-{         - Toutes les recopies des règles nécessaires à l'Horloge Prolog;   }
-{         - Les doublets Terme = Terme, éliminés après chaque réduction;     }
+{         - Les rÃ¨gles du programme;                                         }
+{         - Le systÃ¨me reduit (codÃ© dans les termes des rÃ¨gles);             }
+{         - La question posÃ©e par l'utilisateur;                             }
+{         - Toutes les recopies des rÃ¨gles nÃ©cessaires Ã  l'Horloge Prolog;   }
+{         - Les doublets Terme = Terme, Ã©liminÃ©s aprÃ¨s chaque rÃ©duction;     }
 {                                                                            }
 {   (1) Dans sa partie droite :                                              }
 {                                                                            }
-{         - Les équations et inéquations que la procédure de réduction devra }
+{         - Les Ã©quations et inÃ©quations que la procÃ©dure de rÃ©duction devra }
 {           traiter;                                                         }
 {                                                                            }
 {----------------------------------------------------------------------------}
@@ -79,7 +79,7 @@ End;
 { Procedure Pop ( Var V : Integer );                                         }
 {----------------------------------------------------------------------------}
 { Pop retourne la valeur qui est au sommet de la partie gauche du tableau    }
-{ Memoire, puis décrémente PtrLeft.                                          }
+{ Memoire, puis dÃ©crÃ©mente PtrLeft.                                          }
 {----------------------------------------------------------------------------}
 
 Procedure Pop( Var V : Integer );

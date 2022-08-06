@@ -1,7 +1,7 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   Fichier     : Restore.ii                                                 }
+{   Fichier     : Restore.pas                                                 }
 {   Auteur      : Christophe BISIERE                                         }
 {   Date        : 07/01/88                                                   }
 {                                                                            }
@@ -62,7 +62,7 @@ End;
 { Procedure SetMem( A,V : Integer );                                         }
 {----------------------------------------------------------------------------}
 { SetMem affecte la case A du tableau Memoire avec la valeur V, en sauvant   }
-{ préalablement l'ancienne valeur de la case A dans la pile de restauration. }
+{ prÃ©alablement l'ancienne valeur de la case A dans la pile de restauration. }
 {----------------------------------------------------------------------------}
 
 Procedure SetMem( A,V : Integer );
@@ -76,7 +76,7 @@ End;
 { Procedure Restore( P : Integer );                                          }
 {----------------------------------------------------------------------------}
 { Restore restaure le tableau Memoire en utilisant tous les doublets (A,V),  }
-{ du sommet de la pile de restauration à P+1.                                }
+{ du sommet de la pile de restauration Ã  P+1.                                }
 {----------------------------------------------------------------------------}
 
 Procedure Restore( P : Integer);

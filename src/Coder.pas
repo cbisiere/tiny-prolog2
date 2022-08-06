@@ -1,7 +1,7 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   Fichier     : Coder.ii                                                   }
+{   Fichier     : Coder.pas                                                   }
 {   Auteur      : Christophe BISIERE                                         }
 {   Date        : 07/01/88                                                   }
 {                                                                            }
@@ -35,7 +35,7 @@
 
 {----------------------------------------------------------------------------}
 {                                                                            }
-{  La Syntaxe adoptée pour ce mini PROLOG II est la suivante (en B.N.F.) :   }
+{  La Syntaxe adoptÃ©e pour ce mini PROLOG II est la suivante (en B.N.F.) :   }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -77,7 +77,7 @@ Const Lettre   : CharSet = ['a'..'z','A'..'Z'];   { Ensemble des lettres    }
 
 Var SommetRegles    : Integer;  { Pointeur sommet des regles compilees       }
     SommetProgramme : Integer;  { Pointeur sommet du programme (Regles + Q ) }
-    TopVar      : Integer;      { Debut de recherche (localité des Vars)     }
+    TopVar      : Integer;      { Debut de recherche (localitÃ© des Vars)     }
     FirstVar    : Integer;   { Adresse Dico Premiere variable de la question }
     FirstConst  : Integer;   { Adresse Dico Premiere constante alouee dans Q }
 
@@ -98,10 +98,10 @@ Function LireTerme : Integer; Forward;
 {               |-------|                                               }
 {                                                                       }
 {      Pour chaque rencontre d'une constante, une allocation est        }
-{   réalisée. Cela implique que la comparaison de deux constantes ne    }
-{   se reduit pas à la comparaison de deux pointeurs.                   }
-{   Cette solution a été adoptée pour simplifier la procédure de reco-  }
-{   pie des règles.                                                     }
+{   rÃ©alisÃ©e. Cela implique que la comparaison de deux constantes ne    }
+{   se reduit pas Ã  la comparaison de deux pointeurs.                   }
+{   Cette solution a Ã©tÃ© adoptÃ©e pour simplifier la procÃ©dure de reco-  }
+{   pie des rÃ¨gles.                                                     }
 {                                                                       }
 {-----------------------------------------------------------------------}
 
@@ -109,8 +109,8 @@ Function LireTerme : Integer; Forward;
 {-----------------------------------------------------------------------}
 { Function InstalConst( Ch : StrIdent ) : Integer;                      }
 {-----------------------------------------------------------------------}
-{ La fonction instalConst réalise une allocation mémoire pour la        }
-{ constante Ch. Elle retourne l'adresse ou a été instalé cette          }
+{ La fonction instalConst rÃ©alise une allocation mÃ©moire pour la        }
+{ constante Ch. Elle retourne l'adresse ou a Ã©tÃ© instalÃ© cette          }
 { constante.                                                            }
 {-----------------------------------------------------------------------}
 
@@ -135,8 +135,8 @@ End;
 {               |-------|                                               }
 {               |       |                                               }
 {         F+1   | PtrS  |---> Pointe vers le membre droit auquel est    }
-{               |       |     associé ce symbole fonctionnel dans le    }
-{               |-------|     système réduit ( 0 sinon ).               }
+{               |       |     associÃ© ce symbole fonctionnel dans le    }
+{               |-------|     systÃ¨me rÃ©duit ( 0 sinon ).               }
 {               |       |                                               }
 {         F+2   | PtrL  |---> Pointe vers le fils gauche.               }
 {               |       |                                               }
@@ -146,18 +146,18 @@ End;
 {               |       |                                               }
 {               |-------|                                               }
 {                                                                       }
-{   L'unique symbole fonctionnel du système sert à coder les prédicats  }
-{   Prolog de la manière suivante :                                     }
+{   L'unique symbole fonctionnel du systÃ¨me sert Ã  coder les prÃ©dicats  }
+{   Prolog de la maniÃ¨re suivante :                                     }
 {                                                                       }
 {           F                                                           }
 {          / \               (1) Dans le cas d'un N-uplet, le nom du    }
-{       nom   F                  prédicat est le premier argument.      }
+{       nom   F                  prÃ©dicat est le premier argument.      }
 {            / \                                                        }
 {         Arg1  F            (2) Il est bien entendu que Arg1 .. ArgN   }
-{              / \               peuvent aussi etre des prédicats.      }
+{              / \               peuvent aussi etre des prÃ©dicats.      }
 {           Arg2   ...                                                  }
-{                   \        (3) Le '.' (liste) est considéré comme     }
-{                    F           un prédicat quelconque et stocké comme }
+{                   \        (3) Le '.' (liste) est considÃ©rÃ© comme     }
+{                    F           un prÃ©dicat quelconque et stockÃ© comme }
 {                  /  \          tel.                                   }
 {               ArgN    0                                               }
 {                                                                       }
@@ -167,7 +167,7 @@ End;
 {-----------------------------------------------------------------------}
 { Function InstalSymb ( AdrG,AdrD : Integer ) : Integer;                }
 {-----------------------------------------------------------------------}
-{ La fonction instalSymb réalise une allocation mémoire pour un symbole }
+{ La fonction instalSymb rÃ©alise une allocation mÃ©moire pour un symbole }
 { fonctionnel binaire dont le fils gauche est AdrG et le fils droit est }
 { AdrD. Elle retourne un pointeur vers l'allocation.                    }
 {-----------------------------------------------------------------------}
@@ -200,40 +200,40 @@ End;
 {               |-------|                                               }
 {               |       |                                               }
 {         V+2   | Equ?  |---> Booleen qui indique si cette variable est }
-{               |       |     actuellement le membre gauche d'une équa- }
-{               |-------|     tion du système réduit.                   }
+{               |       |     actuellement le membre gauche d'une Ã©qua- }
+{               |-------|     tion du systÃ¨me rÃ©duit.                   }
 {               |       |                                               }
 {         V+3   | Sur?  |---> Booleen qui indique si cette variable     }
-{               |       |     surveille actuellement une ou des inéqua- }
+{               |       |     surveille actuellement une ou des inÃ©qua- }
 {               |-------|     tions.                                    }
 {               |       |                                               }
-{         V+4   | PtrD  |---> Pointe vers le membre droit du système    }
-{               |       |     réduit. N'est significatif que si Equ =   }
+{         V+4   | PtrD  |---> Pointe vers le membre droit du systÃ¨me    }
+{               |       |     rÃ©duit. N'est significatif que si Equ =   }
 {               |-------|     True.                                     }
 {               |       |                                               }
-{         V+5   | PtrI  |---> Pointe vers la première inéquation que    }
+{         V+5   | PtrI  |---> Pointe vers la premiÃ¨re inÃ©quation que    }
 {               |       |     cette variable surveille. N'est signifi-  }
 {               |-------|     catif que si Sur = True.                  }
 {                                                                       }
 {   Remarques :                                                         }
 {                                                                       }
-{     (1) Dans l'algorithme original de réduction d'un système d'équa-  }
-{         tions et d'inéquations, la présence simultanée des deux in-   }
+{     (1) Dans l'algorithme original de rÃ©duction d'un systÃ¨me d'Ã©qua-  }
+{         tions et d'inÃ©quations, la prÃ©sence simultanÃ©e des deux in-   }
 {         dicateurs Equ et Sur est indispensable parce que l'Etape2 de  }
-{         la résolution d'inéquations se fait après l'Etape1. Il nous   }
-{         faut savoir à l'Etape2 si une variable est à la fois membre   }
-{         gauche du système réduit et gardienne d'une inéquation.       }
-{         Dans l'interpreteur Prolog, l'Etape2 de la résolution d'iné-  }
-{         quations a été intégrée dans la résolution d'équations. La    }
-{         présence simultanée des deux indicateurs a été conservée tout }
-{         de meme pour des raisons de clarté.                           }
+{         la rÃ©solution d'inÃ©quations se fait aprÃ¨s l'Etape1. Il nous   }
+{         faut savoir Ã  l'Etape2 si une variable est Ã  la fois membre   }
+{         gauche du systÃ¨me rÃ©duit et gardienne d'une inÃ©quation.       }
+{         Dans l'interpreteur Prolog, l'Etape2 de la rÃ©solution d'inÃ©-  }
+{         quations a Ã©tÃ© intÃ©grÃ©e dans la rÃ©solution d'Ã©quations. La    }
+{         prÃ©sence simultanÃ©e des deux indicateurs a Ã©tÃ© conservÃ©e tout }
+{         de meme pour des raisons de clartÃ©.                           }
 {                                                                       }
-{     (2) Une meme variable n'est allouée qu'une seule fois, sauf si    }
-{         elle se trouve dans deux règles différentes (localité des     }
-{         variables par rapport aux règles).                            }
+{     (2) Une meme variable n'est allouÃ©e qu'une seule fois, sauf si    }
+{         elle se trouve dans deux rÃ¨gles diffÃ©rentes (localitÃ© des     }
+{         variables par rapport aux rÃ¨gles).                            }
 {                                                                       }
 {                                                                       }
-{     (3) Une inéquation dans le système réduit sera codée de la façon  }
+{     (3) Une inÃ©quation dans le systÃ¨me rÃ©duit sera codÃ©e de la faÃ§on  }
 {         suivante :                                                    }
 {                                                                       }
 {               |-------|                                               }
@@ -246,8 +246,8 @@ End;
 {               |       |                                               }
 {               |-------|                                               }
 {               |       |                                               }
-{         I+2   | PtrS  |---> Pointe vers l'inéquation suivante ( 0 si  }
-{               |       |     cette inéquation est la dernière de la    }
+{         I+2   | PtrS  |---> Pointe vers l'inÃ©quation suivante ( 0 si  }
+{               |       |     cette inÃ©quation est la derniÃ re de la    }
 {               |-------|     chaine.                                   }
 {                                                                       }
 {                                                                       }
@@ -257,8 +257,8 @@ End;
 {-----------------------------------------------------------------------}
 { Function InstalVar (Ch :StrIdent) : Integer;                          }
 {-----------------------------------------------------------------------}
-{ La fonction instalVar réalise une allocation mémoire pour la variable }
-{ Ch, si celle-ci n'a pas deja été allouée pour la règle courante. Dans }
+{ La fonction instalVar rÃ©alise une allocation mÃ©moire pour la variable }
+{ Ch, si celle-ci n'a pas deja Ã©tÃ© allouÃ©e pour la rÃ¨gle courante. Dans }
 { tous les cas elle retourne un pointeur vers son allocation.           }
 {-----------------------------------------------------------------------}
 
@@ -283,9 +283,9 @@ End;
 {-----------------------------------------------------------------------}
 { Function GetArgument( Fin : Char ) : Integer;                         }
 {-----------------------------------------------------------------------}
-{ La fonction GetArgument lit et code les arguments d'un prédicat (Fin= }
+{ La fonction GetArgument lit et code les arguments d'un prÃ©dicat (Fin= }
 { ')') ou d'un N-Uplet (Fin='>'). Elle retourne un pointeur vers la     }
-{ structure qui représente ces arguments.                               }
+{ structure qui reprÃ©sente ces arguments.                               }
 {-----------------------------------------------------------------------}
 
 Function GetArgument( Fin : Char ) : Integer;
@@ -311,8 +311,8 @@ End;
 {-----------------------------------------------------------------------}
 { Function LireTerme : Integer;                                         }
 {-----------------------------------------------------------------------}
-{ LireTerme lit un terme en entrée, le code en mémoire et retourne      }
-{ l'adresse ou il a été implanté.                                       }
+{ LireTerme lit un terme en entrÃ©e, le code en mÃ©moire et retourne      }
+{ l'adresse ou il a Ã©tÃ© implantÃ©.                                       }
 {-----------------------------------------------------------------------}
 
 Function LireTerme;
@@ -354,7 +354,7 @@ Begin
     Else
       Begin
         Get(Ch,Lettre+Chiffre+['-']);     { un identificateur }
-        If Calu = '(' Then                { => un prédicat    }
+        If Calu = '(' Then                { => un prÃ©dicat    }
           Begin
             Calu := GetChar(Calu);
             Adr  := InstalSymb(InstalConst(Ch),GetArgument(')'));
@@ -377,8 +377,8 @@ End;
 {                                                                       }
 {               |-------|                                               }
 {               |       |                                               }
-{         E     |  Cod  |---> Code '=' pour une équation,               }
-{               |       |     Code '<' pour une inéquation.             }
+{         E     |  Cod  |---> Code '=' pour une Ã©quation,               }
+{               |       |     Code '<' pour une inÃ©quation.             }
 {               |-------|                                               }
 {               |       |                                               }
 {         E-1   | PtrL  |---> Pointe vers le membre gauche.             }
@@ -396,8 +396,8 @@ End;
 {-----------------------------------------------------------------------}
 { Procedure LireEquation;                                               }
 {-----------------------------------------------------------------------}
-{ LireEquation lit une équation ou une inéquation et la stocke dans la  }
-{ pile droite de la mémoire principale.                                 }
+{ LireEquation lit une Ã©quation ou une inÃ©quation et la stocke dans la  }
+{ pile droite de la mÃ©moire principale.                                 }
 {-----------------------------------------------------------------------}
 
 Procedure LireEquation;
@@ -426,8 +426,8 @@ End;
 {                                                                       }
 {  UN SYSTEME :                                                         }
 {                                                                       }
-{    Le système est simplement codé sous forme d'une suite d'équations  }
-{  ou d'inéquations dans la pile droite.                                }
+{    Le systÃ¨me est simplement codÃ© sous forme d'une suite d'Ã©quations  }
+{  ou d'inÃ©quations dans la pile droite.                                }
 {                                                                       }
 {                                                                       }
 {-----------------------------------------------------------------------}
@@ -436,8 +436,8 @@ End;
 {-----------------------------------------------------------------------}
 { Procedure LireSysteme;                                                }
 {-----------------------------------------------------------------------}
-{ LireSysteme lit un système d'équations et d'inéquations et la stocke  }
-{ dans la pile droite de la mémoire principale.                         }
+{ LireSysteme lit un systÃ¨me d'Ã©quations et d'inÃ©quations et la stocke  }
+{ dans la pile droite de la mÃ©moire principale.                         }
 {-----------------------------------------------------------------------}
 
 Procedure LireSysteme;
@@ -459,7 +459,7 @@ End;
 {                                                                       }
 {               |-------|                                               }
 {               |       |                                               }
-{         B     | PrtT  |---> Pointe vers le terme T associé au bloc.   }
+{         B     | PrtT  |---> Pointe vers le terme T associÃ© au bloc.   }
 {               |       |                                               }
 {               |-------|                                               }
 {               |       |                                               }
@@ -467,8 +467,8 @@ End;
 {               |       |     le bloc B est le dernier de la chaine.    }
 {               |-------|                                               }
 {               |       |                                               }
-{         B+2   | PtrA  |---> Pointe vers la constante d'acces utilisée }
-{               |       |     par la pré-unification. Vaut 0 si ce      }
+{         B+2   | PtrA  |---> Pointe vers la constante d'acces utilisÃ©e }
+{               |       |     par la prÃ©-unification. Vaut 0 si ce      }
 {               |-------|     terme n'a pas une constante pour acces.   }
 {                                                                       }
 {-----------------------------------------------------------------------}
@@ -477,8 +477,8 @@ End;
 {-----------------------------------------------------------------------}
 { Function Acces (T : Integer) : Integer;                               }
 {-----------------------------------------------------------------------}
-{ Acces retourne l'accès du terme T (pour pré-unification). Si le terme }
-{ T n'a pas une constante pour accès, la fonction retourne 0.           }
+{ Acces retourne l'accÃ¨s du terme T (pour prÃ©-unification). Si le terme }
+{ T n'a pas une constante pour accÃ¨s, la fonction retourne 0.           }
 {-----------------------------------------------------------------------}
 
 Function Acces( T : Integer ) : Integer;
@@ -498,7 +498,7 @@ End;
 {-----------------------------------------------------------------------}
 { Procedure CompilerTerme;                                              }
 {-----------------------------------------------------------------------}
-{ CompilerTerme code un bloc-terme en mémoire.                          }
+{ CompilerTerme code un bloc-terme en mÃ©moire.                          }
 {-----------------------------------------------------------------------}
 
 Procedure CompilerTerme;
@@ -516,8 +516,8 @@ End;
 {-----------------------------------------------------------------------}
 { Procedure CompilerSuiteDeTermes( StopCar : CharSet ) : Integer;       }
 {-----------------------------------------------------------------------}
-{ CompilerSuiteDeTermes code une suite de termes. Dès qu'un caractère   }
-{ contenu dans StopCar est rencontré, le processus s'arrete.            }
+{ CompilerSuiteDeTermes code une suite de termes. DÃ¨s qu'un caractÃ¨re   }
+{ contenu dans StopCar est rencontrÃ©, le processus s'arrete.            }
 {-----------------------------------------------------------------------}
 
 Function CompilerSuiteDeTermes( StopCar : CharSet ) : Integer;
@@ -548,7 +548,7 @@ End;
 {               |       |     la regle R est la derniere du programme.  }
 {               |-------|                                               }
 {               |       |                                               }
-{         R+1   | Size  |---> Taille occupée par le code de l'ensemble  }
+{         R+1   | Size  |---> Taille occupÃ©e par le code de l'ensemble  }
 {               |       |     des termes qui composent cette regle.     }
 {               |-------|                                               }
 {               |       |                                               }
@@ -568,7 +568,7 @@ End;
 {-----------------------------------------------------------------------}
 { Procedure CompilerRegle;                                              }
 {-----------------------------------------------------------------------}
-{ CompilerRegle code une règle en mémoire.                              }
+{ CompilerRegle code une rÃ¨gle en mÃ©moire.                              }
 {-----------------------------------------------------------------------}
 
 Procedure CompilerRegle;
@@ -604,8 +604,8 @@ End;
 {-----------------------------------------------------------------------}
 { Procedure CompilerSuiteDeRegles( StopCar : CharSet ) : Integer;       }
 {-----------------------------------------------------------------------}
-{ CompilerSuiteDeRegles code une suite de règles. Dès qu'un caractère   }
-{ contenu dans StopCar est rencontré, le processus s'arrete.            }
+{ CompilerSuiteDeRegles code une suite de rÃ¨gles. DÃ¨s qu'un caractÃ¨re   }
+{ contenu dans StopCar est rencontrÃ©, le processus s'arrete.            }
 {-----------------------------------------------------------------------}
 
 Function CompilerSuiteDeRegles( StopCar : CharSet ) : Integer;
@@ -639,24 +639,24 @@ End;
 
 {-----------------------------------------------------------------------}
 {                                                                       }
-{  LE SOMMET DE LA PILE PRINCIPALE µ :                                  }
+{  LE SOMMET DE LA PILE PRINCIPALE Âµ :                                  }
 {                                                                       }
 {               |-------|                                               }
 {               |       |                                               }
-{         µ     | PrtS  |---> Pointe vers la suite des termes à         }
+{         Âµ     | PrtS  |---> Pointe vers la suite des termes Ã          }
 {               |       |     effacer.                                  }
 {               |-------|                                               }
 {               |       |                                               }
-{         µ+1   | PtrR  |---> Pointe vers la regle a appliquer.         }
+{         Âµ+1   | PtrR  |---> Pointe vers la regle a appliquer.         }
 {               |       |                                               }
 {               |-------|                                               }
 {               |       |                                               }
-{         µ+2   | PtrP  |---> Pointe, avant le lancement de la          }
+{         Âµ+2   | PtrP  |---> Pointe, avant le lancement de la          }
 {               |       |     procedure de reduction, sur le sommet de  }
 {               |-------|     la pile de restauration.                  }
 {               |       |                                               }
-{         µ+3   | PtrB  |---> Pointe dans la pile principale vers le    }
-{               |       |     sommet de l'étape precedente.             }
+{         Âµ+3   | PtrB  |---> Pointe dans la pile principale vers le    }
+{               |       |     sommet de l'Ã©tape precedente.             }
 {               |-------|                                               }
 {                                                                       }
 {-----------------------------------------------------------------------}
@@ -680,7 +680,7 @@ End;
 {-----------------------------------------------------------------------}
 { Procedure CompilerQuestion;                                           }
 {-----------------------------------------------------------------------}
-{ CompilerQuestion code une question après le code des règles et met    }
+{ CompilerQuestion code une question aprÃ¨s le code des rÃ¨gles et met    }
 { en place l'entete.                                                    }
 {-----------------------------------------------------------------------}
 

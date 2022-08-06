@@ -1,7 +1,7 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   Fichier     : Reduc.ii                                                   }
+{   Fichier     : Reduc.pas                                                   }
 {   Auteur      : Christophe BISIERE                                         }
 {   Date        : 07/01/88                                                   }
 {                                                                            }
@@ -11,7 +11,7 @@
 {                                                                            }
 {  S Y S T E M E   D ' E Q U A T I O N S   E T   D ' I N E Q U A T I O N S   }
 {                                                                            }
-{      D'après "Equations et Inequations sur les arbres finis et infinis"    }
+{      D'aprÃ¨s "Equations et Inequations sur les arbres finis et infinis"    }
 {                                                                            }
 {                      Alain COLMERAUER - Mai 1984                           }
 {                                                                            }
@@ -38,7 +38,7 @@ Type Tterme = (Variable,Constante,SymboleF,Dummy); { Types de termes }
 {-----------------------------------------------------------------------}
 { Function Typ (T : Integer ) : Tterme;                                 }
 {-----------------------------------------------------------------------}
-{ La fonction Typ retourne le type du terme pointé par T.               }
+{ La fonction Typ retourne le type du terme pointÃ© par T.               }
 {-----------------------------------------------------------------------}
 
 Function Typ( T : Integer ) : Tterme;
@@ -56,7 +56,7 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure Swap (Var T1,T2 : Integer);                                      }
 {----------------------------------------------------------------------------}
-{ Swap échange le contenu de deux variables Turbo-Pascal.                    }
+{ Swap Ã©change le contenu de deux variables Turbo-Pascal.                    }
 {----------------------------------------------------------------------------}
 
 Procedure Swap( Var T1,T2 : Integer );
@@ -71,8 +71,8 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure AjouteTravail (Car : Char; T1,T2 : Integer );                    }
 {----------------------------------------------------------------------------}
-{ AjouteTravail crée une nouvelle équation (Car='=') ou inéquation (Car='<') }
-{ de forme T1 = T2 dans la pile droite de la mémoire principale.             }
+{ AjouteTravail crÃ©e une nouvelle Ã©quation (Car='=') ou inÃ©quation (Car='<') }
+{ de forme T1 = T2 dans la pile droite de la mÃ©moire principale.             }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
@@ -90,11 +90,11 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure TrierSysteme( ButeeDroite : Integer );                           }
 {----------------------------------------------------------------------------}
-{ TrierSysteme modifie les équations et inéquations du sommet de la pile     }
-{ droite ( sans dépasser ButeeDroite ) de telle sorte que les équations      }
-{ se trouvent toutes avant les inéquations. Cette procédure est indispen-    }
+{ TrierSysteme modifie les Ã©quations et inÃ©quations du sommet de la pile     }
+{ droite ( sans dÃ©passer ButeeDroite ) de telle sorte que les Ã©quations      }
+{ se trouvent toutes avant les inÃ©quations. Cette procÃ©dure est indispen-    }
 { sable parce-que la Procedure ReductionEquation peut, au cours de son       }
-{ travail, ajouter des inéquations (remise en cause d'inéquations) à droite. }
+{ travail, ajouter des inÃ©quations (remise en cause d'inÃ©quations) Ã  droite. }
 {----------------------------------------------------------------------------}
 
 Procedure TrierSysteme( ButeeDroite : Integer );
@@ -196,7 +196,7 @@ Var Possible    : Boolean;
           End;
       End;
 
-      { Creer une equation, de forme T1 = T2, dans le système reduit }
+      { Creer une equation, de forme T1 = T2, dans le systÃ¨me reduit }
 
       Procedure CreerLiaison( T1,T2 : Integer );
       Var P : Integer;
@@ -206,7 +206,7 @@ Var Possible    : Boolean;
             SetMem(T1+2,1);   { Une Equation }
             SetMem(T1+4,T2);  { Liaison      }
 
-            { L'Etape2 de la Resolution de systeme est traitée ici }
+            { L'Etape2 de la Resolution de systeme est traitÃ©e ici }
 
             If Memoire[T1+3] = 1 Then { x surveillait deja une liaison ! }
               Begin

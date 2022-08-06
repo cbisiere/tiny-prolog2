@@ -1,7 +1,7 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   Fichier     : Decoder.ii                                                 }
+{   Fichier     : Decoder.pas                                                 }
 {   Auteur      : Christophe BISIERE                                         }
 {   Date        : 07/01/88                                                   }
 {                                                                            }
@@ -37,16 +37,16 @@
 {$V-} { Directive de Compilation : Ne pas verifier la taille des Chaines. }
 
 
-Type StakIneq = Array[1..1000] Of Integer; { Pile sauvegarde inéquations     }
+Type StakIneq = Array[1..1000] Of Integer; { Pile sauvegarde inÃ©quations     }
 
-Var Ineq    : StakIneq;                    { Pile pour affichage des inéq.   }
-    PtrIneq : Integer;                     { Pointeur pile des inéq.         }
+Var Ineq    : StakIneq;                    { Pile pour affichage des inÃ©q.   }
+    PtrIneq : Integer;                     { Pointeur pile des inÃ©q.         }
 
 
 {----------------------------------------------------------------}
 { Function  AccesTerme( T : Integer ) : Integer;                 }
 {----------------------------------------------------------------}
-{ Retourne un pointeur vers l'accès du bloc-terme T.             }
+{ Retourne un pointeur vers l'accÃ¨s du bloc-terme T.             }
 {----------------------------------------------------------------}
 
 Function AccesTerme( T : Integer ) : Integer;
@@ -58,7 +58,7 @@ End;
 {----------------------------------------------------------------}
 { Function  RegleSuivante( R : Integer ) : Integer;              }
 {----------------------------------------------------------------}
-{ Retourne un pointeur vers la règle qui suit la règle R.        }
+{ Retourne un pointeur vers la rÃ¨gle qui suit la rÃ¨gle R.        }
 {----------------------------------------------------------------}
 
 Function RegleSuivante( R : Integer ) : Integer;
@@ -82,8 +82,8 @@ End;
 {----------------------------------------------------------------}
 { Function  FirstV (R : Integer) : Integer : Integer;            }
 {----------------------------------------------------------------}
-{ Retourne un pointeur dans DicoVar vers la première variable    }
-{ locale à la règle R.                                           }
+{ Retourne un pointeur dans DicoVar vers la premiÃ¨re variable    }
+{ locale Ã  la rÃ¨gle R.                                           }
 {----------------------------------------------------------------}
 
 Function FirstV( R : Integer ) : Integer;
@@ -95,8 +95,8 @@ End;
 {----------------------------------------------------------------}
 { Function  LastV  (R : Integer) : Integer : Integer;            }
 {----------------------------------------------------------------}
-{ Retourne un pointeur dans DicoVar vers la dernière variable    }
-{ locale à la règle R.                                           }
+{ Retourne un pointeur dans DicoVar vers la derniÃ¨re variable    }
+{ locale Ã  la rÃ¨gle R.                                           }
 {----------------------------------------------------------------}
 
 Function LastV( R : Integer ) : Integer;
@@ -107,8 +107,8 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure InitIneq;                                                        }
 {----------------------------------------------------------------------------}
-{ IntIneq initialise la pile des inéquations. Cette pile sert à stocker      }
-{ toutes les inéquations rencontrées pour un affichage ultérieur.            }
+{ IntIneq initialise la pile des inÃ©quations. Cette pile sert Ã  stocker      }
+{ toutes les inÃ©quations rencontrÃ©es pour un affichage ultÃ©rieur.            }
 {----------------------------------------------------------------------------}
 
 Procedure InitIneq;
@@ -120,8 +120,8 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure AddIneq (E : Integer );                                          }
 {----------------------------------------------------------------------------}
-{ AddIneq ajoute à la pile des inéquations le pointeur E qui pointe vers     }
-{ une inéquation (triplet <Tg,Td,Next>).                                     }
+{ AddIneq ajoute Ã  la pile des inÃ©quations le pointeur E qui pointe vers     }
+{ une inÃ©quation (triplet <Tg,Td,Next>).                                     }
 {----------------------------------------------------------------------------}
 
 Procedure AddIneq( E : Integer );
@@ -137,7 +137,7 @@ Procedure EcrireTermeBis( T : Integer ; ArgList : Boolean); Forward;
 {----------------------------------------------------------------------------}
 { Procedure EcrireArgument (T : Integer);                                    }
 {----------------------------------------------------------------------------}
-{ EcrireArgument écrit une suite d'arguments séparés par des virgules.       }
+{ EcrireArgument Ã©crit une suite d'arguments sÃ©parÃ©s par des virgules.       }
 { ( Voir Codage d'une suite d'arguments).                                    }
 {----------------------------------------------------------------------------}
 
@@ -155,9 +155,9 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure EcrireTermeBis( T : Integer ; ArgList : Boolean);                }
 {----------------------------------------------------------------------------}
-{ EcrireTermeBis écrit le terme T tout en prennant en compte le fait que     }
-{ ce terme est ou n'est pas ( Booleen ArgList ) un argument de prédicat      }
-{ (nécessaire pour le parenthesage des listes imbriquées).                   }
+{ EcrireTermeBis Ã©crit le terme T tout en prennant en compte le fait que     }
+{ ce terme est ou n'est pas ( Booleen ArgList ) un argument de prÃ©dicat      }
+{ (nÃ©cessaire pour le parenthesage des listes imbriquÃ©es).                   }
 {----------------------------------------------------------------------------}
 
 Procedure EcrireTermeBis;
@@ -217,7 +217,7 @@ Procedure EcrireTerme( T : Integer ); Forward;
 {----------------------------------------------------------------------------}
 { Procedure EcrireInequation( E : Integer; Var Before : Boolean );           }
 {----------------------------------------------------------------------------}
-{ Restitution des Inequations de la chaine pointée par E.                    }
+{ Restitution des Inequations de la chaine pointÃ©e par E.                    }
 {----------------------------------------------------------------------------}
 
 Procedure EcrireInequation( E : Integer; Var Before : Boolean );
@@ -237,7 +237,7 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure EcrireInequations( Var Before : Boolean );                       }
 {----------------------------------------------------------------------------}
-{ Restitution de toutes les inéquations de la pile Ineq.                     }
+{ Restitution de toutes les inÃ©quations de la pile Ineq.                     }
 {----------------------------------------------------------------------------}
 
 Procedure EcrireInequations( Var Before : Boolean );
@@ -251,7 +251,7 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure EcrireTerme( T : Integer );                                      }
 {----------------------------------------------------------------------------}
-{ Ecriture d'un terme qui n'est pas un argument de prédicat.                 }
+{ Ecriture d'un terme qui n'est pas un argument de prÃ©dicat.                 }
 {----------------------------------------------------------------------------}
 
 Procedure EcrireTerme;
@@ -263,8 +263,8 @@ End;
 {----------------------------------------------------------------------------}
 {  Procedure EcrireSysteme( First,Last : Integer );                          }
 {----------------------------------------------------------------------------}
-{ EcrireSysteme restitue une partie intéressante du système réduit. La       }
-{ partie intéressante est définie comme la partie qui concerne les variables }
+{ EcrireSysteme restitue une partie intÃ©ressante du systÃ¨me rÃ©duit. La       }
+{ partie intÃ©ressante est dÃ©finie comme la partie qui concerne les variables }
 { du dictionnaire comprises entre First et Last.                             }
 {----------------------------------------------------------------------------}
 
@@ -296,7 +296,7 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure RestituerTerme( T : Integer );                                   }
 {----------------------------------------------------------------------------}
-{ Restitution du terme d'un bloc-terme pointé par T.                         }
+{ Restitution du terme d'un bloc-terme pointÃ© par T.                         }
 {----------------------------------------------------------------------------}
 
 Procedure RestituerTerme( T : Integer );
@@ -330,7 +330,7 @@ End;
 {----------------------------------------------------------------------------}
 { RestituerRegle( R : Integer );                                             }
 {----------------------------------------------------------------------------}
-{ Restitution de la règle pointée par R.                                     }
+{ Restitution de la rÃ¨gle pointÃ©e par R.                                     }
 {----------------------------------------------------------------------------}
 
 Procedure RestituerRegle( R : Integer );
@@ -348,7 +348,7 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure RestituerSuiteDeRegles( R : Integer );                           }
 {----------------------------------------------------------------------------}
-{ Restitution de la suite de règles pointée par R.                           }
+{ Restitution de la suite de rÃ¨gles pointÃ©e par R.                           }
 {----------------------------------------------------------------------------}
 
 Procedure RestituerSuiteDeRegles( R : Integer );
@@ -380,8 +380,8 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure RestituerQuestion;                                               }
 {----------------------------------------------------------------------------}
-{ Restitution de la Question ( celle-ci se trouve juste après le code des    }
-{ règles du programme.                                                       }
+{ Restitution de la Question ( celle-ci se trouve juste aprÃ¨s le code des    }
+{ rÃ¨gles du programme.                                                       }
 {----------------------------------------------------------------------------}
 
 Procedure RestituerQuestion;

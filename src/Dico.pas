@@ -1,7 +1,7 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   Fichier     : Dico.ii                                                    }
+{   Fichier     : Dico.pas                                                    }
 {   Auteur      : Christophe BISIERE                                         }
 {   Date        : 07/01/88                                                   }
 {                                                                            }
@@ -45,9 +45,9 @@ Var DicoVar   : TDicoVar;                    { Dictionnaire des variables    }
 { Function NumConst (C : StrIdent) : Integer;                                }
 {----------------------------------------------------------------------------}
 { La fonction NumConst recoit un identificateur de constante (identificateur }
-{ ou entier) C. Elle recherche si C est deja stocké dans le dictionnaire des }
+{ ou entier) C. Elle recherche si C est deja stockÃ© dans le dictionnaire des }
 { constantes DicoConst. Si oui, elle retourne l'indice dans le dictionnaire  }
-{ ou elle a trouvé cet identificateur. Sinon elle ajoute C au sommet du      }
+{ ou elle a trouvÃ© cet identificateur. Sinon elle ajoute C au sommet du      }
 { dictionnaire et retourne l'indice correspondant.                           }
 {----------------------------------------------------------------------------}
 
@@ -80,8 +80,8 @@ End;
 { Function Position (Top : Integer; Elt : StrIdent) : Integer;               }
 {----------------------------------------------------------------------------}
 { La fonction Position retourne l'indice dans le dictionnaire des variables  }
-{ ou est stocké l'identificateur Elt. La recherche ne se fait que dans une   }
-{ partie du dictionnaire : de Top à NbVar. Si la recherche echoue, la        }
+{ ou est stockÃ© l'identificateur Elt. La recherche ne se fait que dans une   }
+{ partie du dictionnaire : de Top Ã  NbVar. Si la recherche echoue, la        }
 { fonction retourne 0.                                                       }
 {----------------------------------------------------------------------------}
 
@@ -113,13 +113,13 @@ End;
 {----------------------------------------------------------------------------}
 { InstalIn tente de mettre en place un identificateur de variable dans le    }
 { dictionnaire des variables DicoVar (sachant que la recherche ne se fera    }
-{ que de Top à NbVar). Deux cas peuvent se presenter :                       }
+{ que de Top Ã  NbVar). Deux cas peuvent se presenter :                       }
 {                                                                            }
 {     (1) Cet element est deja dans le Dico :                                }
 {             * Value retourne le pointeur stocke                            }
 {             * La fonction retourne False                                   }
 {     (2) Cet element n'est pas dans le Dico :                               }
-{             * Le nouvel element (Elt,P) est instalé                        }
+{             * Le nouvel element (Elt,P) est instalÃ©                        }
 {             * Value retourne la position dans le Dico                      }
 {             * La fonction retourne True                                    }
 {                                                                            }

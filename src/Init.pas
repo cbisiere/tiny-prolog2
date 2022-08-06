@@ -1,7 +1,7 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   Fichier     : init.ii                                                    }
+{   Fichier     : init.pas                                                    }
 {   Auteur      : Christophe BISIERE                                         }
 {   Date        : 07/01/88                                                   }
 {                                                                            }
@@ -21,7 +21,7 @@
 
 Procedure Initialisation;
 Begin
-  FicOpen  := False;                   { Le Fichier est Fermé        }
+  FicOpen  := False;                   { Le Fichier est FermÃ©        }
   Error    := False;                   { Il n'y a pas d'erreur       }
   PtrIn    := 0;                       { Init Pointeur Buffer        }
   PtrLeft  := 0;                       { Init Pointeur pile gauche   }
