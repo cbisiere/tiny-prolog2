@@ -11,7 +11,7 @@ The source code contains detailed comments (though in French) about the implemen
 ### Lists
 A dot `.` is used to separate items in a list. For instance, the rules defining the insertion of an element before any item in a list could be written as:
 
-```Prolog
+```
 insertion(e,x,e.x) ->;
 insertion(e,f.x,f.y) -> insertion(e,x,y);
 ```
@@ -32,7 +32,7 @@ insertion(0,1.2.nil,x)  ?
 
 The interpreter also handles constraints on trees, expressed as equalities (`=`) or inequalities (`<>`). So, for instance, one can write a simple `diff` rule as:
 
-```Prolog
+```
 diff(x,y) -> { x <> y };
 ```
 
@@ -74,7 +74,7 @@ A Prolog program to execute is a text file containing both the program rules and
 
 For instance, the program `examples/permu.pro` contains four rules and two queries:  
 
-```Prolog
+```
 permutation(nil,nil) ->;
 permutation(e.x,z) -> permutation(x,y)
                       insertion(e,y,z);
@@ -139,7 +139,7 @@ cbisiere:~/git/tiny-prolog2$
 
 ## BNF Syntax
 
-```BNF
+```
 variable ::= <letter> [<digit>]* [']*
 
 identifier ::= <letter> <letter> [<letter>]* [<digit>]*
