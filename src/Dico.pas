@@ -19,15 +19,15 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-{$R+} { Directive de Compilation : Verifier les Indices de Tableaux.      }
-{$V-} { Directive de Compilation : Ne pas verifier la taille des Chaines. }
+{$R+} { Directive de compilation : Vérifier les indices des tableaux.     }
+{$V-} { Directive de compilation : Ne pas vérifier la taille des chaînes. }
 
 
 Const MaxConst     = 100;                     { Nombre max. de Cstes         }
       MaxVar       = 100;                     { Nombre max. de Vars          }
       MaxSizeIdent = 40;                      { Taille max. d'un ident       }
 
-Type StrIdent   = String[MaxSizeIdent];           { Type chaine Ident.       }
+Type StrIdent   = String[MaxSizeIdent];           { Type chaîne Ident.       }
      TDicoConst = Array[1..MaxConst] Of StrIdent; { Type Dico. des Cstes     }
      TDicoVar   = Array[1..MaxVar]   Of           { Type Dico. des Vars      }
                     Record
@@ -37,17 +37,17 @@ Type StrIdent   = String[MaxSizeIdent];           { Type chaine Ident.       }
 
 Var DicoVar   : TDicoVar;                    { Dictionnaire des variables    }
     DicoConst : TDicoConst;                  { Dictionnaire des constantes   }
-    NbVar     : Integer;                     { Nombre de variables stockees  }
-    NbConst   : Integer;                     { Nombre de constantes stockees }
+    NbVar     : Integer;                     { Nombre de variables stockées  }
+    NbConst   : Integer;                     { Nombre de constantes stockées }
 
 
 {----------------------------------------------------------------------------}
 { Function NumConst (C : StrIdent) : Integer;                                }
 {----------------------------------------------------------------------------}
-{ La fonction NumConst recoit un identificateur de constante (identificateur }
-{ ou entier) C. Elle recherche si C est deja stocké dans le dictionnaire des }
+{ La fonction NumConst reçoit un identificateur de constante (identificateur }
+{ ou entier) C. Elle recherche si C est déjà stocké dans le dictionnaire des }
 { constantes DicoConst. Si oui, elle retourne l'indice dans le dictionnaire  }
-{ ou elle a trouvé cet identificateur. Sinon elle ajoute C au sommet du      }
+{ où elle a trouvé cet identificateur. Sinon elle ajoute C au sommet du      }
 { dictionnaire et retourne l'indice correspondant.                           }
 {----------------------------------------------------------------------------}
 
@@ -80,14 +80,14 @@ End;
 { Function Position (Top : Integer; Elt : StrIdent) : Integer;               }
 {----------------------------------------------------------------------------}
 { La fonction Position retourne l'indice dans le dictionnaire des variables  }
-{ ou est stocké l'identificateur Elt. La recherche ne se fait que dans une   }
-{ partie du dictionnaire : de Top à NbVar. Si la recherche echoue, la        }
+{ où est stocké l'identificateur Elt. La recherche ne se fait que dans une   }
+{ partie du dictionnaire : de Top à NbVar. Si la recherche échoue, la        }
 { fonction retourne 0.                                                       }
 {----------------------------------------------------------------------------}
 
-Function Position( Top      : Integer;       { Debut de la recherche         }
-                   Elt      : StrIdent       { Element a chercher            }
-                  ) : Integer;               { Position si trouve, 0 sinon   }
+Function Position( Top      : Integer;       { Début de la recherche         }
+                   Elt      : StrIdent       { Elément à chercher            }
+                  ) : Integer;               { Position si trouvé, 0 sinon   }
 Var I,Po    : Integer;
     Trouve  : Boolean;
 Begin
@@ -115,21 +115,21 @@ End;
 { dictionnaire des variables DicoVar (sachant que la recherche ne se fera    }
 { que de Top à NbVar). Deux cas peuvent se presenter :                       }
 {                                                                            }
-{     (1) Cet element est deja dans le Dico :                                }
+{     (1) Cet élément est déjà dans le Dico :                                }
 {             * Value retourne le pointeur stocke                            }
 {             * La fonction retourne False                                   }
-{     (2) Cet element n'est pas dans le Dico :                               }
-{             * Le nouvel element (Elt,P) est instalé                        }
+{     (2) Cet élément n'est pas dans le Dico :                               }
+{             * Le nouvel élément (Elt,P) est installé                       }
 {             * Value retourne la position dans le Dico                      }
 {             * La fonction retourne True                                    }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-Function InstalIn(     Top      : Integer;          { Debut de la recherche  }
-                       Elt      : StrIdent;         { Element a installer    }
-                       P        : Integer;          { Pointeur a installer   }
-                   Var Value    : Integer           { Parametre              }
-                  ) : Boolean;    { True si Elt est un nouvel element        }
+Function InstalIn(     Top      : Integer;          { Début de la recherche  }
+                       Elt      : StrIdent;         { Elément à installer    }
+                       P        : Integer;          { Pointeur à installer   }
+                   Var Value    : Integer           { Paramètre              }
+                  ) : Boolean;    { True si Elt est un nouvel élément        }
 Var Po : Integer;
 Begin
   Po := Position(Top,Elt);

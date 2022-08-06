@@ -15,8 +15,8 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-{$R+} { Directive de Compilation : Verifier les Indices de Tableaux.      }
-{$V-} { Directive de Compilation : Ne pas verifier la taille des Chaines. }
+{$R+} { Directive de compilation : Vérifier les indices des tableaux.     }
+{$V-} { Directive de compilation : Ne pas vérifier la taille des chaînes. }
 
 
 Procedure Initialisation;
@@ -27,7 +27,7 @@ Begin
   PtrLeft  := 0;                       { Init Pointeur pile gauche   }
   PtrRight := SizeMem+1;               { Init Pointeur pile droite   }
   NbVar    := 0;                       { Dico Variables vide         }
-  TopVar   := 1;                       { Recherche au debut du Dico  }
+  TopVar   := 1;                       { Recherche au début du Dico  }
   NbConst  := 0;                       { Dico Constantes vide        }
 End;
 

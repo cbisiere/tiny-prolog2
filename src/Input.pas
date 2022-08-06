@@ -23,23 +23,23 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-{$R+} { Directive de Compilation : Verifier les Indices de Tableaux.      }
-{$V-} { Directive de Compilation : Ne pas verifier la taille des Chaines. }
+{$R+} { Directive de compilation : Vérifier les indices des tableaux.     }
+{$V-} { Directive de compilation : Ne pas vérifier la taille des chaînes. }
 
 
-Type  AnyStr    = String[80];                { Type chaine de travail        }
-      CharSet   = Set Of Char;               { Type ensemble de caracteres   }
+Type  AnyStr    = String[80];                { Type chaîne de travail        }
+      CharSet   = Set Of Char;               { Type ensemble de caractères   }
 
 Const SizeBufIn = 10;                        { Taille Buffer d'entree        }
-      FinEntree = #$FF;                      { Code caractere 'fin entree'   }
+      FinEntree = #$FF;                      { Code caractère 'fin entrée'   }
 
-Var   Entree  : AnyStr;                      { Chaine lue                    }
-      PtrInp  : Byte;                        { Pointeur dans cette chaine    }
-      Calu    : Char;                        { Caractere courant             }
-      BufIn   : Array[1..SizeBufIn] Of Char; { Buffer d'entree               }
-      PtrIn   : Byte;                        { Pointeur dans ce Buffer       }
-      Fic     : Text;                        { Fichier Utilisateur           }
-      FicOpen : Boolean;                     { Fichier Ouvert ?              }
+Var   Entree  : AnyStr;                      { Chaîne lue                    }
+      PtrInp  : Byte;                        { Pointeur dans cette chaîne    }
+      Calu    : Char;                        { Caractère courant             }
+      BufIn   : Array[1..SizeBufIn] Of Char; { Buffer d'entrée               }
+      PtrIn   : Byte;                        { Pointeur dans ce buffer       }
+      Fic     : Text;                        { Fichier utilisateur           }
+      FicOpen : Boolean;                     { Fichier ouvert ?              }
       Error   : Boolean;                     { Erreur ?                      }
 
 
@@ -48,7 +48,7 @@ Var   Entree  : AnyStr;                      { Chaine lue                    }
 { Procedure Erreur( S : AnyStr );                                            }
 {----------------------------------------------------------------------------}
 { La procédure Erreur constate une erreur de syntaxe. Elle affiche le        }
-{ message S et positionne le Booleen Error à True.                           }
+{ message S et positionne le booléen Error à True.                           }
 {----------------------------------------------------------------------------}
 
 Procedure Erreur( S : AnyStr );
@@ -63,9 +63,9 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure OpenFic;                                                         }
 {----------------------------------------------------------------------------}
-{ Ouverture du Fichier Programme : Cette procedure demande le nom du fichier }
-{ contenant le programme Prolog. Si un nom est entré, elle verifie que ce    }
-{ fichier existe bien, sinon le programme est arreté (primitive Halt;).      }
+{ Ouverture du Fichier Programme : cette procédure demande le nom du fichier }
+{ contenant le programme Prolog. Si un nom est entré, elle vérifie que ce    }
+{ fichier existe bien, sinon le programme est arrêté (primitive Halt;).      }
 {----------------------------------------------------------------------------}
 
 Procedure OpenFic;
@@ -90,14 +90,14 @@ End;
 {----------------------------------------------------------------------------}
 { Function GetC (Var c : Char) : Char;                                       }
 {----------------------------------------------------------------------------}
-{ Lecture d'un caractere : Cette fonction teste d'abord si le Fichier        }
+{ Lecture d'un caractère : cette fonction teste d'abord si le Fichier        }
 { Utilisateur a bien été ouvert. Si non elle demande l'ouverture. Puis, si   }
-{ c'est possible, elle retourne le caractere pointé par PtrInp dans la ligne }
-{ Entree. Cette operation peut etre impossible pour deux raisons :           }
-{ (1) Il n'y a plus de caractere dans Entree. GetC provoque alors la lecture }
-{     d'une nouvelle ligne et retourne le caractere Blanc (Une fin de ligne  }
-{     est considerée comme un separateur);                                   }
-{ (2) C'est le fin du fichier Fic. GetC retourne alors le caractere          }
+{ c'est possible, elle retourne le caractère pointé par PtrInp dans la ligne }
+{ Entree. Cette operation peut être impossible pour deux raisons :           }
+{ (1) Il n'y a plus de caractère dans Entree. GetC provoque alors la lecture }
+{     d'une nouvelle ligne et retourne le caractère Blanc (une fin de ligne  }
+{     est considérée comme un séparateur);                                   }
+{ (2) C'est le fin du fichier Fic. GetC retourne alors le caractère          }
 {     FinEntree.                                                             }
 {----------------------------------------------------------------------------}
 
@@ -111,7 +111,7 @@ Begin
     End;
   If (Length(Entree)<>0) And (PtrInp <= Length(Entree)) Then
     Begin
-      c := Entree[PtrInp];   { Lit un Caractere      }
+      c := Entree[PtrInp];   { Lit un caractère      }
       PtrInp := PtrInp + 1   { Pointe sur le suivant }
     End
   Else
@@ -135,10 +135,10 @@ End;
 {----------------------------------------------------------------------------}
 { Function GetChar (Var c : Char) : Char;                                    }
 {----------------------------------------------------------------------------}
-{ Lecture bufferisée d'un caractere : Si le buffer d'entrée BufIn est vide,  }
-{ la fonction GetChar retourne le caractere renvoyé par GetC. Dans le cas    }
-{ contraire, c'est qu'un caractere au moins a été remis dans le buffer grace }
-{ à la procedure UnGetChar. GetChar retourne alors le dernier caractere qui  }
+{ Lecture bufferisée d'un caractère : si le buffer d'entrée BufIn est vide,  }
+{ la fonction GetChar retourne le caractère renvoyé par GetC. Dans le cas    }
+{ contraire, c'est qu'un caractère au moins a été remis dans le buffer grâce }
+{ à la procédure UnGetChar. GetChar retourne alors le dernier caractère qui  }
 { a été remis dans ce Buffer.                                                }
 {----------------------------------------------------------------------------}
 
@@ -157,8 +157,8 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure UnGetChar (c : Char);                                            }
 {----------------------------------------------------------------------------}
-{ Remise d'un caractere dans le buffer : cette procedure tente d'ajouter au  }
-{ buffer le caractere c, pour qu'il soit relu au prochain appel de GetChar.  }
+{ Remise d'un caractère dans le buffer : cette procédure tente d'ajouter au  }
+{ buffer le caractère c, pour qu'il soit relu au prochain appel de GetChar.  }
 { Si cette operation est impossible (buffer plein), le programme est stoppé. }
 {----------------------------------------------------------------------------}
 
@@ -179,8 +179,8 @@ End;
 {----------------------------------------------------------------------------}
 { Function GetCharNb (Var c : Char) : Char;                                  }
 {----------------------------------------------------------------------------}
-{ Lecture d'un caractere non blanc : cette fonction retourne le prochain     }
-{ caractere non blanc en entree, par appel a GetChar.                        }
+{ Lecture d'un caractère non blanc : cette fonction retourne le prochain     }
+{ caractère non blanc en entrée, par appel à GetChar.                        }
 {----------------------------------------------------------------------------}
 
 Function GetCharNb( Var c : Char ) : Char;
@@ -192,9 +192,9 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure Get (Var Ch : AnyStr; E : CharSet);                              }
 {----------------------------------------------------------------------------}
-{ Ajoute a une Chaine une suite de caracteres d'un certain type : cette      }
-{ procedure concatene a la chaine Ch un caractere en entree, tant que celui- }
-{ ci appartient a l'ensemble E.                                              }
+{ Ajoute à une chaîne une suite de caractères d'un certain type : cette      }
+{ procédure concatène à la chaîne Ch un caractère en entrée, tant que celui- }
+{ ci appartient à l'ensemble E.                                              }
 {----------------------------------------------------------------------------}
 
 Procedure Get( Var Ch : AnyStr; E : CharSet );
@@ -207,8 +207,8 @@ End;
 {----------------------------------------------------------------------------}
 { Procedure Verifier( Ch : AnyStr);                                          }
 {----------------------------------------------------------------------------}
-{ Verifie la présence de la chaine Ch en Entrée. Appel à la procédure        }
-{ Erreur si cette chaine n'est pas trouvée.                                  }
+{ Vérifie la présence de la chaîne Ch en entrée. Appel à la procédure        }
+{ Erreur si cette chaîne n'est pas trouvée.                                  }
 {----------------------------------------------------------------------------}
 
 Procedure Verifier( Ch : AnyStr );

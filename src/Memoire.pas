@@ -13,39 +13,39 @@
 {                                                                            }
 {      P. AllocLeft ( I : Integer );        Allocation pile gauche           }
 {      P. Push ( V : Integer );             Empiler sur pile gauche          }
-{      P. Pop ( Var V : Integer );          Depiler pile gauche              }
+{      P. Pop ( Var V : Integer );          Dépiler pile gauche              }
 {      P. AllocRight( I : Integer );        Allocation pile droite           }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-{$R+} { Directive de Compilation : Verifier les Indices de Tableaux.      }
-{$V-} { Directive de Compilation : Ne pas verifier la taille des Chaines. }
+{$R+} { Directive de compilation : Vérifier les indices des tableaux.     }
+{$V-} { Directive de compilation : Ne pas vérifier la taille des chaînes. }
 
 
 {----------------------------------------------------------------------------}
 {                                                                            }
-{      Le tableau Memoire represente le memoire Principale utilisée par      }
-{      l'interpreteur Prolog. Il contiendra notamment :                      }
+{      Le tableau Memoire représente le memoire Principale utilisée par      }
+{      l'interpréteur Prolog. Il contiendra notamment :                      }
 {                                                                            }
 {   (1) Dans sa partie gauche :                                              }
 {                                                                            }
-{         - Les règles du programme;                                         }
-{         - Le système reduit (codé dans les termes des règles);             }
-{         - La question posée par l'utilisateur;                             }
-{         - Toutes les recopies des règles nécessaires à l'Horloge Prolog;   }
-{         - Les doublets Terme = Terme, éliminés après chaque réduction;     }
+{         - Les règles du programme ;                                        }
+{         - Le système réduit (codé dans les termes des règles) ;            }
+{         - La question posée par l'utilisateur ;                            }
+{         - Toutes les recopies des règles nécessaires à l'horloge Prolog ;  }
+{         - Les doublets Terme = Terme, éliminés après chaque réduction ;    }
 {                                                                            }
 {   (1) Dans sa partie droite :                                              }
 {                                                                            }
 {         - Les équations et inéquations que la procédure de réduction devra }
-{           traiter;                                                         }
+{           traiter ;                                                        }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
 
-Const SizeMem   = 15000;                     { Taille de la memoire          }
+Const SizeMem   = 15000;                     { Taille de la mémoire          }
 
-Var Memoire  : Array[1..SizeMem] Of Integer; { Memoire principale            }
+Var Memoire  : Array[1..SizeMem] Of Integer; { Mémoire principale            }
     PtrLeft  : Integer;                      { Pointeur pile gauche          }
     PtrRight : Integer;                      { Pointeur pile droite          }
 
