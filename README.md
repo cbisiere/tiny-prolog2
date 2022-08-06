@@ -6,8 +6,21 @@ I wrote this program as a course assignment, back in 1988, when I was a student 
 
 ## Compilation
 
-The program was developed in [Turbo Pascal 3](https://en.wikipedia.org/wiki/Turbo_Pascal#Version_3). Turbo Pascal 3.02 is [provided](https://web.archive.org/web/20101124092418/http://edn.embarcadero.com/article/20792) to the Borland community free of charge, as a [zip file] (https://web.archive.org/web/20110815014726/http://altd.embarcadero.com/download/museum/tp302.zip).
+### Turbo Pascal 3
 
+The program was developed in [Turbo Pascal 3](https://en.wikipedia.org/wiki/Turbo_Pascal#Version_3) (TP3). Turbo Pascal 3.02A is [provided](https://web.archive.org/web/20101124092418/http://edn.embarcadero.com/article/20792) to the Borland community free of charge, as a [zip file] (https://web.archive.org/web/20110815014726/http://altd.embarcadero.com/download/museum/tp302.zip). 
+
+You may use a FreeDOS box to install TP3, compile ``Main.pas``and run the Prolog II interpreter.
+
+### Free Pascal Compiler
+
+The program nicely compiles with [Free Pascal Compiler](https://en.wikipedia.org/wiki/Free_Pascal) (FPC) after a single line change, getting rid of a reference to the TP3-specific predefined file variable ``Kbd``. 
+
+To compile the interpreter with FPC, just type:
+
+```bash
+fpc -Mtp -FE. -otprolog2 src/Main.pas
+```
 
 ## Author
 
