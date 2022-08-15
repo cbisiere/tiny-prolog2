@@ -74,7 +74,6 @@ End;
 {----------------------------------------------------------------------------}
 
 Procedure Temporise;
-Var Car : Char;
 Begin
   Writeln;
   Write('Ok ');

@@ -227,7 +227,6 @@ Var Possible    : Boolean;
       { Création d'une liaison dans le système réduit de la forme x = terme }
 
       Procedure Production(T1,T2 : Integer);
-      Var P : Integer;
       Begin
         If BreakIt Then  { Breaker la réduction si production x = terme }
           VarProd := T1
@@ -389,7 +388,7 @@ Var Echec : Boolean;
 
       Procedure OperationDeBase;
         Var    P            : Integer;
-               Tg,Td        : Integer;   Var I : Integer;
+               Tg,Td        : Integer;
                VarProd      : Integer;
                Butee        : Integer;
                Ok           : Boolean;

@@ -166,7 +166,7 @@ End;
 {----------------------------------------------------------------------------}
 
 Function PushRegle( R : Integer ) : Integer;
-Var SizeRegle,I : Integer;
+Var SizeRegle : Integer;
 Begin
   SizeRegle := Memoire[R+1];
   PushRegle := PtrLeft + 1;
