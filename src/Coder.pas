@@ -64,9 +64,9 @@
 {                                                                            }
 {    règle ::= <terme> -> [<terme>]* [<système>] ;                           }
 {                                                                            }
-{    question ::= [ > <terme> ]* ?                                           }
+{    question ::= > [<terme>]* [système] ?                                           }
 {                                                                            }
-{    programme-et-questions ::= [<règle>]*  [ > <question> ]*                }
+{    programme-et-questions ::= [<règle>]*  [<question>]*                }
 {                                                                            }
 {                                                                            }
 {----------------------------------------------------------------------------}

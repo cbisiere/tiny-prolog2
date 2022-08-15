@@ -164,9 +164,9 @@ system ::= { <contraint> [,<contraint>]* }
 
 rule ::= <term> -> [<term>]* [<system>] ;                
 
-query ::= [ > <term> ]* ?                                
+query ::= > [<term>]* [system] ?                                
 
-program-and-queries ::= [<rule>]*  [ > <query> ]* .  
+program-and-queries ::= [<rule>]*  [<query>]* .  
 
 ```
 
