@@ -29,7 +29,7 @@
 {                                                                            }
 {  HORLOGE                                                                   }
 {                                                                            }
-{     P. Horloge;                                                            }
+{     P. Horloge( ButeeDroite : Integer );                                   }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
@@ -275,12 +275,13 @@ End;
 {----------------------------------------------------------------------------}
 
 {----------------------------------------------------------------------------}
-{ Procedure Horloge;                                                         }
+{ Procedure Horloge( ButeeDroite : Integer );                                }
 {----------------------------------------------------------------------------}
-{ C'est l'horloge Prolog.                                                    }
+{ Lance l'horloge Prolog, avec au départ un éventuel système à résoudre      }
+{ stocké entre PtrRight et ButeeDroite (système spécifié dans la question).  }
 {----------------------------------------------------------------------------}
 
-Procedure Horloge;
+Procedure Horloge( ButeeDroite : Integer );
 
 Var PtrLeftSave : Integer;  { Sauvegarde sommet de pile                     }
     Soluble     : Boolean;  { Système de contraintes soluble ?              }
@@ -300,7 +301,7 @@ Var PtrLeftSave : Integer;  { Sauvegarde sommet de pile                     }
     Fin   := False;             { Ce n'est pas encore la fin !              }
     InitRestore;                { Initialise la pile de restauration        }
     Temps := 0;                 { Temps 0                                   }
-    Butee := PtrRight;          { Système soluble au début (pas d'équation) }
+    Butee := ButeeDroite;       { Système présent dans la question          }
   End;
 
 {------------------------------------------------------------------}

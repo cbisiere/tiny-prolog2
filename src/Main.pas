@@ -83,12 +83,14 @@ End;
 
 
 {----------------------------------------------------------------------------}
-{ Programme Principal;                                                       }
+{ Procedure Main;                                                       }
 {----------------------------------------------------------------------------}
 { Code le programme utilisateur et lance l'interpreteur Prolog sur chaque    }
 { question posée.                                                            }
 {----------------------------------------------------------------------------}
 
+Procedure Main;
+var Butee : Integer;
 Begin
   Initialisation;                { Initialise le Programme                   }
   CompilerProgramme;             { Code le Programme Prolog                  }
@@ -97,14 +99,23 @@ Begin
   If Not Error Then
     Repeat
       EnleverQuestion;            { Enlève la question précédente            }
+      Butee := PtrRight;
       CompilerQuestion;           { Code la nouvelle question                }
       SommetProgramme := PtrLeft; { Note où est le sommet du Pgm complet     }
       Writeln;
       RestituerQuestion;
       Writeln;
-      If Not Error Then Horloge;
+      If Not Error Then Horloge(Butee);
       Temporise
     Until Calu = '.'
+End;
+
+{----------------------------------------------------------------------------}
+{ Programme Principal;                                                       }
+{----------------------------------------------------------------------------}
+
+Begin
+  Main
 End.
 
 
