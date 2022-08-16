@@ -103,12 +103,12 @@ Begin
       EnleverQuestion;            { Enlève la question précédente            }
       Butee := PtrRight;
       Q := CompilerQuestion; { Code la nouvelle question          }
-      Entete(Q,P,0,0);
       SommetProgramme := PtrLeft; { Note où est le sommet du Pgm complet     }
       Writeln;
       RestituerQuestion(Q);
       Writeln;
-      If Not Error Then Horloge(P, Butee);
+      { P est aussi la liste de règles. Q est aussi la liste de termes. }
+      If Not Error Then Horloge(P, Q, Butee);
       Temporise
     Until Calu = '.'
 End;

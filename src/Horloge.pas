@@ -29,7 +29,7 @@
 {                                                                            }
 {  HORLOGE                                                                   }
 {                                                                            }
-{     P. Horloge( Programme, ButeeDroite : Integer );                        }
+{     P. Horloge( FirstR, FirstT, ButeeDroite : Integer );                   }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
@@ -276,14 +276,15 @@ End;
 {----------------------------------------------------------------------------}
 
 {----------------------------------------------------------------------------}
-{ Procedure Horloge( Programme, ButeeDroite : Integer );                     }
+{ Procedure Horloge( FirstR, FirstT, ButeeDroite : Integer );                }
 {----------------------------------------------------------------------------}
-{ Lance l'horloge Prolog sur le programme stocké à l'adresse Programme, avec }
-{ au départ un éventuel système à résoudre stocké entre PtrRight et          }
-{ ButeeDroite (système spécifié dans la question).                           }
+{ Lance l'horloge pour effacer la liste de termes FirstT en utilisant la     }
+{ liste de règles FirstR d'un programme Prolog, avec au départ un éventuel   }
+{ système à résoudre stocké entre PtrRight et ButeeDroite (système spécifié  }
+{ dans la  question).                                                        }
 {----------------------------------------------------------------------------}
 
-Procedure Horloge( Programme, ButeeDroite : Integer );
+Procedure Horloge( FirstR, FirstT, ButeeDroite : Integer );
 
 Var PtrLeftSave : Integer;  { Sauvegarde sommet de pile                     }
     Soluble     : Boolean;  { Système de contraintes soluble ?              }
@@ -406,8 +407,7 @@ Var PtrLeftSave : Integer;  { Sauvegarde sommet de pile                     }
 
   Procedure PremiereRegle;
   Begin
-    { Programme est directement la liste de règles, donc bien la première. }
-    Memoire[PtrLeft-2] := PremiereRegleOk(Programme, Memoire[PtrLeft-3]);
+    Memoire[PtrLeft-2] := PremiereRegleOk(FirstR, Memoire[PtrLeft-3]);
     If Memoire[PtrLeft-2] = 0 Then BackTrackIng(Fin)
   End;
 
@@ -474,6 +474,7 @@ Var PtrLeftSave : Integer;  { Sauvegarde sommet de pile                     }
 
 Begin
   InitHorloge;
+  Entete(FirstT,FirstR,0,0); { Entête pour réduction du système de la question }
   Repeat
     LancerReduction;
     If (Not Soluble) Or             { Système de contraintes non soluble }
