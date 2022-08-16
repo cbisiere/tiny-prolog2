@@ -28,8 +28,8 @@
 { P. RestituerSuiteDeTermes( T : Integer; CR : Boolean );                    }
 { P. RestituerRegle( R : Integer );                                          }
 { P. RestituerSuiteDeRegles( R : Integer );                                  }
-{ P. RestituerProgramme;                                                     }
-{ P. RestituerQuestion;                                                      }
+{ P. RestituerProgramme(P : Integer);                                        }
+{ P. RestituerQuestion(Q : Integer);                                         }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
@@ -362,32 +362,31 @@ End;
 
 
 {----------------------------------------------------------------------------}
-{ Procedure RestituerProgramme;                                              }
+{ Procedure RestituerProgramme(P : Integer);                                 }
 {----------------------------------------------------------------------------}
-{ Restitution du programme Prolog.                                           }
+{ Restitution du programme Prolog stockée à l'adresse P.                     }
 {----------------------------------------------------------------------------}
 
-Procedure RestituerProgramme;
+Procedure RestituerProgramme(P : Integer);
 Const Separ = '--------------------------------------------------------------';
 Begin
   Writeln(Separ);
   Writeln;
-  RestituerSuiteDeRegles(1);
+  RestituerSuiteDeRegles(P);
   Writeln(Separ)
 End;
 
 
 {----------------------------------------------------------------------------}
-{ Procedure RestituerQuestion;                                               }
+{ Procedure RestituerQuestion(Q : Integer);                                  }
 {----------------------------------------------------------------------------}
-{ Restitution de la Question (celle-ci se trouve juste après le code des     }
-{ règles du programme).                                                      }
+{ Restitution d'une question stockée à l'adresse Q.                          }
 {----------------------------------------------------------------------------}
 
-Procedure RestituerQuestion;
+Procedure RestituerQuestion(Q : Integer);
 Begin
   InitIneq;
-  RestituerSuiteDeTermes(SommetRegles+1,False);
+  RestituerSuiteDeTermes(Q,False);
   Writeln(' ?')
 End;
 

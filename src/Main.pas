@@ -90,22 +90,25 @@ End;
 {----------------------------------------------------------------------------}
 
 Procedure Main;
-var Butee : Integer;
+var Butee : Integer;  { Butee droite fin des travaux }
+    P : Integer;      { Adresse du programme }
+    Q : Integer;      { Adresse de la question }
 Begin
-  Initialisation;                { Initialise le Programme                   }
-  CompilerProgramme;             { Code le Programme Prolog                  }
-  InitPointeurs;                 { Initialise l'environnement de la question }
-  RestituerProgramme;            { Le restitue à l'écran                     }
+  Initialisation;                     { Initialise le programme              }
+  P := CompilerProgramme; { Code le programme Prolog             }
+  InitPointeurs;                      { Initialise l'env. de la question     }
+  RestituerProgramme(P);  { Le restitue à l'écran                }
   If Not Error Then
     Repeat
       EnleverQuestion;            { Enlève la question précédente            }
       Butee := PtrRight;
-      CompilerQuestion;           { Code la nouvelle question                }
+      Q := CompilerQuestion; { Code la nouvelle question          }
+      Entete(Q,P,0,0);
       SommetProgramme := PtrLeft; { Note où est le sommet du Pgm complet     }
       Writeln;
-      RestituerQuestion;
+      RestituerQuestion(Q);
       Writeln;
-      If Not Error Then Horloge(Butee);
+      If Not Error Then Horloge(P, Butee);
       Temporise
     Until Calu = '.'
 End;

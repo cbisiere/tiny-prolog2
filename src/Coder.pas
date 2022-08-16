@@ -23,9 +23,9 @@
 {     P. CompilerSuiteDeTermes( StopCar : CharSet ) : Integer;               }
 {     P. CompilerRegle;                                                      }
 {     P. CompilerSuiteDeRegles( StopCar : CharSet ) : Integer;               }
-{     P. CompilerProgramme;                                                  }
+{     F. CompilerProgramme : Integer; ;                                      }
 {     P. Entete(a,b,c,d);                                                    }
-{     P. CompilerQuestion;                                                   }
+{     F. CompilerQuestion : Integer;                                         }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
@@ -625,16 +625,15 @@ End;
 
 
 {-----------------------------------------------------------------------}
-{ Procedure CompilerProgramme;                                          }
+{ Function CompilerProgramme : Integer;                                 }
 {-----------------------------------------------------------------------}
 { CompilerProgramme code un programme Prolog.                           }
 {-----------------------------------------------------------------------}
 
-Procedure CompilerProgramme;
-Var Adr : Integer;
+Function CompilerProgramme : Integer;
 Begin
   UnGetChar(GetCharNb(Calu));
-  Adr := CompilerSuiteDeRegles(['>'])
+  CompilerProgramme := CompilerSuiteDeRegles(['>'])
 End;
 
 {-----------------------------------------------------------------------}
@@ -678,13 +677,13 @@ End;
 
 
 {-----------------------------------------------------------------------}
-{ Procedure CompilerQuestion;                                           }
+{ Function CompilerQuestion : Integer;                                  }
 {-----------------------------------------------------------------------}
 { CompilerQuestion code une question après le code des règles et met    }
 { en place l'entête.                                                    }
 {-----------------------------------------------------------------------}
 
-Procedure CompilerQuestion;
+Function CompilerQuestion : Integer;
 Var Adr : Integer;
 Begin
   If GetCharNb(Calu) = '>' Then
@@ -694,11 +693,11 @@ Begin
       Adr := CompilerSuiteDeTermes(['{','?']);
       If Calu = '{' Then LireSysteme;
       Verifier('?');
-      Entete(Adr,1,0,0);
     End
   Else
     Erreur('No queries!');
-  UnGetChar(GetCharNb(Calu))
+  UnGetChar(GetCharNb(Calu));
+  CompilerQuestion := Adr
 End;
 
 

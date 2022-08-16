@@ -14,7 +14,7 @@
 {  PRE-UNIFICATION                                                           }
 {                                                                            }
 {     F. Unifiable (A1,A2 : Integer) : Boolean;                              }
-{     F. PremiereRegleOk( T : Integer ) : Integer;                           }
+{     F. PremiereRegleOk( FirstR, T : Integer ) : Integer;                   }
 {     F. NextRegleOk( R,T : Integer ) : Integer;                             }
 {                                                                            }
 {  RECOPIE DES REGLES                                                        }
@@ -29,7 +29,7 @@
 {                                                                            }
 {  HORLOGE                                                                   }
 {                                                                            }
-{     P. Horloge( ButeeDroite : Integer );                                   }
+{     P. Horloge( Programme, ButeeDroite : Integer );                        }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
@@ -62,17 +62,18 @@ End;
 
 
 {----------------------------------------------------------------------------}
-{ Function PremiereRegleOk( T : Integer ) : Integer;                         }
+{ Function PremiereRegleOk( FirstR, T : Integer ) : Integer;                 }
 {----------------------------------------------------------------------------}
 { Retourne un pointeur vers la première règle qui a une chance de s'unifier  }
-{ avec le terme T (ou 0 si aucune règle ne peut s'unifier avec T).           }
+{ avec le terme T (ou 0 si aucune règle ne peut s'unifier avec T), FirstR    }
+{ étant l'adrresse de la première règle du programme Prolog.                 }
 {----------------------------------------------------------------------------}
 
-Function PremiereRegleOk( T : Integer ) : Integer;
+Function PremiereRegleOk( FirstR, T : Integer ) : Integer;
 Var R,A1,A2  : Integer;
     Ok       : Boolean;
 Begin
-  R  := 1;
+  R  := FirstR; { La première candidate est la première règle du programme. }
   Ok := False;
   A1 := AccesTerme(T);
   While (R<>0) And (Not Ok) Do
@@ -275,13 +276,14 @@ End;
 {----------------------------------------------------------------------------}
 
 {----------------------------------------------------------------------------}
-{ Procedure Horloge( ButeeDroite : Integer );                                }
+{ Procedure Horloge( Programme, ButeeDroite : Integer );                     }
 {----------------------------------------------------------------------------}
-{ Lance l'horloge Prolog, avec au départ un éventuel système à résoudre      }
-{ stocké entre PtrRight et ButeeDroite (système spécifié dans la question).  }
+{ Lance l'horloge Prolog sur le programme stocké à l'adresse Programme, avec }
+{ au départ un éventuel système à résoudre stocké entre PtrRight et          }
+{ ButeeDroite (système spécifié dans la question).                           }
 {----------------------------------------------------------------------------}
 
-Procedure Horloge( ButeeDroite : Integer );
+Procedure Horloge( Programme, ButeeDroite : Integer );
 
 Var PtrLeftSave : Integer;  { Sauvegarde sommet de pile                     }
     Soluble     : Boolean;  { Système de contraintes soluble ?              }
@@ -404,7 +406,8 @@ Var PtrLeftSave : Integer;  { Sauvegarde sommet de pile                     }
 
   Procedure PremiereRegle;
   Begin
-    Memoire[PtrLeft-2] := PremiereRegleOk(Memoire[PtrLeft-3]);
+    { Programme est directement la liste de règles, donc bien la première. }
+    Memoire[PtrLeft-2] := PremiereRegleOk(Programme, Memoire[PtrLeft-3]);
     If Memoire[PtrLeft-2] = 0 Then BackTrackIng(Fin)
   End;
 
