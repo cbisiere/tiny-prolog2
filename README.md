@@ -55,13 +55,13 @@ diff(x,1)  ?
 
 ### Turbo Pascal 3
 
-The program was developed in [Turbo Pascal 3](https://en.wikipedia.org/wiki/Turbo_Pascal#Version_3) (TP3). Turbo Pascal 3.02A is [provided](https://web.archive.org/web/20101124092418/http://edn.embarcadero.com/article/20792) to the Borland community free of charge, as a [zip file] (https://web.archive.org/web/20110815014726/http://altd.embarcadero.com/download/museum/tp302.zip). 
+The program was developed in [Turbo Pascal 3](https://en.wikipedia.org/wiki/Turbo_Pascal#Version_3) (TP3). Turbo Pascal 3.02A is [provided](https://web.archive.org/web/20101124092418/http://edn.embarcadero.com/article/20792) to the Borland community free of charge, as a [zip file] (https://web.archive.org/web/20110815014726/http://altd.embarcadero.com/download/museum/tp302.zip).
 
 You may use a FreeDOS box to install TP3, compile `Main.pas` and run the Prolog interpreter.
 
 ### Free Pascal Compiler
 
-The program nicely compiles with [Free Pascal Compiler](https://en.wikipedia.org/wiki/Free_Pascal) (FPC). 
+The program nicely compiles with [Free Pascal Compiler](https://en.wikipedia.org/wiki/Free_Pascal) (FPC).
 
 To compile the interpreter with FPC, just type:
 
@@ -177,4 +177,3 @@ program-and-queries ::= [<rule>]*  [<query>]* .
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
-
