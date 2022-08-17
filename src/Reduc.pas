@@ -23,8 +23,10 @@
 {           P. TrierSysteme( ButeeDroite : Integer );                        }
 {           F. ReductionEquation(     BreakIt     : Boolean;                 }
 {                                 Var VarProd     : Integer;                 }
-{                                     ButeeDroite : Integer ) : Boolean;     }
-{           F. ReductionSysteme( ButeeDroite : Integer ) : Boolean;          }
+{                                     ButeeDroite : Integer;                 }
+{                                     Backtrackable : Boolean ) : Boolean;   }
+{           F. ReductionSysteme( ButeeDroite : Integer;                      }
+{                                Backtrackable : Boolean ) : Boolean;        }
 {                                                                            }
 {                                                                            }
 {----------------------------------------------------------------------------}
@@ -137,7 +139,8 @@ End;
 
 Function ReductionEquation(     BreakIt     : Boolean;
                             Var VarProd     : Integer;
-                                ButeeDroite : Integer ) : Boolean;
+                                ButeeDroite : Integer;
+                                Backtrackable : Boolean) : Boolean;
 
 Var Possible    : Boolean;
     Anormal     : Boolean;
@@ -203,14 +206,14 @@ Var Possible    : Boolean;
       Begin
         If Typ(T1) = Variable Then
           Begin
-            SetMem(T1+2,1);   { Une Equation }
-            SetMem(T1+4,T2);  { Liaison      }
+            SetMem(T1+2,1,Backtrackable);   { Une Equation }
+            SetMem(T1+4,T2,Backtrackable);  { Liaison      }
 
             { L'Etape2 de la résolution de système est traitée ici }
 
             If Memoire[T1+3] = 1 Then { x surveillait déjà une liaison ! }
               Begin
-                SetMem(T1+3,0);
+                SetMem(T1+3,0,Backtrackable);
                 P := Memoire[T1 + 5];
                 Repeat
                   AjouteTravail('<',Memoire[P],Memoire[P+1]);
@@ -312,7 +315,8 @@ End;
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-Function ReductionSysteme( ButeeDroite : Integer ) : Boolean;
+Function ReductionSysteme( ButeeDroite : Integer;
+                           Backtrackable : Boolean ) : Boolean;
 Var Echec : Boolean;
 
 {---------------------------------------------------------}
@@ -327,7 +331,8 @@ Var Echec : Boolean;
   Procedure Etape1;
   Var DummyVar : Integer;
   Begin
-    If Not ReductionEquation(False,DummyVar,ButeeDroite) Then Echec := True
+    If Not ReductionEquation(False,DummyVar,ButeeDroite,Backtrackable) Then
+      Echec := True
   End;
 
 {---------------------------------------------------------}
@@ -397,7 +402,7 @@ Var Echec : Boolean;
         Tg := Memoire[PtrRight+1];
         Td := Memoire[PtrRight];
         Butee    := PtrRight + 3;           { Traite juste une équation }
-        Ok       := ReductionEquation(True,VarProd,Butee);
+        Ok       := ReductionEquation(True,VarProd,Butee,Backtrackable);
         PtrRight := Butee;
         If Ok Then
         Begin
@@ -405,12 +410,12 @@ Var Echec : Boolean;
             Begin
               If Memoire[VarProd+3] <> 1 Then
                 Begin
-                  SetMem(VarProd+3,1); { Une inéquation }
-                  SetMem(VarProd+5,0);
+                  SetMem(VarProd+3,1,Backtrackable); { Une inéquation }
+                  SetMem(VarProd+5,0,Backtrackable);
                 End;
               P := VarProd + 3;
               While(Memoire[P+2]<>0) Do P := Memoire[P+2];
-              SetMem(P+2,PtrLeft + 1);
+              SetMem(P+2,PtrLeft + 1,Backtrackable);
               Push(Tg);
               Push(Td);
               Push(0)

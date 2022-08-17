@@ -59,15 +59,16 @@ End;
 
 
 {----------------------------------------------------------------------------}
-{ Procedure SetMem( A,V : Integer );                                         }
+{ Procedure SetMem( A,V : Integer ; Backtrackable : Boolean);                }
 {----------------------------------------------------------------------------}
 { SetMem affecte la case A du tableau Memoire avec la valeur V, en sauvant   }
-{ préalablement l'ancienne valeur de la case A dans la pile de restauration. }
+{ si demandé préalablement l'ancienne valeur de la case A dans la pile de    }
+{ restauration.                                                              }
 {----------------------------------------------------------------------------}
 
-Procedure SetMem( A,V : Integer );
+Procedure SetMem( A,V : Integer; Backtrackable : Boolean);
 Begin
-  PushRestore(A,Memoire[A]);
+  If Backtrackable Then PushRestore(A,Memoire[A]);
   Memoire[A] := V
 End;
 

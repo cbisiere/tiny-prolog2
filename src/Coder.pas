@@ -589,8 +589,7 @@ Begin
         Begin
           Butee := PtrRight;
           LireSysteme;
-          InitRestore;
-          If Not ReductionSysteme(Butee) Then
+          If Not ReductionSysteme(Butee,False) Then
             Erreur('Constraint cannot be satisfied')
         End;
       Verifier(';');

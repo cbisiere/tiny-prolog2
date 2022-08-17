@@ -327,7 +327,7 @@ Var PtrLeftSave : Integer;  { Sauvegarde sommet de pile                     }
   Procedure LancerReduction;
   Begin
     PtrLeftSave := PtrLeft;
-    Soluble     := ReductionSysteme(Butee);
+    Soluble     := ReductionSysteme(Butee,True);
     If PtrLeftSave <> PtrLeft Then { Des inéquations ont été créées }
       Begin
         Push(Memoire[PtrLeftSave-3]);   { On remet la tête en tête ! }
