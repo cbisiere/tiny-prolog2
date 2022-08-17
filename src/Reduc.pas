@@ -1,7 +1,7 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   Fichier     : Reduc.pas                                                   }
+{   Fichier     : Reduc.pas                                                  }
 {   Auteur      : Christophe BISIERE                                         }
 {   Date        : 07/01/88                                                   }
 {                                                                            }
@@ -47,10 +47,10 @@ Function Typ( T : Integer ) : Tterme;
 Begin
   Typ := Dummy;
   If T <> 0 Then
-    Case Chr(Memoire[T]) Of
-      'C' : Typ := Constante;
-      '*' : Typ := Variable;
-      'F' : Typ := SymboleF
+    Case Memoire[T] Of
+      TERM_C : Typ := Constante;
+      TERM_V : Typ := Variable;
+      TERM_F : Typ := SymboleF
     End;
 End;
 
@@ -71,19 +71,18 @@ End;
 
 
 {----------------------------------------------------------------------------}
-{ Procedure AjouteTravail (Car : Char; T1,T2 : Integer );                    }
+{ Procedure AjouteTravail ( Code : Integer; T1,T2 : Integer );               }
 {----------------------------------------------------------------------------}
-{ AjouteTravail crée une nouvelle équation (Car='=') ou inéquation (Car='<') }
+{ Crée une nouvelle équation (Code=REL_EQUA) ou inéquation (Code=REL_INEQ    }
 { de forme T1 = T2 dans la pile droite de la mémoire principale.             }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-Procedure AjouteTravail( Car : Char; T1,T2 : Integer );
+Procedure AjouteTravail( Code : Integer; T1,T2 : Integer );
 Var Adr : Integer;
 Begin
-  Adr := PtrRight - 1;
-  AllocRight(3);
-  Memoire[Adr  ] := Ord(Car);
+  Adr := AllocRight(3);
+  Memoire[Adr-0] := Code;
   Memoire[Adr-1] := T1;
   Memoire[Adr-2] := T2;
 End;
@@ -106,9 +105,9 @@ Begin
   Repeat
     Stop := True;
     I := ButeeDroite - 3;
-    While ( I > PtrRight) Do
+    While (I > PtrRight) Do
       Begin
-        If (Chr(Memoire[I+2]) = '=') And (Chr(Memoire[I+2-3]) = '<') Then
+        If (Memoire[I+2] = REL_EQUA) And (Memoire[I+2-3] = REL_INEQ) Then
           Begin
             Swap(Memoire[I  ],Memoire[I - 3]);
             Swap(Memoire[I+1],Memoire[I - 2]);
@@ -216,7 +215,7 @@ Var Possible    : Boolean;
                 SetMem(T1+3,0,Backtrackable);
                 P := Memoire[T1 + 5];
                 Repeat
-                  AjouteTravail('<',Memoire[P],Memoire[P+1]);
+                  AjouteTravail(REL_INEQ,Memoire[P],Memoire[P+1]);
                   P := Memoire[P + 2];
                 Until P = 0
               End;
@@ -260,8 +259,8 @@ Var Possible    : Boolean;
                 Begin
                   CreerLiaison(T1,T2);{ Créer l'équation dans le système réduit }
                   Push(T1);           { Sauve liaison terme = terme }
-                  AjouteTravail('=',Memoire[T1+3],Memoire[T2+3] ); { Nouvelle équation  }
-                  AjouteTravail('=',Memoire[T1+2],Memoire[T2+2] ); { Nouvelle équation  }
+                  AjouteTravail(REL_EQUA,Memoire[T1+3],Memoire[T2+3] ); { Nouvelle équation  }
+                  AjouteTravail(REL_EQUA,Memoire[T1+2],Memoire[T2+2] ); { Nouvelle équation  }
                 End
               Else                     { Deux constantes différentes }
                 Anormal := True;
@@ -289,7 +288,7 @@ Begin
     Possible := PtrRight <> ButeeDroite ;
     TrierSysteme(ButeeDroite); { Because Etape2 traitée en même temps ici }
     If Possible Then
-      Possible := Chr(Memoire[PtrRight+2]) = '=';
+      Possible := Memoire[PtrRight+2] = REL_EQUA;
     If Possible Then
       OperationDeBase
   Until Not(Possible) Or (Anormal) Or (BreakIt And (VarProd<>0));
@@ -398,7 +397,7 @@ Var Echec : Boolean;
                Butee        : Integer;
                Ok           : Boolean;
       Begin
-        Memoire[PtrRight+2] := Ord('='); { Transforme dernière inéq. en éq. }
+        Memoire[PtrRight+2] := REL_EQUA; { Transforme dernière inéq. en éq. }
         Tg := Memoire[PtrRight+1];
         Td := Memoire[PtrRight];
         Butee    := PtrRight + 3;           { Traite juste une équation }

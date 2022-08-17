@@ -1,7 +1,7 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   Fichier     : Dico.pas                                                    }
+{   Fichier     : Dico.pas                                                   }
 {   Auteur      : Christophe BISIERE                                         }
 {   Date        : 07/01/88                                                   }
 {                                                                            }
@@ -14,8 +14,8 @@
 { F. NumConst (C : StrIdent) : Integer;                   -> DicoConst       }
 {                                                                            }
 { F. Position (Top : Integer; Elt : StrIdent) : Integer;  -> DicoVar         }
-{ F. InstalIn (Top : Integer; Elt : StrIdent; P : Integer;                   }
-{     Var Value : Integer): Boolean;                      -> DicoVar         }
+{ F. NewVar( Nom : StrIdent; Adr : Integer ) : Integer;   -> DicoVar         }
+{ F. GetVarPtr( Pos : Integer ) : Integer;                -> DicoVar         }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
@@ -88,10 +88,10 @@ End;
 Function Position( Top      : Integer;       { Début de la recherche         }
                    Elt      : StrIdent       { Elément à chercher            }
                   ) : Integer;               { Position si trouvé, 0 sinon   }
-Var I,Po    : Integer;
+Var I,Pos   : Integer;
     Trouve  : Boolean;
 Begin
-  Po       := 0;
+  Pos      := 0;
   Trouve   := False;
   I        := Top;
   While (I<=NbVar) And Not Trouve Do
@@ -99,50 +99,36 @@ Begin
       If DicoVar[I].Nom = Elt Then
         Begin
           Trouve := True;
-          Po     := I;
+          Pos    := I;
         End
       Else I := I + 1
     End;
-  Position := Po
+  Position := Pos
 End;
 
 
 {----------------------------------------------------------------------------}
-{ Function InstalIn(Top:Integer; Elt:StrIdent; P:Integer; Var Value:Integer) }
-{      : Boolean;                                                            }
+{ Function NewVar( Nom : StrIdent; Adr : Integer ) : Integer;                }
 {----------------------------------------------------------------------------}
-{ InstalIn tente de mettre en place un identificateur de variable dans le    }
-{ dictionnaire des variables DicoVar (sachant que la recherche ne se fera    }
-{ que de Top à NbVar). Deux cas peuvent se presenter :                       }
-{                                                                            }
-{     (1) Cet élément est déjà dans le Dico :                                }
-{             * Value retourne le pointeur stocke                            }
-{             * La fonction retourne False                                   }
-{     (2) Cet élément n'est pas dans le Dico :                               }
-{             * Le nouvel élément (Elt,P) est installé                       }
-{             * Value retourne la position dans le Dico                      }
-{             * La fonction retourne True                                    }
-{                                                                            }
+{ Ajoute un identificateur de variable dans le dictionnaire des variables    }
+{ DicoVar.                                                                   }
 {----------------------------------------------------------------------------}
 
-Function InstalIn(     Top      : Integer;          { Début de la recherche  }
-                       Elt      : StrIdent;         { Elément à installer    }
-                       P        : Integer;          { Pointeur à installer   }
-                   Var Value    : Integer           { Paramètre              }
-                  ) : Boolean;    { True si Elt est un nouvel élément        }
-Var Po : Integer;
+Function NewVar( Nom : StrIdent; Adr : Integer ) : Integer;
 Begin
-  Po := Position(Top,Elt);
-  If Po <> 0 Then
-    Value := DicoVar[Po].Ptr
-  Else
-    Begin
-      NbVar := NbVar + 1;
-      DicoVar[NbVar].Nom := Elt;
-      DicoVar[NbVar].Ptr := P;
-      Value           := NbVar
-    End;
-  InstalIn := Po = 0
+  NbVar := NbVar + 1;
+  DicoVar[NbVar].Nom := Nom;
+  DicoVar[NbVar].Ptr := Adr;
+  NewVar := NbVar
 End;
 
-
+{----------------------------------------------------------------------------}
+{ Function GetVarPtr( Pos : Integer ) : Integer;                             }
+{----------------------------------------------------------------------------}
+{ Retourne le pointeur de la variable stockée en position Pos dans DicoVar.  }
+{----------------------------------------------------------------------------}
+
+Function GetVarPtr( Pos : Integer ) : Integer;
+Begin
+  GetVarPtr := DicoVar[Pos].Ptr
+End;

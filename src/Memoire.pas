@@ -1,7 +1,7 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   Fichier     : Memoire.pas                                                 }
+{   Fichier     : Memoire.pas                                                }
 {   Auteur      : Christophe BISIERE                                         }
 {   Date        : 07/01/88                                                   }
 {                                                                            }
@@ -11,10 +11,10 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
-{      P. AllocLeft ( I : Integer );        Allocation pile gauche           }
-{      P. Push ( V : Integer );             Empiler sur pile gauche          }
-{      P. Pop ( Var V : Integer );          Dépiler pile gauche              }
-{      P. AllocRight( I : Integer );        Allocation pile droite           }
+{      F. AllocLeft ( I : Integer ) : Integer;   Allocation pile gauche      }
+{      P. Push ( V : Integer );                  Empiler sur pile gauche     }
+{      P. Pop ( Var V : Integer );               Dépiler pile gauche         }
+{      F. AllocRight( I : Integer ) : Integer;   Allocation pile droite      }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
@@ -44,6 +44,12 @@
 
 
 Const SizeMem   = 15000;                     { Taille de la mémoire          }
+      Undefined = -1;                        { Valeur indéfinie              }
+      TERM_F = SizeMem + 1;                  { Value for 'type func. symb.'' }
+      TERM_C = SizeMem + 2;                  { Value for 'type constant'     }
+      TERM_V = SizeMem + 3;                  { Value for 'type variable'     }
+      REL_EQUA = SizeMem + 4;                { Value for 'equation'          }
+      REL_INEQ = SizeMem + 5;                { Value for 'equation'          }
 
 Var Memoire  : Array[1..SizeMem] Of Integer; { Mémoire principale            }
     PtrLeft  : Integer;                      { Pointeur pile gauche          }
@@ -51,14 +57,18 @@ Var Memoire  : Array[1..SizeMem] Of Integer; { Mémoire principale            }
 
 
 {----------------------------------------------------------------------------}
-{ Procedure AllocLeft ( I : Integer );                                       }
+{ Function AllocLeft ( I : Integer ) : Integer;                              }
 {----------------------------------------------------------------------------}
 { AllocLeft alloue dans la partie gauche du tableau Memoire I cases.         }
 {----------------------------------------------------------------------------}
 
-Procedure AllocLeft( I : Integer );
+Function AllocLeft( I : Integer ) : Integer;
+Var K : Integer;
 Begin
+  AllocLeft := PtrLeft + 1;
   PtrLeft := PtrLeft + I;
+  For K :=  PtrLeft-I+1 To PtrLeft Do
+    Memoire[K] := Undefined;
 End;
 
 
@@ -76,27 +86,17 @@ End;
 
 
 {----------------------------------------------------------------------------}
-{ Procedure Pop ( Var V : Integer );                                         }
-{----------------------------------------------------------------------------}
-{ Pop retourne la valeur qui est au sommet de la partie gauche du tableau    }
-{ Memoire, puis décrémente PtrLeft.                                          }
-{----------------------------------------------------------------------------}
-
-Procedure Pop( Var V : Integer );
-Begin
-  V := Memoire[PtrLeft];
-  PtrLeft := PtrLeft - 1
-End;
-
-
-{----------------------------------------------------------------------------}
-{ Procedure AllocRight( I : Integer );                                       }
+{ Function AllocRight( I : Integer ) : Integer;                              }
 {----------------------------------------------------------------------------}
 { AllocRight alloue dans la partie droite du tableau Memoire I cases.        }
 {----------------------------------------------------------------------------}
 
-Procedure AllocRight( I : Integer );
+Function AllocRight( I : Integer ) : Integer;
+Var K : Integer;
 Begin
+  AllocRight := PtrRight - 1;
   PtrRight := PtrRight - I;
+  For K :=  PtrRight To PtrRight+I-1 Do
+    Memoire[K] := Undefined;
 End;
 

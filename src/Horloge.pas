@@ -1,7 +1,7 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   Fichier     : Horloge.pas                                                 }
+{   Fichier     : Horloge.pas                                                }
 {   Auteur      : Christophe BISIERE                                         }
 {   Date        : 07/01/88                                                   }
 {                                                                            }
@@ -447,7 +447,7 @@ Var PtrLeftSave : Integer;  { Sauvegarde sommet de pile                     }
     PtrR := NewRegle(Memoire[PtrLeft-2]); { Endroit où a été copié la R }
     Entete(0,0,0,0);
     Butee := PtrRight;
-    AjouteTravail('=',Memoire[PtrT],Memoire[PtrR]);
+    AjouteTravail(REL_EQUA,Memoire[PtrT],Memoire[PtrR]);
     T := PtrR;
     While (TermeSuivant(T)<> 0) Do T := TermeSuivant(T);
     Memoire[T+1] := TermeSuivant(PtrT);

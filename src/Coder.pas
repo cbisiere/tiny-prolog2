@@ -1,7 +1,7 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   Fichier     : Coder.pas                                                   }
+{   Fichier     : Coder.pas                                                  }
 {   Auteur      : Christophe BISIERE                                         }
 {   Date        : 07/01/88                                                   }
 {                                                                            }
@@ -16,13 +16,13 @@
 {     F. InstalVar (Ch :StrIdent) : Integer;                                 }
 {     F. GetArgument( Fin : Char ) : Integer;                                }
 {     F. LireTerme : Integer;                                                }
-{     P. LireEquation;                                                       }
-{     P. LireSysteme;                                                        }
+{     F. LireEquation : Integer;                                             }
+{     F. LireSysteme : Integer;                                              }
 {     F. Acces (T : Integer) : Integer;                                      }
-{     P. CompilerTerme;                                                      }
-{     P. CompilerSuiteDeTermes( StopCar : CharSet ) : Integer;               }
+{     F. CompilerTerme : Integer;                                            }
+{     F. CompilerSuiteDeTermes( StopCar : CharSet ) : Integer;               }
 {     P. CompilerRegle;                                                      }
-{     P. CompilerSuiteDeRegles( StopCar : CharSet ) : Integer;               }
+{     F. CompilerSuiteDeRegles( StopCar : CharSet ) : Integer;               }
 {     F. CompilerProgramme : Integer; ;                                      }
 {     P. Entete(a,b,c,d);                                                    }
 {     F. CompilerQuestion : Integer;                                         }
@@ -89,7 +89,7 @@ Function LireTerme : Integer; Forward;
 {                                                                       }
 {               |-------|                                               }
 {               |       |                                               }
-{         C     |  'C'  |---> Code 'Constante'.                         }
+{         C     | Type  |---> Code for 'Constante' : TERM_C.            }
 {               |       |                                               }
 {               |-------|                                               }
 {               |       |                                               }
@@ -117,9 +117,9 @@ Function LireTerme : Integer; Forward;
 Function InstalConst( Ch : StrIdent ) : Integer;
 Var Adr : Integer;
 Begin
-  Adr := PtrLeft + 1;       { 2 Mots pour son codage             }
-  Push(Ord('C'));           {      1 : Code 'Constante'          }
-  Push(NumConst(Ch));       {      2 : Pointeur dans DicoConst   }
+  Adr := AllocLeft(2);
+  Memoire[Adr+0] := TERM_C;        {      1 : Code 'Constante'          }
+  Memoire[Adr+1] := NumConst(Ch);  {      2 : Pointeur dans DicoConst   }
   InstalConst := Adr
 End;
 
@@ -130,7 +130,7 @@ End;
 {                                                                       }
 {               |-------|                                               }
 {               |       |                                               }
-{         F     |  'F'  |---> Code 'Symbole Fonctionnel'.               }
+{         F     | Type  |---> Code 'Symbole Fonctionnel' : TERM_F       }
 {               |       |                                               }
 {               |-------|                                               }
 {               |       |                                               }
@@ -175,9 +175,8 @@ End;
 Function InstalSymb( AdrG,AdrD : Integer ) : Integer;
 Var Adr : Integer;
 Begin
-  Adr := PtrLeft + 1;
-  AllocLeft(4);                 { 4 mots pour son stockage :         }
-  Memoire[Adr  ] := Ord('F');   {      1 : Code 'Symbole Fonct.'     }
+  Adr := AllocLeft(4);
+  Memoire[Adr+0] := TERM_F;     {      1 : Code 'Symbole Fonct.'     }
   Memoire[Adr+1] := 0;          {      2 : Pointeur futur mbre droit }
   Memoire[Adr+2] := AdrG;       {      3 : Pointeur premier terme    }
   Memoire[Adr+3] := AdrD;       {      4 : Pointeur deuxième terme   }
@@ -191,7 +190,7 @@ End;
 {                                                                       }
 {               |-------|                                               }
 {               |       |                                               }
-{         V     |  '*'  |---> Code 'Variable'.                          }
+{         V     | Type  |---> Code for 'Variable' : TERM_V.             }
 {               |       |                                               }
 {               |-------|                                               }
 {               |       |                                               }
@@ -263,20 +262,24 @@ End;
 {-----------------------------------------------------------------------}
 
 Function InstalVar( Ch : StrIdent ) : Integer;
-Var Adr,Para : Integer;
+Var Adr : Integer;
+    PosInDicoVar : Integer;
 Begin
-  Adr := PtrLeft + 1;
-  If InstalIn(TopVar,Ch,Adr,Para) Then { Première apparition  }
-    Begin             { 6 Mots pour son codage :           }
-      Push(Ord('*')); {      1 : Code 'Variable'           }
-      Push(Para);     {      2 : Pointeur dans Dicovar     }
-      Push(0);        {      3 : Pas d'équation            }
-      Push(0);        {      4 : Pas d'inéquation          }
-      Push(0);        {      5 : partie droite équation    }
-      Push(0);        {      6 : Première inéquation       }
+  PosInDicoVar := Position(TopVar,Ch);
+  If PosInDicoVar = 0 Then
+    Begin
+      Adr := AllocLeft(6);
+      PosInDicoVar := NewVar(Ch,Adr);
+      Memoire[Adr+0] := TERM_V;       { 1 : Code 'Variable'           }
+      Memoire[Adr+1] := PosInDicoVar; { 2 : Pointeur dans Dicovar     }
+      Memoire[Adr+2] := 0;            { 3 : Pas d'équation            }
+      Memoire[Adr+3] := 0;            { 4 : Pas d'inéquation          }
+      Memoire[Adr+4] := 0;            { 5 : partie droite équation    }
+      Memoire[Adr+5] := 0;            { 6 : Première inéquation       }
       InstalVar := Adr
     End
-  Else InstalVar := Para { adresse d'implantation }
+  Else
+    InstalVar := GetVarPtr(PosInDicoVar) { adresse d'implantation }
 End;
 
 
@@ -377,8 +380,8 @@ End;
 {                                                                       }
 {               |-------|                                               }
 {               |       |                                               }
-{         E     |  Cod  |---> Code '=' pour une équation,               }
-{               |       |     Code '<' pour une inéquation.             }
+{         E     |  Code |---> Code REL_EQUA pour une équation,          }
+{               |       |     Code REL_INEQ pour une inéquation.        }
 {               |-------|                                               }
 {               |       |                                               }
 {         E-1   | PtrL  |---> Pointe vers le membre gauche.             }
@@ -394,31 +397,31 @@ End;
 
 
 {-----------------------------------------------------------------------}
-{ Procedure LireEquation;                                               }
+{ Function LireEquation : Integer;                                      }
 {-----------------------------------------------------------------------}
 { LireEquation lit une équation ou une inéquation et la stocke dans la  }
 { pile droite de la mémoire principale.                                 }
 {-----------------------------------------------------------------------}
 
-Procedure LireEquation;
+Function LireEquation : Integer;
 Var Adr : Integer;
 Begin
-  Adr := PtrRight - 1; { Adresse d'implantation dans pile droite }
-  AllocRight(3);                 { 3 Mots pour son codage                    }
+  Adr := AllocRight(3); { Adresse d'implantation dans pile droite }
   Memoire[Adr-1] := LireTerme;   {      2 : Pointeur 1er terme (pile gauche) }
   If Not Error Then
   Begin
     Calu := GetCharNb(Calu);
     Case Calu Of
-      '=' : Memoire[Adr] := Ord('=');               { 1 : Code 'Equation'   }
+      '=' : Memoire[Adr] := REL_EQUA;               { 1 : Code 'Equation'   }
       '<' : If GetCharNb(Calu) <> '>' Then Erreur('> expected')
             Else
-              Memoire[Adr] := Ord('<');             { 1 : Code 'Inéquation'   }
+              Memoire[Adr] := REL_INEQ;             { 1 : Code 'Inéquation' }
       Else Erreur('= or <> expected')
     End;
   End;
   If Not Error Then
-    Memoire[Adr-2] := LireTerme  {      3 : Pointeur 2nd terme (pile gauche) }
+    Memoire[Adr-2] := LireTerme;  {      3 : Pointeur 2nd terme (pile gauche) }
+  LireEquation := Adr
 End;
 
 
@@ -434,23 +437,32 @@ End;
 
 
 {-----------------------------------------------------------------------}
-{ Procedure LireSysteme;                                                }
+{ Function LireSysteme : Integer;                                       }
 {-----------------------------------------------------------------------}
 { LireSysteme lit un système d'équations et d'inéquations et la stocke  }
 { dans la pile droite de la mémoire principale.                         }
 {-----------------------------------------------------------------------}
 
-Procedure LireSysteme;
+Function LireSysteme : Integer;
+Var Adr, Loc : Integer;
+    First : Boolean;
 Begin
+  Loc := 0;
   If GetCharNb(Calu) <> '{' Then Erreur('Missing {')
   Else
     Begin
+      First := True;
       Repeat
-        LireEquation
+        Adr := LireEquation;
+        If First Then
+          Begin
+            Loc := Adr;
+            First := False
+          End
       Until (Error) Or (GetCharNb(Calu) <> ',');
       If (Not Error) And (Calu <> '}') Then Erreur('Missing }')
-    End
-
+    End;
+  LireSysteme := Loc
 End;
 
 {-----------------------------------------------------------------------}
@@ -496,25 +508,24 @@ End;
 
 
 {-----------------------------------------------------------------------}
-{ Procedure CompilerTerme;                                              }
+{ Function CompilerTerme : Integer                                      }
 {-----------------------------------------------------------------------}
 { CompilerTerme code un bloc-terme en mémoire.                          }
 {-----------------------------------------------------------------------}
 
-Procedure CompilerTerme;
+Function CompilerTerme : Integer;
 Var Adr : Integer;
 Begin
-  Adr := PtrLeft + 1;
-  Push(0);                  { Accès à ce terme }
-  Push(0);                  { terme suivant    }
-  Push(0);
-  Memoire[Adr  ]  := LireTerme;
-  Memoire[Adr+2]  := Acces(Memoire[Adr])
+  Adr := AllocLeft(3);
+  Memoire[Adr+0]  := LireTerme;
+  Memoire[Adr+1]  := 0;                    { terme suivant  }
+  Memoire[Adr+2]  := Acces(Memoire[Adr]);
+  CompilerTerme := Adr
 End;
 
 
 {-----------------------------------------------------------------------}
-{ Procedure CompilerSuiteDeTermes( StopCar : CharSet ) : Integer;       }
+{ Function CompilerSuiteDeTermes( StopCar : CharSet ) : Integer;        }
 {-----------------------------------------------------------------------}
 { CompilerSuiteDeTermes code une suite de termes. Dès qu'un caractère   }
 { contenu dans StopCar est rencontré, le processus s'arrête.            }
@@ -526,11 +537,8 @@ Begin
   UnGetChar(GetCharNb(Calu));
   If (Not (Calu In StopCar)) And (Not Error) Then
     Begin
-      Adr := PtrLeft + 1;
-      Push(0);                  { Accès à ce terme }
-      Push(0);                  { terme suivant    }
-      Push(0);
-      Memoire[Adr]   := LireTerme;
+      Adr := AllocLeft(3);
+      Memoire[Adr+0] := LireTerme;
       Memoire[Adr+2] := Acces(Memoire[Adr]);
       Memoire[Adr+1] := CompilerSuiteDeTermes(StopCar)
     End
@@ -572,19 +580,16 @@ End;
 {-----------------------------------------------------------------------}
 
 Procedure CompilerRegle;
-Var Adr,Butee : Integer;
+Var Adr,AdrT,Butee : Integer;
 Begin
   UnGetChar(GetCharNb(Calu));
-  Adr := PtrLeft + 1;
-  Push(0);                   { Taille de la règle en Integer  }
-  Push(0);                   { Premier variable dans DicoVar  }
-  Push(0);                   { Dernière variable dans DicoVar }
-  Memoire[Adr+1] := NbVar + 1;
-  CompilerTerme;             { tête                           }
+  Adr := AllocLeft(3);
+  Memoire[Adr+1] := NbVar + 1;  { Première variable dans DicoVar  }
+  AdrT := CompilerTerme;        { tête                            }
   Verifier('->');
   If Not Error Then
     Begin
-      Memoire[Adr+4] := CompilerSuiteDeTermes(['{',';']);
+      Memoire[AdrT+1] := CompilerSuiteDeTermes(['{',';']);
       If Calu = '{' Then
         Begin
           Butee := PtrRight;
@@ -593,15 +598,15 @@ Begin
             Erreur('Constraint cannot be satisfied')
         End;
       Verifier(';');
-      Memoire[Adr]   := PtrLeft - Adr;
-      Memoire[Adr+2] := NbVar;
+      Memoire[Adr+0] := PtrLeft - Adr; { Taille de la règle en Integer  }
+      Memoire[Adr+2] := NbVar;         { Dernière variable dans DicoVar }
       TopVar := NbVar + 1;                    { Var locales à une règle }
     End
 End;
 
 
 {-----------------------------------------------------------------------}
-{ Procedure CompilerSuiteDeRegles( StopCar : CharSet ) : Integer;       }
+{ Function CompilerSuiteDeRegles( StopCar : CharSet ) : Integer;       }
 {-----------------------------------------------------------------------}
 { CompilerSuiteDeRegles code une suite de règles. Dès qu'un caractère   }
 { contenu dans StopCar est rencontré, le processus s'arrête.            }
@@ -613,10 +618,9 @@ Begin
   UnGetChar(GetCharNb(Calu));
   If (Not (Calu In StopCar)) And (Not Error) Then
     Begin
-      Adr := PtrLeft + 1;
-      Push(0);        { Accès à la règle suivante }
+      Adr := AllocLeft(1);
       CompilerRegle;
-      Memoire[Adr] := CompilerSuiteDeRegles(StopCar)
+      Memoire[Adr] := CompilerSuiteDeRegles(StopCar) { Règle suivante }
     End
   Else Adr := 0;
   CompilerSuiteDeRegles := Adr
