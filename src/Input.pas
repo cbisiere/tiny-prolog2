@@ -71,19 +71,25 @@ End;
 Procedure OpenFic;
 Var NomFic : AnyStr;
 Begin
-  Repeat
-    Write('Prolog file to execute: ');
-    Readln(NomFic);
-    Writeln;
-    If NomFic <> '' Then
-      Begin
-        Assign(Fic,NomFic);
-        {$I-}
-        Reset(Fic);
-        {$I+}
-      End
-  Until (IOResult=0) Or (NomFic='');
-  If NomFic='' Then Halt;
+  NomFic := '';
+  If ParamCount = 1 Then
+    NomFic := ParamStr(1)
+  Else
+    Begin
+      Write('Prolog file to execute: ');
+      Readln(NomFic)
+    End;
+  If NomFic = '' Then Halt;
+  Assign(Fic,NomFic);
+  {$I-}
+  Reset(Fic);
+  {$I+}
+  If IOResult <> 0 Then
+    Begin
+      Writeln('Cannot open ' + NomFic);
+      Halt
+    End;
+  Writeln('Executing ' + NomFic);
   FicOpen := True
 End;
 
