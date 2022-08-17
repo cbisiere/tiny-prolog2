@@ -474,8 +474,9 @@ Var PtrLeftSave : Integer;  { Sauvegarde sommet de pile                     }
 
 Begin
   InitHorloge;
-  Entete(FirstT,FirstR,0,0); { Entête pour réduction du système de la question }
+  Entete(FirstT,FirstR,0,0); { Entête initial }
   Repeat
+    Avancer;
     LancerReduction;
     If (Not Soluble) Or             { Système de contraintes non soluble }
        (Memoire[PtrLeft-3] = 0)     { Plus de terme à effacer            }
@@ -483,7 +484,6 @@ Begin
       Reculer
     Else
       PremiereRegle;
-    If Not Fin Then Avancer
   Until Fin
 End;
 

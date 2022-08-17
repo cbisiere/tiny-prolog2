@@ -272,8 +272,19 @@ Procedure EcrireSysteme( First,Last : Integer );
 Var I       : Integer;
     P       : Integer;
     Before  : Boolean;
+    Printed  : Boolean;
+
+    Procedure CurlyBrace;
+    Begin
+      If not Printed Then
+        Begin
+          Printed := True;
+          Write('{ ')
+        End
+    End;
+
 Begin
-  Write('{ ');
+  Printed := False;
   InitIneq;
   Before  := False;
   For I := First To Last Do
@@ -281,15 +292,21 @@ Begin
       P := DicoVar[I].Ptr;
       If Memoire[P+2] = 1 Then
         Begin
-          If Before Then Write(' , ');
+          CurlyBrace;
+          If Before Then Write(', ');
           Write(DicoVar[I].Nom,' = ');
           Before := True;
           EcrireTerme(Memoire[P+4])
         End;
-      If Memoire[P+3] = 1 Then AddIneq(Memoire[P+5])
+      If Memoire[P+3] = 1 Then
+        Begin
+          CurlyBrace;
+          AddIneq(Memoire[P+5])
+        End
     End;
   EcrireInequations(Before);
-  Write(' }');
+  If Printed Then
+    Write(' }')
 End;
 
 
@@ -386,7 +403,8 @@ End;
 Procedure RestituerQuestion(Q : Integer);
 Begin
   InitIneq;
-  RestituerSuiteDeTermes(Q,False);
+  RestituerSuiteDeTermes(Q+2,False);
+  EcrireSysteme(Memoire[Q],Memoire[Q+1]);
   Writeln(' ?')
 End;
 

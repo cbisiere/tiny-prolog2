@@ -429,12 +429,12 @@ End;
 {                                                                       }
 {  UN SYSTEME :                                                         }
 {                                                                       }
-{    Le système est simplement codé sous forme d'une suite d'équations  }
-{  ou d'inéquations dans la pile droite.                                }
+{    Avant réduction, le système est codé sous forme d'une séquence     }
+{  d'équations ou d'inéquations dans la pile droite.                    }
 {                                                                       }
-{                                                                       }
+{    Après réduction, les inéquations du système réduit sont stockées   }
+{  dans la pile gauche, sous forme de listes chainées d'inéquations.    }
 {-----------------------------------------------------------------------}
-
 
 {-----------------------------------------------------------------------}
 { Function LireSysteme : Integer;                                       }
@@ -465,6 +465,26 @@ Begin
   LireSysteme := Loc
 End;
 
+
+{-----------------------------------------------------------------------}
+{ Procedure CompilerSysteme;                                            }
+{-----------------------------------------------------------------------}
+{ Compile un système d'équations et d'inéquations et le réduit.         }
+{ Les équations du système réduit sont intégrées dans le codage des     }
+{ variables. Les inéquations du système réduit sont codées comme des    }
+{ listes chaînées, stockées au sommet de la pile gauche.                }
+{-----------------------------------------------------------------------}
+
+Procedure CompilerSysteme;
+Var Butee : Integer;
+Begin
+  Butee := PtrRight;
+  LireSysteme;
+  If Not ReductionSysteme(Butee,False) Then
+    Erreur('Constraint cannot be satisfied')
+End;
+
+
 {-----------------------------------------------------------------------}
 {                                                                       }
 {  UN BLOC-TERME B :                                                    }
@@ -484,7 +504,6 @@ End;
 {               |-------|     terme n'a pas une constante pour accès.   }
 {                                                                       }
 {-----------------------------------------------------------------------}
-
 
 {-----------------------------------------------------------------------}
 { Function Acces (T : Integer) : Integer;                               }
@@ -580,7 +599,7 @@ End;
 {-----------------------------------------------------------------------}
 
 Procedure CompilerRegle;
-Var Adr,AdrT,Butee : Integer;
+Var Adr,AdrT : Integer;
 Begin
   UnGetChar(GetCharNb(Calu));
   Adr := AllocLeft(3);
@@ -590,17 +609,11 @@ Begin
   If Not Error Then
     Begin
       Memoire[AdrT+1] := CompilerSuiteDeTermes(['{',';']);
-      If Calu = '{' Then
-        Begin
-          Butee := PtrRight;
-          LireSysteme;
-          If Not ReductionSysteme(Butee,False) Then
-            Erreur('Constraint cannot be satisfied')
-        End;
+      If Calu = '{' Then CompilerSysteme;
       Verifier(';');
       Memoire[Adr+0] := PtrLeft - Adr; { Taille de la règle en Integer  }
       Memoire[Adr+2] := NbVar;         { Dernière variable dans DicoVar }
-      TopVar := NbVar + 1;                    { Var locales à une règle }
+      TopVar := NbVar + 1;             { Var locales à une règle        }
     End
 End;
 
@@ -680,10 +693,28 @@ End;
 
 
 {-----------------------------------------------------------------------}
+{                                                                       }
+{  UNE QUESTION Q :                                                     }
+{                                                                       }
+{               |-------|                                               }
+{               |       |                                               }
+{         Q+0   | First |---> Adresse dans le dictionnaire de la        }
+{               |       |     premiere variable de cette question.      }
+{               |-------|                                               }
+{               |       |                                               }
+{         Q+1   | Last  |---> Adresse dans le dictionnaire de la        }
+{               |       |     dernière variable de cette question.      }
+{               |-------|                                               }
+{                                                                       }
+{    Le premier bloc-terme de cette question commence en Q+2.           }
+{                                                                       }
+{-----------------------------------------------------------------------}
+
+{-----------------------------------------------------------------------}
 { Function CompilerQuestion : Integer;                                  }
 {-----------------------------------------------------------------------}
-{ CompilerQuestion code une question après le code des règles et met    }
-{ en place l'entête.                                                    }
+{ CompilerQuestion code une question après le code des règles.          }
+{ Si un système est présent, on tente de le réduire.                    }
 {-----------------------------------------------------------------------}
 
 Function CompilerQuestion : Integer;
@@ -691,14 +722,20 @@ Var Adr : Integer;
 Begin
   If GetCharNb(Calu) = '>' Then
     Begin
+      Adr := AllocLeft(2);
+      Memoire[Adr+0] := NbVar + 1;  { Première variable dans DicoVar  }
       FirstVar   := NbVar   + 1;
       FirstConst := NbConst + 1;
-      Adr := CompilerSuiteDeTermes(['{','?']);
-      If Calu = '{' Then LireSysteme;
+      CompilerSuiteDeTermes(['{','?']);
+      If Calu = '{' Then CompilerSysteme;
       Verifier('?');
+      Memoire[Adr+1] := NbVar;       { Dernière variable dans DicoVar }
     End
   Else
-    Erreur('No queries!');
+    Begin
+      Adr := 0;
+      Erreur('No queries!')
+    End;
   UnGetChar(GetCharNb(Calu));
   CompilerQuestion := Adr
 End;

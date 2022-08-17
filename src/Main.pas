@@ -107,8 +107,8 @@ Begin
       Writeln;
       RestituerQuestion(Q);
       Writeln;
-      { P est aussi la liste de règles. Q est aussi la liste de termes. }
-      If Not Error Then Horloge(P, Q, Butee);
+      { P est aussi la liste de règles. La liste des termes est en Q+2. }
+      If Not Error Then Horloge(P, Q+2, Butee);
       Temporise
     Until Calu = '.'
 End;
