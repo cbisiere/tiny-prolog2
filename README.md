@@ -1,12 +1,27 @@
 # A Simple Prolog II Interpreter 
 A simple Prolog II interpreter written in Pascal
 
+## Why?
+2022 is [the 50th anniversary of Prolog](http://prologyear.logicprogramming.org/). As a modest tribute for this anniversary, I decided to dig up a Prolog interpreter I wrote almost 35 years ago, clean it a bit, add a few missing features, and push it online. As this program remains a toy program, this serves no real purpose other than to celebrate this anniversary.
+
+I wrote this program as a course assignment, back in 1988, when I was a student at the University of Aix-Marseille II, pursuing a MSc in Computer Science and Mathematics ("Diplôme d'Études Approfondies en Informatique et Mathématique"). The course, entitled "Prolog II", was taught by the late [Alain Colmerauer](https://en.wikipedia.org/wiki/Alain_Colmerauer), creator of the language.
+
+## References
+Basically, the program implements two algorithms described in the following paper: 
+
+* Alain Colmerauer (1984). [Equations and Inequations on Finite and Infinite Trees](https://www.ueda.info.waseda.ac.jp/AITEC_ICOT_ARCHIVES/ICOT/Museum/FGCS/FGCS84en-proc/84eILEC-1.pdf). FGCS 1984: 85-99. 
+
+Here are two additional interesting papers:
+
++ Alain Colmerauer (1985). [Prolog in 10 Figures](https://dl.acm.org/doi/pdf/10.1145/214956.214958). Communications of the ACM, vol. 28, num. 12, December.
+
+* Philippe Körner et al. (2022). [Fifty Years of Prolog and Beyond](https://www.cambridge.org/core/journals/theory-and-practice-of-logic-programming/article/fifty-years-of-prolog-and-beyond/3A5329B6E3639879301A6D44346FD1DD). Theory and Practice of Logic Programming, 1-83.
+
+
 ## Overview
-I wrote this program as a course assignment, back in 1988, when I was a student at the University of Aix-Marseilles II, pursuing a MSc in Computer Science and Mathematics ("Diplôme d'Études Approfondies en Informatique et Mathématique"). The course, entitled "Prolog II", was taught by the late [Alain Colmerauer](https://en.wikipedia.org/wiki/Alain_Colmerauer).
+The interpreter handles classical Prolog rules, expressed in so-called "Marseille syntax". Being a simple implementation exercice, it offers no built-in functions or other advanced features.
 
-The interpreter handles classical Prolog rules, expressed in so-called "Marseilles syntax". Being a simple implementation exercice, it offers no built-in functions or other advanced features.
-
-The source code contains detailed comments (though in French) about the implementation (program encoding and execution).
+The source code contains detailed comments (though in French) about the implementation (parsing and execution).
 
 ### Lists
 A dot `.` is used to separate items in a list. For instance, the rules defining the insertion of an element before any item in a list could be written as:
@@ -21,7 +36,7 @@ Note that variable names (e.g., `e`) start with a single letter, while identifie
 Inserting an element in a list of four items gives three different solutions:
 
 ```
-insertion(0,1.2.nil,x)  ?
+-> insertion(0,1.2.nil,x);
 
 { x = 0.1.2.nil }
 { x = 1.0.2.nil }
@@ -30,26 +45,25 @@ insertion(0,1.2.nil,x)  ?
 
 ### Constraints
 
-The interpreter also handles constraints on trees, expressed as equalities (`=`) or inequalities (`<>`). So, for instance, one can write a simple `diff` rule as:
+The interpreter also handles constraints on trees, expressed as equalities (`=`) or inequalities (`<>`). So, for instance, one can write a simple `dif` rule as:
 
 ```
-diff(x,y) -> { x <> y };
+dif(x,y) -> { x <> y };
 ```
 
 Then, the following query gives no results, as there is no `x` satisfying the constraint:
 
 ```
-diff(x,x)  ?
+-> dif(x,x);
 ```
 
 while the following query displays the resulting constraints:  
 
 ```
-diff(x,1)  ?
-
-{ x = x69 , x69 <> 1 }
+-> dif(x,1);
+{ x = x_94 , x_94 <> 1 }
 ```
-(Note that the interpreter created an additional variable `x69`, and does not try to get rid of it when displaying the resulting constraint set.)
+(Note that the interpreter has created an additional variable `x_94`, and does not try to get rid of it when displaying the resulting constraint set.)
 
 ## Compilation
 
@@ -70,9 +84,9 @@ fpc -Mtp -FE. -otprolog2 src/Main.pas
 ```
 ## Execution
 
-A Prolog program to execute is a text file containing both the program rules and the queries. Rules are written using the old "Marseilles syntax". Each query starts with a `>`and ends with a `?`. A final dot `.` ends the program.
+A Prolog program to execute is a text file containing both the program rules and the queries. Rules are written using the old "Marseille syntax". Each query starts with a `->`and ends with a `;`. The end of the text file, or, alternatively, an additional `;`, ends the program.
 
-For instance, the program `examples/permu.pro` contains four rules and two queries:  
+For instance, the file `examples/permu.pro` contains four rules and two queries:
 
 ```
 permutation(nil,nil) ->;
@@ -82,91 +96,81 @@ permutation(e.x,z) -> permutation(x,y)
 insertion(e,x,e.x) ->;
 insertion(e,f.x,f.y) -> insertion(e,x,y);
 
-> permutation(1.2.3.nil,x) ?
-> permutation(3.a.1.b.nil,2.4.c.d.nil) ?
-
-.
-```
-(Note the `nil` has no special meaning in the language. In this example, `nil` is just an identifier used as an end-of-list marker.)
-
-To execute this program, run `tprolog2`. When prompted for the Prolog program to execute, type in the path of the Prolog file, `examples/permu.pro`. The interpreter will compile and display the Prolog program, execute the first query, and display a prompt `Ok`. Hit the return key to execute the next query, until all queries are executed.
-
-The full output will be as follows:
+-> permutation(1.2.3.nil,x);
+-> permutation(3.a.1.b.nil,2.4.c.d.nil);
 
 ```
-cbisiere:~/git/tiny-prolog2$ ./tprolog2
-Prolog file to execute: examples/permu.pro
+(Note the `nil` has no special meaning in the language. In this example, `nil` is just an identifier used as an end-of-list mark.)
 
---------------------------------------------------------------
+To execute this program, run `tprolog2 examples/permu.pro`: 
 
-permutation(nil,nil) ->  {  };
 
-permutation(e.x,z) ->
-        permutation(x,y)
-        insertion(e,y,z) {  };
-
-insertion(e,x,e.x) ->  {  };
-
-insertion(e,f.x,f.y) ->
-        insertion(e,x,y) {  };
-
---------------------------------------------------------------
-
-permutation(1.2.3.nil,x)  ?
-
+```
+$ ./tprolog2 examples/permu.pro
+Program "examples/permu.pro" loaded
+-> permutation(1.2.3.nil,x) ;
 { x = 1.2.3.nil }
 { x = 2.1.3.nil }
 { x = 2.3.1.nil }
 { x = 1.3.2.nil }
 { x = 3.1.2.nil }
 { x = 3.2.1.nil }
-
-Ok
-
-
-permutation(3.a.1.b.nil,2.4.c.d.nil)  ?
-
-{ a = 2 , b = 4 , c = 3 , d = 1 }
-{ a = 2 , b = 4 , c = 1 , d = 3 }
-{ a = 4 , b = 2 , c = 3 , d = 1 }
-{ a = 4 , b = 2 , c = 1 , d = 3 }
-
-Ok
-
-cbisiere:~/git/tiny-prolog2$
+-> permutation(3.a.1.b.nil,2.4.c.d.nil) ;
+{ a = 2, b = 4, c = 3, d = 1 }
+{ a = 2, b = 4, c = 1, d = 3 }
+{ a = 4, b = 2, c = 3, d = 1 }
+{ a = 4, b = 2, c = 1, d = 3 }
+>
 ```
 
+The final `>`is a prompt, inviting you to type in other queries to execute, e.g.:
+
+```
+-> permutation(1.2.3.nil,3.x.y.nil) ;
+{ x = 1, y = 2 }
+{ x = 2, y = 1 }
+>
+```
+When you are done, hit `Ctrl+C` to quit the interpreter.
 
 ## BNF Syntax
 
 ```
-variable ::= <letter> [<digit>]* [']*
+digits ::= <digit>[<digit>]*
+letters := <letter>[<letter>]*
 
-identifier ::= <letter> <letter> [<letter>]* [<digit>]*
+variable ::= <letter>[<digits>]["'"]*
 
-integer ::= <digit> [<digit>]*                            
+identifier ::= <ident-start>[<ident-middle>]*[<ident-end>]
+
+ident-start ::= <letter><letter>[<letters>]
+ident-middle ::= "-"<letters>
+ident-end ::= <digits>
+
+integer ::= <digits>                            
 
 constant ::= <identifier> | <integer>                    
 
+term ::= <simple-term> ["."<term>]                          
 
-term ::= <simple term> [.<term>]                          
-
-simple term ::= <constant> |                               
+simple-term ::= <constant> |                               
                 <variable>  |                               
-                <identifier> ( <term> [,<term>]* ) |  
-                < <term> [,<term>]* > |                   
-                ( <term> )                                 
+                <identifier>"(" <term> ["," <term>]* ")" |  
+                "<" <term> ["," <term>]* ">" |                   
+                "(" <term> ")"                                 
 
-contrainte ::= <term> = <term> |                           
-               <term> <> <term>                            
+constraint ::= <term> "=" <term> |
+               <term> "<>" <term>          
 
-system ::= { <contraint> [,<contraint>]* }                         
+system ::= "{" <constraint> ["," <constraint>]* "}"                         
 
-rule ::= <term> -> [<term>]* [<system>] ;                
+rule ::= <term> "->" [<term>]* [<system>] ";"
 
-query ::= > [<term>]* [system] ?                                
+query ::= -> [<term>]* [system] ";"                                
 
-program-and-queries ::= [<rule>]*  [<query>]* .  
+rules-and-queries ::= [<rule> | <query>]*
+
+program ::= [<rules-and-queries>]* [";"]
 
 ```
 

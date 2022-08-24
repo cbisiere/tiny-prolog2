@@ -1,5 +1,4 @@
 
-
 hors-d-oeuvre(radis) ->;
 hors-d-oeuvre(pates) ->;
 
@@ -49,8 +48,5 @@ petit-successeur(6,7) ->;
 petit-successeur(7,8) ->;
 petit-successeur(8,9) ->;
 
-> points(m,x) ?
-> repas-leger(h,p,d) ?
-.
-
-
+-> points(m,x);
+-> repas-leger(h,p,d);

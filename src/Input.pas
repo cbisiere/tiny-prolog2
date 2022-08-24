@@ -1,145 +1,177 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   Fichier     : Input.pas                                                  }
-{   Auteur      : Christophe BISIERE                                         }
-{   Date        : 07/01/88                                                   }
+{   File        : Input.pas                                                  }
+{   Author      : Christophe Bisière                                         }
+{   Date        : 1988-01-07                                                 }
+{   Updated     : 2022                                                       }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
-{            L E C T U R E   D U   F L O T   D ' E N T R E E                 }
-{                                                                            }
-{----------------------------------------------------------------------------}
-{                                                                            }
-{     P. Erreur (S : AnyStr);                  Constate une erreur           }
-{     P. OpenFic;                              Ouverture Fichier Utilisateur }
-{     F. GetC (Var c : Char) : Char;           Lecture Non Bufferisee        }
-{     F. GetChar (Var c : Char) : Char;        Lecture Bufferisee            }
-{     P. UnGetChar (c : Char);                 Remet Caractere dans Buffer   }
-{     F. GetCharNb (Var c : Char) : Char;      Lit Caractere non blanc       }
-{     P. Get (Var Ch : AnyStr; E : CharSet);   Lit Suite de Caracteres       }
-{     P. Verifier( Ch : AnyStr);               Verification Syntaxique       }
-{                                                                            }
+{                                 R E A D                                    }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-{$R+} { Directive de compilation : Vérifier les indices des tableaux.     }
-{$V-} { Directive de compilation : Ne pas vérifier la taille des chaînes. }
+{$R+} { Range checking on. }
+{$V-} { No strict type checking for strings. }
 
+Type
+  CharSet   = Set Of Char;               { Type ensemble de caractères   }
+  TInput    = (InputFile, Repl);         { Type of input                 }
 
-Type  AnyStr    = String[80];                { Type chaîne de travail        }
-      CharSet   = Set Of Char;               { Type ensemble de caractères   }
+Const
+  SizeBufIn = 10;                          { Taille Buffer d'entree      }
+  EndOfInput = #$FF;                       { Code 'fin entrée'           }
+  EndOfLine = #10;                         { Code 'fin de ligne'         }
+  BlankSet : CharSet = [' ',#9,EndOfLine]; { Caractères d'espacement     }
 
-Const SizeBufIn = 10;                        { Taille Buffer d'entree        }
-      FinEntree = #$FF;                      { Code caractère 'fin entrée'   }
-
-Var   Entree  : AnyStr;                      { Chaîne lue                    }
-      PtrInp  : Byte;                        { Pointeur dans cette chaîne    }
-      Calu    : Char;                        { Caractère courant             }
-      BufIn   : Array[1..SizeBufIn] Of Char; { Buffer d'entrée               }
-      PtrIn   : Byte;                        { Pointeur dans ce buffer       }
-      Fic     : Text;                        { Fichier utilisateur           }
-      FicOpen : Boolean;                     { Fichier ouvert ?              }
-      Error   : Boolean;                     { Erreur ?                      }
-
-
+Var
+  CurrentLine : AnyStr;                  { Chaîne lue                    }
+  PtrInp  : Byte;                        { Prochain car ds CurrentLine   }
+  BufIn   : Array[1..SizeBufIn] Of Char; { Buffer d'entrée               }
+  PtrIn   : Byte;                        { Pointeur dans ce buffer       }
+  CurrentFile : Text;                    { Fichier utilisateur           }
+  FileIsOpen : Boolean;                  { Fichier ouvert ?              }
+  LineNum : Integer;
+  Error   : Boolean;                     { En erreur ?                   }
+  Source  : TInput;                      { Where do we get input?        }
 
 {----------------------------------------------------------------------------}
-{ Procedure Erreur( S : AnyStr );                                            }
-{----------------------------------------------------------------------------}
-{ La procédure Erreur constate une erreur de syntaxe. Elle affiche le        }
-{ message S et positionne le booléen Error à True.                           }
+{ Constate une erreur. Affiche un message.                                   }
 {----------------------------------------------------------------------------}
 
-Procedure Erreur( S : AnyStr );
+Procedure RaiseError( S : AnyStr );
+Var K : Integer;
 Begin
-  Writeln;
-  Writeln('Erreur : ',S);
-  Writeln;
+  If Not Error Then
+  Begin
+    Case Source Of
+    InputFile:
+      Writeln('Error line ',LineNum,': ',S);
+    Repl:
+      Writeln('Error: ',S)
+    End;
+    Writeln(CurrentLine);
+    For K := 1 to PtrInp-1 Do
+      Write(' ');
+    Writeln('^')
+  End;
   Error := True
 End;
 
-
 {----------------------------------------------------------------------------}
-{ Procedure OpenFic;                                                         }
-{----------------------------------------------------------------------------}
-{ Ouverture du Fichier Programme : cette procédure demande le nom du fichier }
-{ contenant le programme Prolog. Si un nom est entré, elle vérifie que ce    }
-{ fichier existe bien, sinon le programme est arrêté (primitive Halt;).      }
+{ Génère une erreur fatale si une condition n'est pas satisfaite.            }
 {----------------------------------------------------------------------------}
 
-Procedure OpenFic;
-Var NomFic : AnyStr;
+Procedure CheckCondition; (* ( Cond : Boolean; Message : AnyStr) *)
 Begin
-  NomFic := '';
-  If ParamCount = 1 Then
-    NomFic := ParamStr(1)
-  Else
-    Begin
-      Write('Prolog file to execute: ');
-      Readln(NomFic)
-    End;
-  If NomFic = '' Then Halt;
-  Assign(Fic,NomFic);
-  {$I-}
-  Reset(Fic);
-  {$I+}
-  If IOResult <> 0 Then
-    Begin
-      Writeln('Cannot open ' + NomFic);
-      Halt
-    End;
-  Writeln('Executing ' + NomFic);
-  FicOpen := True
+  If Not Cond Then
+  Begin
+    RaiseError('Internal error: ' + Message);
+    Halt
+  End
 End;
 
 {----------------------------------------------------------------------------}
-{ Function GetC (Var c : Char) : Char;                                       }
+{ Vide la chaîne de lecture.                                                 }
 {----------------------------------------------------------------------------}
-{ Lecture d'un caractère : cette fonction teste d'abord si le Fichier        }
-{ Utilisateur a bien été ouvert. Si non elle demande l'ouverture. Puis, si   }
-{ c'est possible, elle retourne le caractère pointé par PtrInp dans la ligne }
-{ Entree. Cette operation peut être impossible pour deux raisons :           }
-{ (1) Il n'y a plus de caractère dans Entree. GetC provoque alors la lecture }
-{     d'une nouvelle ligne et retourne le caractère Blanc (une fin de ligne  }
-{     est considérée comme un séparateur);                                   }
+
+Procedure InitCurrentLine;
+Begin
+  CurrentLine := '';
+  PtrInp := Length(CurrentLine) + 1
+End;
+
+{----------------------------------------------------------------------------}
+{ Initialise la lecture.                                                     }
+{----------------------------------------------------------------------------}
+
+Procedure InitInput;
+Begin
+  InitCurrentLine;
+  PtrIn := 0
+End;
+
+{----------------------------------------------------------------------------}
+{ Ouverture d'un fichier pour lecture d'un programme Prolog.                 }
+{----------------------------------------------------------------------------}
+
+Function SetFileForInput( FileName : AnyStr ) : Boolean;
+Begin
+  Assign(CurrentFile,FileName);
+  {$I-}
+  Reset(CurrentFile);
+  {$I+}
+  FileIsOpen := IOResult = 0;
+  If FileIsOpen Then
+  Begin
+    InitInput;
+    Source := InputFile;
+    LineNum := 0
+  End;
+  SetFileForInput := FileIsOpen
+End;
+
+{----------------------------------------------------------------------------}
+{ Lecture d'une ligne au clavier.                                            }
+{----------------------------------------------------------------------------}
+
+Procedure LireCommande;
+Begin
+  InitInput;
+  Source := Repl;
+  Readln(CurrentLine)
+End;
+
+{----------------------------------------------------------------------------}
+{ Lecture d'un caractère.                                                    }
+{ Retourne le caractère pointé par PtrInp dans la ligne CurrentLine.              }
+{ Cette operation peut être impossible pour deux raisons :                   }
+{ (1) Il n'y a plus de caractère dans CurrentLine. GetC provoque alors la lecture }
+{     d'une nouvelle ligne et retourne le caractère EndOfLine;               }
 { (2) C'est le fin du fichier Fic. GetC retourne alors le caractère          }
-{     FinEntree.                                                             }
+{     EndOfInput.                                                            }
 {----------------------------------------------------------------------------}
 
 Function GetC( Var c : Char ) : Char;
 Begin
-  If Not FicOpen Then
+  If Source = InputFile Then
+  Begin
+    If (Length(CurrentLine) = 0) Or (PtrInp > Length(CurrentLine)) Then
     Begin
-      OpenFic;
-      PtrInp := 255;
-      Entree := '';
-    End;
-  If (Length(Entree)<>0) And (PtrInp <= Length(Entree)) Then
-    Begin
-      c := Entree[PtrInp];   { Lit un caractère      }
-      PtrInp := PtrInp + 1   { Pointe sur le suivant }
-    End
-  Else
-    Begin
-      If Eof(Fic) Then
-        Begin
-          c := FinEntree;
-          If FicOpen Then Close(Fic);
-          FicOpen := False
-        End
+      If Not Eof(CurrentFile) Then
+      Begin
+        InitCurrentLine;
+        Readln(CurrentFile,CurrentLine);
+        LineNum := LineNum + 1
+      End
       Else
-        Begin
-          Readln(Fic,Entree);
-          PtrInp := 1;
-          c := ' '
-        End
-    End;
+      Begin
+        If FileIsOpen Then Close(CurrentFile);
+        FileIsOpen := False;
+        GetC := EndOfInput;
+        Exit
+      End
+    End
+  End;
+  If (Length(CurrentLine) > 0) And (PtrInp <= Length(CurrentLine)) Then
+  Begin
+    c := CurrentLine[PtrInp];
+    PtrInp := PtrInp + 1
+  End
+  Else
+  Begin
+    InitCurrentLine;
+    Case Source Of
+    InputFile:
+      c := EndOfLine;
+    Repl:
+      c := EndOfInput
+    End
+  End;
   GetC := c
 End;
 
-{----------------------------------------------------------------------------}
-{ Function GetChar (Var c : Char) : Char;                                    }
 {----------------------------------------------------------------------------}
 { Lecture bufferisée d'un caractère : si le buffer d'entrée BufIn est vide,  }
 { la fonction GetChar retourne le caractère renvoyé par GetC. Dans le cas    }
@@ -149,19 +181,17 @@ End;
 {----------------------------------------------------------------------------}
 
 Function GetChar( Var c : Char ) : Char;
-Var Gc : Char;
 Begin
-  If PtrIn = 0 Then Gc := GetC( c )
+  If PtrIn = 0 Then
+    c := GetC( c )
   Else
-    Begin
-      Gc      := BufIn[PtrIn];
-      PtrIn   := PtrIn - 1
-    End;
-  GetChar := Gc;
+  Begin
+    c  := BufIn[PtrIn];
+    PtrIn := PtrIn - 1
+  End;
+  GetChar := c
 End;
 
-{----------------------------------------------------------------------------}
-{ Procedure UnGetChar (c : Char);                                            }
 {----------------------------------------------------------------------------}
 { Remise d'un caractère dans le buffer : cette procédure tente d'ajouter au  }
 { buffer le caractère c, pour qu'il soit relu au prochain appel de GetChar.  }
@@ -171,19 +201,40 @@ End;
 Procedure UnGetChar( c : Char );
 Begin
   If PtrIn = SizeBufIn Then
-    Begin
-      Write('Error in UnGetChar: Buffer is full.');
-      Halt
-    End
+  Begin
+    Write('Error in UnGetChar: Buffer is full.');
+    Halt
+  End
   Else
-    Begin
-      PtrIn        := PtrIn + 1;
-      BufIn[PtrIn] := c
-    End;
+  Begin
+    PtrIn := PtrIn + 1;
+    BufIn[PtrIn] := c
+  End
 End;
 
 {----------------------------------------------------------------------------}
-{ Function GetCharNb (Var c : Char) : Char;                                  }
+{ Lecture avancée d'un caractère.                                            }
+{----------------------------------------------------------------------------}
+
+Function NextChar( Var c : Char ) : Char;
+Begin
+  UnGetChar(GetChar(c));
+  NextChar := c
+End;
+
+{----------------------------------------------------------------------------}
+{ Double lecture avancée d'un caractère.                                     }
+{----------------------------------------------------------------------------}
+
+Function NextNextChar( Var c : Char ) : Char;
+Var c1 : Char;
+Begin
+  c1 := GetChar(c1);
+  c := NextChar(c);
+  UnGetChar(c1);
+  NextNextChar := c
+End;
+
 {----------------------------------------------------------------------------}
 { Lecture d'un caractère non blanc : cette fonction retourne le prochain     }
 { caractère non blanc en entrée, par appel à GetChar.                        }
@@ -191,12 +242,30 @@ End;
 
 Function GetCharNb( Var c : Char ) : Char;
 Begin
-  Repeat Until GetChar(c) <> ' ';
+  Repeat Until Not (GetChar(c) In BlankSet);
   GetCharNb := c
 End;
 
 {----------------------------------------------------------------------------}
-{ Procedure Get (Var Ch : AnyStr; E : CharSet);                              }
+{ Lecture avancée d'un caractère non blanc.                                  }
+{----------------------------------------------------------------------------}
+
+Function NextCharNb( Var c : Char ) : Char;
+Begin
+  UnGetChar(GetCharNb(c));
+  NextCharNb := c
+End;
+
+{----------------------------------------------------------------------------}
+{ Lecture d'éventuels espaces.                                               }
+{----------------------------------------------------------------------------}
+
+Procedure Spaces;
+Var c : Char;
+Begin
+  c := NextCharNb(c)
+End;
+
 {----------------------------------------------------------------------------}
 { Ajoute à une chaîne une suite de caractères d'un certain type : cette      }
 { procédure concatène à la chaîne Ch un caractère en entrée, tant que celui- }
@@ -204,32 +273,31 @@ End;
 {----------------------------------------------------------------------------}
 
 Procedure Get( Var Ch : AnyStr; E : CharSet );
+Var c : Char;
 Begin
-  While (GetChar(Calu) In E) Do Ch := Ch + Calu;
-  UnGetChar(Calu)
+  While (GetChar(c) In E) Do Ch := Ch + c;
+  UnGetChar(c)
 End;
 
-
 {----------------------------------------------------------------------------}
-{ Procedure Verifier( Ch : AnyStr);                                          }
-{----------------------------------------------------------------------------}
-{ Vérifie la présence de la chaîne Ch en entrée. Appel à la procédure        }
-{ Erreur si cette chaîne n'est pas trouvée.                                  }
+{ Vérifie la présence de la chaîne Ch en entrée, éventuellement après une    }
+{ suite de blancs. Génère une erreur si cette chaîne n'est pas trouvée.      }
 {----------------------------------------------------------------------------}
 
-Procedure Verifier( Ch : AnyStr );
-Var Ok : Boolean;
-    I  : Integer;
+Procedure Verify( Ch : AnyStr );
+Var
+  Ok : Boolean;
+  I  : Integer;
+  c  : Char;
 Begin
   Ok := True;
   I  := 1;
-  UnGetChar(GetCharNb(Calu));
+  c := NextCharNb(c);
   While ( Ok ) And ( I <= Length(Ch) ) Do
-    Begin
-      Ok := GetChar(Calu) = Ch[I];
-      I  := I + 1
-    End;
-  If Not Ok Then Erreur(Ch+' expected');
-  UnGetChar(GetCharNb(Calu))
+  Begin
+    Ok := GetChar(c) = Ch[I];
+    I  := I + 1
+  End;
+  If Not Ok Then
+    RaiseError('"' + Ch + '" expected')
 End;
-

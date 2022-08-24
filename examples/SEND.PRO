@@ -46,7 +46,4 @@ plus-un(1.6,1.7) ->;
 plus-un(1.7,1.8) ->;
 plus-un(1.8,1.9) ->;
 
-
-> solution(x,y,z) ?
-
-.
+-> solution(x,y,z);
