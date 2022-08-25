@@ -463,6 +463,7 @@ Const
 Procedure PushOneEquationToSolve( Code : Integer; T1,T2 : Integer );
 Var Z : Integer;
 Begin
+  CheckCondition((T1<>NULL) And (T2<>NULL),'Equation with NULL term');
   Z := AllocRight(ZZ_length);
   Memory[Z+ZZ_TYPE] := Code;
   Memory[Z+ZZ_LTER] := T1;

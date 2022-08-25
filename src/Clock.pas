@@ -293,9 +293,11 @@ Var
   Function Unifiable( T1,T2 : Integer) : Boolean;
   Var Ok : Boolean;
   Begin
-    Ok := (T1=T2) Or (T1=NULL) Or (T2=NULL) Or
-                 ( (TypeOfTerm(T1)=Constant) And (TypeOfTerm(T2)=Constant) And
-                   (Memory[T1+TC_CONS]=Memory[T2+TC_CONS]) );
+    CheckCondition((T1<>NULL) Or (T2<>NULL),'Call to Unifiable with two NULL terms');
+    Ok := (T1=T2) Or (T1=NULL) Or (T2=NULL);
+    If Not Ok Then
+      Ok := (TypeOfTerm(T1)=Constant) And (TypeOfTerm(T2)=Constant) And
+          (Memory[T1+TC_CONS]=Memory[T2+TC_CONS]);
     Unifiable := Ok
   End;
 

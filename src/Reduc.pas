@@ -158,6 +158,7 @@ Var
             Test := 0                          { Pas de variable }
       End;
 
+
     Begin     { Unify }
       T1 := Representant(Tg);  { Représentant du premier terme  }
       T2 := Representant(Td);  { Représentant du deuxième terme }
@@ -171,10 +172,12 @@ Var
           Begin
             CreateLiaison(T1,T2);{ Créer l'équation ds le système réduit }
             Push(T1);           { Sauve liaison terme = terme }
-            PushOneEquationToSolve(REL_EQUA,Memory[T1+TF_RTER],
-              Memory[T2+TF_RTER] ); { Nouvelle équation  }
-            PushOneEquationToSolve(REL_EQUA,Memory[T1+TF_LTER],
-              Memory[T2+TF_LTER] ); { Nouvelle équation  }
+            If (Memory[T1+TF_RTER] <> NULL) And (Memory[T2+TF_RTER] <> NULL) Then
+              PushOneEquationToSolve(REL_EQUA,Memory[T1+TF_RTER],
+                Memory[T2+TF_RTER] ); { Nouvelle équation  }
+            If (Memory[T1+TF_LTER] <> NULL) And (Memory[T2+TF_LTER] <> NULL) Then
+              PushOneEquationToSolve(REL_EQUA,Memory[T1+TF_LTER],
+                Memory[T2+TF_LTER] ); { Nouvelle équation  }
           End
           Else                     { Deux constantes différentes }
             Abnormal := True;
