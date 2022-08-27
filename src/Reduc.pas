@@ -111,6 +111,17 @@ Var
           End
       End;
 
+      { Are two terms two identical constants? }
+
+      Function AreTwoIdenticalConst( T1,T2 : Integer ) : Boolean;
+      Var Dif : Boolean;
+      Begin
+        Dif := (TypeOfTerm(T1)<>Constant) Or (TypeOfTerm(T2)<>Constant);
+        If Not Dif Then
+          Dif := (Memory[T1+TC_CONS] <> Memory[T2+TC_CONS]);
+        AreTwoIdenticalConst := Not Dif
+      End;
+
       { Créer une équation, de forme T1 = T2, dans le système réduit }
 
       Procedure CreateLiaison( T1,T2 : Integer );
@@ -162,9 +173,7 @@ Var
     Begin     { Unify }
       T1 := Representant(Tg);  { Représentant du premier terme  }
       T2 := Representant(Td);  { Représentant du deuxième terme }
-      If (T1<>T2) And
-         Not( (TypeOfTerm(T1)=Constant) And (TypeOfTerm(T2)=Constant) And
-            (Memory[T1+TC_CONS] = Memory[T2+TC_CONS]) ) Then { Deux termes dif }
+      If (T1<>T2) And Not AreTwoIdenticalConst(T1,T2) Then { Deux termes dif }
         Case Test(T1,T2) Of
         0 :
           If (TypeOfTerm(T1) = FuncSymbol)

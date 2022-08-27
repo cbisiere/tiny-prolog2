@@ -35,8 +35,11 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-Type  AnyStr    = String[255];
+Type  AnyStr    = String[254];
 
+Procedure DumpState; Forward;
+Procedure DumpHeader( H : Integer ); Forward;
+Procedure CoreDump( Message : AnyStr; Trace : Boolean ); Forward;
 Procedure CheckCondition( Cond : Boolean; Message : AnyStr ); Forward;
 
 Const
@@ -50,6 +53,9 @@ Const
   NULL = 20006;
   NO = 20007;
   YES = 20008;
+  SYS_CALL = 20009;                { Special rule ptr: system call }
+  RTYPE_AUTO = 20010;              { Rule type: auto-loaded (system calls) }
+  RTYPE_USER = 20011;              { Rule type: user }
 
 Var
   Memory  : Array[1..SizeMem] Of Integer; { Mémoire principale            }

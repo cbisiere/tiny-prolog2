@@ -15,8 +15,12 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-Const Letters   : CharSet = ['a'..'z','A'..'Z'];   { Ensemble des lettres    }
+Const NbPredef = 1;
+Type PredefArr = Array[1..NbPredef] Of StrIdent;
+
+Const Letters : CharSet = ['a'..'z','A'..'Z'];   { Ensemble des lettres    }
       Digits  : CharSet = ['0'..'9'];            { Ensemble des chiffres   }
+      Predef  : PredefArr = ('SYSCALL');         { Predefined constants    }
 
 Var TopVar : Integer;      { Début de recherche (localité des Vars)     }
 
@@ -112,7 +116,7 @@ End;
 {               |       |                                               }
 {         F+1   | TRED  |---> Pointe vers le membre droit auquel est    }
 {               |       |     associé ce symbole fonctionnel dans le    }
-{               |-------|     système réduit (0 sinon).                 }
+{               |-------|     système réduit (NULL sinon).              }
 {               |       |                                               }
 {         F+2   | LTER  |---> Pointe vers le fils gauche.               }
 {               |       |                                               }
@@ -135,7 +139,7 @@ End;
 {                   \        (3) Le '.' (liste) est considéré comme     }
 {                    F           un prédicat quelconque et stocké comme }
 {                  /  \          tel.                                   }
-{               ArgN    0                                               }
+{               ArgN    NULL                                            }
 {                                                                       }
 {-----------------------------------------------------------------------}
 
@@ -160,6 +164,34 @@ Begin
   Memory[F+TF_LTER] := T1;         { Pointeur premier terme    }
   Memory[F+TF_RTER] := T2;         { Pointeur deuxième terme   }
   InstallSymbol := F
+End;
+
+{-----------------------------------------------------------------------}
+{ Return the number of of a f(a,b,c) or <a,b,c> construct.              }
+{ In the former case, the number of argument is 4.                      }
+{-----------------------------------------------------------------------}
+
+Function NbArguments( F : Integer ) : Integer;
+Begin
+  CheckCondition(F <> NULL,'NbArguments of NULL does not make sense');
+  If Memory[F+TF_RTER] = NULL  Then
+    NbArguments := 1
+  Else
+    NbArguments := NbArguments(Memory[F+TF_RTER]) + 1
+End;
+
+{-----------------------------------------------------------------------}
+{ Return the N-th argument of a f(a,b,c) or <a,b,c> construct.          }
+{ In the former case, the 1st argument is f.                            }
+{-----------------------------------------------------------------------}
+
+Function Argument( N : Integer; F : Integer ) : Integer;
+Begin
+  CheckCondition(F <> NULL,'Argument of NULL does not make sense');
+  If N = 1 Then
+    Argument := Memory[F+TF_LTER]
+  Else
+    Argument := Argument(N-1,Memory[F+TF_RTER])
 End;
 
 {-----------------------------------------------------------------------}
@@ -765,30 +797,36 @@ End;
 {         R+4   | SYST  |---> Adresse de la première équation ou        }
 {               |       |     inéquation spécifiée dans cette règle,    }
 {               |-------|     ou 0 si pas de système.                   }
+{               |       |                                               }
+{         R+5   | TYPE  |---> Type of rule: RTYPE_AUTO, RTYPE_USER      }
+{               |       |                                               }
+{               |-------|                                               }
 {                                                                       }
 {    Le premier bloc-terme de cette règle (tête) commence en R+4.       }
 {                                                                       }
 {-----------------------------------------------------------------------}
 
 Const
-  RU_length = 5;
+  RU_length = 6;
   RU_NEXT = 0;
   RU_SIZE = 1;
   RU_FVAR = 2;
   RU_LVAR = 3;
   RU_SYST = 4;
-  RU_FBTR = 5; { Do not move! }
+  RU_TYPE = 5;
+  RU_FBTR = 6; { Do not move! }
 
 {-----------------------------------------------------------------------}
 { Code une règle en mémoire.                                            }
 {-----------------------------------------------------------------------}
 
-Procedure CompileOneRule( R : Integer );
+Procedure CompileOneRule( R : Integer; RuleType : Integer );
 Var B : Integer;
     c : Char;
 Begin
   TopVar := NbVar + 1; { Première variable dans DictVar  }
   Spaces;
+  Memory[R+RU_TYPE] := RuleType;
   Memory[R+RU_FVAR] := NbVar + 1;
   B := CompileOneTerm;        { head }
   Verify('->');
@@ -811,7 +849,7 @@ End;
 { contenu dans StopChars est rencontré, le processus s'arrête.          }
 {-----------------------------------------------------------------------}
 
-Function CompileRules( StopChars : CharSet ) : Integer;
+Function CompileRules( StopChars : CharSet; RuleType : Integer ) : Integer;
 Var
   R : Integer;
   c : Char;
@@ -820,12 +858,23 @@ Begin
   If (Not (c In StopChars)) And (Not Error) Then
   Begin
     R := Alloc(RU_length);
-    CompileOneRule(R);
-    Memory[R+RU_NEXT] := CompileRules(StopChars)
+    CompileOneRule(R,RuleType);
+    Memory[R+RU_NEXT] := CompileRules(StopChars,RuleType)
   End
   Else
     R := NULL;
   CompileRules := R
+End;
+
+{-----------------------------------------------------------------------}
+{ Last rule at the end of the list whose head is R.                     }
+{-----------------------------------------------------------------------}
+
+Function LastRule( R : Integer ) : Integer;
+Begin
+  While (Memory[R+RU_NEXT] <> NULL) Do
+    R := Memory[R+RU_NEXT];
+  LastRule := R
 End;
 
 {-----------------------------------------------------------------------}
@@ -904,6 +953,17 @@ Begin
 End;
 
 {-----------------------------------------------------------------------}
+{ Last query at the end of the list whose head is Q.                    }
+{-----------------------------------------------------------------------}
+
+Function LastQuery( Q : Integer ) : Integer;
+Begin
+  While (Memory[Q+QU_NEXT] <> NULL) Do
+    Q := Memory[Q+QU_NEXT];
+  LastQuery := Q
+End;
+
+{-----------------------------------------------------------------------}
 {                                                                       }
 {  UN PROGRAMME P :                                                     }
 {                                                                       }
@@ -948,6 +1008,15 @@ Const
   PP_STAC = 4;
   PP_LVAR = 5;
   PP_LCON = 6;
+
+Procedure InstallPredefinedConstants;
+Var
+  C : Integer;
+  K : Integer;
+Begin
+  For K := 1 to NbPredef Do
+    C := InstallConst(Predef[K]);
+End;
 
 Function CreateEmptyProgram : Integer;
 Var P : Integer;
@@ -1022,7 +1091,7 @@ End;
 { Code les règles et les questions d'un programme Prolog.                    }
 {----------------------------------------------------------------------------}
 
-Procedure CompileRulesAndQueries( P : Integer );
+Procedure CompileRulesAndQueries( P : Integer; RuleType : Integer );
 Var
   HeadQ, Q : Integer;
   HeadR, R : Integer;
@@ -1031,8 +1100,12 @@ Var
 Begin
   Stop := False;
   Error := False;
-  HeadQ := NULL;
-  HeadR := NULL;
+  HeadQ := Memory[P+PP_FQRY];
+  If HeadQ <> NULL Then
+    HeadQ := LastQuery(HeadQ);
+  HeadR := Memory[P+PP_FRUL];
+  If HeadR <> NULL Then
+    HeadR := LastRule(HeadR);
   Repeat
     c := NextCharNb(c);
     If (c=EndOfInput) Or (c=';') Then
@@ -1047,8 +1120,7 @@ Begin
       If (HeadQ <> NULL) Then
         Memory[HeadQ+QU_NEXT] := Q;
       { The new head is the last query in this list }
-      While (Memory[Q+QU_NEXT] <> NULL) Do
-        Q := Memory[Q+QU_NEXT];
+      Q := LastQuery(Q);
       { Set program's last query. }
       If Q <> NULL Then
         Memory[P+PP_LQRY] := Q;
@@ -1056,7 +1128,7 @@ Begin
     End
     Else
     Begin
-      R := CompileRules([EndOfInput,';','-']);
+      R := CompileRules([EndOfInput,';','-'],RuleType);
       { Set program's first rule if not set yet. }
       If Memory[P+PP_FRUL] = NULL Then
         Memory[P+PP_FRUL] := R;
@@ -1064,8 +1136,7 @@ Begin
       If (HeadR <> NULL) Then
         Memory[HeadR+RU_NEXT] := R;
       { The new head is the last query in this list }
-      While (Memory[R+RU_NEXT] <> NULL) Do
-        R := Memory[R+RU_NEXT];
+      R := LastRule(R);
       { Set program's last rule. }
       If R <> NULL Then
         Memory[P+PP_LRUL] := R;
@@ -1082,10 +1153,10 @@ End;
 { Charge un programme à partir d'un fichier.                                 }
 {----------------------------------------------------------------------------}
 
-Procedure LoadProgram( P : Integer; FileName : AnyStr );
+Procedure LoadProgram( P : Integer; FileName : AnyStr; RuleType : Integer );
 Begin
   If SetFileForInput(FileName) Then
-    CompileRulesAndQueries(P)
+    CompileRulesAndQueries(P,RuleType)
   Else
     RaiseError('Cannot open file ' + FileName)
 End;

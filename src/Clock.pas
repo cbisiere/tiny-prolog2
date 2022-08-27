@@ -40,7 +40,7 @@ Var ClockTime : Integer;                     { Le temps de l'horloge Prolog }
   {               |-------|                                               }
   {               |       |                                               }
   {         µ+4   | PREV  |---> Pointe dans la pile principale vers       }
-  {               |       |     l'entête de l'étape précédente (ou 0      }
+  {               |       |     l'entête de l'étape précédente (ou NULL   }
   {               |-------|     si pas d'étape précédente).               }
   {                                                                       }
   {-----------------------------------------------------------------------}
@@ -201,19 +201,25 @@ End;
 Function CopyTermsOfRule( R : Integer ) : Integer;
 Var RuleB,Offset,B : Integer;
 Begin
-  RuleB := PushRule(R);
-  Offset := RuleB - (R+RU_FBTR);
-  B := RuleB;
-  PtrDict := 0;
-  Repeat                                   { Pour chaque bloc-terme }
-    ShiftValueAt(B+BT_TERM,Offset);        {  - Ptr Terme           }
-    ShiftValueAt(B+BT_NEXT,Offset);        {  - Ptr Terme Suivant   }
-    ShiftValueAt(B+BT_CONS,Offset);        {  - Ptr Acces           }
-    ShiftTerm(Memory[B+BT_TERM],Offset);   {  - Terme pointé        }
-    B := Memory[B+BT_NEXT]
-  Until B = NULL;
-  CopyTermsOfRule := RuleB
+  If R = SYS_CALL Then
+    CopyTermsOfRule := NULL
+  Else
+  Begin
+    RuleB := PushRule(R);
+    Offset := RuleB - (R+RU_FBTR);
+    B := RuleB;
+    PtrDict := 0;
+    Repeat                                   { Pour chaque bloc-terme }
+      ShiftValueAt(B+BT_TERM,Offset);        {  - Ptr Terme           }
+      ShiftValueAt(B+BT_NEXT,Offset);        {  - Ptr Terme Suivant   }
+      ShiftValueAt(B+BT_CONS,Offset);        {  - Ptr Acces           }
+      ShiftTerm(Memory[B+BT_TERM],Offset);   {  - Terme pointé        }
+      B := Memory[B+BT_NEXT]
+    Until B = NULL;
+    CopyTermsOfRule := RuleB
+  End
 End;
+
 
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -262,14 +268,14 @@ Var
 {                                                                  }
 {------------------------------------------------------------------}
 
-  Procedure TryToReduce( Var H : Integer );
+  Function ReductionOk( Var H : Integer ) : Boolean;
   Begin
     PtrLeftSave := PtrLeft;
-    Soluble := ReduceSystem(Stopper,True);
+    ReductionOk := ReduceSystem(Stopper,True);
+    Memory[H+HH_REST] := PtrRestore;
     If PtrLeftSave <> PtrLeft Then { Des inéquations ont été créées }
       H := NewClockHeader(Memory[H+HH_FBCL],Memory[H+HH_RULE],
-        Memory[H+HH_REST],Memory[H+HH_STAC],Memory[H+HH_PREV]);
-    Memory[H+HH_REST] := PtrRestore { Sauve pointeur de restauration }
+        Memory[H+HH_REST],Memory[H+HH_STAC],Memory[H+HH_PREV])
   End;
 
 {------------------------------------------------------------------}
@@ -307,7 +313,9 @@ Var
   {----------------------------------------------------------------------------}
   Function Next( R : Integer ) : Integer;
   Begin
-    If (R = NULL) Or (R = Memory[Q+QU_LRUL]) Then
+    CheckCondition(R <> NULL,'cannot call Next on NULL');
+    CheckCondition(R <> SYS_CALL,'cannot call Next on SYS_CALL');
+    If R = Memory[Q+QU_LRUL] Then
       Next := NULL
     Else
       Next := Memory[R+RU_NEXT]
@@ -329,6 +337,14 @@ Var
     Begin
       Stop := False;
       T1 := AccessTerm(B);
+      If TypeOfTerm(T1) = Constant Then
+      Begin
+        If DictConst[Memory[T1+TC_CONS]] = 'SYSCALL' Then
+        Begin
+          FirstR := SYS_CALL;
+          Stop := True
+        End
+      End;
       While (R<>NULL) And Not Stop Do
       Begin
         T2 := AccessTerm(R+RU_FBTR);
@@ -353,8 +369,13 @@ Var
   {----------------------------------------------------------------------------}
 
   Function NextCandidateRule( R,B : Integer ) : Integer;
+  Var NextR : Integer;
   Begin
-    NextCandidateRule := FirstCandidateRule(Next(R),B)
+    If (R = SYS_CALL) Or (R = NULL) Then
+      NextR := NULL
+    Else
+      NextR := FirstCandidateRule(Next(R),B);
+    NextCandidateRule := NextR
   End;
 
 {----------------------------------------------------------------------------}
@@ -397,7 +418,7 @@ Var
       ClockTime := ClockTime - 1;
       NextR := NextCandidateRule(Memory[H+HH_RULE],Memory[H+HH_FBCL]);
     Until NextR <> NULL;
-    Memory[H+HH_RULE] := NextR;
+    Memory[H+HH_RULE] := NextR
 End;
 
 {------------------------------------------------------------------}
@@ -407,7 +428,7 @@ End;
 { d'être effacé, la procédure fait un appel à Backtracking;        }
 {------------------------------------------------------------------}
 
-  Procedure FirstRule( H : Integer );
+  Procedure FirstRule( Var H : Integer );
   Begin
     Memory[H+HH_RULE] := FirstCandidateRule(Memory[Q+QU_FRUL], Memory[H+HH_FBCL]);
     If Memory[H+HH_RULE] = NULL Then
@@ -440,25 +461,43 @@ End;
 {------------------------------------------------------------------}
 
   Procedure MoveForward( Var H : Integer );
-  Var ClearB, RuleB, B, PtrLeftSave : Integer;
+  Var
+    ClearB, ClearT, RuleB, B, PtrLeftSave : Integer;
+    IsSysCall : Boolean;
   Begin
     CheckCondition(Memory[H+HH_FBCL] <> NULL,'MoveForward: No terms to clear');
     CheckCondition(Memory[H+HH_RULE] <> NULL,'MoveForward: No rule to apply');
+
+    ClearB := Memory[H+HH_FBCL];             { list of terms to clear   }
+    ClearT := Memory[ClearB+BT_TERM];        { current term to clear    }
+    IsSysCall := (Memory[H+HH_RULE] = SYS_CALL);
+
     ClockTime := ClockTime + 1;
     PtrLeftSave := PtrLeft;
-    ClearB := Memory[H+HH_FBCL];          { Sauve pointeur de termes    }
+    { copy the target rule - do nothing if it is a system call }
     RuleB := CopyTermsOfRule(Memory[H+HH_RULE]);
+
     H := NewClockHeader(NULL,NULL,0,PtrLeftSave,H);
-    Stopper := PtrRight;
-    { Contrainte à réduire : terme à réduire = tête de la règle }
-    PushOneEquationToSolve(REL_EQUA,Memory[ClearB+BT_TERM],Memory[RuleB+BT_TERM]);
-    { Crée la nouvelle liste de blocs à effacer :
-      queue +  anciens termes à effacer sauf le premier }
-    B := RuleB;
-    While (NextTerm(B)<>NULL) Do
-      B := NextTerm(B);
-    Memory[B+BT_NEXT] := NextTerm(ClearB);
-    Memory[H+HH_FBCL] := NextTerm(RuleB)
+
+    If IsSysCall Then
+    Begin
+      Soluble := ExecutionSysCallOk(ClearT, Q);
+      { remove the term from the list of terms to clear }
+      Memory[H+HH_FBCL] := NextTerm(ClearB)
+    End
+    Else
+    Begin
+      Stopper := PtrRight;
+      { Contrainte à réduire : terme à réduire = tête de la règle }
+      PushOneEquationToSolve(REL_EQUA,ClearT,Memory[RuleB+BT_TERM]);
+      { new list of terms to clear: rule queue + previous terms but the first }
+      B := RuleB;
+      While (NextTerm(B)<>NULL) Do
+        B := NextTerm(B);
+      Memory[B+BT_NEXT] := NextTerm(ClearB);
+      Memory[H+HH_FBCL] := NextTerm(RuleB);
+      Soluble := ReductionOk(H)
+    End
   End;
 
 {------------------------------------------------------------------}
@@ -491,7 +530,6 @@ Begin
   H := NewClockHeader(B,R,0,PtrLeft,NULL);
   Repeat
     MoveForward(H);
-    TryToReduce(H);
     If (Not Soluble) Or           { Système de contraintes non soluble }
        (Memory[H+HH_FBCL] = NULL) { Plus de terme à effacer            }
     Then

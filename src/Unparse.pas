@@ -312,6 +312,27 @@ Begin
 End;
 
 {----------------------------------------------------------------------------}
+{ Restitution des règles du contexte d'une règle Q.                          }
+{----------------------------------------------------------------------------}
+
+Procedure UnparseQuestionRules( Q : Integer; RuleType : Integer );
+Var
+  R : Integer;
+  Stop : Boolean;
+Begin
+  R := Memory[Q+QU_FRUL];
+  Stop := R = NULL;
+  While Not Stop Do
+  Begin
+    If Memory[R+RU_TYPE] = RuleType Then
+      UnparseOneRule(R);
+    Stop := R = Memory[Q+QU_LRUL];
+    R := Memory[R+RU_NEXT];
+    Stop := Stop Or (R = NULL)
+  End
+End;
+
+{----------------------------------------------------------------------------}
 { Restitution d'une question stockée à l'adresse Q.                          }
 {----------------------------------------------------------------------------}
 

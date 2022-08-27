@@ -37,7 +37,6 @@ Inserting an element in a list of four items gives three different solutions:
 
 ```
 -> insertion(0,1.2.nil,x);
-
 { x = 0.1.2.nil }
 { x = 1.0.2.nil }
 { x = 1.2.0.nil }
@@ -126,12 +125,37 @@ Program "examples/permu.pro" loaded
 The final `>`is a prompt, inviting you to type in other queries to execute, e.g.:
 
 ```
+> permutation(1.2.3.nil,3.x.y.nil);
 -> permutation(1.2.3.nil,3.x.y.nil) ;
 { x = 1, y = 2 }
 { x = 2, y = 1 }
 >
 ```
-When you are done, hit `Ctrl+C` to quit the interpreter.
+
+Predefined commands include `list` to list the user current rules:
+
+```
+> list fail;
+-> list fail ;
+permutation(nil,nil) -> ;
+permutation(e.x,z) ->
+        permutation(x,y)
+        insertion(e,y,z);
+insertion(e,x,e.x) -> ;
+insertion(e,f.x,f.y) ->
+        insertion(e,x,y);
+>
+```
+
+
+When you are done, use `quit` or hit `Ctrl+C` to quit the interpreter.
+
+```
+> quit;
+-> quit ;
+bye
+$
+```
 
 ## BNF Syntax
 

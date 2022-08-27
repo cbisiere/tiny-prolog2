@@ -38,10 +38,42 @@ Begin
     S := '[F]';
   YES:
     S := '[T]';
+  SYS_CALL:
+    S := 'SYS';
+  RTYPE_AUTO:
+    S := 'AUTO';
+  RTYPE_USER:
+    S := 'USER'
   Else
     Str(Val, S)
   End;
   Disp := S
+End;
+
+{----------------------------------------------------------------------------}
+{ Affiche l'entête de l'horloge.                                             }
+{----------------------------------------------------------------------------}
+
+Procedure DumpHeader; (* ( H : Integer ); *)
+Var R : Integer;
+Begin
+  DumpState;
+  Writeln('Header at : ', H);
+  Write('  Terms: ');
+  UnparseTerms(Memory[H+HH_FBCL],True);
+  Writeln;
+  Write('  Rule: ');
+  R := Memory[H+HH_RULE];
+  If (R = NULL) Or (R = SYS_CALL) Then
+    Writeln(Disp(R))
+  Else
+    UnparseOneRule(R);
+  Write('  Restore: ');
+  Writeln(Disp(Memory[H+HH_REST]));
+  Write('  PrevPtrLeft: ');
+  Writeln(Disp(Memory[H+HH_STAC]));
+  Write('  BackHeader: ');
+  Writeln(Disp(Memory[H+HH_PREV]))
 End;
 
 {----------------------------------------------------------------------------}
@@ -53,21 +85,7 @@ Begin
   Writeln('BACKTRACE AT ', H, ' ClockTime = ', ClockTime);
   While H <> NULL Do
   Begin
-    Writeln('At ', H, ':');
-    Write('  Terms: ');
-    UnparseTerms(Memory[H+HH_FBCL],True);
-    Writeln;
-    Write('  Rule: ');
-    If Memory[H+HH_RULE] <> NULL Then
-      UnparseOneRule(Memory[H+HH_RULE])
-    Else
-      Writeln;
-    Write('  Restore: ');
-    Writeln(Disp(Memory[H+HH_REST]));
-    Write('  PrevPtrLeft: ');
-    Writeln(Disp(Memory[H+HH_STAC]));
-    Write('  BackHeader: ');
-    Writeln(Disp(Memory[H+HH_PREV]));
+    DumpHeader(H);
     H := Memory[H+HH_PREV]
   End;
   Writeln('*EoB*');
@@ -165,7 +183,7 @@ End;
 { Affiche l'état complet de la machine Prolog.                               }
 {----------------------------------------------------------------------------}
 
-Procedure CoreDump( Message : AnyStr; Trace : Boolean );
+Procedure CoreDump;(* ( Message : AnyStr; Trace : Boolean ); *)
 Begin
   Writeln('Begin Core Dump: "',Message,'"');
   DumpState;

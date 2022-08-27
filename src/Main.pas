@@ -21,6 +21,7 @@
 {$I Input.pas   }  { Module : Lecture du flot d'entrée           }
 {$I Parse.pas   }  { Module : Codage des objets                  }
 {$I Unparse.pas }  { Module : Décodage des objets                }
+{$I Sys.pas     }  { Module : System calls                       }
 {$I Reduc.pas   }  { Module : Algorithme de réduction            }
 {$I Clock.pas   }  { Module : L'horloge Prolog                   }
 
@@ -36,6 +37,7 @@ Var P : Integer;
 Begin
   Initialisation;
   P := CreateEmptyProgram;
+  InstallPredefinedConstants;
   ResetMachine := P
 End;
 
@@ -51,16 +53,16 @@ var
   FileName : AnyStr;
 Begin
   P := ResetMachine;
+  LoadProgram(P,'start.pro',RTYPE_AUTO);
   If ParamCount = 1 Then
   Begin
     FileName := ParamStr(1);
-    LoadProgram(P,FileName);
+    LoadProgram(P,FileName,RTYPE_USER);
     if Not Error Then
-    Begin
-      Writeln('Program "' + FileName + '" loaded');
-      AnswerProgramQueries(P)
-    End
+      Writeln('Program "' + FileName + '" loaded')
   End;
+  if Not Error Then
+    AnswerProgramQueries(P);
   Repeat
     Error := False;
     Write('> ');
