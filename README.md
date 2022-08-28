@@ -64,6 +64,34 @@ while the following query displays the resulting constraints:
 ```
 (Note that the interpreter has created an additional variable `x_94`, and does not try to get rid of it when displaying the resulting constraint set.)
 
+### Strings
+
+Strings are used as values or as comments. They must be double quoted. Inside a string, `"` must be doubled as `""`. Backslash `\`is a continuation character. Comments can appear anywhere outside of rules.
+
+Querying the program
+
+```
+"This is a comment"
+
+"This is \
+another one"
+
+string("Hello, world!")->;
+string("They say: ""hello, world!""")->;
+string("Pro\
+log")->;
+```
+
+with the goal `string(s) outml(s) fails;` gives
+
+```
+Hello, world!
+They say: "hello, world!"
+Prolog
+```
+
+The primitive `outml(s)` display the string `s` without the surrounding quotes. 
+
 ## Compilation
 
 ### Turbo Pascal 3

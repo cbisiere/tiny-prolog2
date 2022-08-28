@@ -15,7 +15,7 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-Const MaxSizeRestore = 3000;                   { Taille pile de restauration }
+Const MaxSizeRestore = 1000;                   { Taille pile de restauration }
 
 Var PileRestore : Array[1..MaxSizeRestore] Of  { Pile de restauration        }
   Record

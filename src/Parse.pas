@@ -16,11 +16,9 @@
 {$V-} { No strict type checking for strings. }
 
 Const NbPredef = 1;
-Type PredefArr = Array[1..NbPredef] Of StrIdent;
+Type PredefArr = Array[1..NbPredef] Of StrConst;
 
-Const Letters : CharSet = ['a'..'z','A'..'Z'];   { Ensemble des lettres    }
-      Digits  : CharSet = ['0'..'9'];            { Ensemble des chiffres   }
-      Predef  : PredefArr = ('SYSCALL');         { Predefined constants    }
+Const Predef  : PredefArr = ('SYSCALL');         { Predefined constants    }
 
 Var TopVar : Integer;      { Début de recherche (localité des Vars)     }
 
@@ -95,7 +93,7 @@ Const
 { Retourne l'adresse où a été installée cette constante.                }
 {-----------------------------------------------------------------------}
 
-Function InstallConst( Ch : StrIdent ) : Integer;
+Function InstallConst( Ch : StrConst ) : Integer;
 Var C : Integer;
 Begin
   C := Alloc(TC_length);
@@ -362,6 +360,45 @@ Begin
 End;
 
 {-----------------------------------------------------------------------}
+{ Read and return a constant string, including the quotes               }
+{-----------------------------------------------------------------------}
+
+Function ReadString : AnyStr;
+Var
+  c : Char;
+  Ch : AnyStr;
+  Done : Boolean;
+Begin
+  CheckCondition(NextChar(c) = '"', 'string expected');
+  Ch := GetChar(c); { both quotes are part of the string }
+  Repeat
+    Done := False;
+    GetCharUntil(Ch,['"',EndOfLine,EndOfInput]);
+    Case NextChar(c) Of
+    '"':
+      Begin
+        Ch := Ch + GetChar(c); { accept it }
+        If NextChar(c) = '"' Then { doubled: discard the second one }
+          c := GetChar(c)
+        Else
+          Done := True
+      End;
+    EndOfLine:
+      If Ch[Length(Ch)] = '\' Then { string continuation on next line }
+      Begin
+        c := GetChar(c);
+        Delete(Ch,Length(Ch),1)
+      End
+      Else
+        RaiseError('End of line while reading a constant string');
+    EndOfInput:
+      RaiseError('End of input while reading a constant string')
+    End
+  Until Error or Done;
+  ReadString := Ch
+End;
+
+{-----------------------------------------------------------------------}
 { Lit un terme en entrée, le code en mémoire. Retourne                  }
 { l'adresse où il a été implanté.                                       }
 {-----------------------------------------------------------------------}
@@ -369,19 +406,20 @@ End;
 Function ReadOneTerm; (* : Integer *)
 Var
   T : Integer;
-  Ch  : StrIdent;
+  Ch  : AnyStr;
   c,c2 : Char;
+  Count : Byte;
 Begin
   Ch := '';
   Spaces;
-  Get(Ch,Letters);
-  Case Length(Ch) Of
+  Count := GrabLetters(Ch);
+  Case Count Of
   0 :
     Begin
       c := NextChar(c);
       If c In Digits Then     { un entier }
       Begin
-        Get(Ch,Digits);
+        GetCharWhile(Ch,Digits);
         T := InstallConst(Ch);
       End
       Else
@@ -398,23 +436,29 @@ Begin
         T := GetArgument('>')
       End
       Else
-        RaiseError('digit, ")" or "<" expected')
+      If c = '"' Then        { a string }
+      Begin
+        Ch := ReadString;
+        T := InstallConst(Ch)
+      End
+      Else
+        RaiseError('digit, ", ")" or "<" expected')
     End;
   1 :
     Begin                      { une variable }
-      Get(Ch,Digits);
-      Get(Ch,['''']);
+      GetCharWhile(Ch,Digits);
+      GetCharWhile(Ch,['''']);
       T := InstallVariable(Ch);
     End;
-  Else { an identifier }
+  Else { at least 2 letters: an identifier }
     Begin
-      Get(Ch,Letters);
-      While (NextChar(c)='-') And (NextNextChar(c2) In Letters) Do
+      Count := GrabLetters(Ch);
+      While (NextChar(c)='-') And IsLetter(NextNextChar(c2)) Do
       Begin
-        Ch := Ch + GetChar(c);
-        Get(Ch,Letters)
+        Ch := Ch + GetChar(c); { glob the '-' }
+        Count := GrabLetters(Ch);
       End;
-      Get(Ch,Digits);
+      GetCharWhile(Ch,Digits);
       If NextChar(c) = '(' Then                { => un prédicat    }
       Begin
         c := GetChar(c);
@@ -522,7 +566,7 @@ Function TopEquationToSolve : Integer;
 Var Z : Integer;
 Begin
   Z := PtrRight + ZZ_length - 1;
-  CheckCondition(Z <= SizeMem,'Top relation is out of stack');
+  CheckCondition(Z <= HiMemAddr,'Top relation is out of stack');
   TopEquationToSolve := Z
 End;
 
@@ -1096,6 +1140,7 @@ Var
   HeadQ, Q : Integer;
   HeadR, R : Integer;
   c : Char;
+  Comment : AnyStr;
   Stop : Boolean;
 Begin
   Stop := False;
@@ -1110,7 +1155,11 @@ Begin
     c := NextCharNb(c);
     If (c=EndOfInput) Or (c=';') Then
       Stop := True
-    Else If c='-' Then
+    Else If c='"' Then { a comment, as a constant string }
+    Begin
+      Comment := ReadString
+    End
+    Else If c='-' Then  { a query }
     Begin
       Q := CompileQueries(P,True,['-'],[EndOfInput,';']);
       { Set program's first query if not set yet. }
@@ -1126,7 +1175,7 @@ Begin
         Memory[P+PP_LQRY] := Q;
       HeadQ := Q
     End
-    Else
+    Else { a rule }
     Begin
       R := CompileRules([EndOfInput,';','-'],RuleType);
       { Set program's first rule if not set yet. }

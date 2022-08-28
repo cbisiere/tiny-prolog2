@@ -20,8 +20,8 @@ Begin
   FileIsOpen  := False;                { Le Fichier est Fermé        }
   Error    := False;                   { Il n'y a pas d'erreur       }
   PtrIn    := 0;                       { Init Pointeur Buffer        }
-  PtrLeft  := 0;                       { Init Pointeur pile gauche   }
-  PtrRight := SizeMem+1;               { Init Pointeur pile droite   }
+  PtrLeft  := LoMemAddr-1;             { Init Pointeur pile gauche   }
+  PtrRight := HiMemAddr+1;             { Init Pointeur pile droite   }
   NbVar    := 0;                       { DictVar vide                }
   NbConst  := 0;                       { DictConst vide              }
 End;

@@ -64,7 +64,7 @@ Begin
   Ineq[PtrIneq] := E
 End;
 
-Procedure WriteTermBis( T : Integer ; ArgList : Boolean); Forward;
+Procedure WriteTermBis( T : Integer; ArgList,Quotes : Boolean); Forward;
 
 {----------------------------------------------------------------------------}
 { Ecrit une suite d'arguments séparés par des virgules.                      }
@@ -73,7 +73,7 @@ Procedure WriteTermBis( T : Integer ; ArgList : Boolean); Forward;
 
 Procedure WriteArgument( F : Integer );
 Begin
-  WriteTermBis(Memory[F+TF_LTER],False);
+  WriteTermBis(Memory[F+TF_LTER],False,True);
   If Memory[F+TF_RTER] <> NULL Then
   Begin
     Write(',');
@@ -99,17 +99,28 @@ End;
 { Ecrit le terme T tout en prenant en compte le fait que                     }
 { ce terme est ou n'est pas (booléen ArgList) un argument de prédicat        }
 { (nécessaire pour le parenthésage des listes imbriquées).                   }
+{ Quote: when False and the term to display is equal to a string,            }
+{ display it without the quotes.                                             }
 {----------------------------------------------------------------------------}
 
-Procedure WriteTermBis; (* ( T : Integer ; ArgList : Boolean ) *)
+Procedure WriteTermBis; (* ( T : Integer; ArgList,Quotes : Boolean ); *)
 Var
   LeftT : Integer;
   ConsIdx : Integer;
-  Ident : StrIdent;
+  Cste : StrConst;
 Begin
   Case TypeOfTerm(T) Of
   Constant :
-    Write(DictConst[Memory[T+TC_CONS]]);
+    Begin
+      Cste := DictConst[Memory[T+TC_CONS]];
+      If (Not Quotes) And (Length(Cste) >= 2) Then
+        If (Cste[1] = '"') And (Cste[Length(Cste)] = '"') Then
+          Begin
+            Delete(Cste,1,1);
+            Delete(Cste,Length(Cste),1)
+          End;
+      Write(Cste);
+    End;
   Variable  :
     Begin
       If Memory[T+TV_COPY] = NO Then
@@ -118,7 +129,7 @@ Begin
         If Memory[T+TV_IRED] = NO Then
           WriteVarName(T)
         Else
-          WriteTermBis(Memory[T+TV_TRED],False);
+          WriteTermBis(Memory[T+TV_TRED],False,Quotes);
       If Memory[T+TV_IWAT] = YES Then
         AddIneq(Memory[T+TV_FWAT])
     End;
@@ -130,20 +141,20 @@ Begin
         ConsIdx := Memory[LeftT+TC_CONS];
         If Not (DictConst[ConsIdx][1] In Digits) Then
         Begin
-          Ident := DictConst[ConsIdx];
-          If Ident = '.' Then
+          Cste := DictConst[ConsIdx];
+          If Cste = '.' Then
           Begin
             If ArgList Then Write('(');
             T := Memory[T+TF_RTER];
-            WriteTermBis(Memory[T+TF_LTER],True);
+            WriteTermBis(Memory[T+TF_LTER],True,True);
             Write('.');
             T := Memory[T+TF_RTER];
-            WriteTermBis(Memory[T+TF_LTER],False);
+            WriteTermBis(Memory[T+TF_LTER],False,True);
             If ArgList Then Write(')')
           End
           Else
           Begin
-            Write(Ident);
+            Write(Cste);
             Write('(');
             WriteArgument(Memory[T+TF_RTER]);
             Write( ')')
@@ -201,7 +212,7 @@ End;
 
 Procedure WriteTerm; (* ( T : Integer ); *)
 Begin
-  WriteTermBis(T,False)
+  WriteTermBis(T,False,True)
 End;
 
 {----------------------------------------------------------------------------}

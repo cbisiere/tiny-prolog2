@@ -35,7 +35,7 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-Type  AnyStr    = String[254];
+Type AnyStr = String[254];
 
 Procedure DumpState; Forward;
 Procedure DumpHeader( H : Integer ); Forward;
@@ -43,13 +43,14 @@ Procedure CoreDump( Message : AnyStr; Trace : Boolean ); Forward;
 Procedure CheckCondition( Cond : Boolean; Message : AnyStr ); Forward;
 
 Const
-  SizeMem   = 20000;               { Taille de la mémoire          }
-  Undefined = -1;                  { Valeur indéfinie              }
-  TERM_F = 20001;                  { Value for 'type func. symb.'' }
-  TERM_C = 20002;                  { Value for 'type constant'     }
-  TERM_V = 20003;                  { Value for 'type variable'     }
-  REL_EQUA = 20004;                { Value for 'equation'          }
-  REL_INEQ = 20005;                { Value for 'equation'          }
+  LoMemAddr = 0;                    { Adresse première cellule      }
+  HiMemAddr = 20000;                { Adresse dernière cellule      }
+  Undefined = -1;                   { Valeur indéfinie              }
+  TERM_F = 20001;                   { Value for 'type func. symb.'' }
+  TERM_C = 20002;                   { Value for 'type constant'     }
+  TERM_V = 20003;                   { Value for 'type variable'     }
+  REL_EQUA = 20004;                 { Value for 'equation'          }
+  REL_INEQ = 20005;                 { Value for 'equation'          }
   NULL = 20006;
   NO = 20007;
   YES = 20008;
@@ -57,10 +58,11 @@ Const
   RTYPE_AUTO = 20010;              { Rule type: auto-loaded (system calls) }
   RTYPE_USER = 20011;              { Rule type: user }
 
+{ Mémoire principale }
 Var
-  Memory  : Array[1..SizeMem] Of Integer; { Mémoire principale            }
-  PtrLeft  : Integer;                      { Pointeur pile gauche         }
-  PtrRight : Integer;                      { Pointeur pile droite         }
+  Memory  : Array[LoMemAddr..HiMemAddr] Of Integer;
+  PtrLeft  : Integer; { Pointeur pile gauche }
+  PtrRight : Integer; { Pointeur pile droite }
 
 {----------------------------------------------------------------------------}
 { Alloue dans la partie gauche du tableau mémoire Count cases.               }
@@ -93,7 +95,7 @@ End;
 
 Function Pop( Var Val : Integer ) : Integer;
 Begin
-  CheckCondition(PtrLeft-1 >= 0, 'Cannot pop from an empty stack');
+  CheckCondition(PtrLeft >= LoMemAddr, 'Cannot pop from an empty stack');
   Val := Memory[PtrLeft];
   PtrLeft := PtrLeft - 1;
   Pop := Val
@@ -132,5 +134,5 @@ Begin
   PtrRight := PtrRight - Count;
   CheckCondition(PtrLeft < PtrRight, 'Memory exhausted');
   For K :=  PtrRight To PtrRight+Count-1 Do
-    Memory[K] := Undefined;
+    Memory[K] := Undefined
 End;

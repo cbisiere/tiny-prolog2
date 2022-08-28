@@ -16,13 +16,15 @@
 {$V-} { No strict type checking for strings. }
 
 Const
-  MaxConst     = 100;                     { Nombre max. de Cstes         }
-  MaxVar       = 100;                     { Nombre max. de Vars          }
-  MaxSizeIdent = 40;                      { Taille max. d'un ident       }
+  MaxConst     = 150;                      { Nombre max. de Cstes         }
+  MaxVar       = 150;                      { Nombre max. de Vars          }
+  MaxSizeConst = 40;                       { Taille max. d'une constante  }
+  MaxSizeIdent = 40;                       { Taille max. d'un ident       }
 
 Type
   StrIdent   = String[MaxSizeIdent];           { Type chaîne Ident.       }
-  TDictConst = Array[1..MaxConst] Of StrIdent; { Type Dict. des Cstes     }
+  StrConst   = String[MaxSizeConst];           { Type chaîne Const.       }
+  TDictConst = Array[1..MaxConst] Of StrConst; { Type Dict. des Cstes     }
   TDictVar   = Array[1..MaxVar]   Of           { Type Dict. des Vars      }
     Record
       Name : StrIdent;        { Nom de la variable           }
@@ -43,7 +45,7 @@ Var
 { dictionnaire et retourne l'indice correspondant.                           }
 {----------------------------------------------------------------------------}
 
-Function IndexConst( C : StrIdent ) : Integer;
+Function IndexConst( C : StrConst ) : Integer;
 Var
   I,Po   : Integer;
   Found  : Boolean;

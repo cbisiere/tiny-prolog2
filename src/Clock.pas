@@ -131,61 +131,67 @@ Begin
 End;
 
 {----------------------------------------------------------------------------}
-{ Ajoute au contenu de la case d'adresse A la valeur Offset. On ne           }
-{ met bien sûr pas à jour le pointeur nul.                                   }
+{ Ajoute au contenu de la case d'adresse A les valeurs d1 et d2 en évitant   }
+{ les débordements d'Integers. Un pointeur nul n'est pas mis à jour.         }
 {----------------------------------------------------------------------------}
 
-Procedure ShiftValueAt( A,Offset : Integer );
+Procedure ShiftValueAt( A,d1,d2 : Integer );
 Begin
-  If (Memory[A] <> 0) And (Memory[A] <> NULL) Then
-    Memory[A] := Memory[A] + Offset
-End;
-
-{----------------------------------------------------------------------------}
-{ Met à jour une chaîne d'inéquations pointée par E avec                     }
-{ le déplacement d.                                                          }
-{----------------------------------------------------------------------------}
-
-Procedure ShiftInequation( E,d : Integer );
-Begin
-  If E <> NULL Then
+  If Memory[A] <> NULL Then
   Begin
-    ShiftValueAt(E+EQ_LTER,d);
-    ShiftValueAt(E+EQ_RTER,d);
-    ShiftValueAt(E+EQ_NEXT,d);
-    ShiftInequation(Memory[E+EQ_NEXT],d)
+    If (Memory[A] > 0) And (d1 > 0) And (d2 < 0)
+      Or (Memory[A] < 0) And (d1 < 0) And (d2 > 0) Then
+      Swap(d1,d2);
+    Memory[A] := Memory[A] + d1;
+    Memory[A] := Memory[A] + d2
   End
 End;
 
 {----------------------------------------------------------------------------}
-{ Met à jour le terme T avec la valeur d. Elle doit faire                    }
+{ Met à jour une chaîne d'inéquations pointée par E avec                     }
+{ les déplacements d1 et d2.                                                 }
+{----------------------------------------------------------------------------}
+
+Procedure ShiftInequation( E,d1,d2 : Integer );
+Begin
+  If E <> NULL Then
+  Begin
+    ShiftValueAt(E+EQ_LTER,d1,d2);
+    ShiftValueAt(E+EQ_RTER,d1,d2);
+    ShiftValueAt(E+EQ_NEXT,d1,d2);
+    ShiftInequation(Memory[E+EQ_NEXT],d1,d2)
+  End
+End;
+
+{----------------------------------------------------------------------------}
+{ Met à jour le terme T avec les valeur d1 et d2. Elle doit faire            }
 { attention à ne pas mettre à jour une variable qui l'a déjà été. En effet   }
 { une seule allocation mémoire est réalisée pour une variable, et celle-ci   }
 { peut donc être pointée plusieurs fois. La fonction doit donc s'aider d'un  }
 { dictionnaire (DictAdr) des adresses des variables déjà mises à jour.       }
 {----------------------------------------------------------------------------}
 
-Procedure ShiftTerm( T,d : Integer );
+Procedure ShiftTerm( T,d1,d2 : Integer );
 Begin
   If T <> NULL Then
     Case TypeOfTerm(T) Of
     FuncSymbol :
       Begin
-         ShiftValueAt(T+TF_LTER,d);
-         ShiftValueAt(T+TF_RTER,d);
-         ShiftTerm(Memory[T+TF_LTER],d);
-         ShiftTerm(Memory[T+TF_RTER],d)
+         ShiftValueAt(T+TF_LTER,d1,d2);
+         ShiftValueAt(T+TF_RTER,d1,d2);
+         ShiftTerm(Memory[T+TF_LTER],d1,d2);
+         ShiftTerm(Memory[T+TF_RTER],d1,d2)
        End;
     Variable :
       Begin
-       If Not StoreAdr( T ) Then
+       If Not StoreAdr(T) Then
        Begin
          Memory[T+TV_COPY] := YES;
-         ShiftValueAt(T+TV_TRED,d);
-         ShiftValueAt(T+TV_FWAT,d);
+         ShiftValueAt(T+TV_TRED,d1,d2);
+         ShiftValueAt(T+TV_FWAT,d1,d2);
          Add(T);
          If Memory[T+TV_IWAT] = YES Then
-           ShiftInequation(Memory[T+TV_FWAT],d)
+           ShiftInequation(Memory[T+TV_FWAT],d1,d2)
        End
      End
   End
@@ -199,21 +205,25 @@ End;
 {----------------------------------------------------------------------------}
 
 Function CopyTermsOfRule( R : Integer ) : Integer;
-Var RuleB,Offset,B : Integer;
+Var
+  RuleB,B : Integer;
+  d1,d2 : Integer; { offsets }
 Begin
   If R = SYS_CALL Then
     CopyTermsOfRule := NULL
   Else
   Begin
     RuleB := PushRule(R);
-    Offset := RuleB - (R+RU_FBTR);
+    { compute two offsets to prevent Integer overflows }
+    d1 := RuleB;
+    d2 := -(R+RU_FBTR);
     B := RuleB;
     PtrDict := 0;
-    Repeat                                   { Pour chaque bloc-terme }
-      ShiftValueAt(B+BT_TERM,Offset);        {  - Ptr Terme           }
-      ShiftValueAt(B+BT_NEXT,Offset);        {  - Ptr Terme Suivant   }
-      ShiftValueAt(B+BT_CONS,Offset);        {  - Ptr Acces           }
-      ShiftTerm(Memory[B+BT_TERM],Offset);   {  - Terme pointé        }
+    Repeat                                  { Pour chaque bloc-terme }
+      ShiftValueAt(B+BT_TERM,d1,d2);        {  - Ptr Terme           }
+      ShiftValueAt(B+BT_NEXT,d1,d2);        {  - Ptr Terme Suivant   }
+      ShiftValueAt(B+BT_CONS,d1,d2);        {  - Ptr Acces           }
+      ShiftTerm(Memory[B+BT_TERM],d1,d2);   {  - Terme pointé        }
       B := Memory[B+BT_NEXT]
     Until B = NULL;
     CopyTermsOfRule := RuleB

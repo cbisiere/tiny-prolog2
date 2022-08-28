@@ -115,7 +115,7 @@ Begin
   End;
   Writeln;
   Writeln('Right stack:');
-  K := SizeMem;
+  K := HiMemAddr;
   While K > PtrRight Do
   Begin
     Write(Disp(Memory[K+ZZ_TYPE]):Val,' ');

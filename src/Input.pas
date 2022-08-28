@@ -20,10 +20,12 @@ Type
   TInput    = (InputFile, Repl);         { Type of input                 }
 
 Const
-  SizeBufIn = 10;                          { Taille Buffer d'entree      }
   EndOfInput = #$FF;                       { Code 'fin entrée'           }
   EndOfLine = #10;                         { Code 'fin de ligne'         }
-  BlankSet : CharSet = [' ',#9,EndOfLine]; { Caractères d'espacement     }
+  Letters : CharSet = ['a'..'z','A'..'Z'];   { ASCII letters      }
+  Digits  : CharSet = ['0'..'9'];            { digits       }
+  BlankSet : CharSet = [' ',#9,EndOfLine];   { space chars  }
+  SizeBufIn = 10;                          { Taille Buffer d'entree      }
 
 Var
   CurrentLine : AnyStr;                  { Chaîne lue                    }
@@ -134,16 +136,26 @@ End;
 {----------------------------------------------------------------------------}
 
 Function GetC( Var c : Char ) : Char;
-Begin
-  If Source = InputFile Then
+
+  Function HaveChars : Boolean;
   Begin
-    If (Length(CurrentLine) = 0) Or (PtrInp > Length(CurrentLine)) Then
-    Begin
+    HaveChars := (Length(CurrentLine) > 0) And (PtrInp <= Length(CurrentLine))
+  End;
+
+Begin
+  If Not HaveChars Then
+    Case Source Of
+    InputFile :
       If Not Eof(CurrentFile) Then
       Begin
         InitCurrentLine;
         Readln(CurrentFile,CurrentLine);
-        LineNum := LineNum + 1
+        LineNum := LineNum + 1;
+        If LineNum > 1 Then { actually, we just finished reading a line }
+        Begin
+          GetC := EndOfLine;
+          Exit
+        End
       End
       Else
       Begin
@@ -151,10 +163,14 @@ Begin
         FileIsOpen := False;
         GetC := EndOfInput;
         Exit
+      End;
+    Repl:
+      Begin
+        GetC := EndOfInput;
+        Exit
       End
-    End
-  End;
-  If (Length(CurrentLine) > 0) And (PtrInp <= Length(CurrentLine)) Then
+    End;
+  If HaveChars Then
   Begin
     c := CurrentLine[PtrInp];
     PtrInp := PtrInp + 1
@@ -272,10 +288,75 @@ End;
 { ci appartient à l'ensemble E.                                              }
 {----------------------------------------------------------------------------}
 
-Procedure Get( Var Ch : AnyStr; E : CharSet );
+Procedure GetCharWhile( Var Ch : AnyStr; E : CharSet );
 Var c : Char;
 Begin
   While (GetChar(c) In E) Do Ch := Ch + c;
+  UnGetChar(c)
+End;
+
+{----------------------------------------------------------------------------}
+{ Returns True if c is a ISO-8859-1 letter or the first byte                 }
+{ of a 2-byte UTF-8 letter.                                                  }
+{----------------------------------------------------------------------------}
+
+Function IsLetter( c : Char ) : Boolean;
+Begin
+  { reject ascii non-letters, and ISO-8859-1 non-letters,               }
+  { see https://fr.wikipedia.org/wiki/ISO/CEI_8859-1                    }
+  { this rejects UTF8 identifiers or variable names containing a 2-byte }
+  { UTF8 letters starting with a byte sets in the second condition      }
+  IsLetter := Not (c In ([#$00..#$7F] - Letters))
+    And Not (c In [#$A0..#$BF,#$D7,#$F7])
+End;
+
+{----------------------------------------------------------------------------}
+{ Append to Ch any letter in the input stream. It is assumed that the input  }
+{ stream is either ISO-8859-1 or UTF-8 encoded. We rely on heuristics.       }
+{ The function returns the number of characters added to Ch.                 }
+{----------------------------------------------------------------------------}
+
+Function GrabLetters( Var Ch : AnyStr ) : Integer;
+Var
+  c,c2 : Char;
+  S : AnyStr;
+  n : Byte;
+  Stop : Boolean;
+Begin
+  n := 0;
+  Repeat
+    Stop := False;
+    { get next run of ASCII letters }
+    S := '';
+    GetCharWhile(S,Letters);
+    n := n + length(S);
+    Ch := Ch + S;
+    { examine the char on which we stopped }
+    c := NextChar(c);
+    Stop := Not IsLetter(c);
+    If Not Stop Then
+    Begin
+      Ch := Ch + GetChar(c); { glob it }
+      n := n + 1;
+      { could be a 2-byte UTF8 character? }
+      If c In [#$C0..#$DF] Then
+        { Heuristic 2: no identifiers or variable names in a UTF8 program }
+        {  contain a 2-byte UTF8 letter made of these two codes }
+        If (c = #$C3) and (NextChar(c2) in [#$80..#$BF]) Then
+          Ch := Ch + GetChar(c2) { glob it without counting it }
+    End
+  Until Stop;
+  GrabLetters := n
+End;
+
+{----------------------------------------------------------------------------}
+{ Append chars to Ch until a char in E is read.                              }
+{----------------------------------------------------------------------------}
+
+Procedure GetCharUntil( Var Ch : AnyStr; E : CharSet );
+Var c : Char;
+Begin
+  While Not (GetChar(c) In E) Do Ch := Ch + c;
   UnGetChar(c)
 End;
 
