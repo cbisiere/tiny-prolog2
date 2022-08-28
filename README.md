@@ -201,7 +201,9 @@ ident-end ::= <digits>
 
 integer ::= <digits>                            
 
-constant ::= <identifier> | <integer>                    
+string ::= """ [<char-no-quotes> | """" | "\"<newline>]* """ 
+
+constant ::= <identifier> | <integer> | <string>                 
 
 term ::= <simple-term> ["."<term>]                          
 
@@ -220,7 +222,9 @@ rule ::= <term> "->" [<term>]* [<system>] ";"
 
 query ::= -> [<term>]* [system] ";"                                
 
-rules-and-queries ::= [<rule> | <query>]*
+comment ::= <string>
+
+rules-and-queries ::= [<comment> | <rule> | <query>]*
 
 program ::= [<rules-and-queries>]* [";"]
 
