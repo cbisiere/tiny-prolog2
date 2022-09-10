@@ -845,20 +845,24 @@ End;
 {         R+5   | TYPE  |---> Type of rule: RTYPE_AUTO, RTYPE_USER      }
 {               |       |                                               }
 {               |-------|                                               }
+{               |       |                                               }
+{         R+6   | FBTR  |---> Pointe vers le premier bloc terme de la   }
+{               |       |     règle (NULL si pas de terme).             }
+{               |-------|                                               }
 {                                                                       }
 {    Le premier bloc-terme de cette règle (tête) commence en R+4.       }
 {                                                                       }
 {-----------------------------------------------------------------------}
 
 Const
-  RU_length = 6;
+  RU_length = 7;
   RU_NEXT = 0;
   RU_SIZE = 1;
   RU_FVAR = 2;
   RU_LVAR = 3;
   RU_SYST = 4;
   RU_TYPE = 5;
-  RU_FBTR = 6; { Do not move! }
+  RU_FBTR = 6;
 
 {-----------------------------------------------------------------------}
 { Code une règle en mémoire.                                            }
@@ -872,7 +876,8 @@ Begin
   Spaces;
   Memory[R+RU_TYPE] := RuleType;
   Memory[R+RU_FVAR] := NbVar + 1;
-  B := CompileOneTerm;        { head }
+  B := CompileOneTerm; { head }
+  Memory[R+RU_FBTR] := B;
   Verify('->');
   If Not Error Then
   Begin

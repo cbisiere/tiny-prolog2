@@ -301,7 +301,7 @@ Procedure UnparseOneRule( R : Integer );
 Var B : Integer;
 Begin
   InitIneq;
-  B := R+RU_FBTR;
+  B := Memory[R+RU_FBTR];
   UnparseOneTerm(B);
   Write(' -> ');
   UnparseTerms(Memory[B+BT_NEXT],True);

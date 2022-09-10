@@ -123,10 +123,12 @@ Function PushRule( R : Integer ) : Integer;
 Var
   Size  : Integer;
   CopyR : Integer;
+  SrcB : Integer;
 Begin
+  SrcB := Memory[R+RU_FBTR];
   Size := Memory[R+RU_SIZE];
   CopyR := Alloc(Size);
-  Move(Memory[R+RU_FBTR],Memory[CopyR],Size*SizeOf(Integer)); {Turbo Pascal}
+  Move(Memory[SrcB],Memory[CopyR],Size*SizeOf(Integer)); {Turbo Pascal}
   PushRule := CopyR
 End;
 
@@ -216,7 +218,7 @@ Begin
     RuleB := PushRule(R);
     { compute two offsets to prevent Integer overflows }
     d1 := RuleB;
-    d2 := -(R+RU_FBTR);
+    d2 := -(Memory[R+RU_FBTR]);
     B := RuleB;
     PtrDict := 0;
     Repeat                                  { Pour chaque bloc-terme }
@@ -357,7 +359,7 @@ Var
       End;
       While (R<>NULL) And Not Stop Do
       Begin
-        T2 := AccessTerm(R+RU_FBTR);
+        T2 := AccessTerm(Memory[R+RU_FBTR]);
         If Unifiable(T1,T2) Then
         Begin
           FirstR := R;
