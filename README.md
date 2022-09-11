@@ -241,6 +241,7 @@ $
 ## BNF Syntax
 
 ```
+letter ::= "a" | ... | "z" | "A" | ... | "Z" | "_"
 digits ::= <digit>[<digit>]*
 letters := <letter>[<letter>]*
 

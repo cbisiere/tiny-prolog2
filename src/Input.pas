@@ -22,7 +22,7 @@ Type
 Const
   EndOfInput = #$FF;                       { Code 'fin entrée'           }
   EndOfLine = #10;                         { Code 'fin de ligne'         }
-  Letters : CharSet = ['a'..'z','A'..'Z'];   { ASCII letters      }
+  Letters : CharSet = ['a'..'z','A'..'Z','_'];  { ASCII letters + underscore }
   Digits  : CharSet = ['0'..'9'];            { digits       }
   BlankSet : CharSet = [' ',#9,EndOfLine];   { space chars  }
   SizeBufIn = 10;                          { Taille Buffer d'entree      }
