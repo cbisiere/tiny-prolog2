@@ -40,6 +40,8 @@ Begin
     S := '[T]';
   SYS_CALL:
     S := 'SYS';
+  SYS_CUT:
+    S := '!';
   RTYPE_AUTO:
     S := 'AUTO';
   RTYPE_USER:
@@ -54,17 +56,17 @@ End;
 { Affiche l'entête de l'horloge.                                             }
 {----------------------------------------------------------------------------}
 
-Procedure DumpHeader; (* ( H : Integer ); *)
+Procedure DumpHeader( H : Integer );
 Var R : Integer;
 Begin
-  DumpState;
+  //DumpState;
   Writeln('Header at : ', H);
   Write('  Terms: ');
   UnparseTerms(Memory[H+HH_FBCL],True);
   Writeln;
   Write('  Rule: ');
   R := Memory[H+HH_RULE];
-  If (R = NULL) Or (R = SYS_CALL) Then
+  If (R = NULL) Or (R = SYS_CALL) Or (R = SYS_CUT) Then
     Writeln(Disp(R))
   Else
     UnparseOneRule(R);
@@ -73,11 +75,13 @@ Begin
   Write('  PrevPtrLeft: ');
   Writeln(Disp(Memory[H+HH_STAC]));
   Write('  BackHeader: ');
-  Writeln(Disp(Memory[H+HH_PREV]))
+  Writeln(Disp(Memory[H+HH_PREV]));
+  Write('  Cut: ');
+  Writeln(Disp(Memory[H+HH_ACUT]))
 End;
 
 {----------------------------------------------------------------------------}
-{ Affiche la pile d'appels de l'horloge.                                     }
+{ Affiche la pile d'appels de l'horloge jusqu'au header H compris.           }
 {----------------------------------------------------------------------------}
 
 Procedure Backtrace( H : Integer );
@@ -89,6 +93,15 @@ Begin
     H := Memory[H+HH_PREV]
   End;
   Writeln('*EoB*');
+End;
+
+{----------------------------------------------------------------------------}
+{ Affiche la pile d'appels de l'horloge.                                     }
+{----------------------------------------------------------------------------}
+
+Procedure DumpBacktrace;
+Begin
+  Backtrace(PtrLeft-HH_length+1)
 End;
 
 {----------------------------------------------------------------------------}
@@ -191,6 +204,6 @@ Begin
   DumpDictConst;
   DumpDictVar;
   If Trace Then
-    Backtrace(PtrLeft-HH_length+1);
+    DumpBacktrace;
   Writeln('End Code Dump: "',Message,'"')
 End;

@@ -38,7 +38,7 @@
 Type AnyStr = String[254];
 
 Procedure DumpState; Forward;
-Procedure DumpHeader( H : Integer ); Forward;
+Procedure DumpBacktrace; Forward;
 Procedure CoreDump( Message : AnyStr; Trace : Boolean ); Forward;
 Procedure CheckCondition( Cond : Boolean; Message : AnyStr ); Forward;
 
@@ -55,8 +55,9 @@ Const
   NO = 20007;
   YES = 20008;
   SYS_CALL = 20009;                { Special rule ptr: system call }
-  RTYPE_AUTO = 20010;              { Rule type: auto-loaded (system calls) }
-  RTYPE_USER = 20011;              { Rule type: user }
+  SYS_CUT = 20010;                 { Special rule ptr: cut }
+  RTYPE_AUTO = 20011;              { Rule type: auto-loaded (system calls) }
+  RTYPE_USER = 20012;              { Rule type: user }
 
 { Mémoire principale }
 Var

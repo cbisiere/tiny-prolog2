@@ -42,22 +42,27 @@ Var ClockTime : Integer;                     { Le temps de l'horloge Prolog }
   {         µ+4   | PREV  |---> Pointe dans la pile principale vers       }
   {               |       |     l'entête de l'étape précédente (ou NULL   }
   {               |-------|     si pas d'étape précédente).               }
+  {               |       |                                               }
+  {         µ+5   | ACUT  |---> True if the term to clear is a cut.       }
+  {               |       |                                               }
+  {               |-------|                                               }
   {                                                                       }
   {-----------------------------------------------------------------------}
 
   Const
-    HH_length = 5;
+    HH_length = 6;
     HH_FBCL = 0;
     HH_RULE = 1;
     HH_REST = 2;
     HH_STAC = 3;
     HH_PREV = 4;
+    HH_ACUT = 5;
 
   {-----------------------------------------------------------------------}
   { Crée une entête.                                                      }
   {-----------------------------------------------------------------------}
 
-  Function NewClockHeader(Fbcl,Rule,Rest,Stac,Prev : Integer ) : Integer;
+  Function NewClockHeader(Fbcl,Rule,Rest,Stac,Prev,ACut : Integer ) : Integer;
   Var H : Integer;
   Begin
     H := Alloc(HH_length);
@@ -66,7 +71,19 @@ Var ClockTime : Integer;                     { Le temps de l'horloge Prolog }
     Memory[H+HH_REST] := Rest;               { Ptr Pile Restore           }
     Memory[H+HH_STAC] := Stac;               { Pointeur back              }
     Memory[H+HH_PREV] := Prev;               { Pointeur back              }
+    Memory[H+HH_ACUT] := ACut;               { Term is a cut              }
     NewClockHeader := H
+  End;
+
+  {-----------------------------------------------------------------------}
+  { Duplicates a clock header H and returns the address of the copy.      }
+  {-----------------------------------------------------------------------}
+
+  Function CopyClockHeader( H : Integer ) : Integer;
+  Begin
+    CopyClockHeader := NewClockHeader(Memory[H+HH_FBCL],Memory[H+HH_RULE],
+      Memory[H+HH_REST],Memory[H+HH_STAC],Memory[H+HH_PREV],
+      Memory[H+HH_ACUT])
   End;
 
 {----------------------------------------------------------------------------}
@@ -211,7 +228,7 @@ Var
   RuleB,B : Integer;
   d1,d2 : Integer; { offsets }
 Begin
-  If R = SYS_CALL Then
+  If (R = SYS_CALL) Or (R = SYS_CUT) Then
     CopyTermsOfRule := NULL
   Else
   Begin
@@ -286,8 +303,7 @@ Var
     ReductionOk := ReduceSystem(Stopper,True);
     Memory[H+HH_REST] := PtrRestore;
     If PtrLeftSave <> PtrLeft Then { Des inéquations ont été créées }
-      H := NewClockHeader(Memory[H+HH_FBCL],Memory[H+HH_RULE],
-        Memory[H+HH_REST],Memory[H+HH_STAC],Memory[H+HH_PREV])
+      H := CopyClockHeader(H)
   End;
 
 {------------------------------------------------------------------}
@@ -327,6 +343,7 @@ Var
   Begin
     CheckCondition(R <> NULL,'cannot call Next on NULL');
     CheckCondition(R <> SYS_CALL,'cannot call Next on SYS_CALL');
+    CheckCondition(R <> SYS_CUT,'cannot call Next on a cut');
     If R = Memory[Q+QU_LRUL] Then
       Next := NULL
     Else
@@ -343,6 +360,7 @@ Var
   Var
     FirstR,T1,T2 : Integer;
     Stop : Boolean;
+    ConstVal : AnyStr;
   Begin
     FirstR := NULL;
     If B <> NULL Then
@@ -351,9 +369,16 @@ Var
       T1 := AccessTerm(B);
       If TypeOfTerm(T1) = Constant Then
       Begin
-        If DictConst[Memory[T1+TC_CONS]] = 'SYSCALL' Then
+        ConstVal := DictConst[Memory[T1+TC_CONS]];
+        If ConstVal = 'SYSCALL' Then
         Begin
           FirstR := SYS_CALL;
+          Stop := True
+        End
+        Else
+        If ConstVal = '!' Then
+        Begin
+          FirstR := SYS_CUT;
           Stop := True
         End
       End;
@@ -383,7 +408,7 @@ Var
   Function NextCandidateRule( R,B : Integer ) : Integer;
   Var NextR : Integer;
   Begin
-    If (R = SYS_CALL) Or (R = NULL) Then
+    If (R = SYS_CALL) Or (R = SYS_CUT) Or (R = NULL) Then
       NextR := NULL
     Else
       NextR := FirstCandidateRule(Next(R),B);
@@ -398,7 +423,7 @@ Var
 { Un retour en arrière se fait en trois étapes :                             }
 {                                                                            }
 {  (1) Dépiler la règle qui est en tête de pile grâce au pointeur qui est    }
-{      au sommet.                                                            }
+{      disponible dans l'entête H courante.                                  }
 {                                                                            }
 {  (2) Restaurer la mémoire à l'état antérieur grâce au pointeur de restau-  }
 {      ration de la nouvelle règle de tête.                                  }
@@ -417,19 +442,22 @@ Var
     NewPtrLeft : Integer;
   Begin
     NoMoreChoices := False;
+    NextR := NULL;
     Repeat
-      If ClockTime = 0 Then
+      If (ClockTime > 0) And (Memory[H+HH_ACUT] = NO) Then
       Begin
-        NoMoreChoices := True;
-        Exit
-      End;
-      NewPtrLeft := Memory[H+HH_STAC];  { Backtracking }
-      H := Memory[H+HH_PREV];
-      PtrLeft := NewPtrLeft;
-      Restore(Memory[H+HH_REST]);
-      ClockTime := ClockTime - 1;
-      NextR := NextCandidateRule(Memory[H+HH_RULE],Memory[H+HH_FBCL]);
-    Until NextR <> NULL;
+        { backtracks one step }
+        NewPtrLeft := Memory[H+HH_STAC];
+        H := Memory[H+HH_PREV];
+        PtrLeft := NewPtrLeft;
+        Restore(Memory[H+HH_REST]);
+        ClockTime := ClockTime - 1;
+        { next rule to apply, if any }
+        NextR := NextCandidateRule(Memory[H+HH_RULE],Memory[H+HH_FBCL])
+      End
+      Else
+        NoMoreChoices := True
+    Until NoMoreChoices Or (NextR <> NULL);
     Memory[H+HH_RULE] := NextR
 End;
 
@@ -475,23 +503,32 @@ End;
   Procedure MoveForward( Var H : Integer );
   Var
     ClearB, ClearT, RuleB, B, PtrLeftSave : Integer;
-    IsSysCall : Boolean;
+    R : Integer;
+    RestA : Integer;
   Begin
     CheckCondition(Memory[H+HH_FBCL] <> NULL,'MoveForward: No terms to clear');
     CheckCondition(Memory[H+HH_RULE] <> NULL,'MoveForward: No rule to apply');
 
+    RestA := Memory[H+HH_REST];              { restoration pointer      }
     ClearB := Memory[H+HH_FBCL];             { list of terms to clear   }
     ClearT := Memory[ClearB+BT_TERM];        { current term to clear    }
-    IsSysCall := (Memory[H+HH_RULE] = SYS_CALL);
+    R := Memory[H+HH_RULE];                  { rule to apply            }
 
     ClockTime := ClockTime + 1;
     PtrLeftSave := PtrLeft;
-    { copy the target rule - do nothing if it is a system call }
-    RuleB := CopyTermsOfRule(Memory[H+HH_RULE]);
+    { copy the target rule - do nothing if it is a system call or a cut }
+    RuleB := CopyTermsOfRule(R);
 
-    H := NewClockHeader(NULL,NULL,0,PtrLeftSave,H);
+    H := NewClockHeader(NULL,NULL,RestA,PtrLeftSave,H,NO);
 
-    If IsSysCall Then
+    If R = SYS_CUT Then
+    Begin
+      Soluble := True; { "cut" is always clearable }
+      Memory[H+HH_ACUT] := YES;
+      Memory[H+HH_FBCL] := NextTerm(ClearB)
+    End
+    Else
+    If R = SYS_CALL Then
     Begin
       Soluble := ExecutionSysCallOk(ClearT, Q);
       { remove the term from the list of terms to clear }
@@ -539,7 +576,7 @@ Begin
   Begin
     Exit
   End;
-  H := NewClockHeader(B,R,0,PtrLeft,NULL);
+  H := NewClockHeader(B,R,PtrRestore,PtrLeft,NULL,NO);
   Repeat
     MoveForward(H);
     If (Not Soluble) Or           { Système de contraintes non soluble }

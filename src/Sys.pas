@@ -74,4 +74,9 @@ Begin
       ExecutionSysCallOk := False
     Else
       Writeln
+  Else If Ident = 'BACKTRACE' Then
+    If NbSysCallArgs <> 0 Then
+      ExecutionSysCallOk := False
+    Else
+      DumpBacktrace
 End;

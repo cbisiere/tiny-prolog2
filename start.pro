@@ -5,3 +5,5 @@ outm(s) -> <SYSCALL,OUTM,s>;
 line -> <SYSCALL,LINE>;
 outl(t) -> out(t) line;
 outml(s) -> outm(s) line;
+bt -> <SYSCALL,BACKTRACE>;
+eq(x,x)->;

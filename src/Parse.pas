@@ -338,14 +338,14 @@ End;
 { structure qui représente ces arguments.                               }
 {-----------------------------------------------------------------------}
 
-Function ReadOneTerm : Integer; Forward;
+Function ReadOneTerm( Cut : Boolean) : Integer; Forward;
 
 Function GetArgument( EndChar : Char ) : Integer;
 Var
   T : Integer;
   c : Char;
 Begin
-  T := ReadOneTerm;
+  T := ReadOneTerm(False);
   c := GetCharNb(c);
   If c =  ',' Then
     GetArgument := InstallSymbol(T,GetArgument(EndChar))
@@ -401,9 +401,10 @@ End;
 {-----------------------------------------------------------------------}
 { Lit un terme en entrée, le code en mémoire. Retourne                  }
 { l'adresse où il a été implanté.                                       }
+{ If Cut is True, the cut symbol is accepted as a term.                 }
 {-----------------------------------------------------------------------}
 
-Function ReadOneTerm; (* : Integer *)
+Function ReadOneTerm; (* ( Cut : Boolean ) : Integer *)
 Var
   T : Integer;
   Ch  : AnyStr;
@@ -426,7 +427,7 @@ Begin
       If c ='(' Then          { une forme ( <terme> ) }
       Begin
         c := GetChar(c);
-        T := ReadOneTerm;
+        T := ReadOneTerm(False);
         Verify(')')
       End
       Else
@@ -442,7 +443,13 @@ Begin
         T := InstallConst(Ch)
       End
       Else
-        RaiseError('digit, ", ")" or "<" expected')
+      If Cut and (c In ['!','/']) Then    { the "cut" }
+      Begin
+        c := GetChar(c);
+        T := InstallConst('!')
+      End
+      Else
+        RaiseError('term expected')
     End;
   1 :
     Begin                      { une variable }
@@ -473,7 +480,7 @@ Begin
   Begin
     c := GetChar(c);
     T := InstallSymbol( InstallConst('.'),
-        InstallSymbol(T,InstallSymbol(ReadOneTerm,NULL)) )
+        InstallSymbol(T,InstallSymbol(ReadOneTerm(False),NULL)) )
   End;
   ReadOneTerm := T    { Retourne adresse d'implantation de ce terme }
 End;
@@ -663,7 +670,7 @@ Var
   c : Char;
 Begin
   E := NULL;
-  T1 := ReadOneTerm;
+  T1 := ReadOneTerm(False);
   If Not Error Then
   Begin
     c := GetCharNb(c);
@@ -680,7 +687,7 @@ Begin
     End
   End;
   If Not Error Then
-    T2 := ReadOneTerm;  { terme droit }
+    T2 := ReadOneTerm(False);  { terme droit }
   If Not Error Then
     E := PushEquation(Code,T1,T2);
   ReadEquation := E
@@ -783,11 +790,11 @@ Const
 { Code un bloc-terme en mémoire.                                        }
 {-----------------------------------------------------------------------}
 
-Function CompileOneTerm : Integer;
+Function CompileOneTerm( Cut : Boolean ) : Integer;
 Var B : Integer;
 Begin
   B := Alloc(BT_length);
-  Memory[B+BT_TERM] := ReadOneTerm;
+  Memory[B+BT_TERM] := ReadOneTerm(Cut);
   Memory[B+BT_NEXT] := NULL;
   Memory[B+BT_CONS] := Access(Memory[B+BT_TERM]);
   CompileOneTerm := B
@@ -807,7 +814,7 @@ Begin
   If (Not (c In StopChars)) And (Not Error) Then
   Begin
     B := Alloc(BT_length);
-    Memory[B+BT_TERM] := ReadOneTerm;
+    Memory[B+BT_TERM] := ReadOneTerm(True);
     Memory[B+BT_CONS] := Access(Memory[B+BT_TERM]);
     Memory[B+BT_NEXT] := CompileTerms(StopChars)
   End
@@ -876,7 +883,7 @@ Begin
   Spaces;
   Memory[R+RU_TYPE] := RuleType;
   Memory[R+RU_FVAR] := NbVar + 1;
-  B := CompileOneTerm; { head }
+  B := CompileOneTerm(False); { head }
   Memory[R+RU_FBTR] := B;
   Verify('->');
   If Not Error Then

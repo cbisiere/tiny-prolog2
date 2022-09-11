@@ -2,7 +2,7 @@
 A simple Prolog II interpreter written in Pascal
 
 ## Why?
-2022 is [the 50th anniversary of Prolog](http://prologyear.logicprogramming.org/). As a modest tribute for this anniversary, I decided to dig up a Prolog interpreter I wrote almost 35 years ago, clean it a bit, add a few missing features, and push it online. As this program remains a toy program, this serves no real purpose other than to celebrate this anniversary.
+2022 is [the 50th anniversary of Prolog](http://prologyear.logicprogramming.org/). As a modest tribute for this anniversary, I decided to dig up a Prolog interpreter I wrote almost 35 years ago, clean it a bit, add a few missing features (e.g., the "cut"), and push it online. As this program remains a toy program, this serves no real purpose other than to celebrate this anniversary.
 
 I wrote this program as a course assignment, back in 1988, when I was a student at the University of Aix-Marseille II, pursuing a MSc in Computer Science and Mathematics ("Diplôme d'Études Approfondies en Informatique et Mathématique"). The course, entitled "Prolog II", was taught by the late [Alain Colmerauer](https://en.wikipedia.org/wiki/Alain_Colmerauer), creator of the language.
 
@@ -92,11 +92,64 @@ Prolog
 
 The primitive `outml(s)` display the string `s` without the surrounding quotes. 
 
+### The "cut"
+As in standard Prolog, when a rule containing a cut (`!` or, equivalently, `/`) is used to execute a goal, the execution of this cut prunes the search tree, making the search engine forget the other ways of executing that goal.
+
+To illustrate how the cut works, consider the following example, taken from the [Prolog II Reference Manual](https://www.prolog-heritage.org/en/m2.html), Section 2.1, page R2-2:
+
+
+```
+color(red) ->;
+color(blue) ->;
+
+size(big) ->;
+size(small) ->;
+
+choice1(x.y) -> color(x) size(y);
+choice1("that's all") ->;
+
+choice2(x.y) -> ! color(x) size(y);
+choice2("that's all") ->;
+
+choice3(x.y) -> color(x) ! size(y);
+choice3("that's all") ->;
+
+choice4(x.y) -> color(x) size(y) !;
+choice4("that's all") ->;
+```
+
+The following executions show that what the engine forgets after executing a cut in a certain rule or query is all the rules having the same head, plus all the rules which could have been used to clear the terms between the start of the rule's body (or the start of the query) and the cut.
+
+
+```
+-> choice1(u) ;
+{ u = red.big }
+{ u = red.small }
+{ u = blue.big }
+{ u = blue.small }
+{ u = "that's all" }
+-> choice2(u) ;
+{ u = red.big }
+{ u = red.small }
+{ u = blue.big }
+{ u = blue.small }
+-> choice3(u) ;
+{ u = red.big }
+{ u = red.small }
+-> choice4(u) ;
+{ u = red.big }
+-> choice1(u) ! ;
+{ u = red.big }
+```
+
+
 ## Compilation
 
 ### Turbo Pascal 3
 
-The program was developed in [Turbo Pascal 3](https://en.wikipedia.org/wiki/Turbo_Pascal#Version_3) (TP3). Turbo Pascal 3.02A is [provided](https://web.archive.org/web/20101124092418/http://edn.embarcadero.com/article/20792) to the Borland community free of charge, as a [zip file] (https://web.archive.org/web/20110815014726/http://altd.embarcadero.com/download/museum/tp302.zip).
+The program was initially developed in [Turbo Pascal 3](https://en.wikipedia.org/wiki/Turbo_Pascal#Version_3) (TP3). Turbo Pascal 3.02A is [provided](https://web.archive.org/web/20101124092418/http://edn.embarcadero.com/article/20792) to the Borland community free of charge, as a [zip file] (https://web.archive.org/web/20110815014726/http://altd.embarcadero.com/download/museum/tp302.zip).
+
+I chose to maintain compatibility with TP3. Because why not.
 
 You may use a FreeDOS box to install TP3, compile `Main.pas` and run the Prolog interpreter.
 
@@ -181,7 +234,7 @@ When you are done, use `quit` or hit `Ctrl+C` to quit the interpreter.
 ```
 > quit;
 -> quit ;
-bye
+Bye!
 $
 ```
 
@@ -216,11 +269,13 @@ simple-term ::= <constant> |
 constraint ::= <term> "=" <term> |
                <term> "<>" <term>          
 
+cut ::= "!" | "/"
+
 system ::= "{" <constraint> ["," <constraint>]* "}"                         
 
-rule ::= <term> "->" [<term>]* [<system>] ";"
+rule ::= <term> "->" [<term>| <cut>]* [<system>] ";"
 
-query ::= -> [<term>]* [system] ";"                                
+query ::= -> [<term> | <cut>]* [system] ";"                                
 
 comment ::= <string>
 
