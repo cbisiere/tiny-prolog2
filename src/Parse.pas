@@ -1189,7 +1189,7 @@ Begin
     End
     Else { a rule }
     Begin
-      R := CompileRules([EndOfInput,';','-'],RuleType);
+      R := CompileRules([EndOfInput,';','-','"'],RuleType);
       { Set program's first rule if not set yet. }
       If Memory[P+PP_FRUL] = NULL Then
         Memory[P+PP_FRUL] := R;
