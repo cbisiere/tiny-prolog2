@@ -888,7 +888,7 @@ Begin
   Verify('->');
   If Not Error Then
   Begin
-    Memory[B+BT_NEXT] := CompileTerms(['{',';']);
+    Memory[B+BT_NEXT] := CompileTerms(['{',';',EndOfInput]);
     c := NextCharNb(c);
     Memory[R+RU_SYST] := NULL;
     If c = '{' Then
@@ -999,7 +999,7 @@ Begin
   Memory[Q+QU_LRUL] := NULL;
   Memory[Q+QU_FVAR] := NbVar + 1;
   Memory[Q+QU_FCON] := NbConst + 1;
-  Memory[Q+QU_FBTR] := CompileTerms(['{',';']);
+  Memory[Q+QU_FBTR] := CompileTerms(['{',';',EndOfInput]);
   Memory[Q+QU_SYST] := NULL;
   c := NextCharNb(c);
   If c = '{' Then

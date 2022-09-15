@@ -20,7 +20,7 @@ Type
   TInput    = (InputFile, Repl);         { Type of input                 }
 
 Const
-  EndOfInput = #$FF;                       { Code 'fin entrée'           }
+  EndOfInput = #$1A;                       { Code 'fin entrée': Ctrl-Z   }
   EndOfLine = #10;                         { Code 'fin de ligne'         }
   Letters : CharSet = ['a'..'z','A'..'Z','_'];  { ASCII letters + underscore }
   Digits  : CharSet = ['0'..'9'];            { digits       }
