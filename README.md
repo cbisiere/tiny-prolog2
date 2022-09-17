@@ -155,13 +155,17 @@ You may use a FreeDOS box to install TP3, compile `Main.pas` and run the Prolog 
 
 ### Free Pascal Compiler
 
-The program nicely compiles with [Free Pascal Compiler](https://en.wikipedia.org/wiki/Free_Pascal) (FPC).
-
-To compile the interpreter with FPC, just type:
+To compile the interpreter with the [Free Pascal Compiler](https://en.wikipedia.org/wiki/Free_Pascal) (FPC), edit `src/Main.pas`, changing the compiler directive `{$I TP3.pas }` into `{$I FPC.pas }`. Then run FPC in Turbo Pascal mode: 
 
 ```bash
 fpc -Mtp -FE. -otprolog2 src/Main.pas
 ```
+Alternatively, you may use the following script, which does that editing and then compiles the interpreter:
+
+```bash
+fpc.sh
+```
+
 ## Execution
 
 A Prolog program to execute is a text file containing both the program rules and the queries. Rules are written using the old "Marseille syntax". Each query starts with a `->`and ends with a `;`. The end of the text file, or, alternatively, an additional `;`, ends the program.
