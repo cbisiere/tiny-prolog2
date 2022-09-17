@@ -12,12 +12,18 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 
+{$C-} { TP3: Ctrl-C during I/O does not interrupt program execution }
+{$U-} { TP3: Ctrl-C does not interrupt program execution }
+
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
+
+{$I TP3.pas     }  { TP3.pas: Turbo Pascal 3; FPC.pas: Free Pascal Compiler }
 
 {$I Memory.pas  }  { Module : Gestion de la mémoire principale   }
 {$I Dict.pas    }  { Module : Gestion des dictionnaires          }
 {$I Restore.pas }  { Module : Gestion de la pile de restauration }
+{$I Keyboard.pas}  { Module : Read from keyboard w/ history      }
 {$I Input.pas   }  { Module : Lecture du flot d'entrée           }
 {$I Parse.pas   }  { Module : Codage des objets                  }
 {$I Unparse.pas }  { Module : Décodage des objets                }
@@ -63,6 +69,7 @@ Begin
   End;
   if Not Error Then
     AnswerProgramQueries(P);
+  InitHistory;
   Repeat
     Error := False;
     Write('> ');

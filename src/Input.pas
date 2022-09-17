@@ -122,7 +122,7 @@ Procedure LireCommande;
 Begin
   InitInput;
   Source := Repl;
-  Readln(CurrentLine)
+  ReadlnKbd(CurrentLine)
 End;
 
 {----------------------------------------------------------------------------}
