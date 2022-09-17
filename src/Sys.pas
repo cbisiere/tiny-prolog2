@@ -79,4 +79,9 @@ Begin
       ExecutionSysCallOk := False
     Else
       DumpBacktrace
+  Else If Ident = 'CLRSRC' Then
+    If NbSysCallArgs <> 0 Then
+      ExecutionSysCallOk := False
+    Else
+      ClrScr
 End;
