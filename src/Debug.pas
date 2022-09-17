@@ -59,7 +59,6 @@ End;
 Procedure DumpHeader( H : Integer );
 Var R : Integer;
 Begin
-  //DumpState;
   Writeln('Header at : ', H);
   Write('  Terms: ');
   UnparseTerms(Memory[H+HH_FBCL],True);
