@@ -27,9 +27,10 @@
 {$I Input.pas   }  { Module : Lecture du flot d'entrée           }
 {$I Parse.pas   }  { Module : Codage des objets                  }
 {$I Unparse.pas }  { Module : Décodage des objets                }
-{$I Sys.pas     }  { Module : System calls                       }
 {$I Reduc.pas   }  { Module : Algorithme de réduction            }
 {$I Clock.pas   }  { Module : L'horloge Prolog                   }
+{$I Run.pas     }  { Module : Load rules and execute queries     }
+{$I Sys.pas     }  { Module : System calls                       }
 
 {$I Init.pas    }  { Module : Initialisations                    }
 {$I Debug.pas }
@@ -67,8 +68,6 @@ Begin
     if Not Error Then
       Writeln('Program "' + FileName + '" loaded')
   End;
-  if Not Error Then
-    AnswerProgramQueries(P);
   InitHistory;
   Repeat
     Error := False;
@@ -76,7 +75,7 @@ Begin
     LireCommande;
     Q := CompileCommandLineQueries(P);
     If Not Error Then
-      AnswerQueries(Q);
+      AnswerQueries(P,Q);
     RemoveCommandLineQueries(P);
   Until False
 End;

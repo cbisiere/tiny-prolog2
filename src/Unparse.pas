@@ -82,17 +82,70 @@ Begin
 End;
 
 {----------------------------------------------------------------------------}
+{ Retourne une constante, avec ou sans quotes.                               }
+{----------------------------------------------------------------------------}
+
+Function GetConstAsString( T : Integer; Quotes : Boolean ) : AnyStr;
+Var Cste : AnyStr;
+Begin
+  CheckCondition(TypeOfTerm(T)=Constant,
+    'GetConstAsString(T): T is not a constant');
+  Cste := DictConst[Memory[T+TC_CONS]];
+  If (Not Quotes) And (Length(Cste) >= 2) Then
+    If (Cste[1] = '"') And (Cste[Length(Cste)] = '"') Then
+    Begin
+      Delete(Cste,1,1);
+      Delete(Cste,Length(Cste),1)
+    End;
+  GetConstAsString := Cste
+End;
+
+{----------------------------------------------------------------------------}
+{ Retourne le nom d'une variable, utilisateur ou temporaire.                 }
+{----------------------------------------------------------------------------}
+
+Function GetVarNameAsString( V : Integer ) : AnyStr;
+Var s : AnyStr;
+Begin
+  CheckCondition(TypeOfTerm(V)=Variable,
+    'GetVarNameAsString(V): V is not a variable');
+  Case Memory[V+TV_COPY] Of
+  NO:
+    GetVarNameAsString := DictVar[Memory[V+TV_NVAR]].Name;
+  YES:
+    Begin
+      Str(V,s);
+      GetVarNameAsString := DictVar[Memory[V+TV_NVAR]].Name + '_' + s
+    End
+  End
+End;
+
+{----------------------------------------------------------------------------}
 { Ecrit le nom d'une variable, utilisateur ou temporaire.                    }
 {----------------------------------------------------------------------------}
 
 Procedure WriteVarName( V : Integer );
 Begin
-  Case Memory[V+TV_COPY] Of
-  NO:
-    Write(DictVar[Memory[V+TV_NVAR]].Name);
-  YES:
-    Write(DictVar[Memory[V+TV_NVAR]].Name,'_',V)
-  End
+  Write(GetVarNameAsString(V))
+End;
+
+{----------------------------------------------------------------------------}
+{ Return the constant the term T is equal to, of NULL if T is not equal to a }
+{ constant.                                                                  }
+{----------------------------------------------------------------------------}
+
+Function EvaluateToConstant( T : Integer ) : Integer;
+Var C : Integer;
+Begin
+  C := NULL;
+  Case TypeOfTerm(T) Of
+  Constant :
+    C := T;
+  Variable :
+    If Memory[T+TV_IRED] = YES Then
+      C := EvaluateToConstant(Memory[T+TV_TRED])
+  End;
+  EvaluateToConstant := C
 End;
 
 {----------------------------------------------------------------------------}
@@ -103,6 +156,7 @@ End;
 { display it without the quotes.                                             }
 {----------------------------------------------------------------------------}
 
+
 Procedure WriteTermBis; (* ( T : Integer; ArgList,Quotes : Boolean ); *)
 Var
   LeftT : Integer;
@@ -111,16 +165,7 @@ Var
 Begin
   Case TypeOfTerm(T) Of
   Constant :
-    Begin
-      Cste := DictConst[Memory[T+TC_CONS]];
-      If (Not Quotes) And (Length(Cste) >= 2) Then
-        If (Cste[1] = '"') And (Cste[Length(Cste)] = '"') Then
-          Begin
-            Delete(Cste,1,1);
-            Delete(Cste,Length(Cste),1)
-          End;
-      Write(Cste);
-    End;
+    Write(GetConstAsString(T,Quotes));
   Variable  :
     Begin
       If Memory[T+TV_COPY] = NO Then
@@ -318,7 +363,7 @@ Begin
   if R <> NULL Then
   Begin
     UnparseOneRule(R);
-    UnparseRules(Memory[R+RU_NEXT])
+    UnparseRules(NextRule(R))
   End
 End;
 
@@ -338,7 +383,7 @@ Begin
     If Memory[R+RU_TYPE] = RuleType Then
       UnparseOneRule(R);
     Stop := R = Memory[Q+QU_LRUL];
-    R := Memory[R+RU_NEXT];
+    R := NextRule(R);
     Stop := Stop Or (R = NULL)
   End
 End;

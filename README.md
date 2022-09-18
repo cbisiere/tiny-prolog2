@@ -232,6 +232,7 @@ insertion(e,f.x,f.y) ->
 >
 ```
 
+and `insert(f)` to insert rules and queries from a file with file path `f`. 
 
 When you are done, use `quit` or hit `Ctrl+C` to quit the interpreter.
 

@@ -2,6 +2,7 @@
 
 quit -> outml("Bye!") <SYSCALL,QUIT>;
 list -> <SYSCALL,LIST>;
+insert(f) -> <SYSCALL,INSERT,f>;
 
 "print"
 

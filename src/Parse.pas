@@ -923,13 +923,22 @@ Begin
 End;
 
 {-----------------------------------------------------------------------}
+{ Next rule after R.                                                    }
+{-----------------------------------------------------------------------}
+
+Function NextRule( R : Integer ) : Integer;
+Begin
+  NextRule := Memory[R+RU_NEXT]
+End;
+
+{-----------------------------------------------------------------------}
 { Last rule at the end of the list whose head is R.                     }
 {-----------------------------------------------------------------------}
 
 Function LastRule( R : Integer ) : Integer;
 Begin
-  While (Memory[R+RU_NEXT] <> NULL) Do
-    R := Memory[R+RU_NEXT];
+  While (NextRule(R) <> NULL) Do
+    R := NextRule(R);
   LastRule := R
 End;
 
@@ -1144,12 +1153,13 @@ Begin
 End;
 
 {----------------------------------------------------------------------------}
-{ Code les règles et les questions d'un programme Prolog.                    }
+{ Append rules and queries to program P.                                     }
+{ Return the address of the first query, or NULL if there are no queries.    }
 {----------------------------------------------------------------------------}
 
-Procedure CompileRulesAndQueries( P : Integer; RuleType : Integer );
+Function CompileRulesAndQueries( P : Integer; RuleType : Integer ) : Integer;
 Var
-  HeadQ, Q : Integer;
+  FirstQ, HeadQ, Q : Integer;
   HeadR, R : Integer;
   c : Char;
   Comment : AnyStr;
@@ -1157,6 +1167,7 @@ Var
 Begin
   Stop := False;
   Error := False;
+  FirstQ := NULL;
   HeadQ := Memory[P+PP_FQRY];
   If HeadQ <> NULL Then
     HeadQ := LastQuery(HeadQ);
@@ -1174,6 +1185,9 @@ Begin
     Else If c='-' Then  { a query }
     Begin
       Q := CompileQueries(P,True,['-'],[EndOfInput,';']);
+      { Note if Q is the first query read }
+      If FirstQ = NULL Then
+        FirstQ := Q;
       { Set program's first query if not set yet. }
       If Memory[P+PP_FQRY] = NULL Then
         Memory[P+PP_FQRY] := Q;
@@ -1207,17 +1221,6 @@ Begin
   { Machine state }
   Memory[P+PP_LVAR] := NbVar;
   Memory[P+PP_LCON] := NbConst;
-  Memory[P+PP_STAC] := PtrLeft
-End;
-
-{----------------------------------------------------------------------------}
-{ Charge un programme à partir d'un fichier.                                 }
-{----------------------------------------------------------------------------}
-
-Procedure LoadProgram( P : Integer; FileName : AnyStr; RuleType : Integer );
-Begin
-  If SetFileForInput(FileName) Then
-    CompileRulesAndQueries(P,RuleType)
-  Else
-    RaiseError('Cannot open file ' + FileName)
+  Memory[P+PP_STAC] := PtrLeft;
+  CompileRulesAndQueries := FirstQ
 End;

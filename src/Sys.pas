@@ -19,13 +19,14 @@
 { Execute a system call <SYSCALL,Code,Arg1,...ArgN>.                         }
 {----------------------------------------------------------------------------}
 
-Function ExecutionSysCallOk( F : Integer; Q : Integer ) : Boolean;
+Function ExecutionSysCallOk; (* ( F, P, Q : Integer ) : Boolean; *)
 Var
   Fail : Boolean;
   Ident : StrIdent;
   NbArgs : Integer;
   SysCallCode : StrIdent;
   NbSysCallArgs : Integer;
+  C : Integer;
 
   Function GetConstArg( N: Integer; F : Integer) : StrIdent;
   Begin
@@ -54,6 +55,20 @@ Begin
       ExecutionSysCallOk := False
     Else
       Halt
+  Else If Ident = 'INSERT' Then
+    If NbSysCallArgs <> 1 Then
+      ExecutionSysCallOk := False
+    Else
+    Begin
+      C := EvaluateToConstant(Argument(2+1,F));
+      Fail := C = NULL;
+      If Not Fail Then
+      Begin
+        LoadProgram(P,GetConstAsString(C,False),RTYPE_USER);
+        Fail := Error
+      End;
+      ExecutionSysCallOk := Not Fail
+    End
   Else If Ident = 'LIST' Then
     If NbSysCallArgs <> 0 Then
       ExecutionSysCallOk := False

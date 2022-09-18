@@ -15,6 +15,8 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+Function ExecutionSysCallOk( F, P, Q : Integer ) : Boolean; Forward;
+
 Var ClockTime : Integer;                     { Le temps de l'horloge Prolog }
 
   {-----------------------------------------------------------------------}
@@ -257,10 +259,10 @@ End;
 {----------------------------------------------------------------------------}
 
 {----------------------------------------------------------------------------}
-{ Lance l'horloge pour effacer la question Q .                               }
+{ Lance l'horloge pour effacer la question Q du programme P.                 }
 {----------------------------------------------------------------------------}
 
-Procedure Clock( Q, RightStopper : Integer );
+Procedure Clock( P, Q, RightStopper : Integer );
 
 Var
   PtrLeftSave : Integer;  { Sauvegarde sommet de pile                     }
@@ -347,7 +349,7 @@ Var
     If R = Memory[Q+QU_LRUL] Then
       Next := NULL
     Else
-      Next := Memory[R+RU_NEXT]
+      Next := NextRule(R)
   End;
 
   {----------------------------------------------------------------------------}
@@ -530,7 +532,7 @@ End;
     Else
     If R = SYS_CALL Then
     Begin
-      Soluble := ExecutionSysCallOk(ClearT, Q);
+      Soluble := ExecutionSysCallOk(ClearT,P,Q);
       { remove the term from the list of terms to clear }
       Memory[H+HH_FBCL] := NextTerm(ClearB)
     End
@@ -586,38 +588,4 @@ Begin
     Else
       FirstRule(H)
   Until EndOfClock
-End;
-
-{----------------------------------------------------------------------------}
-{ Répond à la question Q.                                                    }
-{----------------------------------------------------------------------------}
-
-Procedure AnswerQuery( Q : Integer );
-Var Stopper : Integer;
-Begin
-  UnparseOneQuery(Q);
-  Stopper := PtrRight;
-  Clock(Q, Stopper)
-End;
-
-{----------------------------------------------------------------------------}
-{ Répond à toutes les questions de la liste Q.                               }
-{----------------------------------------------------------------------------}
-
-Procedure AnswerQueries( Q : Integer );
-Begin
-  While Q <> NULL Do
-  Begin
-    AnswerQuery(Q);
-    Q := Memory[Q+QU_NEXT]
-  End
-End;
-
-{----------------------------------------------------------------------------}
-{ Répond à toutes les questions du programme P.                              }
-{----------------------------------------------------------------------------}
-
-Procedure AnswerProgramQueries( P : Integer );
-Begin
-  AnswerQueries(Memory[P+PP_FQRY])
 End;
