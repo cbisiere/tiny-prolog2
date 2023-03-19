@@ -4,7 +4,7 @@
 {   File        : Dict.pas                                                   }
 {   Author      : Christophe Bisière                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022                                                       }
+{   Updated     : 2023                                                       }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -15,22 +15,37 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-{----------------------------------------------------------------------------}
-{ Execute a system call <SYSCALL,Code,Arg1,...ArgN>.                         }
-{----------------------------------------------------------------------------}
+{ predefined constants }
+Const NbPredef = 1;
+Type PredefArr = Array[1..NbPredef] Of StrConst;
 
-Function ExecutionSysCallOk; (* ( F, P, Q : Integer ) : Boolean; *)
+Const Predef  : PredefArr = ('SYSCALL');         { Predefined constants    }
+
+Procedure InstallPredefinedConstants;
+Var
+  C : ConstPtr;
+  K : Integer;
+Begin
+  For K := 1 to NbPredef Do
+    C := InstallConst(Predef[K]);
+End;
+
+{ execute a system call <SYSCALL,Code,Arg1,...ArgN> }
+Function ExecutionSysCallOk; (* ( F : TermPtr; P : ProgPtr; Q : QueryPtr ) : Boolean; *)
 Var
   Fail : Boolean;
   Ident : StrIdent;
   NbArgs : Integer;
   SysCallCode : StrIdent;
   NbSysCallArgs : Integer;
-  C : Integer;
+  C : ConstPtr;
 
-  Function GetConstArg( N: Integer; F : Integer) : StrIdent;
+  Function GetConstArg( N : Integer; F : FuncPtr) : StrIdent;
+  Var T : TermPtr;
   Begin
-    GetConstArg := DictConst[Memory[Argument(N,F)+TC_CONS]]
+    T := Argument(N,F);
+    CheckCondition(TypeOfTerm(T) = Constant,'GetConstArg: constant expected');
+    GetConstArg := DictConst[ConstPtr(T)^.TC_CONS]
   End;
 
 Begin
@@ -39,15 +54,15 @@ Begin
     ExecutionSysCallOk := False;
     Exit
   End;
-  SysCallCode := GetConstArg(1,F);
+  SysCallCode := GetConstArg(1,FuncPtr(F));
   CheckCondition(SysCallCode = 'SYSCALL','Not a SYSCALL');
-  NbArgs := NbArguments(F);
+  NbArgs := NbArguments(FuncPtr(F));
   If NbArgs < 2 Then
   Begin
     ExecutionSysCallOk := False;
     Exit
   End;
-  Ident := GetConstArg(2,F);
+  Ident := GetConstArg(2,FuncPtr(F));
   NbSysCallArgs := NbArgs - 2;
   ExecutionSysCallOk := True;
   If Ident = 'QUIT' Then
@@ -60,8 +75,8 @@ Begin
       ExecutionSysCallOk := False
     Else
     Begin
-      C := EvaluateToConstant(Argument(2+1,F));
-      Fail := C = NULL;
+      C := EvaluateToConstant(Argument(2+1,FuncPtr(F)));
+      Fail := C = Nil;
       If Not Fail Then
       Begin
         LoadProgram(P,GetConstAsString(C,False),RTYPE_USER);
@@ -78,17 +93,17 @@ Begin
     If NbSysCallArgs <> 1 Then
       ExecutionSysCallOk := False
     Else
-      WriteTerm(Argument(2+1,F))
+      WriteTerm(Argument(2+1,FuncPtr(F)))
   Else If Ident = 'OUTM' Then
     If NbSysCallArgs <> 1 Then
       ExecutionSysCallOk := False
     Else
-      WriteTermBis(Argument(2+1,F),False,False)
+      WriteTermBis(Argument(2+1,FuncPtr(F)),False,False)
   Else If Ident = 'LINE' Then
     If NbSysCallArgs <> 0 Then
       ExecutionSysCallOk := False
     Else
-      Writeln
+      WriteLn
   Else If Ident = 'BACKTRACE' Then
     If NbSysCallArgs <> 0 Then
       ExecutionSysCallOk := False

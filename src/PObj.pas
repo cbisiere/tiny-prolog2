@@ -1,32 +1,20 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   File        : TP3.pas                                                    }
+{   File        : Objects.pas                                                }
 {   Author      : Christophe Bisière                                         }
-{   Date        : 2022-09-17                                                 }
+{   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
-{         F R E E   P A S C A L   C O M P I L E R   C O M P A T              }
+{                P R O L O G   O B J E C T S :   C O M M O N                 }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-{ compatibility with Turbo Pascal 3.02 }
+{$R+} { Range checking on. }
+{$V-} { No strict type checking for strings. }
 
-Uses Crt;
-
-{ set out-of-memory detection }
-Procedure InitMalloc;
-Begin
-  ReturnNilIfGrowHeapFails := True
-End;
-
-{ allocate memory; return Nil if there is not enough memory }
-Function Malloc( size : Integer ) : Pointer;
-Var p : Pointer;
-Begin
-  GetMem(p,size);
-  Malloc := p
-End;
-
+{ term: constant, variable, functional symbol }
+Type
+  TermPtr = TPObjPtr;

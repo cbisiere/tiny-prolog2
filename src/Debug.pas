@@ -4,7 +4,7 @@
 {   File        : init.pas                                                   }
 {   Author      : Christophe Bisière                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022                                                       }
+{   Updated     : 2023                                                       }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -12,86 +12,96 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 
+
 {----------------------------------------------------------------------------}
-{ Affiche la valeur Val.                                                     }
+{ String representation of a Prolog object.                                  }
 {----------------------------------------------------------------------------}
 
-Function Disp( Val : Integer ) : AnyStr;
-Var S : AnyStr;
+Function ToString; (* ( p : TPObjPtr ) : AnyStr; *)
+Var s : AnyStr;
 Begin
-  Case Val Of
-  Undefined:
-    S := '?';
-  TERM_F:
-    S := 'F';
-  TERM_C:
-    S := 'C';
-  TERM_V:
-    S := 'V';
-  REL_EQUA:
-    S := '=';
-  REL_INEQ:
-    S := '<>';
-  NULL:
-    S := '.';
-  NO:
-    S := '[F]';
-  YES:
-    S := '[T]';
-  SYS_CALL:
-    S := 'SYS';
-  SYS_CUT:
-    S := '!';
-  RTYPE_AUTO:
-    S := 'AUTO';
-  RTYPE_USER:
-    S := 'USER'
-  Else
-    Str(Val, S)
+  s := '';
+  Case PObjectType(p) Of
+  PR:
+    Begin
+    End;
+  RU:
+    Begin
+    End;
+  QU:
+    Begin
+    End;
+  EQ:
+    Begin
+    End;
+  BT:
+    Begin
+    End;
+  CO:
+    Begin
+      s := GetConstAsString(ConstPtr(p), True);
+    End;
+  FU:
+    Begin
+      If (FuncPtr(p)^.TF_TRED <> Nil) Then
+        s := '***'
+    End;
+  VA:
+    Begin
+      s := GetVarNameAsString(VarPtr(p));
+    End 
   End;
-  Disp := S
+  ToString := s
 End;
 
 {----------------------------------------------------------------------------}
 { Affiche l'entête de l'horloge.                                             }
 {----------------------------------------------------------------------------}
 
-Procedure DumpHeader( H : Integer );
-Var R : Integer;
+Procedure DumpHeader( H : HeadPtr );
+Var 
+  R : RulePtr;
+  isSys : Boolean;
+  isCut : Boolean;
+  U : RestorePtr;
 Begin
-  Writeln('Header at : ', H);
+  WriteLn('Header at : ');
   Write('  Terms: ');
-  UnparseTerms(Memory[H+HH_FBCL],True);
-  Writeln;
+  UnparseTerms(H^.HH_FBCL,True);
+  WriteLn;
   Write('  Rule: ');
-  R := Memory[H+HH_RULE];
-  If (R = NULL) Or (R = SYS_CALL) Or (R = SYS_CUT) Then
-    Writeln(Disp(R))
+  GetHeaderRule(H,R,isSys,isCut);
+  If (R = Nil) Then
+    WriteLn('Nil')
+  Else if (isSys) Then
+    WriteLn('SYS')
+  Else if (isCut) Then
+    WriteLn('!')
   Else
     UnparseOneRule(R);
   Write('  Restore: ');
-  Writeln(Disp(Memory[H+HH_REST]));
-  Write('  PrevPtrLeft: ');
-  Writeln(Disp(Memory[H+HH_STAC]));
-  Write('  BackHeader: ');
-  Writeln(Disp(Memory[H+HH_PREV]));
+  U := H^.HH_REST;
+  While U<>Nil Do
+    With U^ Do
+    Begin
+      U := RE_NEXT
+    End;
   Write('  Cut: ');
-  Writeln(Disp(Memory[H+HH_ACUT]))
+  WriteLn(H^.HH_ACUT)
 End;
 
 {----------------------------------------------------------------------------}
 { Affiche la pile d'appels de l'horloge jusqu'au header H compris.           }
 {----------------------------------------------------------------------------}
 
-Procedure Backtrace( H : Integer );
+Procedure Backtrace( H : HeadPtr );
 Begin
-  Writeln('BACKTRACE AT ', H, ' ClockTime = ', ClockTime);
-  While H <> NULL Do
+  While H <> Nil Do
   Begin
     DumpHeader(H);
-    H := Memory[H+HH_PREV]
+    H := H^.HH_NEXT
   End;
-  Writeln('*EoB*');
+  WriteLn('*EoB*');
 End;
 
 {----------------------------------------------------------------------------}
@@ -100,43 +110,6 @@ End;
 
 Procedure DumpBacktrace;
 Begin
-  Backtrace(PtrLeft-HH_length+1)
-End;
-
-{----------------------------------------------------------------------------}
-{ Affiche le contenu de la mémoire principale.                               }
-{----------------------------------------------------------------------------}
-
-Procedure DumpMem;
-Const
-  NbPerLine = 10;
-  Head = 5;
-  Val = 6;
-Var K : Integer;
-Begin
-  Writeln('Left stack:');
-  Write(0:Head, ':', ' ':Val);
-  For K := 1 To PtrLeft Do
-  Begin
-    If K Mod NbPerLine = 0 Then
-    Begin
-      writeln;
-      write((K Div NbPerLine):Head,':');
-    End;
-    Write(Disp(Memory[K]):Val)
-  End;
-  Writeln;
-  Writeln('Right stack:');
-  K := HiMemAddr;
-  While K > PtrRight Do
-  Begin
-    Write(Disp(Memory[K+ZZ_TYPE]):Val,' ');
-    WriteTerm(Memory[K+ZZ_LTER]);
-    Write(' ');
-    WriteTerm(Memory[K+ZZ_RTER]);
-    K := K - ZZ_length;
-  End;
-  Writeln
 End;
 
 {----------------------------------------------------------------------------}
@@ -144,22 +117,23 @@ End;
 {----------------------------------------------------------------------------}
 
 Procedure DumpDictVar;
-Var K,V : Integer;
+Var 
+  K : Integer;
+  V : VarPtr;
 Begin
   If NbVar > 0 Then
   Begin
-    Writeln('Variables:');
+    WriteLn('Variables:');
     For K := 1 To NbVar Do
     Begin
       V := DictVar[K].Ptr;
-      Write(K:3,': ',V:5,': ');
       WriteVarName(V);
-      If Memory[V+TV_IRED] = YES Then
+      If V^.TV_TRED <> Nil Then
       Begin
         Write(' = ');
-        WriteTerm(Memory[V+TV_TRED])
+        WriteTerm(V^.TV_TRED)
       End;
-      Writeln
+      WriteLn
     End
   End
 End;
@@ -173,9 +147,9 @@ Var K : Integer;
 Begin
   If NbConst > 0 Then
   Begin
-    Writeln('Constants:');
+    WriteLn('Constants:');
     For K := 1 To NbConst Do
-      Writeln(K:4,': ',DictConst[K])
+      WriteLn(K:4,': ',DictConst[K])
   End
 End;
 
@@ -185,24 +159,21 @@ End;
 
 Procedure DumpState;
 Begin
-  Writeln('PtrLeft = ',Disp(PtrLeft));
-  Writeln('NbVar = ',NbVar);
-  Writeln('NbConst = ',NbConst);
-  Writeln('PtrRight = ',Disp(PtrRight))
+  WriteLn('NbVar = ',NbVar);
+  WriteLn('NbConst = ',NbConst);
 End;
 
 {----------------------------------------------------------------------------}
 { Affiche l'état complet de la machine Prolog.                               }
 {----------------------------------------------------------------------------}
 
-Procedure CoreDump;(* ( Message : AnyStr; Trace : Boolean ); *)
+Procedure CoreDump( Message : AnyStr; Trace : Boolean );
 Begin
-  Writeln('Begin Core Dump: "',Message,'"');
+  WriteLn('Begin Core Dump: "',Message,'"');
   DumpState;
-  DumpMem;
   DumpDictConst;
   DumpDictVar;
   If Trace Then
     DumpBacktrace;
-  Writeln('End Code Dump: "',Message,'"')
+  WriteLn('End Code Dump: "',Message,'"')
 End;

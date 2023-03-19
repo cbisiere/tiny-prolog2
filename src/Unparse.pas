@@ -4,7 +4,7 @@
 {   File        : Unparse.pas                                                }
 {   Author      : Christophe Bisière                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022                                                       }
+{   Updated     : 2023                                                       }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -17,30 +17,13 @@
 
 Const MaxIneq = 1000;
 
-Type StakIneq = Array[1..MaxIneq] Of Integer; { Pile sauvegarde inéquations   }
+Type StakIneq = Array[1..MaxIneq] Of EqPtr; { Pile sauvegarde inéquations   }
 
 Var
   Ineq    : StakIneq;                    { Pile pour affichage des inéq.   }
   PtrIneq : Integer;                     { Pointeur pile des inéq.         }
 
-{----------------------------------------------------------------}
-{ Retourne un pointeur vers l'accès du bloc-terme B.             }
-{----------------------------------------------------------------}
 
-Function AccessTerm( B : Integer ) : Integer;
-Begin
-  AccessTerm := Memory[B+BT_CONS]
-End;
-
-{----------------------------------------------------------------}
-{ Retourne un pointeur vers le bloc-terme qui suit le bloc B.    }
-{----------------------------------------------------------------}
-
-Function NextTerm( B : Integer ) : Integer;
-Begin
-  CheckCondition(B <> NULL,'Cannot compute the next term of NULL');
-  NextTerm := Memory[B+BT_NEXT];
-End;
 
 {----------------------------------------------------------------------------}
 { Initialise la pile des inéquations. Cette pile sert à stocker              }
@@ -57,27 +40,28 @@ End;
 { une inéquation (triplet <Tg,Td,Next>).                                     }
 {----------------------------------------------------------------------------}
 
-Procedure AddIneq( E : Integer );
+Procedure AddIneq( E : EqPtr );
 Begin
   PtrIneq := PtrIneq + 1;
   CheckCondition(PtrIneq <= MaxIneq,'Maximum number of inequations reached');
   Ineq[PtrIneq] := E
 End;
 
-Procedure WriteTermBis( T : Integer; ArgList,Quotes : Boolean); Forward;
+Procedure WriteTermBis( T : TermPtr; ArgList,Quotes : Boolean); Forward;
 
 {----------------------------------------------------------------------------}
-{ Ecrit une suite d'arguments séparés par des virgules.                      }
-{ (Voir codage d'une suite d'arguments).                                     }
+{ write a comma-separated list of arguments, coded as F(arg1,F(arg2,Nil))    }
 {----------------------------------------------------------------------------}
 
-Procedure WriteArgument( F : Integer );
+Procedure WriteArgument( F : FuncPtr );
 Begin
-  WriteTermBis(Memory[F+TF_LTER],False,True);
-  If Memory[F+TF_RTER] <> NULL Then
+  WriteTermBis(F^.TF_LTER,False,True);
+  If F^.TF_RTER <> Nil Then
   Begin
     Write(',');
-    WriteArgument(Memory[F+TF_RTER])
+    CheckCondition((F^.TF_RTER=Nil) Or (TypeOfTerm(F^.TF_RTER)=FuncSymbol),
+      'broken argument list');
+    WriteArgument(FuncPtr(F^.TF_RTER))
   End
 End;
 
@@ -85,12 +69,10 @@ End;
 { Retourne une constante, avec ou sans quotes.                               }
 {----------------------------------------------------------------------------}
 
-Function GetConstAsString( T : Integer; Quotes : Boolean ) : AnyStr;
+Function GetConstAsString( C : ConstPtr; Quotes : Boolean ) : AnyStr;
 Var Cste : AnyStr;
 Begin
-  CheckCondition(TypeOfTerm(T)=Constant,
-    'GetConstAsString(T): T is not a constant');
-  Cste := DictConst[Memory[T+TC_CONS]];
+  Cste := DictConst[C^.TC_CONS];
   If (Not Quotes) And (Length(Cste) >= 2) Then
     If (Cste[1] = '"') And (Cste[Length(Cste)] = '"') Then
     Begin
@@ -104,46 +86,48 @@ End;
 { Retourne le nom d'une variable, utilisateur ou temporaire.                 }
 {----------------------------------------------------------------------------}
 
-Function GetVarNameAsString( V : Integer ) : AnyStr;
-Var s : AnyStr;
+Function GetVarNameAsString( V : VarPtr ) : AnyStr;
+Var 
+  s : AnyStr;
+  k : Integer;
 Begin
-  CheckCondition(TypeOfTerm(V)=Variable,
+  CheckCondition(TypeOfTerm(TermPtr(V))=Variable,
     'GetVarNameAsString(V): V is not a variable');
-  Case Memory[V+TV_COPY] Of
-  NO:
-    GetVarNameAsString := DictVar[Memory[V+TV_NVAR]].Name;
-  YES:
-    Begin
-      Str(V,s);
-      GetVarNameAsString := DictVar[Memory[V+TV_NVAR]].Name + '_' + s
-    End
-  End
+  k := PObjectCopyNumber(TPObjPtr(V));
+  If k = 0 Then
+    s := DictVar[V^.TV_NVAR].Name
+  Else
+  Begin
+    Str(k,s);
+    s := DictVar[V^.TV_NVAR].Name + '_' + s { FIXME: should be an invalid variable name }
+  End;
+  GetVarNameAsString := s // + '_' + PtrToName(TPObjPtr(V))
 End;
 
 {----------------------------------------------------------------------------}
 { Ecrit le nom d'une variable, utilisateur ou temporaire.                    }
 {----------------------------------------------------------------------------}
 
-Procedure WriteVarName( V : Integer );
+Procedure WriteVarName( V : VarPtr );
 Begin
   Write(GetVarNameAsString(V))
 End;
 
 {----------------------------------------------------------------------------}
-{ Return the constant the term T is equal to, of NULL if T is not equal to a }
+{ Return the constant the term T is equal to, of Nil if T is not equal to a  }
 { constant.                                                                  }
 {----------------------------------------------------------------------------}
 
-Function EvaluateToConstant( T : Integer ) : Integer;
-Var C : Integer;
+Function EvaluateToConstant( T : TermPtr ) : ConstPtr;
+Var C : ConstPtr;
 Begin
-  C := NULL;
+  C := Nil;
   Case TypeOfTerm(T) Of
   Constant :
-    C := T;
+    C := ConstPtr(T);
   Variable :
-    If Memory[T+TV_IRED] = YES Then
-      C := EvaluateToConstant(Memory[T+TV_TRED])
+    If VarPtr(T)^.TV_TRED <> Nil Then
+      C := EvaluateToConstant(VarPtr(T)^.TV_TRED)
   End;
   EvaluateToConstant := C
 End;
@@ -156,88 +140,131 @@ End;
 { display it without the quotes.                                             }
 {----------------------------------------------------------------------------}
 
+Procedure WriteTuple( F : FuncPtr );
+Begin
+  Write('<');
+  WriteArgument(F);
+  Write('>')
+End;
 
-Procedure WriteTermBis; (* ( T : Integer; ArgList,Quotes : Boolean ); *)
+Procedure WriteTermBis; (* ( T : TermPtr; ArgList,Quotes : Boolean ); *)
 Var
-  LeftT : Integer;
+  V : VarPtr;
+  F,F1,F2 : FuncPtr;
+  C : ConstPtr;
+  LeftT : TermPtr;
   ConsIdx : Integer;
   Cste : StrConst;
 Begin
   Case TypeOfTerm(T) Of
   Constant :
-    Write(GetConstAsString(T,Quotes));
+    Begin
+      C := ConstPtr(T);
+      Write(GetConstAsString(C,Quotes))
+    End;
   Variable  :
     Begin
-      If Memory[T+TV_COPY] = NO Then
-        WriteVarName(T)
+      V := VarPtr(T);
+      If PObjectCopyNumber(TPObjPtr(V)) = 0 Then
+      Begin
+        WriteVarName(V)
+      End
       Else
-        If Memory[T+TV_IRED] = NO Then
-          WriteVarName(T)
+        If V^.TV_TRED = Nil Then
+          WriteVarName(V)
         Else
-          WriteTermBis(Memory[T+TV_TRED],False,Quotes);
-      If Memory[T+TV_IWAT] = YES Then
-        AddIneq(Memory[T+TV_FWAT])
+        Begin
+          WriteTermBis(V^.TV_TRED,False,Quotes)
+        End;
+      If V^.TV_FWAT <> Nil Then
+        AddIneq(V^.TV_FWAT)
     End;
   FuncSymbol  :
     Begin
-      LeftT := Memory[T+TF_LTER];
+      F := FuncPtr(T);
+      LeftT := F^.TF_LTER;
       If (TypeOfTerm(LeftT) = Constant) Then
       Begin
-        ConsIdx := Memory[LeftT+TC_CONS];
-        If Not (DictConst[ConsIdx][1] In Digits) Then
+        ConsIdx := ConstPtr(LeftT)^.TC_CONS;
+        Cste := DictConst[ConsIdx];
+        If (Cste[1] In Digits) Then { should only happen when printing subtrees during debugging}
         Begin
-          Cste := DictConst[ConsIdx];
-          If Cste = '.' Then
+          WriteTuple(F)
+        End
+        Else If Cste = '.' Then { F(.,F(a,F(b,Nil))) => a.b }
+        Begin
+          If ArgList Then Write('(');
+          F1 := FuncPtr(F^.TF_RTER);
+          WriteTermBis(F1^.TF_LTER,True,True);
+          Write('.');
+          F2 := FuncPtr(F1^.TF_RTER); { TODO: check type }
+          WriteTermBis(F2^.TF_LTER,False,True);
+          If ArgList Then Write(')')
+        End
+        Else
+        Begin 
+          Write(Cste);
+          If F^.TF_RTER<>Nil Then { F(name,F(a,F(b,Nil) => name(a,b) }
           Begin
-            If ArgList Then Write('(');
-            T := Memory[T+TF_RTER];
-            WriteTermBis(Memory[T+TF_LTER],True,True);
-            Write('.');
-            T := Memory[T+TF_RTER];
-            WriteTermBis(Memory[T+TF_LTER],False,True);
-            If ArgList Then Write(')')
-          End
-          Else
-          Begin
-            Write(Cste);
             Write('(');
-            WriteArgument(Memory[T+TF_RTER]);
+            WriteArgument(FuncPtr(F^.TF_RTER)); { TODO: check type }
             Write( ')')
           End
         End
       End
-    Else
+      Else { F(a,F(b,Nil) => <a,b> where a not a constant }
       Begin
-        Write('<');
-        WriteArgument(T);
-        Write( '>')
+        WriteTuple(F)
       End
     End
   End
 End;
 
-Procedure WriteTerm( T : Integer ); Forward;
+Procedure WriteTerm( T : TermPtr ); Forward;
 
-{----------------------------------------------------------------------------}
-{ Restitution des équations ou inequations de la chaîne pointée par E.       }
-{----------------------------------------------------------------------------}
-
-Procedure WriteEquations( E : Integer; Var Before : Boolean );
+Procedure WriteOneEquation( E : EqPtr );
 Begin
-  If E <> NULL Then
+  WriteTerm(E^.EQ_LTER);
+  Case E^.EQ_TYPE Of
+  REL_EQUA:
+    Write(' = ');
+  REL_INEQ:
+    Write(' <> ');
+  End;
+  WriteTerm(E^.EQ_RTER)
+End;
+
+{----------------------------------------------------------------------------}
+{ write equations in the list E, starting with a comma if Comma is True     }
+{----------------------------------------------------------------------------}
+
+Procedure WriteEquationsBis( E : EqPtr; Var Comma : Boolean );
+Begin
+  If E <> Nil Then
   Begin
-    If Before Then Write(', ');
-    Before := True;
-    WriteTerm(Memory[E+EQ_LTER]);
-    Case Memory[E+EQ_TYPE] Of
-    REL_EQUA:
-      Write(' = ');
-    REL_INEQ:
-      Write(' <> ');
-    End;
-    WriteTerm(Memory[E+EQ_RTER]);
-    WriteEquations(Memory[E+EQ_NEXT],Before)
+    If Comma Then Write(', ');
+    Comma := True;
+    WriteOneEquation(E);
+    WriteEquationsBis(E^.EQ_NEXT, Comma)
   End
+End;
+
+{ write }
+Procedure WriteEquations( E : EqPtr );
+Var Comma : Boolean;
+Begin
+  Comma := False;
+  WriteEquationsBis(E,Comma)
+End;
+
+Procedure WriteSys( S : SysPtr );
+Begin
+  Write('{ ');
+  WriteEquations(S^.SY_EQUA);
+  If (S^.SY_EQUA<>Nil) And (S^.SY_INEQ<>Nil) Then
+    Write(', ');
+  WriteEquations(S^.SY_INEQ);
+  Write(' }')
 End;
 
 {----------------------------------------------------------------------------}
@@ -248,14 +275,14 @@ Procedure WriteInequations( Var Before : Boolean );
 Var I,K : Integer;
 Begin
   K := PtrIneq;
-  For I := 1 To K Do WriteEquations(Ineq[I],Before)
+  For I := 1 To K Do WriteEquationsBis(Ineq[I],Before)
 End;
 
 {----------------------------------------------------------------------------}
 { Ecriture d'un terme qui n'est pas un argument de prédicat.                 }
 {----------------------------------------------------------------------------}
 
-Procedure WriteTerm; (* ( T : Integer ); *)
+Procedure WriteTerm; (* ( T : TermPtr ); *)
 Begin
   WriteTermBis(T,False,True)
 End;
@@ -269,7 +296,7 @@ End;
 Procedure WriteSystem( First,Last : Integer; Curl : Boolean );
 Var
   I       : Integer;
-  V       : Integer;
+  V       : VarPtr;
   Before  : Boolean;
   Printed  : Boolean;
 
@@ -290,18 +317,18 @@ Begin
   For I := First To Last Do
   Begin
     V := DictVar[I].Ptr;
-    If Memory[V+TV_IRED] = YES Then
+    If V^.TV_TRED <> Nil Then
     Begin
       CurlyBrace;
       If Before Then Write(', ');
-      Write(DictVar[I].Name,' = ');
+      Write(GetVarNameAsString(V),' = ');
       Before := True;
-      WriteTerm(Memory[V+TV_TRED])
+      WriteTerm(V^.TV_TRED)
     End;
-    If Memory[V+TV_IWAT] = YES Then
+    If V^.TV_FWAT <> Nil Then
     Begin
       CurlyBrace;
-      AddIneq(Memory[V+TV_FWAT])
+      AddIneq(V^.TV_FWAT)
     End
   End;
   WriteInequations(Before);
@@ -313,28 +340,28 @@ End;
 { Restitution du terme d'un bloc-terme pointé par B.                         }
 {----------------------------------------------------------------------------}
 
-Procedure UnparseOneTerm( B : Integer );
+Procedure UnparseOneTerm( B : BTermPtr );
 Begin
-  WriteTerm(Memory[B+BT_TERM])
+  WriteTerm(B^.BT_TERM)
 End;
 
 {----------------------------------------------------------------------------}
 { Restitution des termes d'une suite de bloc-termes à partir de B.           }
 {----------------------------------------------------------------------------}
 
-Procedure UnparseTerms( B : Integer; CR : Boolean);
+Procedure UnparseTerms( B : BTermPtr; CR : Boolean);
 Begin
-  If B <> NULL Then
+  If B <> Nil Then
   Begin
     If CR Then
     Begin
-      Writeln;
+      WriteLn;
       Write('        ')
     End;
     UnparseOneTerm(B);
     If Not CR Then
       Write(' ');
-    UnparseTerms(Memory[B+BT_NEXT],CR)
+    UnparseTerms(B^.BT_NEXT,CR)
   End
 End;
 
@@ -342,25 +369,25 @@ End;
 { Restitution de la règle pointée par R.                                     }
 {----------------------------------------------------------------------------}
 
-Procedure UnparseOneRule( R : Integer );
-Var B : Integer;
+Procedure UnparseOneRule( R : RulePtr );
+Var B : BTermPtr;
 Begin
   InitIneq;
-  B := Memory[R+RU_FBTR];
+  B := R^.RU_FBTR;
   UnparseOneTerm(B);
   Write(' -> ');
-  UnparseTerms(Memory[B+BT_NEXT],True);
-  WriteSystem(Memory[R+RU_FVAR],Memory[R+RU_LVAR],False);
-  Writeln(';');
+  UnparseTerms(B^.BT_NEXT,True);
+  WriteSystem(R^.RU_FVAR,R^.RU_LVAR,False);
+  WriteLn(';')
 End;
 
 {----------------------------------------------------------------------------}
 { Restitution d'une liste de règles pointée par R.                           }
 {----------------------------------------------------------------------------}
 
-Procedure UnparseRules(R : Integer);
+Procedure UnparseRules(R : RulePtr);
 Begin
-  if R <> NULL Then
+  if R <> Nil Then
   Begin
     UnparseOneRule(R);
     UnparseRules(NextRule(R))
@@ -371,20 +398,20 @@ End;
 { Restitution des règles du contexte d'une règle Q.                          }
 {----------------------------------------------------------------------------}
 
-Procedure UnparseQuestionRules( Q : Integer; RuleType : Integer );
+Procedure UnparseQuestionRules( Q : QueryPtr; RuleType : RuType );
 Var
-  R : Integer;
+  R : RulePtr;
   Stop : Boolean;
 Begin
-  R := Memory[Q+QU_FRUL];
-  Stop := R = NULL;
+  R := Q^.QU_FRUL;
+  Stop := R = Nil;
   While Not Stop Do
   Begin
-    If Memory[R+RU_TYPE] = RuleType Then
+    If R^.RU_TYPE = RuleType Then
       UnparseOneRule(R);
-    Stop := R = Memory[Q+QU_LRUL];
+    Stop := R = Q^.QU_LRUL;
     R := NextRule(R);
-    Stop := Stop Or (R = NULL)
+    Stop := Stop Or (R = Nil)
   End
 End;
 
@@ -392,25 +419,25 @@ End;
 { Restitution d'une question stockée à l'adresse Q.                          }
 {----------------------------------------------------------------------------}
 
-Procedure UnparseOneQuery(Q : Integer);
+Procedure UnparseOneQuery(Q : QueryPtr);
 Begin
   Write('-> ');
   InitIneq;
-  UnparseTerms(Memory[Q+QU_FBTR],False);
-  WriteSystem(Memory[Q+QU_FVAR],Memory[Q+QU_LVAR],False);
-  Writeln(';')
+  UnparseTerms(Q^.QU_FBTR,False);
+  WriteSystem(Q^.QU_FVAR,Q^.QU_LVAR,False);
+  WriteLn(';')
 End;
 
 {----------------------------------------------------------------------------}
 { Restitution d'une liste de questions pointée par Q.                        }
 {----------------------------------------------------------------------------}
 
-Procedure UnparseQueries(Q : Integer);
+Procedure UnparseQueries(Q : QueryPtr);
 Begin
-  if Q <> NULL Then
+  if Q <> Nil Then
   Begin
     UnparseOneQuery(Q);
-    UnparseQueries(Memory[Q+QU_NEXT])
+    UnparseQueries(Q^.QU_NEXT)
   End
 End;
 
@@ -418,9 +445,9 @@ End;
 { Restitution des questions du programme P.                                  }
 {----------------------------------------------------------------------------}
 
-Procedure UnparseProgramQueries( P : Integer );
+Procedure UnparseProgramQueries( P : ProgPtr );
 Begin
-  UnparseQueries(Memory[P+PP_FQRY])
+  UnparseQueries(P^.PP_FQRY)
 End;
 
 
@@ -428,7 +455,7 @@ End;
 { Restitution des règles du programme P.                                     }
 {----------------------------------------------------------------------------}
 
-Procedure UnparseProgramRules( P : Integer );
+Procedure UnparseProgramRules( P : ProgPtr );
 Begin
-  UnparseRules(Memory[P+PP_FRUL])
+  UnparseRules(P^.PP_FRUL)
 End;

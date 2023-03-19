@@ -4,7 +4,7 @@
 {   File        : Run.pas                                                    }
 {   Author      : Christophe Bisière                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022                                                       }
+{   Updated     : 2023                                                       }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -19,24 +19,22 @@
 { Execute query Q.                                                           }
 {----------------------------------------------------------------------------}
 
-Procedure AnswerQuery( P,Q : Integer );
-Var Stopper : Integer;
+Procedure AnswerQuery( P : ProgPtr; Q : QueryPtr );
 Begin
   UnparseOneQuery(Q);
-  Stopper := PtrRight;
-  Clock(P,Q,Stopper)
+  Clock(P,Q)
 End;
 
 {----------------------------------------------------------------------------}
-{ Execute all quesries starting with list head Q.                            }
+{ Execute all queries starting with list head Q.                             }
 {----------------------------------------------------------------------------}
 
-Procedure AnswerQueries( P,Q : Integer );
+Procedure AnswerQueries( P : ProgPtr; Q : QueryPtr );
 Begin
-  While Q <> NULL Do
+  While Q <> Nil Do
   Begin
     AnswerQuery(P,Q);
-    Q := Memory[Q+QU_NEXT]
+    Q := Q^.QU_NEXT
   End
 End;
 
@@ -44,9 +42,9 @@ End;
 { Execute all queries in program P.                                          }
 {----------------------------------------------------------------------------}
 
-Procedure AnswerProgramQueries( P : Integer );
+Procedure AnswerProgramQueries( P : ProgPtr );
 Begin
-  AnswerQueries(P,Memory[P+PP_FQRY])
+  AnswerQueries(P,P^.PP_FQRY)
 End;
 
 {----------------------------------------------------------------------------}
@@ -54,13 +52,13 @@ End;
 { if any.                                                                    }
 {----------------------------------------------------------------------------}
 
-Procedure LoadProgram( P : Integer; FileName : AnyStr; RuleType : Integer );
-Var Q : Integer;
+Procedure LoadProgram( P : ProgPtr; FileName : AnyStr; RuleType : RuType );
+Var Q : QueryPtr;
 Begin
   If SetFileForInput(FileName) Then
   Begin
     Q := CompileRulesAndQueries(P,RuleType);
-    if (Not Error) And (Q <> NULL) Then
+    if (Not Error) And (Q <> Nil) Then
       AnswerQueries(P,Q);
   End
   Else

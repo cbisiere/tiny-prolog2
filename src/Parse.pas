@@ -4,7 +4,7 @@
 {   File        : Parse.pas                                                  }
 {   Author      : Christophe Bisière                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022                                                       }
+{   Updated     : 2023                                                       }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -15,354 +15,52 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-Const NbPredef = 1;
-Type PredefArr = Array[1..NbPredef] Of StrConst;
+Var TopVar : Integer; { Start index when searching a variable (locals) }
 
-Const Predef  : PredefArr = ('SYSCALL');         { Predefined constants    }
-
-Var TopVar : Integer;      { Début de recherche (localité des Vars)     }
-
-Function ReduceSystem( RightStopper : Integer;
-                       Backtrackable : Boolean ) : Boolean; Forward;
+Function ReduceSystem( S : SysPtr; Backtrackable : Boolean; Var L : RestorePtr) : Boolean; Forward;
 
 {-----------------------------------------------------------------------}
 {                                                                       }
-{  UN TERME T :                                                         }
-{                                                                       }
-{               |-------|                                               }
-{               |       |                                               }
-{         T+0   | TYPE  |---> Type de terme : TERM_C, TERM_V, TERME_F.  }
-{               |       |                                               }
-{               |-------|                                               }
-{                                                                       }
-{  Suivent les données spécifiques au type.                             }
-{                                                                       }
-{-----------------------------------------------------------------------}
-
-Const
-  TT_TYPE = 0;
-
-Type TTerm = (Variable,Constant,FuncSymbol,Dummy); { Types de terme }
-
-{-----------------------------------------------------------------------}
-{ Retourne le type du terme pointé par T.                               }
-{-----------------------------------------------------------------------}
-
-Function TypeOfTerm( T : Integer ) : TTerm;
-Begin
-  TypeOfTerm := Dummy;
-  If T <> NULL Then
-    Case Memory[T+TT_TYPE] Of
-    TERM_C :
-      TypeOfTerm := Constant;
-    TERM_V :
-      TypeOfTerm := Variable;
-    TERM_F :
-      TypeOfTerm := FuncSymbol
-    End
-End;
-
-{-----------------------------------------------------------------------}
-{                                                                       }
-{  UNE CONSTANTE C :                                                    }
-{                                                                       }
-{               |-------|                                               }
-{               |       |                                               }
-{         C+0   | TYPE  |---> Code for 'constante' : TERM_C.            }
-{               |       |                                               }
-{               |-------|                                               }
-{               |       |                                               }
-{         C+1   | NumC  |---> Numéro de la constante dans le diction-   }
-{               |       |     naire des constantes.                     }
-{               |-------|                                               }
-{                                                                       }
-{      Pour chaque rencontre d'une constante, une allocation est        }
-{   réalisée. Cela implique que la comparaison de deux constantes ne    }
-{   se réduit pas à la comparaison de deux pointeurs.                   }
-{   Cette solution a été adoptée pour simplifier la procédure de reco-  }
-{   pie des règles.                                                     }
-{                                                                       }
-{-----------------------------------------------------------------------}
-
-Const
-  TC_length = 2;
-  TC_CONS = 1;
-
-{-----------------------------------------------------------------------}
-{ Réalise une allocation mémoire pour la constante Ch.                  }
-{ Retourne l'adresse où a été installée cette constante.                }
-{-----------------------------------------------------------------------}
-
-Function InstallConst( Ch : StrConst ) : Integer;
-Var C : Integer;
-Begin
-  C := Alloc(TC_length);
-  Memory[C+TT_TYPE] := TERM_C;          { Code 'constante'          }
-  Memory[C+TC_CONS] := IndexConst(Ch);  { Pointeur dans DictConst   }
-  InstallConst := C
-End;
-
-{-----------------------------------------------------------------------}
-{                                                                       }
-{  UN SYMBOLE FONCTIONNEL (BINAIRE) F :                                 }
-{                                                                       }
-{               |-------|                                               }
-{               |       |                                               }
-{         F     | TYPE  |---> Code 'symbole fonctionnel' : TERM_F       }
-{               |       |                                               }
-{               |-------|                                               }
-{               |       |                                               }
-{         F+1   | TRED  |---> Pointe vers le membre droit auquel est    }
-{               |       |     associé ce symbole fonctionnel dans le    }
-{               |-------|     système réduit (NULL sinon).              }
-{               |       |                                               }
-{         F+2   | LTER  |---> Pointe vers le fils gauche.               }
-{               |       |                                               }
-{               |-------|                                               }
-{               |       |                                               }
-{         F+3   | RTER  |---> Pointe vers le fils droit.                }
-{               |       |                                               }
-{               |-------|                                               }
-{                                                                       }
-{   L'unique symbole fonctionnel du système sert à coder les prédicats  }
-{   Prolog de la manière suivante :                                     }
+{   The functional symbol F is used encode predicates as follows:       }
 {                                                                       }
 {           F                                                           }
-{          / \               (1) Dans le cas d'un N-uplet, le nom du    }
-{       nom   F                  prédicat est le premier argument.      }
+{          / \               (1) tuple: the name of the predicate is    }
+{       name  F                  the first argument                     }
 {            / \                                                        }
-{         Arg1  F            (2) Il est bien entendu que Arg1 .. ArgN   }
-{              / \               peuvent aussi être des prédicats.      }
+{         Arg1  F            (2) of course Arg1 .. ArgN can also be     }
+{              / \               predicates.                            }
 {           Arg2   ...                                                  }
-{                   \        (3) Le '.' (liste) est considéré comme     }
-{                    F           un prédicat quelconque et stocké comme }
-{                  /  \          tel.                                   }
-{               ArgN    NULL                                            }
+{                   \        (3) A '.' (Prolog list) is considered as   }
+{                    F           a regular predicate.                   }
+{                  /  \                                                 }
+{               ArgN    Nil                                             }
 {                                                                       }
 {-----------------------------------------------------------------------}
 
-Const
-  TF_length = 4;
-  TF_TRED = 1;
-  TF_LTER = 2;
-  TF_RTER = 3;
+{ read a term, possibly accepting a cut as a valid term }
+Function ReadOneTerm( Cut : Boolean) : TermPtr; Forward;
 
-{-----------------------------------------------------------------------}
-{ Réalise une allocation mémoire pour un symbole                        }
-{ fonctionnel binaire dont le fils gauche est T1 et le fils droit       }
-{ est T2. Retourne un pointeur vers l'allocation.                       }
-{-----------------------------------------------------------------------}
-
-Function InstallSymbol( T1,T2 : Integer ) : Integer;
-Var F : Integer;
-Begin
-  F := Alloc(TF_length);
-  Memory[F+TT_TYPE] := TERM_F;     { Code 'Symbole Fonct.'     }
-  Memory[F+TF_TRED] := NULL;       { Pointeur futur mbre droit }
-  Memory[F+TF_LTER] := T1;         { Pointeur premier terme    }
-  Memory[F+TF_RTER] := T2;         { Pointeur deuxième terme   }
-  InstallSymbol := F
-End;
-
-{-----------------------------------------------------------------------}
-{ Return the number of of a f(a,b,c) or <a,b,c> construct.              }
-{ In the former case, the number of argument is 4.                      }
-{-----------------------------------------------------------------------}
-
-Function NbArguments( F : Integer ) : Integer;
-Begin
-  CheckCondition(F <> NULL,'NbArguments of NULL does not make sense');
-  If Memory[F+TF_RTER] = NULL  Then
-    NbArguments := 1
-  Else
-    NbArguments := NbArguments(Memory[F+TF_RTER]) + 1
-End;
-
-{-----------------------------------------------------------------------}
-{ Return the N-th argument of a f(a,b,c) or <a,b,c> construct.          }
-{ In the former case, the 1st argument is f.                            }
-{-----------------------------------------------------------------------}
-
-Function Argument( N : Integer; F : Integer ) : Integer;
-Begin
-  CheckCondition(F <> NULL,'Argument of NULL does not make sense');
-  If N = 1 Then
-    Argument := Memory[F+TF_LTER]
-  Else
-    Argument := Argument(N-1,Memory[F+TF_RTER])
-End;
-
-{-----------------------------------------------------------------------}
-{                                                                       }
-{  UNE VARIABLE V :                                                     }
-{                                                                       }
-{               |-------|                                               }
-{               |       |                                               }
-{         V+0   | TYPE  |---> Code for 'Variable' : TERM_V.             }
-{               |       |                                               }
-{               |-------|                                               }
-{               |       |                                               }
-{         V+1   | COPY  |---> True si cette variable a été créée via    }
-{               |       |     une copie.                                }
-{               |-------|                                               }
-{               |       |                                               }
-{         V+2   | NVAR  |---> Numéro de la variable dans le diction-    }
-{               |       |     naire des variables.                      }
-{               |-------|                                               }
-{               |       |                                               }
-{         V+3   | IRED  |---> Booléen qui indique si cette variable est }
-{               |       |     actuellement le membre gauche d'une équa- }
-{               |-------|     tion du système réduit.                   }
-{               |       |                                               }
-{         V+4   | IWAT  |---> Booléen qui indique si cette variable     }
-{               |       |     surveille actuellement une ou des inéqua- }
-{               |-------|     tions.                                    }
-{               |       |                                               }
-{         V+5   | TRED  |---> Pointe vers le membre droit du système    }
-{               |       |     réduit. N'est significatif que si IRED =  }
-{               |-------|     True.                                     }
-{               |       |                                               }
-{         V+6   | FWAT  |---> Pointe vers la première inéquation que    }
-{               |       |     cette variable surveille. N'est signifi-  }
-{               |-------|     catif que si IWAT = True.                 }
-{                                                                       }
-{   Remarques :                                                         }
-{                                                                       }
-{     (1) Dans l'algorithme original de réduction d'un système d'équa-  }
-{         tions et d'inéquations, la présence simultanée des deux in-   }
-{         dicateurs Equ et Sur est indispensable parce que l'étape 2 de }
-{         la résolution d'inéquations se fait après l'étape 1. Il nous  }
-{         faut savoir à l'étape 2 si une variable est à la fois membre  }
-{         gauche du système réduit et gardienne d'une inéquation.       }
-{         Dans l'interpreteur Prolog, l'étape 2 de la résolution d'iné- }
-{         quations a été intégrée dans la résolution d'équations. La    }
-{         présence simultanée des deux indicateurs a été conservée tout }
-{         de même pour des raisons de clarté.                           }
-{                                                                       }
-{     (2) Une même variable n'est allouée qu'une seule fois, sauf si    }
-{         elle se trouve dans deux règles différentes (localité des     }
-{         variables par rapport aux règles).                            }
-{                                                                       }
-{                                                                       }
-{-----------------------------------------------------------------------}
-
-Const
-  TV_length = 7;
-  TV_COPY = 1;
-  TV_NVAR = 2;
-  TV_IRED = 3;
-  TV_IWAT = 4;
-  TV_TRED = 5;
-  TV_FWAT = 6;
-
-{-----------------------------------------------------------------------}
-{ Réalise une allocation mémoire pour la variable                       }
-{ Ch, si celle-ci n'a pas déjà été allouée pour la règle courante. Dans }
-{ tous les cas elle retourne un pointeur vers son allocation.           }
-{-----------------------------------------------------------------------}
-
-Function InstallVariable( Ch : StrIdent ) : Integer;
+{ read the argument of a predicate (EndChar=')') or a tuple (EndChar='>') }
+Function GetArgument( EndChar : Char ) : FuncPtr;
 Var
-  V : Integer;
-  PosInDictVar : Integer;
-Begin
-  PosInDictVar := Position(TopVar,Ch);
-  If PosInDictVar = 0 Then
-  Begin
-    V := Alloc(TV_length);
-    PosInDictVar := NewVar(Ch,V);
-    Memory[V+TT_TYPE] := TERM_V;       { Code 'Variable'           }
-    Memory[V+TV_COPY] := NO;           { Not a copy                }
-    Memory[V+TV_NVAR] := PosInDictVar; { Pointeur dans Dictvar     }
-    Memory[V+TV_IRED] := NO;           { Pas d'équation            }
-    Memory[V+TV_IWAT] := NO;           { Pas d'inéquation          }
-    Memory[V+TV_TRED] := NULL;         { partie droite équation    }
-    Memory[V+TV_FWAT] := NULL;         { Première inéquation       }
-    InstallVariable := V
-  End
-  Else
-    InstallVariable := GetVarPtr(PosInDictVar) { adresse d'implantation }
-End;
-
-{-----------------------------------------------------------------------}
-{                                                                       }
-{  UNE EQUATION OU INEQUATION, DANS LE SYSTEME REDUIT OU NON :          }
-{                                                                       }
-{               |-------|                                               }
-{               |       |                                               }
-{         E+0   | TYPE  |---> Code REL_EQUA pour une équation,          }
-{               |       |     Code REL_INEQ pour une inéquation.        }
-{               |-------|                                               }
-{               |       |                                               }
-{         E+1   | LTER  |---> Pointe vers le membre gauche.             }
-{               |       |                                               }
-{               |-------|                                               }
-{               |       |                                               }
-{         E+2   | RTER  |---> Pointe vers le membre droit.              }
-{               |       |                                               }
-{               |-------|                                               }
-{               |       |                                               }
-{         E+3   | NEXT  |---> Pointe vers l'inéquation suivante (0 si   }
-{               |       |     cette inéquation est la dernière de la    }
-{               |-------|     chaîne).                                  }
-{                                                                       }
-{                                                                       }
-{-----------------------------------------------------------------------}
-
-Const
-  EQ_length = 4;
-  EQ_TYPE = 0;
-  EQ_LTER = 1;
-  EQ_RTER = 2;
-  EQ_NEXT = 3;
-
-{----------------------------------------------------------------------------}
-{ Crée une nouvelle équation ou inéquation.                                  }
-{----------------------------------------------------------------------------}
-
-Function PushEquation( Code : Integer; T1,T2 : Integer ) : Integer;
-Var E : Integer;
-Begin
-  CheckCondition((Code=REL_EQUA) Or (Code=REL_INEQ), 'Unknown relation');
-  E := Alloc(EQ_length);
-  Memory[E+EQ_TYPE] := Code;
-  Memory[E+EQ_LTER] := T1;
-  Memory[E+EQ_RTER] := T2;
-  Memory[E+EQ_NEXT] := NULL;
-  PushEquation := E
-End;
-
-{-----------------------------------------------------------------------}
-{ Lit et code les arguments d'un prédicat (EndChar=')')                 }
-{ ou d'un N-Uplet (EndChar='>'). Retourne un pointeur vers la           }
-{ structure qui représente ces arguments.                               }
-{-----------------------------------------------------------------------}
-
-Function ReadOneTerm( Cut : Boolean) : Integer; Forward;
-
-Function GetArgument( EndChar : Char ) : Integer;
-Var
-  T : Integer;
+  T : TermPtr;
   c : Char;
 Begin
   T := ReadOneTerm(False);
   c := GetCharNb(c);
   If c =  ',' Then
-    GetArgument := InstallSymbol(T,GetArgument(EndChar))
+    GetArgument := NewSymbol(T,TermPtr(GetArgument(EndChar)))
   Else
   If c = EndChar  Then
-    GetArgument := InstallSymbol(T,NULL)
+    GetArgument := NewSymbol(T,Nil)
   Else
   Begin
     RaiseError('"' + EndChar + '" expected');
-    GetArgument := NULL
+    GetArgument := Nil
   End
 End;
 
-{-----------------------------------------------------------------------}
-{ Read and return a constant string, including the quotes               }
-{-----------------------------------------------------------------------}
-
+{ read and return a constant string, including the double quotes }
 Function ReadString : AnyStr;
 Var
   c : Char;
@@ -398,15 +96,10 @@ Begin
   ReadString := Ch
 End;
 
-{-----------------------------------------------------------------------}
-{ Lit un terme en entrée, le code en mémoire. Retourne                  }
-{ l'adresse où il a été implanté.                                       }
-{ If Cut is True, the cut symbol is accepted as a term.                 }
-{-----------------------------------------------------------------------}
-
-Function ReadOneTerm; (* ( Cut : Boolean ) : Integer *)
+{ read a term, possibly accepting a cut as a valid term }
+Function ReadOneTerm; (* ( Cut : Boolean ) : TermPtr *)
 Var
-  T : Integer;
+  T : TermPtr;
   Ch  : AnyStr;
   c,c2 : Char;
   Count : Byte;
@@ -418,305 +111,114 @@ Begin
   0 :
     Begin
       c := NextChar(c);
-      If c In Digits Then     { un entier }
+      If c In Digits Then     { an integer }
       Begin
         GetCharWhile(Ch,Digits);
-        T := InstallConst(Ch);
+        T := TermPtr(InstallConst(Ch));
       End
       Else
-      If c ='(' Then          { une forme ( <terme> ) }
+      If c ='(' Then          { ( <term> ) }
       Begin
         c := GetChar(c);
         T := ReadOneTerm(False);
         Verify(')')
       End
       Else
-      If c = '<' Then        { un N-uplet }
+      If c = '<' Then        { a tuple }
       Begin
         c := GetChar(c);
-        T := GetArgument('>')
+        T := TermPtr(GetArgument('>'))
       End
       Else
       If c = '"' Then        { a string }
       Begin
         Ch := ReadString;
-        T := InstallConst(Ch)
+        T := TermPtr(InstallConst(Ch))
       End
       Else
       If Cut and (c In ['!','/']) Then    { the "cut" }
       Begin
         c := GetChar(c);
-        T := InstallConst('!')
+        T := TermPtr(InstallConst('!'))
       End
       Else
         RaiseError('term expected')
     End;
   1 :
-    Begin                      { une variable }
+    Begin                      { a variable }
       GetCharWhile(Ch,Digits);
       GetCharWhile(Ch,['''']);
-      T := InstallVariable(Ch);
+      T := TermPtr(InstallVariable(Ch,TopVar));
     End;
   Else { at least 2 letters: an identifier }
     Begin
       Count := GrabLetters(Ch);
       While (NextChar(c)='-') And IsLetter(NextNextChar(c2)) Do
       Begin
-        Ch := Ch + GetChar(c); { glob the '-' }
+        Ch := Ch + GetChar(c); { read the '-' }
         Count := GrabLetters(Ch);
       End;
       GetCharWhile(Ch,Digits);
-      If NextChar(c) = '(' Then                { => un prédicat    }
+      If NextChar(c) = '(' Then { a predicate }
       Begin
         c := GetChar(c);
-        T := InstallSymbol(InstallConst(Ch),GetArgument(')'));
+        T := TermPtr(NewSymbol(TermPtr(InstallConst(Ch)),TermPtr(GetArgument(')'))));
       End
       Else
-        T := InstallConst(Ch)       { => une constante  }
+        T := TermPtr(InstallConst(Ch)) { a constant }
     End
   End;
   c := NextChar(c);
-  If c = '.' Then    { un élément de liste }
+  If c = '.' Then    { a list element }
   Begin
     c := GetChar(c);
-    T := InstallSymbol( InstallConst('.'),
-        InstallSymbol(T,InstallSymbol(ReadOneTerm(False),NULL)) )
+    T := TermPtr(NewSymbol( TermPtr(InstallConst('.')),
+        TermPtr(NewSymbol(T,TermPtr(NewSymbol(ReadOneTerm(False),Nil)))) ))
   End;
-  ReadOneTerm := T    { Retourne adresse d'implantation de ce terme }
+  ReadOneTerm := T
 End;
 
-{-----------------------------------------------------------------------}
-{ Retourne l'accès du terme T (pour pré-unification). Si le terme       }
-{ T n'a pas une constante pour accès, la fonction retourne NULL.        }
-{-----------------------------------------------------------------------}
-
-Function Access( T : Integer ) : Integer;
-Var LeftT : Integer;
-Begin
-  Access := NULL;
-  Case TypeOfTerm(T) Of
-  Constant :
-    Access := T;
-  FuncSymbol  :
-    Begin
-      LeftT := Memory[T+TF_LTER];
-      Case TypeOfTerm(LeftT) Of
-      Constant :
-        Access := LeftT;
-      FuncSymbol  :
-        Begin
-        End
-      End
-    End
-  End
-End;
-
-{-----------------------------------------------------------------------}
-{                                                                       }
-{  UNE EQUATION OU UNE INEQUATION (PILE DROITE) E :                     }
-{                                                                       }
-{               |-------|                                               }
-{               |       |                                               }
-{         Z-0   | TYPE  |---> Code REL_EQUA pour une équation,          }
-{               |       |     Code REL_INEQ pour une inéquation.        }
-{               |-------|                                               }
-{               |       |                                               }
-{         Z-1   | LTER  |---> Pointe vers le membre gauche.             }
-{               |       |                                               }
-{               |-------|                                               }
-{               |       |                                               }
-{         Z-2   | RTER  |---> Pointe vers le membre droit.              }
-{               |       |                                               }
-{               |-------|                                               }
-{                                                                       }
-{                                                                       }
-{-----------------------------------------------------------------------}
-
-Const
-  ZZ_length = 3;
-  ZZ_TYPE = -0;
-  ZZ_LTER = -1;
-  ZZ_RTER = -2;
-
-{----------------------------------------------------------------------------}
-{ Crée une nouvelle équation (Code=REL_EQUA) ou inéquation (Code=REL_INEQ    }
-{ de forme T1 = T2 dans la pile droite de la mémoire principale.             }
-{----------------------------------------------------------------------------}
-
-Procedure PushOneEquationToSolve( Code : Integer; T1,T2 : Integer );
-Var Z : Integer;
-Begin
-  CheckCondition((T1<>NULL) And (T2<>NULL),'Equation with NULL term');
-  Z := AllocRight(ZZ_length);
-  Memory[Z+ZZ_TYPE] := Code;
-  Memory[Z+ZZ_LTER] := T1;
-  Memory[Z+ZZ_RTER] := T2;
-End;
-
-{----------------------------------------------------------------------------}
-{ Copie la liste d'équations dans la pile d'équation du système à réduiire.  }
-{----------------------------------------------------------------------------}
-
-Procedure PushEquationsToSolve( E : Integer );
-Begin
-  Repeat
-    PushOneEquationToSolve(Memory[E+EQ_TYPE],Memory[E+EQ_LTER],Memory[E+EQ_RTER]);
-    E := Memory[E+EQ_NEXT]
-  Until E = NULL
-End;
-
-{----------------------------------------------------------------------------}
-{ Retourne un pointeur vers l'équation au sommet de la pile droite.          }
-{----------------------------------------------------------------------------}
-
-Function TopEquationToSolve : Integer;
-Var Z : Integer;
-Begin
-  Z := PtrRight + ZZ_length - 1;
-  CheckCondition(Z <= HiMemAddr,'Top relation is out of stack');
-  TopEquationToSolve := Z
-End;
-
-{----------------------------------------------------------------------------}
-{ Retourne True si Z est un pointeur vers l'équation au sommet de la pile    }
-{ droite.                                                                    }
-{----------------------------------------------------------------------------}
-
-Function IsTopEquationToSolve( Z : Integer ) : Boolean;
-Begin
-  IsTopEquationToSolve := (Z = TopEquationToSolve)
-End;
-
-{----------------------------------------------------------------------------}
-{ Retourne l'équation suivante ou 0 s'il n'y a plus d'équation.              }
-{----------------------------------------------------------------------------}
-
-Function NextEquationToSolve( Z : Integer ) : Integer;
-Begin
-  Z := Z - ZZ_length;
-  CheckCondition(Z - ZZ_length + 1 >= PtrRight,'Next relation is out of stack');
-  NextEquationToSolve := Z
-End;
-
-{----------------------------------------------------------------------------}
-{ Dépile une équatiion.                                                      }
-{----------------------------------------------------------------------------}
-
-Procedure PopEquationToSolve( Var Code : Integer; Var T1,T2 : Integer);
-Var Z : Integer;
-Begin
-  Z := PtrRight + ZZ_length - 1;
-  Code := Memory[Z+ZZ_TYPE];
-  T1 := Memory[Z+ZZ_LTER];
-  T2 := Memory[Z+ZZ_RTER];
-  PtrRight := PtrRight + ZZ_length;
-End;
-
-{----------------------------------------------------------------------------}
-{ Echange deux équatiions.                                                   }
-{----------------------------------------------------------------------------}
-
-Procedure SwapEquationToSolve( Z1, Z2 : Integer );
-Begin
-  SwapMem(Z1+ZZ_TYPE,Z2+ZZ_TYPE);
-  SwapMem(Z1+ZZ_LTER,Z2+ZZ_LTER);
-  SwapMem(Z1+ZZ_RTER,Z2+ZZ_RTER);
-End;
-
-{----------------------------------------------------------------------------}
-{ Modifie les équations et inéquations du sommet de la pile                  }
-{ droite (sans dépasser RightStopper) de telle sorte que les équations       }
-{ se trouvent toutes avant les inéquations. Cette procédure est indispen-    }
-{ sable parce que la procédure Reduce peut, au cours de son                  }
-{ travail, ajouter des inéquations (remise en cause d'inéquations) à droite. }
-{----------------------------------------------------------------------------}
-
-Procedure SortEquationsToSolve( RightStopper : Integer );
-Var Stop : Boolean;
-    Z, FirstZ, NextZ : Integer;
-Begin
-  If (RightStopper > PtrRight) Then
-  Begin
-    Stop := False;
-    FirstZ := RightStopper - 1;
-    While Not (IsTopEquationToSolve(FirstZ) Or Stop) Do
-    Begin
-      Stop := True;
-      Z := FirstZ;
-      Repeat
-        NextZ := NextEquationToSolve(Z);
-        If (Memory[Z+ZZ_TYPE] = REL_EQUA)
-          And (Memory[NextZ+ZZ_TYPE] = REL_INEQ) Then
-        Begin
-          SwapEquationToSolve(Z,NextZ);
-          Stop := False
-        End;
-        Z := NextZ;
-      Until IsTopEquationToSolve(NextZ) Or Not Stop;
-      FirstZ := NextEquationToSolve(FirstZ)
-    End
-  End
-End;
-
-{-----------------------------------------------------------------------}
-{ Lit une équation ou une inéquation.                                   }
-{-----------------------------------------------------------------------}
-
-Function ReadEquation : Integer;
+{ read an equations or a inequation }
+Function ReadEquation : EqPtr;
 Var
-  E : Integer;
-  T1, T2 : Integer;
-  Code : Integer;
+  E : EqPtr;
+  T1, T2 : TermPtr;
+  Code : EqType;
   c : Char;
 Begin
-  E := NULL;
+  E := Nil;
   T1 := ReadOneTerm(False);
   If Not Error Then
   Begin
     c := GetCharNb(c);
     Case c Of
     '=' :
-      Code := REL_EQUA;   { code 'Equation'   }
+      Code := REL_EQUA;
     '<' :
       Begin
         Verify('>');
-        Code := REL_INEQ  { code 'Inéquation' }
+        Code := REL_INEQ
       End;
     Else
       RaiseError('= or <> expected')
     End
   End;
   If Not Error Then
-    T2 := ReadOneTerm(False);  { terme droit }
+    T2 := ReadOneTerm(False);  { right term }
   If Not Error Then
     E := PushEquation(Code,T1,T2);
   ReadEquation := E
 End;
 
-{-----------------------------------------------------------------------}
-{                                                                       }
-{  UN SYSTEME :                                                         }
-{                                                                       }
-{    Avant réduction, le système est codé sous forme d'une séquence     }
-{  d'équations ou d'inéquations dans la pile droite.                    }
-{                                                                       }
-{    Après réduction, les inéquations du système réduit sont stockées   }
-{  dans la pile gauche, sous forme de listes chainées d'inéquations.    }
-{-----------------------------------------------------------------------}
-
-{-----------------------------------------------------------------------}
-{ Lit un système d'équations et d'inéquations et la stocke              }
-{ dans la pile de la mémoire principale.                                }
-{-----------------------------------------------------------------------}
-
-Function ReadSystem : Integer;
+{ read a system of equations or inequations }
+Function ReadSystem : EqPtr;
 Var
-  E, FirstE, PrevE : Integer;
+  E, FirstE, PrevE : EqPtr;
   First : Boolean;
   c     : Char;
 Begin
-  FirstE := NULL;
-  PrevE := NULL;
+  FirstE := Nil;
+  PrevE := Nil;
   Verify('{');
   If Not Error Then
   Begin
@@ -729,7 +231,7 @@ Begin
         First := False
       End
       Else
-        Memory[PrevE+EQ_NEXT] := E;
+        PrevE^.EQ_NEXT := E;
       PrevE := E
     Until (Error) Or (GetCharNb(c) <> ',');
     If (Not Error) And (c <> '}') Then RaiseError('Missing }')
@@ -737,412 +239,178 @@ Begin
   ReadSystem := FirstE
 End;
 
-{-----------------------------------------------------------------------}
-{ Compile un système d'équations et d'inéquations et le réduit.         }
-{ Les équations du système réduit sont intégrées dans le codage des     }
-{ variables. Les inéquations du système réduit sont codées comme des    }
-{ listes chaînées, stockées au sommet de la pile gauche.                }
-{-----------------------------------------------------------------------}
-
-Function CompileSystem : Integer;
+{ compile and reduce a system; equations in the reduced system are encoded
+  within the variables; inequations in the reduced system are encoded 
+  as a list of inequations }
+Function CompileSystem : EqPtr;
 Var
-  S : Integer;
-  Stopper : Integer;
+  E : EqPtr;
+  S : SysPtr;
+  U : RestorePtr;
 Begin
-  S := ReadSystem;
+  E := ReadSystem;
   If Not Error Then
   Begin
-    Stopper := PtrRight;
-    PushEquationsToSolve(S);
-    If Not ReduceSystem(Stopper,False) Then
+
+    S := NewSys;
+    CopyAllEqInSys(S,E);
+
+    U := Nil;
+    If Not ReduceSystem(S,False,U) Then
       RaiseError('Constraints cannot be satisfied');
+    FreeSys(S);
   End;
-  CompileSystem := S
+  CompileSystem := E
 End;
 
-{-----------------------------------------------------------------------}
-{                                                                       }
-{  UN BLOC-TERME B :                                                    }
-{                                                                       }
-{               |-------|                                               }
-{               |       |                                               }
-{         B     | TERM  |---> Pointe vers le terme T associé au bloc.   }
-{               |       |                                               }
-{               |-------|                                               }
-{               |       |                                               }
-{         B+1   | NEXT  |---> Pointe vers le terme suivant, ou NULL si  }
-{               |       |     le bloc B est le dernier de la chaîne.    }
-{               |-------|                                               }
-{               |       |                                               }
-{         B+2   | CONS  |---> Pointe vers la constante d'accès utilisée }
-{               |       |     par la pré-unification. Vaut 0 si ce      }
-{               |-------|     terme n'a pas une constante pour accès.   }
-{                                                                       }
-{-----------------------------------------------------------------------}
-
-Const
-  BT_length = 3;
-  BT_TERM = 0;
-  BT_NEXT = 1;
-  BT_CONS = 2;
-
-{-----------------------------------------------------------------------}
-{ Code un bloc-terme en mémoire.                                        }
-{-----------------------------------------------------------------------}
-
-Function CompileOneTerm( Cut : Boolean ) : Integer;
-Var B : Integer;
+{ compile a term }
+Function CompileOneTerm( Cut : Boolean ) : BTermPtr;
+Var B : BTermPtr;
 Begin
-  B := Alloc(BT_length);
-  Memory[B+BT_TERM] := ReadOneTerm(Cut);
-  Memory[B+BT_NEXT] := NULL;
-  Memory[B+BT_CONS] := Access(Memory[B+BT_TERM]);
+  B := NewBTerm;
+  With B^ Do
+  Begin
+    BT_TERM := ReadOneTerm(Cut);
+    BT_CONS := Access(BT_TERM)
+  End;
   CompileOneTerm := B
 End;
 
-{-----------------------------------------------------------------------}
-{ Code une suite de termes. Dès qu'un caractère                         }
-{ contenu dans StopChars est rencontré, le processus s'arrête.          }
-{-----------------------------------------------------------------------}
-
-Function CompileTerms( StopChars : CharSet ) : Integer;
+{ compile a sequence of terms, stopping at a char in StopChars  }
+Function CompileTerms( StopChars : CharSet ) : BTermPtr;
 Var
-  B : Integer;
+  B : BTermPtr;
   c : Char;
 Begin
   c := NextCharNb(c);
   If (Not (c In StopChars)) And (Not Error) Then
   Begin
-    B := Alloc(BT_length);
-    Memory[B+BT_TERM] := ReadOneTerm(True);
-    Memory[B+BT_CONS] := Access(Memory[B+BT_TERM]);
-    Memory[B+BT_NEXT] := CompileTerms(StopChars)
+    B := NewBTerm;
+    With B^ Do
+    Begin
+      BT_TERM := ReadOneTerm(True);
+      BT_CONS := Access(BT_TERM);
+      BT_NEXT := CompileTerms(StopChars)
+    End
   End
   Else
-    B := NULL;
+    B := Nil;
   CompileTerms := B
 End;
 
-{-----------------------------------------------------------------------}
-{                                                                       }
-{  UNE REGLE R :                                                        }
-{                                                                       }
-{               |-------|                                               }
-{               |       |                                               }
-{         R+0   | NEXT  |---> Pointe vers la règle suivante, ou NULL si }
-{               |       |     la règle R est la dernière du programme.  }
-{               |-------|                                               }
-{               |       |                                               }
-{         R+1   | SIZE  |---> Taille occupée par le code de l'ensemble  }
-{               |       |     des termes qui composent cette règle.     }
-{               |-------|                                               }
-{               |       |                                               }
-{         R+2   | FVAR  |---> Adresse dans le dictionnaire de la        }
-{               |       |     premiere variable de cette règle.         }
-{               |-------|                                               }
-{               |       |                                               }
-{         R+3   | LVAR  |---> Adresse dans le dictionnaire de la        }
-{               |       |     dernière variable de cette règle.         }
-{               |-------|                                               }
-{               |       |                                               }
-{         R+4   | SYST  |---> Adresse de la première équation ou        }
-{               |       |     inéquation spécifiée dans cette règle,    }
-{               |-------|     ou 0 si pas de système.                   }
-{               |       |                                               }
-{         R+5   | TYPE  |---> Type of rule: RTYPE_AUTO, RTYPE_USER      }
-{               |       |                                               }
-{               |-------|                                               }
-{               |       |                                               }
-{         R+6   | FBTR  |---> Pointe vers le premier bloc terme de la   }
-{               |       |     règle (NULL si pas de terme).             }
-{               |-------|                                               }
-{                                                                       }
-{    Le premier bloc-terme de cette règle (tête) commence en R+4.       }
-{                                                                       }
-{-----------------------------------------------------------------------}
-
-Const
-  RU_length = 7;
-  RU_NEXT = 0;
-  RU_SIZE = 1;
-  RU_FVAR = 2;
-  RU_LVAR = 3;
-  RU_SYST = 4;
-  RU_TYPE = 5;
-  RU_FBTR = 6;
-
-{-----------------------------------------------------------------------}
-{ Code une règle en mémoire.                                            }
-{-----------------------------------------------------------------------}
-
-Procedure CompileOneRule( R : Integer; RuleType : Integer );
-Var B : Integer;
-    c : Char;
+{ compile a rule }
+Procedure CompileOneRule( R : RulePtr );
+Var 
+  B : BTermPtr;
+  E : EqPtr;
+  c : Char;
 Begin
-  TopVar := NbVar + 1; { Première variable dans DictVar  }
+  TopVar := NbVar + 1;
   Spaces;
-  Memory[R+RU_TYPE] := RuleType;
-  Memory[R+RU_FVAR] := NbVar + 1;
-  B := CompileOneTerm(False); { head }
-  Memory[R+RU_FBTR] := B;
-  Verify('->');
-  If Not Error Then
+  With R^ Do
   Begin
-    Memory[B+BT_NEXT] := CompileTerms(['{',';',EndOfInput]);
-    c := NextCharNb(c);
-    Memory[R+RU_SYST] := NULL;
-    If c = '{' Then
-      Memory[R+RU_SYST] := CompileSystem; { WARNING: MAY ADD THINGS }
-    Verify(';');
-    Memory[R+RU_SIZE] := PtrLeft-R+1;
-    Memory[R+RU_LVAR] := NbVar;
-    TopVar := NbVar + 1             { Var locales à une règle        }
+    RU_FVAR := NbVar + 1;
+    RU_SYST := Nil;
+    B := CompileOneTerm(False); { head }
+    RU_FBTR := B;
+    Verify('->');
+    If Not Error Then
+    Begin
+      B^.BT_NEXT := CompileTerms(['{',';',EndOfInput]);
+      c := NextCharNb(c);
+      If c = '{' Then
+      Begin
+        E := CompileSystem; { WARNING: MAY ADD THINGS }
+        RU_SYST := E 
+      End;
+      Verify(';');
+      RU_LVAR := NbVar;
+      TopVar := NbVar + 1
+    End
   End
 End;
 
-{-----------------------------------------------------------------------}
-{ Code une suite de règles. Dès qu'un caractère                         }
-{ contenu dans StopChars est rencontré, le processus s'arrête.          }
-{-----------------------------------------------------------------------}
-
-Function CompileRules( StopChars : CharSet; RuleType : Integer ) : Integer;
+{ compile a sequence of rules, stopping at a char in StopChars  }
+Function CompileRules( StopChars : CharSet; RuleType : RuType ) : RulePtr;
 Var
-  R : Integer;
+  R : RulePtr;
   c : Char;
 Begin
   c := NextCharNb(c);
   If (Not (c In StopChars)) And (Not Error) Then
   Begin
-    R := Alloc(RU_length);
-    CompileOneRule(R,RuleType);
-    Memory[R+RU_NEXT] := CompileRules(StopChars,RuleType)
+    R := NewRule(RuleType);
+    CompileOneRule(R);
+    R^.RU_NEXT := CompileRules(StopChars,RuleType)
   End
   Else
-    R := NULL;
+    R := Nil;
   CompileRules := R
 End;
 
-{-----------------------------------------------------------------------}
-{ Next rule after R.                                                    }
-{-----------------------------------------------------------------------}
-
-Function NextRule( R : Integer ) : Integer;
-Begin
-  NextRule := Memory[R+RU_NEXT]
-End;
-
-{-----------------------------------------------------------------------}
-{ Last rule at the end of the list whose head is R.                     }
-{-----------------------------------------------------------------------}
-
-Function LastRule( R : Integer ) : Integer;
-Begin
-  While (NextRule(R) <> NULL) Do
-    R := NextRule(R);
-  LastRule := R
-End;
-
-{-----------------------------------------------------------------------}
-{                                                                       }
-{  UNE QUESTION Q :                                                     }
-{                                                                       }
-{               |-------|                                               }
-{               |       |                                               }
-{         Q+0   | NEXT  |---> Adresse de la question suivante           }
-{               |       |     ou NULL si dernière question.             }
-{               |-------|                                               }
-{               |       |                                               }
-{         Q+1   | FRUL  |---> Contexte : première régle.                }
-{               |       |                                               }
-{               |-------|                                               }
-{               |       |                                               }
-{         Q+2   | LRUL  |---> Contexte : dernière régle.                }
-{               |       |                                               }
-{               |-------|                                               }
-{               |       |                                               }
-{         Q+3   | FVAR  |---> Adresse dans le dictionnaire de la        }
-{               |       |     première variable de cette question.      }
-{               |-------|                                               }
-{               |       |                                               }
-{         Q+4   | LVAR  |---> Adresse dans le dictionnaire de la        }
-{               |       |     dernière variable de cette question.      }
-{               |-------|                                               }
-{               |       |                                               }
-{         Q+5   | FBTR  |---> Pointe vers le premier bloc terme de la   }
-{               |       |     question (NULL si pas de terme).          }
-{               |-------|                                               }
-{               |       |                                               }
-{         Q+6   | FCON  |---> Pointe dans le dictionnaire de la         }
-{               |       |     première constante de cette question.     }
-{               |-------|                                               }
-{               |       |                                               }
-{         Q+7   | SYST  |---> Adresse de la première équation ou        }
-{               |       |     inéquation spécifiée dans cette question, }
-{               |-------|     ou 0 si pas de système.                   }
-{                                                                       }
-{                                                                       }
-{-----------------------------------------------------------------------}
-
-Const
-  QU_length = 8;
-  QU_NEXT = 0;
-  QU_FRUL = 1;
-  QU_LRUL = 2;
-  QU_FVAR = 3;
-  QU_LVAR = 4;
-  QU_FBTR = 5;
-  QU_FCON = 6;
-  QU_SYST = 7;
-
-{-----------------------------------------------------------------------}
-{ Code une question.                                                    }
-{ Si un système est présent, on tente de le réduire.                    }
-{-----------------------------------------------------------------------}
-
-Procedure CompileOneQuery( Q : Integer );
-Var c : Char;
-Begin
-  Spaces;
-  TopVar := NbVar + 1; { Première variable dans DictVar  }
-  Memory[Q+QU_FRUL] := NULL;
-  Memory[Q+QU_LRUL] := NULL;
-  Memory[Q+QU_FVAR] := NbVar + 1;
-  Memory[Q+QU_FCON] := NbConst + 1;
-  Memory[Q+QU_FBTR] := CompileTerms(['{',';',EndOfInput]);
-  Memory[Q+QU_SYST] := NULL;
-  c := NextCharNb(c);
-  If c = '{' Then
-    Memory[Q+QU_SYST] := CompileSystem;
-  Verify(';');
-  Memory[Q+QU_LVAR] := NbVar      { Dernière variable dans DictVar }
-End;
-
-{-----------------------------------------------------------------------}
-{ Last query at the end of the list whose head is Q.                    }
-{-----------------------------------------------------------------------}
-
-Function LastQuery( Q : Integer ) : Integer;
-Begin
-  While (Memory[Q+QU_NEXT] <> NULL) Do
-    Q := Memory[Q+QU_NEXT];
-  LastQuery := Q
-End;
-
-{-----------------------------------------------------------------------}
-{                                                                       }
-{  UN PROGRAMME P :                                                     }
-{                                                                       }
-{               |-------|                                               }
-{               |       |                                               }
-{         P+0   | FRUL  |---> Pointe vers la première règle du          }
-{               |       |     programme, NULL si pas de règles.         }
-{               |-------|                                               }
-{               |       |                                               }
-{         P+1   | LRUL  |---> Pointe vers la dernière règle du          }
-{               |       |     programme, NULL si pas de règles.         }
-{               |-------|                                               }
-{               |       |                                               }
-{         P+2   | FQRY  |---> Pointe vers la première question du       }
-{               |       |     programme, NULL si pas de question.       }
-{               |-------|                                               }
-{               |       |                                               }
-{         P+3   | LQRY  |---> Pointe vers la dernière question du       }
-{               |       |     programme, NULL si pas de question.       }
-{               |-------|                                               }
-{               |       |                                               }
-{         P+4   | STAC  |---> Sommet pile principale après lecture      }
-{               |       |     du programme.                             }
-{               |-------|                                               }
-{               |       |                                               }
-{         P+5   | LVAR  |---> Dernière variable du programme.           }
-{               |       |                                               }
-{               |-------|                                               }
-{               |       |                                               }
-{         P+6   | LCON  |---> Dernière constante du programme.          }
-{               |       |                                               }
-{               |-------|                                               }
-{                                                                       }
-{-----------------------------------------------------------------------}
-
-Const
-  PP_length = 7;
-  PP_FRUL = 0;
-  PP_LRUL = 1;
-  PP_FQRY = 2;
-  PP_LQRY = 3;
-  PP_STAC = 4;
-  PP_LVAR = 5;
-  PP_LCON = 6;
-
-Procedure InstallPredefinedConstants;
+{ compile a query; reduce the system iif any }
+Procedure CompileOneQuery( Q : QueryPtr );
 Var
-  C : Integer;
-  K : Integer;
-Begin
-  For K := 1 to NbPredef Do
-    C := InstallConst(Predef[K]);
-End;
-
-Function CreateEmptyProgram : Integer;
-Var P : Integer;
-Begin
-  P := Alloc(PP_length);
-  Memory[P+PP_FRUL] := NULL;
-  Memory[P+PP_LRUL] := NULL;
-  Memory[P+PP_FQRY] := NULL;
-  Memory[P+PP_LQRY] := NULL;
-  Memory[P+PP_LVAR] := NbVar;
-  Memory[P+PP_LCON] := NbConst;
-  Memory[P+PP_STAC] := PtrLeft;
-  CreateEmptyProgram := P
-End;
-
-{-----------------------------------------------------------------------}
-{ Code une suite de questions. Si ContChar est non vide, un caractère de}
-{ cet ensemble doit être présent au ddébut de chaque question. Dès qu'un}
-{ caractère contenu dans StopChars est rencontré, le processus s'arrête.}
-{-----------------------------------------------------------------------}
-
-Function CompileQueries( P : Integer; WithArrow : Boolean;
-  ContChar, StopChars : CharSet ) : Integer;
-Var
-  Q : Integer;
+  E : EqPtr;
   c : Char;
 Begin
-  Q := NULL;
+  Spaces;
+  TopVar := NbVar + 1;
+  With Q^ Do
+  Begin
+    QU_FRUL := Nil;
+    QU_LRUL := Nil;
+    QU_FVAR := NbVar + 1;
+    QU_FCON := NbConst + 1;
+    QU_FBTR := CompileTerms(['{',';',EndOfInput]);
+    QU_SYST := Nil;
+    c := NextCharNb(c);
+    If c = '{' Then
+    Begin
+      E := CompileSystem;
+      QU_SYST := E { WARNING: MAY ADD THINGS }
+    End;
+    Verify(';');
+    QU_LVAR := NbVar
+  End
+End;
+
+{ compile a sequence of queries; if ContChar is not empty, each query 
+  must start with a char in this set; the sequence ends with a char 
+  in StopChars }
+Function CompileQueries( P : ProgPtr; WithArrow : Boolean;
+  ContChar, StopChars : CharSet ) : QueryPtr;
+Var
+  Q : QueryPtr;
+  c : Char;
+Begin
+  Q := Nil;
   c := NextCharNb(c);
   If ((ContChar=[]) Or (c In ContChar))
     And (Not (c In StopChars)) And (Not Error) Then
   Begin
     If WithArrow Then
       Verify('->');
-    Q := Alloc(QU_length);
+    Q := QueryPtr(NewPrologObject(QU, SizeOf(TObjQuery), 5));
     CompileOneQuery(Q);
-    Memory[Q+QU_FRUL] := Memory[P+PP_FRUL];
-    Memory[Q+QU_LRUL] := Memory[P+PP_LRUL];
-    Memory[Q+QU_NEXT] := CompileQueries(P,WithArrow,ContChar,StopChars)
+    Q^.QU_FRUL := P^.PP_FRUL;
+    Q^.QU_LRUL := P^.PP_LRUL;
+    Q^.QU_NEXT := CompileQueries(P,WithArrow,ContChar,StopChars)
   End;
   CompileQueries := Q
 End;
 
-{----------------------------------------------------------------------------}
-{ Enlève les questions entrées en ligne de commande.                         }
-{----------------------------------------------------------------------------}
-
-Procedure RemoveCommandLineQueries( P : Integer );
+{ remove the queries typed by the user }
+Procedure RemoveCommandLineQueries( P : ProgPtr );
 Begin
-  NbVar   := Memory[P+PP_LVAR];
-  NbConst := Memory[P+PP_LCON];
-  PtrLeft := Memory[P+PP_STAC]
+  NbVar   := P^.PP_LVAR;
+  NbConst := P^.PP_LCON
 End;
 
-{----------------------------------------------------------------------------}
-{ Code les questions entrées en ligne de commande.                           }
-{----------------------------------------------------------------------------}
-
-Function CompileCommandLineQueries( P : Integer ) : Integer;
+{ compile queries typed by the user }
+Function CompileCommandLineQueries( P : ProgPtr ) : QueryPtr;
 Var
-  Q : Integer;
+  Q : QueryPtr;
   c : Char;
 Begin
   Q := CompileQueries(P,False,[],[';',EndOfInput]);
@@ -1152,27 +420,23 @@ Begin
   CompileCommandLineQueries := Q
 End;
 
-{----------------------------------------------------------------------------}
-{ Append rules and queries to program P.                                     }
-{ Return the address of the first query, or NULL if there are no queries.    }
-{----------------------------------------------------------------------------}
-
-Function CompileRulesAndQueries( P : Integer; RuleType : Integer ) : Integer;
+{ append rules and queries to a program; return the first query if any }
+Function CompileRulesAndQueries( P : ProgPtr; RuleType : RuType ) : QueryPtr;
 Var
-  FirstQ, HeadQ, Q : Integer;
-  HeadR, R : Integer;
+  FirstQ, HeadQ, Q : QueryPtr;
+  HeadR, R : RulePtr;
   c : Char;
   Comment : AnyStr;
   Stop : Boolean;
 Begin
   Stop := False;
   Error := False;
-  FirstQ := NULL;
-  HeadQ := Memory[P+PP_FQRY];
-  If HeadQ <> NULL Then
+  FirstQ := Nil;
+  HeadQ := P^.PP_FQRY;
+  If HeadQ <> Nil Then
     HeadQ := LastQuery(HeadQ);
-  HeadR := Memory[P+PP_FRUL];
-  If HeadR <> NULL Then
+  HeadR := P^.PP_FRUL;
+  If HeadR <> Nil Then
     HeadR := LastRule(HeadR);
   Repeat
     c := NextCharNb(c);
@@ -1185,42 +449,41 @@ Begin
     Else If c='-' Then  { a query }
     Begin
       Q := CompileQueries(P,True,['-'],[EndOfInput,';']);
-      { Note if Q is the first query read }
-      If FirstQ = NULL Then
+      { note if Q is the first query read }
+      If FirstQ = Nil Then
         FirstQ := Q;
-      { Set program's first query if not set yet. }
-      If Memory[P+PP_FQRY] = NULL Then
-        Memory[P+PP_FQRY] := Q;
-      { Attach this list to the previous one, if any }
-      If (HeadQ <> NULL) Then
-        Memory[HeadQ+QU_NEXT] := Q;
-      { The new head is the last query in this list }
+      { set program's first query if not set yet. }
+      If P^.PP_FQRY = Nil Then
+        P^.PP_FQRY := Q;
+      { attach this list to the previous one, if any }
+      If (HeadQ <> Nil) Then
+        HeadQ^.QU_NEXT := Q;
+      { the new head is the last query in this list }
       Q := LastQuery(Q);
-      { Set program's last query. }
-      If Q <> NULL Then
-        Memory[P+PP_LQRY] := Q;
+      { set program's last query. }
+      If Q <> Nil Then
+        P^.PP_LQRY := Q;
       HeadQ := Q
     End
     Else { a rule }
     Begin
       R := CompileRules([EndOfInput,';','-','"'],RuleType);
-      { Set program's first rule if not set yet. }
-      If Memory[P+PP_FRUL] = NULL Then
-        Memory[P+PP_FRUL] := R;
-      { Attach this list to the previous one, if any }
-      If (HeadR <> NULL) Then
-        Memory[HeadR+RU_NEXT] := R;
-      { The new head is the last query in this list }
+      { set program's first rule if not set yet }
+      If P^.PP_FRUL = Nil Then
+        P^.PP_FRUL := R;
+      { attach this list to the previous one, if any }
+      If (HeadR <> Nil) Then
+        HeadR^.RU_NEXT := R;
+      { the new head is the last query in this list }
       R := LastRule(R);
-      { Set program's last rule. }
-      If R <> NULL Then
-        Memory[P+PP_LRUL] := R;
+      { set program's last rule. }
+      If R <> Nil Then
+        P^.PP_LRUL := R;
       HeadR := R
     End
   Until Stop Or Error;
-  { Machine state }
-  Memory[P+PP_LVAR] := NbVar;
-  Memory[P+PP_LCON] := NbConst;
-  Memory[P+PP_STAC] := PtrLeft;
+  { machine state }
+  P^.PP_LVAR := NbVar;
+  P^.PP_LCON := NbConst;
   CompileRulesAndQueries := FirstQ
 End;

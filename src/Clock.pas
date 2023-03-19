@@ -4,7 +4,7 @@
 {   File        : Clock.pas                                                  }
 {   Author      : Christophe Bisière                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022                                                       }
+{   Updated     : 2023                                                       }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -15,9 +15,9 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-Function ExecutionSysCallOk( F, P, Q : Integer ) : Boolean; Forward;
+Function ExecutionSysCallOk( F : TermPtr; P : ProgPtr; Q : QueryPtr ) : Boolean; Forward;
 
-Var ClockTime : Integer;                     { Le temps de l'horloge Prolog }
+Var ClockTime : LongInt; { Prolog clock time }
 
   {-----------------------------------------------------------------------}
   {                                                                       }
@@ -37,12 +37,8 @@ Var ClockTime : Integer;                     { Le temps de l'horloge Prolog }
   {               |       |     procédure de réduction, sur le sommet de  }
   {               |-------|     la pile de restauration.                  }
   {               |       |                                               }
-  {         µ+3   | STAC  |---> Pointe dans la pile principale vers le    }
-  {               |       |     sommet de pile à l'étape précédente.      }
-  {               |-------|                                               }
-  {               |       |                                               }
   {         µ+4   | PREV  |---> Pointe dans la pile principale vers       }
-  {               |       |     l'entête de l'étape précédente (ou NULL   }
+  {               |       |     l'entête de l'étape précédente (ou Nil    }
   {               |-------|     si pas d'étape précédente).               }
   {               |       |                                               }
   {         µ+5   | ACUT  |---> True if the term to clear is a cut.       }
@@ -51,206 +47,59 @@ Var ClockTime : Integer;                     { Le temps de l'horloge Prolog }
   {                                                                       }
   {-----------------------------------------------------------------------}
 
-  Const
-    HH_length = 6;
-    HH_FBCL = 0;
-    HH_RULE = 1;
-    HH_REST = 2;
-    HH_STAC = 3;
-    HH_PREV = 4;
-    HH_ACUT = 5;
+  Type 
+    HeadPtr = ^TObjHead;
+    TObjHead = Record
+      HH_REST : RestorePtr; { restoration stack }
+      HH_ACUT : Boolean; { a cut has been cleared }
+      HH_NEXT : HeadPtr; { previous clock header or Nil }
 
-  {-----------------------------------------------------------------------}
-  { Crée une entête.                                                      }
-  {-----------------------------------------------------------------------}
+      HH_ISYS : Boolean; { term to clear is a system call? }
+      HH_ICUT : Boolean; { term to clear is a cut? }
+      HH_RULE : RulePtr; { rule to apply }
 
-  Function NewClockHeader(Fbcl,Rule,Rest,Stac,Prev,ACut : Integer ) : Integer;
-  Var H : Integer;
+      HH_FBCL : BTermPtr { terms to clear }
+    End;
+
+  { create a clock header }
+  Procedure GetHeaderRule( H : HeadPtr; Var R : RulePtr; Var isSys : Boolean; Var isCut : Boolean );
   Begin
-    H := Alloc(HH_length);
-    Memory[H+HH_FBCL] := Fbcl;               { Suite des termes à effacer }
-    Memory[H+HH_RULE] := Rule;               { Première règle             }
-    Memory[H+HH_REST] := Rest;               { Ptr Pile Restore           }
-    Memory[H+HH_STAC] := Stac;               { Pointeur back              }
-    Memory[H+HH_PREV] := Prev;               { Pointeur back              }
-    Memory[H+HH_ACUT] := ACut;               { Term is a cut              }
-    NewClockHeader := H
+    R := H^.HH_RULE;
+    isSys := H^.HH_ISYS;
+    isCut := H^.HH_ICUT
   End;
 
-  {-----------------------------------------------------------------------}
-  { Duplicates a clock header H and returns the address of the copy.      }
-  {-----------------------------------------------------------------------}
-
-  Function CopyClockHeader( H : Integer ) : Integer;
+  Procedure SetHeaderRule( H : HeadPtr; R : RulePtr; isSys, isCut : Boolean);
   Begin
-    CopyClockHeader := NewClockHeader(Memory[H+HH_FBCL],Memory[H+HH_RULE],
-      Memory[H+HH_REST],Memory[H+HH_STAC],Memory[H+HH_PREV],
-      Memory[H+HH_ACUT])
+    With H^ Do
+    Begin
+      HH_RULE := R;
+      HH_ISYS := isSys;
+      HH_ICUT := isCut
+    End
   End;
 
-{----------------------------------------------------------------------------}
-{                                                                            }
-{                 R E C O P I E   D ' U N E   R E G L E                      }
-{                                                                            }
-{----------------------------------------------------------------------------}
-
-Const MaxCopyAdr = 100;
-Type TDictAdr = Array[1..MaxCopyAdr] Of Integer;  { Dict d'adresses          }
-
-Var
-  DictAdr : TDictAdr;        { Dict des adresses des objets déjà recopiés  }
-  PtrDict : Integer;         { Stack Pointer pour ce dictionnaire          }
-
-{----------------------------------------------------------------------------}
-{ Regarde si l'adresse T est déjà dans le dictionnaire DictAdr.              }
-{ Si oui elle retourne True, sinon elle retourne False.                      }
-{----------------------------------------------------------------------------}
-
-Function StoreAdr( T : Integer ) : Boolean;
-Var
-  I     : Integer;
-  Found : Boolean;
-Begin
-  I    := 1;
-  Found := False;
-  While (Not Found) And (I<=PtrDict) Do
+  Procedure NewClockHeader(Var H : HeadPtr; Fbcl : BTermPtr; R : RulePtr; 
+    ACut : Boolean; 
+    isSys, isCut : Boolean );
+  Var NewH : HeadPtr;
   Begin
-    If DictAdr[I] = T Then Found := True;
-    I := I + 1
+    GetMemory(HE,NewH,SizeOf(TObjHead));
+    With NewH^ Do
+    Begin
+      HH_FBCL := Fbcl;
+      SetHeaderRule(NewH,R,isSys,isCut);
+      HH_REST := Nil;
+      HH_ACUT := ACut;
+      HH_NEXT := H
+    End;
+    H := NewH
   End;
-  StoreAdr := Found
-End;
 
-{----------------------------------------------------------------------------}
-{ Ajoute au dictionnaire DictAdr l'adresse T.                                }
-{----------------------------------------------------------------------------}
-
-Procedure Add( T : Integer );
-Begin
-  PtrDict := PtrDict + 1;
-  CheckCondition(PtrDict <= MaxCopyAdr,'Memory exhausted while copying a rule');
-  DictAdr[PtrDict] := T
-End;
-
-{----------------------------------------------------------------------------}
-{ Réalise une recopie rapide de la suite de termes qui composent             }
-{ la règle pointée par R. Elle retourne l'adresse où a été recopiée cette    }
-{ suite.                                                                     }
-{----------------------------------------------------------------------------}
-
-Function PushRule( R : Integer ) : Integer;
-Var
-  Size  : Integer;
-  CopyR : Integer;
-  SrcB : Integer;
-Begin
-  SrcB := Memory[R+RU_FBTR];
-  Size := Memory[R+RU_SIZE];
-  CopyR := Alloc(Size);
-  Move(Memory[SrcB],Memory[CopyR],Size*SizeOf(Integer)); {Turbo Pascal}
-  PushRule := CopyR
-End;
-
-{----------------------------------------------------------------------------}
-{ Ajoute au contenu de la case d'adresse A les valeurs d1 et d2 en évitant   }
-{ les débordements d'Integers. Un pointeur nul n'est pas mis à jour.         }
-{----------------------------------------------------------------------------}
-
-Procedure ShiftValueAt( A,d1,d2 : Integer );
-Begin
-  If Memory[A] <> NULL Then
+  Procedure FreeClockHeader( Var H : HeadPtr );
   Begin
-    If (Memory[A] > 0) And (d1 > 0) And (d2 < 0)
-      Or (Memory[A] < 0) And (d1 < 0) And (d2 > 0) Then
-      Swap(d1,d2);
-    Memory[A] := Memory[A] + d1;
-    Memory[A] := Memory[A] + d2
-  End
-End;
-
-{----------------------------------------------------------------------------}
-{ Met à jour une chaîne d'inéquations pointée par E avec                     }
-{ les déplacements d1 et d2.                                                 }
-{----------------------------------------------------------------------------}
-
-Procedure ShiftInequation( E,d1,d2 : Integer );
-Begin
-  If E <> NULL Then
-  Begin
-    ShiftValueAt(E+EQ_LTER,d1,d2);
-    ShiftValueAt(E+EQ_RTER,d1,d2);
-    ShiftValueAt(E+EQ_NEXT,d1,d2);
-    ShiftInequation(Memory[E+EQ_NEXT],d1,d2)
-  End
-End;
-
-{----------------------------------------------------------------------------}
-{ Met à jour le terme T avec les valeur d1 et d2. Elle doit faire            }
-{ attention à ne pas mettre à jour une variable qui l'a déjà été. En effet   }
-{ une seule allocation mémoire est réalisée pour une variable, et celle-ci   }
-{ peut donc être pointée plusieurs fois. La fonction doit donc s'aider d'un  }
-{ dictionnaire (DictAdr) des adresses des variables déjà mises à jour.       }
-{----------------------------------------------------------------------------}
-
-Procedure ShiftTerm( T,d1,d2 : Integer );
-Begin
-  If T <> NULL Then
-    Case TypeOfTerm(T) Of
-    FuncSymbol :
-      Begin
-         ShiftValueAt(T+TF_LTER,d1,d2);
-         ShiftValueAt(T+TF_RTER,d1,d2);
-         ShiftTerm(Memory[T+TF_LTER],d1,d2);
-         ShiftTerm(Memory[T+TF_RTER],d1,d2)
-       End;
-    Variable :
-      Begin
-       If Not StoreAdr(T) Then
-       Begin
-         Memory[T+TV_COPY] := YES;
-         ShiftValueAt(T+TV_TRED,d1,d2);
-         ShiftValueAt(T+TV_FWAT,d1,d2);
-         Add(T);
-         If Memory[T+TV_IWAT] = YES Then
-           ShiftInequation(Memory[T+TV_FWAT],d1,d2)
-       End
-     End
-  End
-End;
-
-{----------------------------------------------------------------------------}
-{ C'est la fonction de recopie et mise à jour d'une règle. La nécessité de   }
-{ la mise à jour des adresses utilisées dans la règle provient de l'utili-   }
-{ sation d'adresses absolues plutôt que d'adresses relatives.                }
-{ Retourne l'adresse de la copie des blocs de la règle R.                    }
-{----------------------------------------------------------------------------}
-
-Function CopyTermsOfRule( R : Integer ) : Integer;
-Var
-  RuleB,B : Integer;
-  d1,d2 : Integer; { offsets }
-Begin
-  If (R = SYS_CALL) Or (R = SYS_CUT) Then
-    CopyTermsOfRule := NULL
-  Else
-  Begin
-    RuleB := PushRule(R);
-    { compute two offsets to prevent Integer overflows }
-    d1 := RuleB;
-    d2 := -(Memory[R+RU_FBTR]);
-    B := RuleB;
-    PtrDict := 0;
-    Repeat                                  { Pour chaque bloc-terme }
-      ShiftValueAt(B+BT_TERM,d1,d2);        {  - Ptr Terme           }
-      ShiftValueAt(B+BT_NEXT,d1,d2);        {  - Ptr Terme Suivant   }
-      ShiftValueAt(B+BT_CONS,d1,d2);        {  - Ptr Acces           }
-      ShiftTerm(Memory[B+BT_TERM],d1,d2);   {  - Terme pointé        }
-      B := Memory[B+BT_NEXT]
-    Until B = NULL;
-    CopyTermsOfRule := RuleB
-  End
-End;
-
+    FreeMemory(HE,H,SizeOf(TObjHead))
+  End;
 
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -258,135 +107,91 @@ End;
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-{----------------------------------------------------------------------------}
-{ Lance l'horloge pour effacer la question Q du programme P.                 }
-{----------------------------------------------------------------------------}
-
-Procedure Clock( P, Q, RightStopper : Integer );
+{ clear a query }
+Procedure Clock( P : ProgPtr; Q : QueryPtr );
 
 Var
-  PtrLeftSave : Integer;  { Sauvegarde sommet de pile                     }
-  Soluble     : Boolean;  { Système de contraintes soluble ?              }
-  Stopper     : Integer;  { Délimite les équations à réduire dans la pile }
+  Solvable     : Boolean;  { Système de contraintes soluble ?              }
   EndOfClock  : Boolean;  { Fin de l'horloge ?                            }
-  H           : Integer;  { Entête                                        }
-  R,B         : Integer;
+  H           : HeadPtr;  { Entête                                        }
+  R           : RulePtr;
+  B           : BTermPtr;
+  isSys       : Boolean;
+  isCut       : Boolean;
 
-{------------------------------------------------------------------}
-{ Initialise l'horloge Prolog;                                     }
-{------------------------------------------------------------------}
-
+  { init the clock }
   Procedure InitClock;
   Begin
+    H := Nil;
     EndOfClock := False;        { Ce n'est pas encore la fin !              }
-    InitRestore;                { Initialise la pile de restauration        }
-    ClockTime := 0;             { Le temps initial                          }
-    Stopper := RightStopper     { Système présent dans la question          }
+    ClockTime := 0              { Le temps initial                          }
   End;
 
-{------------------------------------------------------------------}
-{ Fait un appel à ReduceSystem pour tester la                      }
-{ solvabilité de l'ensemble de contraintes et s'occupe en plus de  }
-{ deux problèmes particuliers :                                    }
-{                                                                  }
-{ (1) La procédure de réduction a peut-être créé des inéquations,  }
-{     et dans ce cas ces triplets <Tg,Td,Next> ont été créés après }
-{     les quatre pointeurs qui se trouvaient en tête de pile.      }
-{     Il faut alors remettre ce bloc de quatre pointeurs en tête.  }
-{                                                                  }
-{ (2) Il faut positionner le pointeur de restauration pour pouvoir }
-{     retrouver l'état antérieur.                                  }
-{                                                                  }
-{------------------------------------------------------------------}
-
-  Function ReductionOk( Var H : Integer ) : Boolean;
-  Begin
-    PtrLeftSave := PtrLeft;
-    ReductionOk := ReduceSystem(Stopper,True);
-    Memory[H+HH_REST] := PtrRestore;
-    If PtrLeftSave <> PtrLeft Then { Des inéquations ont été créées }
-      H := CopyClockHeader(H)
-  End;
-
-{------------------------------------------------------------------}
-{ Affiche à l'écran la partie intéressante du                      }
-{ système de contraintes. Cette partie ne concerne que les         }
-{ variables de la question.                                        }
-{------------------------------------------------------------------}
-
+  { display constraints only about the variables in the query }
   Procedure WriteSolution;
   Begin
-    WriteSystem(Memory[Q+QU_FVAR],Memory[Q+QU_LVAR],True);
-    Writeln
+    WriteSystem(Q^.QU_FVAR,Q^.QU_LVAR,True);
+    WriteLn
   End;
 
-  {----------------------------------------------------------------------------}
-  { Détermine si les deux termes T1 et T2 sont a priori unifiables.            }
-  { Ils ne le sont pas lorsque ils ont pour accès une constante différente.    }
-  { Ce test permet d'économiser un grand nombre de recopies de règles.         }
-  {----------------------------------------------------------------------------}
-
-  Function Unifiable( T1,T2 : Integer) : Boolean;
+  { are two terms possibly unifiable? if not, there is not point in copying
+  a rule, etc. }
+  Function Unifiable( T1,T2 : TermPtr ) : Boolean;
   Var Ok : Boolean;
   Begin
-    CheckCondition((T1<>NULL) Or (T2<>NULL),'Call to Unifiable with two NULL terms');
-    Ok := (T1=T2) Or (T1=NULL) Or (T2=NULL);
+    CheckCondition((T1<>Nil) Or (T2<>Nil),'Call to Unifiable with two Nil terms');
+    Ok := (T1=T2) Or (T1=Nil) Or (T2=Nil);
     If Not Ok Then
-      Ok := (TypeOfTerm(T1)=Constant) And (TypeOfTerm(T2)=Constant) And
-          (Memory[T1+TC_CONS]=Memory[T2+TC_CONS]);
+      If (TypeOfTerm(T1)=Constant) And (TypeOfTerm(T2)=Constant) Then
+        Ok := ConstPtr(T1)^.TC_CONS = ConstPtr(T2)^.TC_CONS;
     Unifiable := Ok
   End;
 
-  {----------------------------------------------------------------------------}
-  { Returns the rule following R, or NULL if R is the last rule in the query's }
-  { scope.                                                                     }
-  {----------------------------------------------------------------------------}
-  Function Next( R : Integer ) : Integer;
+  { returns the rule following R, or Nil if R is the last rule in the query's
+    scope }
+  Function Next( R : RulePtr ) : RulePtr;
   Begin
-    CheckCondition(R <> NULL,'cannot call Next on NULL');
-    CheckCondition(R <> SYS_CALL,'cannot call Next on SYS_CALL');
-    CheckCondition(R <> SYS_CUT,'cannot call Next on a cut');
-    If R = Memory[Q+QU_LRUL] Then
-      Next := NULL
+    CheckCondition(R <> Nil,'cannot call Next on Nil');
+    If R = Q^.QU_LRUL Then 
+      Next := Nil
     Else
       Next := NextRule(R)
   End;
 
-  {----------------------------------------------------------------------------}
-  { Retourne un pointeur vers la première règle ayant une chance de s'unifier  }
-  { avec le terme B (ou NULL si aucune règle ne peut s'unifier avec B), R      }
-  { étant l'addresse de la première règle à examiner.        .                 }
-  {----------------------------------------------------------------------------}
-
-  Function FirstCandidateRule( R,B : Integer ) : Integer;
+  { first rule that has a chance to unify with a term, starting with rule R;
+    assumes B is not a cut or a system call }
+  Function FirstCandidateRule( R : RulePtr; B : BTermPtr; Var isSys : Boolean ; Var isCut : Boolean ) : RulePtr;
   Var
-    FirstR,T1,T2 : Integer;
+    FirstR : RulePtr;
+    T1,T2 : TermPtr;
     Stop : Boolean;
     ConstVal : AnyStr;
   Begin
-    FirstR := NULL;
-    If B <> NULL Then
+    FirstR := Nil;
+    isSys := False;
+    isCut := False;
+    If B <> Nil Then
     Begin
       Stop := False;
-      T1 := AccessTerm(B);
-      If TypeOfTerm(T1) = Constant Then
+      T1 := TermPtr(AccessTerm(B));
+      If TypeOfTerm(T1) = Constant Then { FIXME: if it is not a constant: the query is a variable "x" -- do we want to handle this?}
       Begin
-        ConstVal := DictConst[Memory[T1+TC_CONS]];
+        ConstVal := DictConst[ConstPtr(T1)^.TC_CONS];
         If ConstVal = 'SYSCALL' Then
         Begin
-          FirstR := SYS_CALL;
+          isSys := True;
           Stop := True
         End
         Else
         If ConstVal = '!' Then
         Begin
-          FirstR := SYS_CUT;
+          isCut := True;
           Stop := True
         End
       End;
-      While (R<>NULL) And Not Stop Do
+      While (R<>Nil) And Not Stop Do
       Begin
-        T2 := AccessTerm(Memory[R+RU_FBTR]);
+        T2 := TermPtr(AccessTerm(R^.RU_FBTR)); { FIXME: check constant? Otherwise the rule head is a variable -- not parsable}
         If Unifiable(T1,T2) Then
         Begin
           FirstR := R;
@@ -407,13 +212,17 @@ Var
   { écrit à la suite dans le fichier source.                                   }
   {----------------------------------------------------------------------------}
 
-  Function NextCandidateRule( R,B : Integer ) : Integer;
-  Var NextR : Integer;
+  Function NextCandidateRule( R : RulePtr; B : BTermPtr; Var isSys : Boolean ; Var isCut : Boolean) : RulePtr;
+  Var NextR : RulePtr;
   Begin
-    If (R = SYS_CALL) Or (R = SYS_CUT) Or (R = NULL) Then
-      NextR := NULL
+    If (R = Nil) Or (isSys) Or (isCut) Then
+    Begin
+      isSys := False;
+      isCut := False;
+      NextR := Nil
+    End
     Else
-      NextR := FirstCandidateRule(Next(R),B);
+      NextR := FirstCandidateRule(Next(R), B, isSys, isCut);
     NextCandidateRule := NextR
   End;
 
@@ -438,29 +247,32 @@ Var
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-  Procedure Backtracking( Var H : Integer; Var NoMoreChoices : Boolean );
+  Procedure Backtracking( Var H : HeadPtr; Var NoMoreChoices : Boolean );
   Var
-    NextR : Integer;
-    NewPtrLeft : Integer;
+    NextR : RulePtr;
+    NextH : HeadPtr;
+    isSys, isCut : Boolean;
   Begin
     NoMoreChoices := False;
-    NextR := NULL;
+    NextR := Nil;
+    isSys := False;
+    isCut := False;
     Repeat
-      If (ClockTime > 0) And (Memory[H+HH_ACUT] = NO) Then
+      If (ClockTime > 0) And (Not H^.HH_ACUT) Then
       Begin
         { backtracks one step }
-        NewPtrLeft := Memory[H+HH_STAC];
-        H := Memory[H+HH_PREV];
-        PtrLeft := NewPtrLeft;
-        Restore(Memory[H+HH_REST]);
+        NextH := H^.HH_NEXT;
+        Restore(H^.HH_REST); { restore and free restore object }
+        FreeClockHeader(H);
+        H := NextH;
         ClockTime := ClockTime - 1;
-        { next rule to apply, if any }
-        NextR := NextCandidateRule(Memory[H+HH_RULE],Memory[H+HH_FBCL])
+        { set next rule to apply, if any }
+        NextR := NextCandidateRule(H^.HH_RULE,H^.HH_FBCL,isSys,isCut)
       End
       Else
         NoMoreChoices := True
-    Until NoMoreChoices Or (NextR <> NULL);
-    Memory[H+HH_RULE] := NextR
+    Until NoMoreChoices Or (NextR <> Nil) Or isSys Or isCut;
+    SetHeaderRule(H,NextR,isSys,isCut)
 End;
 
 {------------------------------------------------------------------}
@@ -470,10 +282,14 @@ End;
 { d'être effacé, la procédure fait un appel à Backtracking;        }
 {------------------------------------------------------------------}
 
-  Procedure FirstRule( Var H : Integer );
+  Procedure FirstRule( Var H : HeadPtr );
+  Var
+    R : RulePtr;
+    isSys, isCut : Boolean;
   Begin
-    Memory[H+HH_RULE] := FirstCandidateRule(Memory[Q+QU_FRUL], Memory[H+HH_FBCL]);
-    If Memory[H+HH_RULE] = NULL Then
+    R := FirstCandidateRule(Q^.QU_FRUL,H^.HH_FBCL,isSys,isCut);
+    SetHeaderRule(H,R,isSys,isCut);
+    If (R = Nil) And (Not isSys) And (Not isCut) Then
       Backtracking(H,EndOfClock)
   End;
 
@@ -502,52 +318,60 @@ End;
 {                                                                  }
 {------------------------------------------------------------------}
 
-  Procedure MoveForward( Var H : Integer );
+  Procedure MoveForward( Var H : HeadPtr );
   Var
-    ClearB, ClearT, RuleB, B, PtrLeftSave : Integer;
-    R : Integer;
-    RestA : Integer;
+    ClearB, RuleB, B : BTermPtr;
+    ClearT : TermPtr;
+    R : RulePtr;
+    isCut, isSys : Boolean;
+    E : EqPtr;
+    Ss : SysPtr;
   Begin
-    CheckCondition(Memory[H+HH_FBCL] <> NULL,'MoveForward: No terms to clear');
-    CheckCondition(Memory[H+HH_RULE] <> NULL,'MoveForward: No rule to apply');
+    GetHeaderRule(H,R,isSys,isCut); { rule to apply }
 
-    RestA := Memory[H+HH_REST];              { restoration pointer      }
-    ClearB := Memory[H+HH_FBCL];             { list of terms to clear   }
-    ClearT := Memory[ClearB+BT_TERM];        { current term to clear    }
-    R := Memory[H+HH_RULE];                  { rule to apply            }
+    CheckCondition(H^.HH_FBCL <> Nil,'MoveForward: No terms to clear');
+    CheckCondition((R <> Nil) Or isSys Or isCut,'MoveForward: No rule to apply');
+
+    ClearB := H^.HH_FBCL; { list of terms to clear }
+    ClearT := ClearB^.BT_TERM; { current term to clear }
 
     ClockTime := ClockTime + 1;
-    PtrLeftSave := PtrLeft;
-    { copy the target rule - do nothing if it is a system call or a cut }
-    RuleB := CopyTermsOfRule(R);
 
-    H := NewClockHeader(NULL,NULL,RestA,PtrLeftSave,H,NO);
+    NewClockHeader(H,Nil,Nil,False,False,False);
 
-    If R = SYS_CUT Then
+    If isCut Then
     Begin
-      Soluble := True; { "cut" is always clearable }
-      Memory[H+HH_ACUT] := YES;
-      Memory[H+HH_FBCL] := NextTerm(ClearB)
+      Solvable := True; { "cut" is always clearable }
+      H^.HH_ACUT := True;
+      H^.HH_FBCL := NextTerm(ClearB)
     End
     Else
-    If R = SYS_CALL Then
+    If isSys Then
     Begin
-      Soluble := ExecutionSysCallOk(ClearT,P,Q);
+      Solvable := ExecutionSysCallOk(ClearT,P,Q);
       { remove the term from the list of terms to clear }
-      Memory[H+HH_FBCL] := NextTerm(ClearB)
+      H^.HH_FBCL := NextTerm(ClearB)
     End
     Else
     Begin
-      Stopper := PtrRight;
+      { copy the terms of the target rule }
+      RuleB := BTermPtr(DeepCopy(TPObjPtr(R^.RU_FBTR)));
+
       { Contrainte à réduire : terme à réduire = tête de la règle }
-      PushOneEquationToSolve(REL_EQUA,ClearT,Memory[RuleB+BT_TERM]);
+      Ss := NewSys;
+      E := NewEq(REL_EQUA,ClearT,RuleB^.BT_TERM);
+      InsertOneEqInSys(Ss,E);
+
       { new list of terms to clear: rule queue + previous terms but the first }
       B := RuleB;
-      While (NextTerm(B)<>NULL) Do
+      While (NextTerm(B)<>Nil) Do
         B := NextTerm(B);
-      Memory[B+BT_NEXT] := NextTerm(ClearB);
-      Memory[H+HH_FBCL] := NextTerm(RuleB);
-      Soluble := ReductionOk(H)
+      B^.BT_NEXT := NextTerm(ClearB);
+      H^.HH_FBCL := NextTerm(RuleB);
+
+      Solvable := ReduceSystem(Ss,True,H^.HH_REST);
+
+      FreeSys(Ss)
     End
   End;
 
@@ -558,34 +382,36 @@ End;
 { choix.                                                           }
 {------------------------------------------------------------------}
 
-  Procedure MoveBackward( Var H : Integer );
+  Procedure MoveBackward( Var H : HeadPtr );
   Begin
-    If Soluble Then
+    If Solvable Then
       WriteSolution;
     Backtracking(H,EndOfClock)
   End;
 
 Begin
   InitClock;
-  B := Memory[Q+QU_FBTR];
-  If B = NULL Then { no terms to clear in the query }
+  B := Q^.QU_FBTR;
+  If B = Nil Then { no terms to clear in the query }
   Begin
     WriteSolution;
     Exit
   End;
-  R := FirstCandidateRule(Memory[Q+QU_FRUL], B);
-  If R = NULL Then
+  R := FirstCandidateRule(Q^.QU_FRUL, B, isSys, isCut); 
+  If (R = Nil) And (Not isSys) And (Not isCut) Then
   Begin
     Exit
   End;
-  H := NewClockHeader(B,R,PtrRestore,PtrLeft,NULL,NO);
+  NewClockHeader(H,B,R,False,isSys,isCut);
   Repeat
     MoveForward(H);
-    If (Not Soluble) Or           { Système de contraintes non soluble }
-       (Memory[H+HH_FBCL] = NULL) { Plus de terme à effacer            }
+    If (Not Solvable) Or    { system has no solution }
+        (H^.HH_FBCL = Nil) { no more terms to clear }
     Then
       MoveBackward(H)
     Else
       FirstRule(H)
-  Until EndOfClock
+  Until EndOfClock;
+  FreeClockHeader(H);
+  GarbageCollector
 End;

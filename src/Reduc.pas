@@ -4,7 +4,7 @@
 {   File        : Reduc.pas                                                  }
 {   Author      : Christophe Bisière                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022                                                       }
+{   Updated     : 2023                                                       }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -38,17 +38,15 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-Function Reduce(      BreakIt       : Boolean;
-                  Var VarProd       : Integer;
-                      RightStopper  : Integer;
-                      Backtrackable : Boolean) : Boolean;
+Function Reduce(S : SysPtr;
+                      BreakIt       : Boolean;
+                  Var VarProd       : VarPtr;
+                      Backtrackable : Boolean;
+                  Var L : RestorePtr) : Boolean;
 
 Var
-  Possible    : Boolean;
-  Abnormal    : Boolean;
-  PtrLeftSave : Integer;
-  Z           : Integer;
-  F           : Integer;
+  Abnormal : Boolean;
+  Uf : RestorePtr; { to undo "f = g" equations in the reduced system }
 
         {---------------------------------------------------------}
         {                                                         }
@@ -59,18 +57,18 @@ Var
         {  Si s=t l'operation est finie, sinon trois cas se pre-  }
         {  sentent :                                              }
         {                                                         }
-        {      . L'un au moins des termes de "s" où "t" est une   }
+        {     (1) L'un au moins des termes de "s" où "t" est une   }
         {  variable ; on ajoute alors à "S" l'une des équations   }
         {  "s=t" où "t=s", pourvu que le membre gauche de l'équa- }
         {  tion ajoutée soit une variable ;                       }
         {                                                         }
-        {      . Les termes "s" et "t" sont respectivement de la  }
+        {    (2) Les termes "s" et "t" sont respectivement de la  }
         {  forme "f s1...sn" et "f t1...tn", avec "n>=1" ; On     }
         {  ajoute alors à "S" l'une des équations "s=t" ou "t=s"  }
         {  et l'on intercale, n'importe où dans "Z", la suite     }
         {  d'équations "s1=t1 ... sn=tn";                         }
         {                                                         }
-        {      . Les termes "s" et "t" sont respectivement de la  }
+        {    (3) Les termes "s" et "t" sont respectivement de la  }
         {  forme "f s1...sm" et "g t1...tn", "f" et "g" étant des }
         {  symboles fonctionnels distincts, avec "m>=1" et        }
         {  "n>=1"; dans ce seul cas le déroulement de l'opération }
@@ -80,156 +78,137 @@ Var
 
   Procedure BasicOperation;
   Var
-    Code : Integer;
-    Tg,Td : Integer;
+    E : EqPtr;
 
-    { Unification de deux termes }
+    { unify two terms }
+    Procedure Unify( Tg,Td : TermPtr );
+    Var 
+      T1,T2 : TermPtr;
+      F1,F2 : FuncPtr;
+      E : EqPtr;
 
-    Procedure Unify( Tg,Td : Integer );
-    Var T1,T2 : Integer;
-
-      { Calcul du représentant d'un terme }
-
-      Function Representant( T : Integer ) : Integer;
+      { representative of a term }
+      Function RepresentativeOf( T : TermPtr ) : TermPtr;
       Begin
-        If T = NULL Then
-          Representant := NULL
+        If T = Nil Then
+          RepresentativeOf := Nil
         Else
           Case TypeOfTerm(T) Of
           Constant :
-            Representant := T;
+            RepresentativeOf := T;
           Variable  :
-            If Memory[T+TV_IRED] = YES Then
-              Representant := Representant(Memory[T+TV_TRED])
+            If VarPtr(T)^.TV_TRED <> Nil Then
+              RepresentativeOf := RepresentativeOf(VarPtr(T)^.TV_TRED)
             Else
-              Representant := T;
+              RepresentativeOf := T;
           FuncSymbol  :
-            If Memory[T+TF_TRED] <> NULL Then
-              Representant := Representant(Memory[T+TF_TRED])
+            If FuncPtr(T)^.TF_TRED <> Nil Then
+              RepresentativeOf := RepresentativeOf(FuncPtr(T)^.TF_TRED)
             Else
-              Representant := T
+              RepresentativeOf := T
           End
       End;
 
-      { Are two terms two identical constants? }
-
-      Function AreTwoIdenticalConst( T1,T2 : Integer ) : Boolean;
-      Var Dif : Boolean;
+      { return true if T1 and T2 are equal }
+      Function SameTerms( T1,T2 : TermPtr ) : Boolean;
+      Var Same : Boolean;
       Begin
-        Dif := (TypeOfTerm(T1)<>Constant) Or (TypeOfTerm(T2)<>Constant);
-        If Not Dif Then
-          Dif := (Memory[T1+TC_CONS] <> Memory[T2+TC_CONS]);
-        AreTwoIdenticalConst := Not Dif
+        Same := T1 = T2;
+        If (Not Same) And (TypeOfTerm(T1)=Constant) And (TypeOfTerm(T2)=Constant) Then
+          Same := ConstPtr(T1)^.TC_CONS = ConstPtr(T2)^.TC_CONS;
+        SameTerms := Same
       End;
 
-      { Créer une équation, de forme T1 = T2, dans le système réduit }
-
-      Procedure CreateLiaison( T1,T2 : Integer );
+      { swap two terms }
+      Procedure SwapTerms( Var T1, T2 : TermPtr );
+      Var Tmp : TermPtr;
       Begin
-        If TypeOfTerm(T1) = Variable Then
+        Tmp := T1;
+        T1 := T2;
+        T2 := Tmp
+      End;
+
+      { add an equation T1 = T2 in the reduced system }
+      Procedure CreateLiaison( V1 : VarPtr; T2 : TermPtr );
+      Begin
+        SetMem(L,Addr(V1^.TV_TRED),T2,Backtrackable);  { add v=t in the reduced system }
+
+        { step 2 of system solving is handled here}
+        If V1^.TV_FWAT <> Nil Then { x already watched a liaison }
         Begin
-          SetMem(T1+TV_IRED,YES,Backtrackable); { Une Equation }
-          SetMem(T1+TV_TRED,T2,Backtrackable);  { Liaison      }
-
-          { L'étape 2 de la résolution de système est traitée ici }
-
-          If Memory[T1+TV_IWAT] = YES Then { x surveillait déjà une liaison }
-          Begin
-            SetMem(T1+TV_IWAT,NO,Backtrackable);
-            PushEquationsToSolve(Memory[T1+TV_FWAT])
-          End
+          CopyAllEqInSys(S,V1^.TV_FWAT);
+          SetMem(L,Addr(V1^.TV_FWAT),Nil,Backtrackable)
         End
-        Else
-          Memory[T1+TF_TRED] := T2;
       End;
 
-      { Création d'une liaison dans le système réduit de la forme x = terme }
-
-      Procedure Production(T1,T2 : Integer);
+      { create a liaison "x = term" in the reduced system }
+      Procedure Production( V1 : VarPtr; T2 : TermPtr );
       Begin
-        If BreakIt Then  { Breaker la réduction si production x = terme }
-          VarProd := T1
+        If BreakIt Then  { break the reduction when a liaison "x = term" is created }
+          VarProd := V1
         Else
-          CreateLiaison(T1,T2)
+          CreateLiaison(V1,T2)
       End;
-
-      { Test de deux pointeurs }
-
-      Function Test( T1,T2 : Integer ) : Integer;
-      Begin
-        If (TypeOfTerm(T1) = Variable) Then
-          If (TypeOfTerm(T2) = Variable) Then
-            Test := 3  { Deux variables }
-          Else
-            Test := 1                          { Une seule variable }
-        Else
-          If (TypeOfTerm(T2) = Variable) Then
-            Test := 2  { Une seule variable }
-          Else
-            Test := 0                          { Pas de variable }
-      End;
-
 
     Begin     { Unify }
-      T1 := Representant(Tg);  { Représentant du premier terme  }
-      T2 := Representant(Td);  { Représentant du deuxième terme }
-      If (T1<>T2) And Not AreTwoIdenticalConst(T1,T2) Then { Deux termes dif }
-        Case Test(T1,T2) Of
-        0 :
-          If (TypeOfTerm(T1) = FuncSymbol)
-          And (TypeOfTerm(T2) = FuncSymbol) Then
+      T1 := RepresentativeOf(Tg);
+      T2 := RepresentativeOf(Td);
+      If Not SameTerms(T1,T2) Then 
+      Begin
+        { ordering: variables always first, and arbitrary order on variables (memory) }
+        If (TypeOfTerm(T2)=Variable) And Not ((TypeOfTerm(T1)=Variable) And (T1<T2)) Then
+          SwapTerms(T1,T2);
+
+        { left term is a variable, thus at least one of the terms is a variable (thanks to sorting) }
+        If (TypeOfTerm(T1)=Variable) Then
+        Begin
+          Production(VarPtr(T1),T2)
+        End
+        { two functional symbols }
+        Else If (TypeOfTerm(T1)=FuncSymbol) And (TypeOfTerm(T2)=FuncSymbol) Then
+        Begin
+          { for convenience }
+          F1 := FuncPtr(T1);
+          F2 := FuncPtr(T2);
+          { add "f = f" to the reduced system }
+          SetMem(Uf,Addr(F1^.TF_TRED),T2,Backtrackable);
+          { insert in the unreduced system l1=l2 and r1=r2 }
+          If (RightArg(F1) <> Nil) And (RightArg(F2) <> Nil) Then
           Begin
-            CreateLiaison(T1,T2);{ Créer l'équation ds le système réduit }
-            Push(T1);           { Sauve liaison terme = terme }
-            If (Memory[T1+TF_RTER] <> NULL) And (Memory[T2+TF_RTER] <> NULL) Then
-              PushOneEquationToSolve(REL_EQUA,Memory[T1+TF_RTER],
-                Memory[T2+TF_RTER] ); { Nouvelle équation  }
-            If (Memory[T1+TF_LTER] <> NULL) And (Memory[T2+TF_LTER] <> NULL) Then
-              PushOneEquationToSolve(REL_EQUA,Memory[T1+TF_LTER],
-                Memory[T2+TF_LTER] ); { Nouvelle équation  }
-          End
-          Else                     { Deux constantes différentes }
-            Abnormal := True;
-        1 :
-          Production(T1,T2);
-        2 :
-          Production(T2,T1);
-        3 :
+            E := NewEq(REL_EQUA,RightArg(F1),RightArg(F2));
+            InsertOneEqInSys(S,E)
+          End;
+          If (LeftArg(F1) <> Nil) And (LeftArg(F2) <> Nil) Then
           Begin
-            If T2 < T1 Then Swap(T1,T2); { Ordonne T1 et T2 }
-            Production(T1,T2)
+            E := NewEq(REL_EQUA,LeftArg(F1),LeftArg(F2));
+            InsertOneEqInSys(S,E)
           End
         End
-    End;      { End Unify }
+        Else
+        Begin
+          { cannot be unified }
+          Abnormal := True
+        End
+      End
+    End; { Unify }
 
-  Begin                          { BasicOperation }
-    PopEquationToSolve(Code,Tg,Td);
-    CheckCondition(Code=REL_EQUA,'Object of type REL_EQUA expected');
-    Unify(Tg,Td)
-  End;                           { End BasicOperation }
+  Begin { BasicOperation }
+    E := RemoveOneEqFromSys(S,REL_EQUA);
+    CheckCondition(E<>Nil,'Object of type REL_EQUA expected');
+    Unify(E^.EQ_LTER,E^.EQ_RTER);
+    FreeEq(E)
+  End; { BasicOperation }
 
-Begin
-  VarProd     := 0;
-  PtrLeftSave := PtrLeft;
-  Abnormal    := False;
-  Repeat
-    Possible := PtrRight <> RightStopper ;
-    SortEquationsToSolve(RightStopper); { Car étape 2 traitée ici }
-    If Possible Then
-    Begin
-      Z := TopEquationToSolve;
-      Possible := Memory[Z+ZZ_TYPE] = REL_EQUA
-    End;
-    If Possible Then
-      BasicOperation
-  Until Not(Possible) Or (Abnormal) Or (BreakIt And (VarProd<>0));
-  While (PtrLeft > PtrLeftSave) Do
-  Begin
-    F := Pop(F);
-    Memory[F+TF_TRED] := NULL; { Défait liaison }
-  End;
+Begin { Reduce }
+  VarProd := Nil;
+  Uf := Nil;
+  Abnormal := False;
+  While (Not Abnormal) And HasEqInSys(S,REL_EQUA) And Not (BreakIt And (VarProd<>Nil)) Do
+    BasicOperation;
+  { remove "f = f" equations from the reduced system }
+  Restore(Uf);
   Reduce := Not Abnormal;
-End;
+End; { Reduce }
 
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -245,8 +224,8 @@ End;
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-Function ReduceSystem; (* (RightStopper  : Integer;
-                       Backtrackable : Boolean ) : Boolean; *)
+Function ReduceSystem; (* (S : SysPtr;
+                       Backtrackable : Boolean; Var L : RestorePtr ) : Boolean; *)
 Var Fails : Boolean;
 
 {---------------------------------------------------------}
@@ -259,9 +238,9 @@ Var Fails : Boolean;
 {---------------------------------------------------------}
 
   Procedure Step1;
-  Var DummyVar : Integer;
+  Var DummyVar : VarPtr;
   Begin
-    If Not Reduce(False,DummyVar,RightStopper,Backtrackable) Then
+    If Not Reduce(S,False,DummyVar,Backtrackable,L) Then
       Fails := True
   End;
 
@@ -275,8 +254,7 @@ Var Fails : Boolean;
 {                                                         }
 {---------------------------------------------------------}
 
-{ L'étape 2 est actuellement rejetée dans la résolution d'équations }
-
+{ step 2 is handled in the equation reduction part }
   Procedure Step2;
   Begin
   End;
@@ -295,7 +273,7 @@ Var Fails : Boolean;
 {---------------------------------------------------------}
 
   Procedure Step3;
-  Var Possible, Abnormal   : Boolean;
+  Var Abnormal   : Boolean;
 
       {---------------------------------------------------------}
       {                                                         }
@@ -322,39 +300,43 @@ Var Fails : Boolean;
 
     Procedure BasicOperation;
       Var
-        Z            : Integer;
-        NewE, E      : Integer;
-        Tg,Td        : Integer;
-        VarProd      : Integer;
-        Stopper      : Integer;
+        NewE, E      : EqPtr;
+        Tg,Td        : TermPtr;
+        VarProd      : VarPtr;
         Ok           : Boolean;
+        Ss : SysPtr;
     Begin
-      Z := TopEquationToSolve;
-      CheckCondition(Memory[Z+ZZ_TYPE]=REL_INEQ,'Object of type REL_INEQ expected');
-      Memory[Z+ZZ_TYPE] := REL_EQUA; { Transforme dernière inéq. en éq. }
-      Tg := Memory[Z+ZZ_LTER];
-      Td := Memory[Z+ZZ_RTER];
-      Stopper := PtrRight + ZZ_length;      { Traite juste une équation }
-      Ok := Reduce(True,VarProd,Stopper,Backtrackable);
-      PtrRight := Stopper;
+      { extract from Z an inequation and transform it into an equation }
+      E := RemoveOneEqFromSys(S,REL_INEQ);
+      CheckCondition(E<>Nil,'Object of type REL_INEQ expected');
+      E^.EQ_TYPE := REL_EQUA;
+
+      Tg := E^.EQ_LTER;
+      Td := E^.EQ_RTER;
+
+      { put it into its own little system }
+      Ss := NewSys;
+      InsertOneEqInSys(Ss,E);
+      Ok := Reduce(Ss,True,VarProd,Backtrackable,L);
+      FreeSys(Ss);
+
       If Ok Then
       Begin
-        If VarProd<>0 Then
+        If VarProd<>Nil Then
         Begin
           NewE := PushEquation(REL_INEQ,Tg,Td);
-          { Note que la variable sureille cette inéquation }
-          If Memory[VarProd+TV_IWAT] = NO Then
+          { this variable now watches this inequation }
+          If VarProd^.TV_FWAT = Nil Then
           Begin
-            { première surveillance }
-            SetMem(VarProd+TV_IWAT,YES,Backtrackable);
-            SetMem(VarProd+TV_FWAT,NewE,Backtrackable)
+            { first watch }
+            SetMem(L,Addr(VarProd^.TV_FWAT),NewE,Backtrackable)
           End
           Else
           Begin
-            { ajout en fin de liste }
-            E := Memory[VarProd+TV_FWAT];
-            While(Memory[E+EQ_NEXT] <> NULL) Do E := Memory[E+EQ_NEXT];
-            SetMem(E+EQ_NEXT,NewE,Backtrackable)
+            { add a watch }
+            E := VarProd^.TV_FWAT;
+            While(E^.EQ_NEXT <> Nil) Do E := E^.EQ_NEXT;
+            SetMem(L,Addr(E^.EQ_NEXT),NewE,Backtrackable)
           End
         End
         Else
@@ -364,16 +346,12 @@ Var Fails : Boolean;
 
   Begin
     Abnormal := False;
-    Repeat
-      Possible := PtrRight <> RightStopper;
-      If Possible Then
-        BasicOperation
-    Until Not(Possible) Or Abnormal;
+    While HasEqInSys(S,REL_INEQ) And Not Abnormal Do
+      BasicOperation;
     Fails := Abnormal;
   End;
 
 Begin
-  SortEquationsToSolve( RightStopper );
   Fails := False;
   Step1;
   If Not Fails Then
@@ -381,6 +359,5 @@ Begin
     Step2;
     Step3
   End;
-  PtrRight := RightStopper;
-  ReduceSystem := Not Fails;
+  ReduceSystem := Not Fails
 End;

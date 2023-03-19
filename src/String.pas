@@ -1,32 +1,39 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   File        : TP3.pas                                                    }
+{   File        : Restore.pas                                                }
 {   Author      : Christophe Bisière                                         }
-{   Date        : 2022-09-17                                                 }
+{   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
-{         F R E E   P A S C A L   C O M P I L E R   C O M P A T              }
+{                                S T R I N G S                               }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-{ compatibility with Turbo Pascal 3.02 }
+Type AnyStr = String[254];
 
-Uses Crt;
-
-{ set out-of-memory detection }
-Procedure InitMalloc;
+Function LTrim( s : AnyStr ) : AnyStr;
+Var 
+  c,i : Byte;
+Label
+  Break;
 Begin
-  ReturnNilIfGrowHeapFails := True
+  c := 0;
+  For i := 1 to Length(s) Do
+    If s[i]=' ' Then
+      c := c + 1
+    Else
+      Goto Break;
+  Break: If c>0 Then
+    Delete(s,1,c);
+  LTrim := s
 End;
 
-{ allocate memory; return Nil if there is not enough memory }
-Function Malloc( size : Integer ) : Pointer;
-Var p : Pointer;
+Function RealToStr( r : Real; m : Byte ) : AnyStr;
+Var s : AnyStr;
 Begin
-  GetMem(p,size);
-  Malloc := p
+  Str(r:254:m,s);
+  RealToStr := LTrim(s);
 End;
-

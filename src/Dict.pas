@@ -4,7 +4,7 @@
 {   File        : Dict.pas                                                   }
 {   Author      : Christophe Bisière                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022                                                       }
+{   Updated     : 2023                                                       }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -16,35 +16,28 @@
 {$V-} { No strict type checking for strings. }
 
 Const
-  MaxConst     = 150;                      { Nombre max. de Cstes         }
-  MaxVar       = 150;                      { Nombre max. de Vars          }
-  MaxSizeConst = 40;                       { Taille max. d'une constante  }
-  MaxSizeIdent = 40;                       { Taille max. d'un ident       }
+  MaxConst     = 150; { maximum number of constants }
+  MaxVar       = 150; { maximum number of variables }
+  MaxSizeConst = 40;  { maximum length of a constant }
+  MaxSizeIdent = 40;  { maximum length of a variable identifier }
 
 Type
-  StrIdent   = String[MaxSizeIdent];           { Type chaîne Ident.       }
-  StrConst   = String[MaxSizeConst];           { Type chaîne Const.       }
-  TDictConst = Array[1..MaxConst] Of StrConst; { Type Dict. des Cstes     }
-  TDictVar   = Array[1..MaxVar]   Of           { Type Dict. des Vars      }
+  StrIdent   = String[MaxSizeIdent];
+  StrConst   = String[MaxSizeConst];
+  TDictConst = Array[1..MaxConst] Of StrConst; 
+  TDictVar   = Array[1..MaxVar] Of
     Record
-      Name : StrIdent;        { Nom de la variable           }
-      Ptr : Integer           { Pointe vers son allocation   }
+      Name : StrIdent; { variable name           }
+      Ptr : VarPtr     { pointer to the variable }
     End;
 
 Var
-  DictVar   : TDictVar;                    { Dictionnaire des variables    }
-  DictConst : TDictConst;                  { Dictionnaire des constantes   }
-  NbVar     : Integer;                     { Nombre de variables stockées  }
-  NbConst   : Integer;                     { Nombre de constantes stockées }
+  DictVar   : TDictVar;   { dictionary of variables     }
+  DictConst : TDictConst; { dictionary of constants     }
+  NbVar     : Integer;    { current number of variables }
+  NbConst   : Integer;    { current number of constants }
 
-{----------------------------------------------------------------------------}
-{ La fonction reçoit un identificateur de constante (identificateur          }
-{ ou entier) C. Elle recherche si C est déjà stocké dans le dictionnaire des }
-{ constantes DictConst. Si oui, elle retourne l'indice dans le dictionnaire  }
-{ où elle a trouvé cet identificateur. Sinon elle ajoute C au sommet du      }
-{ dictionnaire et retourne l'indice correspondant.                           }
-{----------------------------------------------------------------------------}
-
+{ look for a constant in the dictionary; append it if not found }
 Function IndexConst( C : StrConst ) : Integer;
 Var
   I,Po   : Integer;
@@ -72,23 +65,16 @@ Begin
   IndexConst := Po
 End;
 
-{----------------------------------------------------------------------------}
-{ La fonction Position retourne l'indice dans le dictionnaire des variables  }
-{ où est stocké l'identificateur Elt. La recherche ne se fait que dans une   }
-{ partie du dictionnaire : de Top à NbVar. Si la recherche échoue, la        }
-{ fonction retourne 0.                                                       }
-{----------------------------------------------------------------------------}
-
-Function Position( Top      : Integer;       { Début de la recherche         }
-                   Elt      : StrIdent       { Elément à chercher            }
-                  ) : Integer;               { Position si trouvé, 0 sinon   }
+{ return the index of a variable name in the dictionary, starting from position
+  Start; return 0 if the name is not found } 
+Function Position( Start  : Integer; Elt : StrIdent ) : Integer;
 Var
   I,Pos   : Integer;
   Found  : Boolean;
 Begin
-  Pos      := 0;
-  Found   := False;
-  I        := Top;
+  Pos := 0;
+  Found := False;
+  I := Start;
   While (I<=NbVar) And Not Found Do
   Begin
     If DictVar[I].Name = Elt Then
@@ -102,25 +88,55 @@ Begin
   Position := Pos
 End;
 
-{----------------------------------------------------------------------------}
-{ Ajoute un identificateur de variable dans le dictionnaire des variables    }
-{ DictVar.                                                                   }
-{----------------------------------------------------------------------------}
-
-Function NewVar( Nom : StrIdent; Adr : Integer ) : Integer;
+{ append a variable to the dictionary }
+Function AddVarToDict( VarName : StrIdent; Addr : VarPtr ) : Integer;
 Begin
   NbVar := NbVar + 1;
   CheckCondition(NbVar <= MaxVar,'Maximum number of variables reached');
-  DictVar[NbVar].Name := Nom;
-  DictVar[NbVar].Ptr := Adr;
-  NewVar := NbVar
+  DictVar[NbVar].Name := VarName;
+  DictVar[NbVar].Ptr := Addr;
+  AddVarToDict := NbVar
 End;
 
-{----------------------------------------------------------------------------}
-{ Retourne le pointeur de la variable stockée en position Pos dans DictVar.  }
-{----------------------------------------------------------------------------}
-
-Function GetVarPtr( Pos : Integer ) : Integer;
+{ return the variable stored at index Pos }
+Function GetVarPtr( Pos : Integer ) : VarPtr;
 Begin
   GetVarPtr := DictVar[Pos].Ptr
+End;
+
+
+{ create a new constant; 
+  return its index in the dictionary  }
+Function InstallConst( Ch : StrConst ) : ConstPtr;
+Var C : ConstPtr;
+Begin
+  C := NewConst;
+  With C^ Do
+  Begin
+    TC_CONS := IndexConst(Ch)
+  End;
+  InstallConst := C
+End;
+
+
+{ create a variable if it does not exist in the current rule yet; 
+  return its index in the dictionary }
+Function InstallVariable( Ch : StrIdent; Start : Integer ) : VarPtr;
+Var
+  V : VarPtr;
+  PosInDictVar : Integer;
+Begin
+  PosInDictVar := Position(Start,Ch);
+  If PosInDictVar = 0 Then
+  Begin
+    V := NewVar;
+    With V^ Do
+    Begin
+      PosInDictVar := AddVarToDict(Ch,V);
+      TV_NVAR := PosInDictVar
+    End;
+    InstallVariable := V
+  End
+  Else
+    InstallVariable := GetVarPtr(PosInDictVar)
 End;

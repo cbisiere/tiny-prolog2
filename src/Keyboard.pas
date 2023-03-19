@@ -15,7 +15,7 @@
 {----------------------------------------------------------------------------}
 { Read a character from the keyboard.                                        }
 { It is assumed that a character made of several bytes will be send quickly, }
-{ at least faster than a humain can type.                                    }
+{ at least faster than a human can type.                                     }
 {----------------------------------------------------------------------------}
 
 Function ReadChar : AnyStr;
@@ -51,7 +51,7 @@ Begin
 End;
 
 {----------------------------------------------------------------------------}
-{ Append a possibly multibyte char to a TString.                             }
+{ Append a possibly multi-byte char to a TString.                            }
 {----------------------------------------------------------------------------}
 
 Procedure PushCharToString( Var S : TString; cc : AnyStr );
@@ -76,7 +76,7 @@ Begin
 End;
 
 {----------------------------------------------------------------------------}
-{ Delete the last possibly multibyte char from a TString                     }
+{ Delete the last possibly multi-byte char from a TString                    }
 {----------------------------------------------------------------------------}
 
 Procedure PopCharFromString( Var S : TString );
@@ -118,7 +118,7 @@ End;
 
 Const
   MaxHist = 10;
-  MaxHistPlusOne = 11; { TP3 compat }
+  MaxHistPlusOne = 11; { TP3 compatibility }
 
 Type
   THIndex = 1..MaxHist;
@@ -149,7 +149,7 @@ Var j : THIndex;
 Begin
   If H.Len < MaxHist Then
     H.Len := H.Len + 1;
-  For j := H.Len Downto 2 Do
+  For j := H.Len DownTo 2 Do
     H.Str[j] := H.Str[j-1];
   H.Str[1] := S;
   H.Cur := 0
@@ -162,12 +162,12 @@ End;
 Procedure DumpHistory( H : THistory );
 Var j : THIndex;
 Begin
-  Writeln('Len=',H.len,' Cur=',H.Cur);
+  WriteLn('Len=',H.len,' Cur=',H.Cur);
   For j := 1 to H.Len Do
   Begin
     Write(j,': ');
     DumpString(H.Str[j]);
-    Writeln;
+    WriteLn;
   End
 End;
 
@@ -195,7 +195,7 @@ End;
 { Read one line from the keyboard                                            }
 {----------------------------------------------------------------------------}
 
-Procedure ReadlnKbd( Var str : AnyStr );
+Procedure ReadLnKbd( Var str : AnyStr );
 Var
   Inp : TString;
   cc : AnyStr;
@@ -264,14 +264,14 @@ Begin
         Backspace;
       #13: { Return }
         Begin
-          Writeln;
+          WriteLn;
           If Inp.Len > 0 Then
             PushToHistory(Hist, Inp);
           Stop := True
         End;
       #3: { Ctrl-C }
         Begin
-          Writeln;
+          WriteLn;
           ResetString(Inp);
           PushStringToString(Inp, 'quit;');
           Stop := True;

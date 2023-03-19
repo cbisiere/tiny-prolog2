@@ -4,7 +4,7 @@
 {   File        : Main.pas                                                   }
 {   Author      : Christophe Bisière                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022                                                       }
+{   Updated     : 2023                                                       }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -20,59 +20,64 @@
 
 {$I TP3.pas     }  { TP3.pas: Turbo Pascal 3; FPC.pas: Free Pascal Compiler }
 
-{$I Memory.pas  }  { Module : Gestion de la mémoire principale   }
-{$I Dict.pas    }  { Module : Gestion des dictionnaires          }
-{$I Restore.pas }  { Module : Gestion de la pile de restauration }
-{$I Keyboard.pas}  { Module : Read from keyboard w/ history      }
-{$I Input.pas   }  { Module : Lecture du flot d'entrée           }
-{$I Parse.pas   }  { Module : Codage des objets                  }
-{$I Unparse.pas }  { Module : Décodage des objets                }
-{$I Reduc.pas   }  { Module : Algorithme de réduction            }
-{$I Clock.pas   }  { Module : L'horloge Prolog                   }
-{$I Run.pas     }  { Module : Load rules and execute queries     }
-{$I Sys.pas     }  { Module : System calls                       }
+{$I String.pas }  { restore stack }
 
-{$I Init.pas    }  { Module : Initialisations                    }
-{$I Debug.pas }
+Procedure DumpState; Forward;
+Procedure DumpBacktrace; Forward;
+Procedure CheckCondition( Cond : Boolean; Message : AnyStr ); Forward;
 
-{----------------------------------------------------------------------------}
-{ Réinitialise la machine Prolog.                                            }
-{----------------------------------------------------------------------------}
+{$I Memory.pas   }  { memory management: GC, cloning...           }
+{$I Restore.pas  }  { restore stack                               }
+{$I PObj.pas     }  { Prolog objects: common definitions          }
+{$I PObjEq.pas   }  { Prolog objects: (in)equations, system       }
+{$I PObjTerm.pas }  { Prolog objects: terms                       }
+{$I Dict.pas     }  { dictionaries: variables, constants          }
+{$I PObjProg.pas }  { Prolog objects: program, rules, queries     }
+{$I Keyboard.pas }  { read from keyboard w/ history               }
+{$I Input.pas    }  { read the input flow                         }
+{$I Unparse.pas  }  { decode objects                              }
+{$I Parse.pas    }  { encode objects                              }
+{$I Reduc.pas    }  { system reduction                            }
+{$I Clock.pas    }  { Prolog clock                                }
+{$I Run.pas      }  { load rules and execute queries              }
+{$I Sys.pas      }  { system calls                                }
 
-Function ResetMachine : Integer;
-Var P : Integer;
+{$I Init.pas     }  { Module : Initializations                    }
+{$I Debug.pas    }
+
+{ reset the Prolog engine }
+Function ResetMachine : ProgPtr;
+Var P : ProgPtr;
 Begin
   Initialisation;
-  P := CreateEmptyProgram;
+  P := NewProgram;
   InstallPredefinedConstants;
   ResetMachine := P
 End;
 
-{----------------------------------------------------------------------------}
-{ Code le programme utilisateur et lance l'interpréteur Prolog sur chaque    }
-{ question posée.                                                            }
-{----------------------------------------------------------------------------}
-
+{ compile the user program and solve each query }
 Procedure Main;
 var
-  P : Integer;      { Adresse du programme }
-  Q : Integer;      { Adresse de la question }
+  P : ProgPtr;
+  Q : QueryPtr;
   FileName : AnyStr;
 Begin
+  MMInit;
   P := ResetMachine;
+  AddGCRoot(TPObjPtr(P));
   LoadProgram(P,'start.pro',RTYPE_AUTO);
   If ParamCount = 1 Then
   Begin
     FileName := ParamStr(1);
     LoadProgram(P,FileName,RTYPE_USER);
     if Not Error Then
-      Writeln('Program "' + FileName + '" loaded')
+      WriteLn('Program "' + FileName + '" loaded')
   End;
   InitHistory;
   Repeat
     Error := False;
     Write('> ');
-    LireCommande;
+    ReadCommand;
     Q := CompileCommandLineQueries(P);
     If Not Error Then
       AnswerQueries(P,Q);
@@ -80,10 +85,7 @@ Begin
   Until False
 End;
 
-{----------------------------------------------------------------------------}
-{ Programme Principal;                                                       }
-{----------------------------------------------------------------------------}
-
+{ main }
 Begin
   Main
 End.

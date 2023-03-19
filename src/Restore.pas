@@ -4,7 +4,7 @@
 {   File        : Restore.pas                                                }
 {   Author      : Christophe Bisière                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022                                                       }
+{   Updated     : 2023                                                       }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -15,59 +15,56 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-Const MaxSizeRestore = 1000;                   { Taille pile de restauration }
-
-Var PileRestore : Array[1..MaxSizeRestore] Of  { Pile de restauration        }
-  Record
-    Ad    : Integer;                       { Sauve adresse               }
-    Value : Integer                        { Sauve valeur                }
+{ list of (addr, value) elements, where addr and value are pointers }
+Type
+  TRVal = Pointer; { a value to restore }
+  TRAddr = ^TRVal; { an address where to store or restore a value }
+  RestorePtr = ^TObjRestore;
+  TObjRestore = Record
+    RE_ADDR : TRAddr; { address of the pointer value }
+    RE_PVAL : TRVal; { backup of the pointer value }
+    RE_NEXT : RestorePtr
   End;
 
-Var PtrRestore : Integer;                      { Sommet de la pile           }
-
-{----------------------------------------------------------------------------}
-{ Initialise la pile de restauration (pile vide).                            }
-{----------------------------------------------------------------------------}
-
-Procedure InitRestore;
+Procedure FreeRestore( Var U : RestorePtr );
 Begin
-  PtrRestore := 0
+  FreeMemory(RE, U,SizeOf(TObjRestore))
 End;
 
-{----------------------------------------------------------------------------}
-{ Met un doublet (Adresse,Valeur) au sommet de la pile de restauration.      }
-{----------------------------------------------------------------------------}
-
-Procedure PushRestore( A,V : Integer );
+Procedure NewRestore( Var U : RestorePtr );
 Begin
-  PtrRestore := PtrRestore + 1;
-  CheckCondition(PtrRestore <= MaxSizeRestore,'Maximum number of restore addresses reached');
-  PileRestore[PtrRestore].Ad    := A;
-  PileRestore[PtrRestore].Value := V
+  GetMemory(RE, U,SizeOf(TObjRestore))
 End;
 
-{----------------------------------------------------------------------------}
-{ Affecte la case A du tableau mémoire avec la valeur V, en sauvant          }
-{ si demandé préalablement l'ancienne valeur de la case A dans la pile de    }
-{ restauration.                                                              }
-{----------------------------------------------------------------------------}
 
-Procedure SetMem( A,V : Integer; Backtrackable : Boolean);
+Procedure PushRestore( Var U : RestorePtr; p : TRAddr; V : TRVal );
+Var NewU : RestorePtr;
 Begin
-  If Backtrackable Then PushRestore(A,Memory[A]);
-  Memory[A] := V
-End;
-
-{----------------------------------------------------------------------------}
-{ Restaure le tableau mémoire en utilisant tous les couples (A,Val),         }
-{ du sommet de la pile de restauration à A+1.                                }
-{----------------------------------------------------------------------------}
-
-Procedure Restore( A : Integer);
-Begin
-  While PtrRestore > A Do
+  NewRestore(NewU);
+  With NewU^ Do
   Begin
-    Memory[PileRestore[PtrRestore].Ad] := PileRestore[PtrRestore].Value;
-    PtrRestore := PtrRestore - 1
-  End
+    RE_ADDR := p;
+    RE_PVAL := V;
+    RE_NEXT := U
+  End;
+  U := NewU
+End;
+
+
+Procedure SetMem( Var U : RestorePtr; p : TRAddr; V : TRVal; Backtrackable : Boolean);
+Begin
+  If Backtrackable Then 
+    PushRestore(U,p,p^);
+  p^ := V
+End;
+
+Procedure Restore( Var U : RestorePtr );
+Begin
+  If U <> Nil Then
+    With U^ Do
+    Begin
+      Restore(RE_NEXT);
+      RE_ADDR^ := RE_PVAL;
+      FreeRestore(U)
+    End
 End;
