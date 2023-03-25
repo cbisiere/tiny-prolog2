@@ -19,13 +19,28 @@
 { types                                                                 }
 {-----------------------------------------------------------------------}
 
-{ constant: identifier, number or string  }
+Const
+  MaxSizeConst = 40;  { maximum length of a constant }
+
+Type
+  StrConst   = String[MaxSizeConst];
+
+{ constant: identifier, number or string; list of constants  }
 Type 
-  ConstPtr = ^TObjConst;
+  ConstPtr = ^TObjConst; { term: constant }
+  DictConstPtr = ^TObjDictConst; { list of unique constant values }
+
   TObjConst = Record
     PO_META : TObjMeta;
-    TC_CONS : Integer { index in the dictionary }
+    TC_DCON : DictConstPtr
   End;
+
+  TObjDictConst = Record
+    DC_META : TObjMeta;
+    DC_NEXT : DictConstPtr;
+    DC_CVAL : StrConst
+  End;
+
 
 { binary functional symbol }
 Type 
@@ -36,6 +51,7 @@ Type
     TF_LTER : TermPtr; { left term }
     TF_RTER : TermPtr { right term }
   End;
+
 
 { variable }
 Type 
@@ -58,12 +74,27 @@ Var
   C : ConstPtr;
   ptr : TPObjPtr Absolute C;
 Begin
-  ptr := NewPrologObject(CO, SizeOf(TObjConst), 0);
+  ptr := NewPrologObject(CO, SizeOf(TObjConst), 1, 0);
   With C^ Do
   Begin
-    TC_CONS := 0
+    TC_DCON := Nil
   End;
   NewConst := C
+End;
+
+{ create a new constant value object }
+Function NewConstValue : DictConstPtr;
+Var 
+  C : DictConstPtr;
+  ptr : TPObjPtr Absolute C;
+Begin
+  ptr := NewPrologObject(CV, SizeOf(TObjDictConst), 1, 0);
+  With C^ Do
+  Begin
+    DC_NEXT := Nil;
+    DC_CVAL := ''
+  End;
+  NewConstValue := C
 End;
 
 { create a new variable }
@@ -72,7 +103,7 @@ Var
   V : VarPtr;
   ptr : TPObjPtr Absolute V;
 Begin
-  ptr := NewPrologObject(VA, SizeOf(TObjVar), 2);
+  ptr := NewPrologObject(VA, SizeOf(TObjVar), 2, 2);
   With V^ Do
   Begin
     TV_NVAR := 0;
@@ -88,7 +119,7 @@ Var
   F : FuncPtr;
   ptr : TPObjPtr Absolute F;
 Begin
-  ptr := NewPrologObject(FU, SizeOf(TObjFunc), 3);
+  ptr := NewPrologObject(FU, SizeOf(TObjFunc), 3, 3);
   With F^ Do
   Begin
     TF_TRED := Nil;
@@ -195,7 +226,44 @@ Begin
 End;
 
 
+{ look in a list for a constant value; append it to the list if not found;
+  return a pointer to the list entry }
+Function LookupConst( Var list : DictConstPtr; str : StrConst ) : DictConstPtr;
+Var
+  e : DictConstPtr;
+  Found : Boolean;
+Begin
+  e := list;
+  Found := False;
+  While (e<>Nil) And Not Found Do
+  Begin
+    If e^.DC_CVAL = str Then
+      Found := True
+    Else
+      e := e^.DC_NEXT
+  End;
+  If Not Found Then
+  Begin
+    e := NewConstValue;
+    With e^ Do
+    Begin
+      DC_CVAL := str;
+      DC_NEXT := list
+    End;
+    list := e
+  End;
+  LookupConst := e
+End;
 
 
-
-
+{ create a new constant }
+Function InstallConst( Var list : DictConstPtr; Ch : StrConst ) : ConstPtr;
+Var C : ConstPtr;
+Begin
+  C := NewConst;
+  With C^ Do
+  Begin
+    TC_DCON := LookupConst(list,Ch)
+  End;
+  InstallConst := C
+End;

@@ -126,7 +126,7 @@ Var
       Begin
         Same := T1 = T2;
         If (Not Same) And (TypeOfTerm(T1)=Constant) And (TypeOfTerm(T2)=Constant) Then
-          Same := CT1^.TC_CONS = CT2^.TC_CONS;
+          Same := CT1^.TC_DCON = CT2^.TC_DCON;
         SameTerms := Same
       End;
 

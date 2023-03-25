@@ -51,7 +51,7 @@ Var P : ProgPtr;
 Begin
   Initialisation;
   P := NewProgram;
-  InstallPredefinedConstants;
+  InstallPredefinedConstants(P);
   ResetMachine := P
 End;
 

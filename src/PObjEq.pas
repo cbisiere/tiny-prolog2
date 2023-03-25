@@ -50,7 +50,7 @@ Var
   ptr : TPObjPtr Absolute E;
 Begin
   CheckCondition((Code=REL_EQUA) Or (Code=REL_INEQ), 'Unknown relation');
-  ptr := NewPrologObject(EQ, SizeOf(TObjEq), 3);
+  ptr := NewPrologObject(EQ, SizeOf(TObjEq), 3, 3);
   With E^ Do
   Begin
     EQ_TYPE := Code;

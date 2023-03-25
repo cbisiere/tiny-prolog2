@@ -22,7 +22,7 @@
 
 { type of allocated objects; note that SY, EQ, HE, RE are not managed by GC }
 Type
-  TypePrologObj = (PR, RU, QU, SY, EQ, BT, CO, FU, VA, HE, RE);
+  TypePrologObj = (PR, RU, QU, SY, EQ, BT, CO, FU, VA, CV, HE, RE);
 
 Var 
   mem : Real; { total number of bytes allocated }
@@ -132,11 +132,12 @@ Type
     PO_TYPE : TypePrologObj; { type of object }
     PO_GUID : LongInt;       { Prolog object globally unique identifier (for convenience and sorting) }
     PO_SIZE : Integer;       { size in bytes (including metadata) }
-    PO_NPTR : Byte;          { number of pointer fields (which must immediately follow) }
+    PO_NPTR : Byte;          { number of PObject pointers (which must immediately follow the metadata) }
     { deep copy }
     PO_DEEP : Boolean;       { has been visited during the current deep copy operation }
     PO_COPY : TPObjPtr;      { pointer to a copy made during a deep copy }
     PO_NCOP : Integer;       { copy number - FIXME: may overflow }
+    PO_NDEE : Byte;          { number of PObject pointers to deep copy (must be less of equal to PO_NPTR) }
     { garbage collection }
     PO_MARK : TypeMark;      { GC mark }
     PO_NEXT : TPObjPtr       { GC list of allocated objects }
@@ -322,8 +323,10 @@ End;
 { new / copy                                                                 }
 {----------------------------------------------------------------------------}
 
-{ allocate a Prolog object of size s }
-Function NewPrologObject( t : TypePrologObj; s : Integer; n : Byte ) : TPObjPtr;
+{ allocate a Prolog object of size s; metadata are followed by n Prolog child object
+  pointers; the first d child objects of these n are copied when the object is
+  deep copied }
+Function NewPrologObject( t : TypePrologObj; s : Integer; n,d : Byte ) : TPObjPtr;
 Var 
   p : TPObjPtr;
   ptr : Pointer Absolute p;
@@ -338,7 +341,8 @@ Begin
     { deep copy metadata: }
     PO_DEEP := False;
     PO_COPY := Nil;
-    PO_NCOP := 0
+    PO_NCOP := 0;
+    PO_NDEE := d
   End;
   RegisterObject(p);
   NewPrologObject := p
@@ -360,7 +364,7 @@ Begin
   With p^.PO_META Do { memory copy }
   Begin
     GetMemory(PO_TYPE,ptr,PO_SIZE); 
-    Move(p^,pc^,PO_SIZE)
+    Move(p^,pc^,PO_SIZE) { copy the memory blindly }
   End;
   RegisterObject(pc);
   With pc^.PO_META Do { new object is a copy }
@@ -401,7 +405,7 @@ Begin
         pc := CopyObject(p);
         With pc^ Do
         Begin
-          For i := 1 To PO_META.PO_NPTR Do
+          For i := 1 To PO_META.PO_NDEE Do
             PO_PTRS[i] := DeepCopyObject(PO_PTRS[i])
         End
       End
@@ -422,7 +426,7 @@ Begin
       Begin
         PO_DEEP := False;
         PO_COPY := Nil;
-        For i := 1 To PO_NPTR Do
+        For i := 1 To PO_NDEE Do
           PrepareDeepCopy(p^.PO_PTRS[i])
       End
     End

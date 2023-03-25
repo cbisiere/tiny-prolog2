@@ -149,7 +149,7 @@ Var
     Ok := (T1=T2) Or (T1=Nil) Or (T2=Nil);
     If Not Ok Then
       If (TypeOfTerm(T1)=Constant) And (TypeOfTerm(T2)=Constant) Then
-        Ok := CT1^.TC_CONS = CT2^.TC_CONS;
+        Ok := CT1^.TC_DCON = CT2^.TC_DCON;
     Unifiable := Ok
   End;
 
@@ -185,7 +185,7 @@ Var
       C1 := AccessTerm(B);
       If TypeOfTerm(TC1) = Constant Then { FIXME: if it is not a constant: the query is a variable "x" -- do we want to handle this?}
       Begin
-        ConstVal := DictConst[C1^.TC_CONS];
+        ConstVal := C1^.TC_DCON^.DC_CVAL;
         If ConstVal = 'SYSCALL' Then
         Begin
           isSys := True;

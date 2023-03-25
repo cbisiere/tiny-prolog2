@@ -20,6 +20,5 @@ Begin
   FileIsOpen  := False;                { Le Fichier est Fermé        }
   Error    := False;                   { Il n'y a pas d'erreur       }
   PtrIn    := 0;                       { Init Pointeur Buffer        }
-  NbVar    := 0;                       { DictVar vide                }
-  NbConst  := 0;                       { DictConst vide              }
+  NbVar    := 0                        { DictVar vide                }
 End;

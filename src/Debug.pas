@@ -146,14 +146,15 @@ End;
 { Affiche le dictionnaire des constantes.                                    }
 {----------------------------------------------------------------------------}
 
-Procedure DumpDictConst;
-Var K : Integer;
+Procedure DumpDictConst( P : ProgPtr );
+Var e : DictConstPtr;
 Begin
-  If NbConst > 0 Then
+  WriteLn('Constants:');
+  e := P^.PP_DCON;
+  while (e<>Nil) Do
   Begin
-    WriteLn('Constants:');
-    For K := 1 To NbConst Do
-      WriteLn(K:4,': ',DictConst[K])
+    WriteLn(e^.DC_CVAL);
+    e := e^.DC_NEXT
   End
 End;
 
@@ -164,18 +165,17 @@ End;
 Procedure DumpState;
 Begin
   WriteLn('NbVar = ',NbVar);
-  WriteLn('NbConst = ',NbConst);
 End;
 
 {----------------------------------------------------------------------------}
 { Affiche l'état complet de la machine Prolog.                               }
 {----------------------------------------------------------------------------}
 
-Procedure CoreDump( Message : AnyStr; Trace : Boolean );
+Procedure CoreDump( P : ProgPtr; Message : AnyStr; Trace : Boolean );
 Begin
   WriteLn('Begin Core Dump: "',Message,'"');
   DumpState;
-  DumpDictConst;
+  DumpDictConst(P);
   DumpDictVar;
   If Trace Then
     DumpBacktrace;

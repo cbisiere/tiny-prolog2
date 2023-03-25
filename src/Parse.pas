@@ -38,21 +38,21 @@ Function ReduceSystem( S : SysPtr; Backtrackable : Boolean; Var L : RestorePtr) 
 {-----------------------------------------------------------------------}
 
 { read a term, possibly accepting a cut as a valid term }
-Function ReadOneTerm( Cut : Boolean) : TermPtr; Forward;
+Function ReadOneTerm( P : ProgPtr; Cut : Boolean) : TermPtr; Forward;
 
 { read the argument of a predicate (EndChar=')') or a tuple (EndChar='>') }
-Function GetArgument( EndChar : Char ) : FuncPtr;
+Function GetArgument( P : ProgPtr; EndChar : Char ) : FuncPtr;
 Var
   T : TermPtr;
   c : Char;
   F : FuncPtr;
   TF : TermPtr Absolute F;
 Begin
-  T := ReadOneTerm(False);
+  T := ReadOneTerm(P,False);
   c := GetCharNb(c);
   If c =  ',' Then
   Begin
-    F := GetArgument(EndChar);
+    F := GetArgument(P,EndChar);
     GetArgument := NewSymbol(T,TF)
   End
   Else
@@ -102,7 +102,7 @@ Begin
 End;
 
 { read a term, possibly accepting a cut as a valid term }
-Function ReadOneTerm; (* ( Cut : Boolean ) : TermPtr *)
+Function ReadOneTerm; (* ( P : ProgPtr; Cut : Boolean ) : TermPtr *)
 Var
   T : TermPtr;
   C : ConstPtr;
@@ -129,35 +129,35 @@ Begin
       If c1 In Digits Then     { an integer }
       Begin
         GetCharWhile(Ch,Digits);
-        C := InstallConst(Ch);
+        C := InstallConst(P^.PP_DCON,Ch);
         T := TC
       End
       Else
       If c1 ='(' Then          { ( <term> ) }
       Begin
         c1 := GetChar(c1);
-        T := ReadOneTerm(False);
+        T := ReadOneTerm(P,False);
         Verify(')')
       End
       Else
       If c1 = '<' Then        { a tuple }
       Begin
         c1 := GetChar(c1);
-        F := GetArgument('>');
+        F := GetArgument(P,'>');
         T := TF
       End
       Else
       If c1 = '"' Then        { a string }
       Begin
         Ch := ReadString;
-        C := InstallConst(Ch);
+        C := InstallConst(P^.PP_DCON,Ch);
         T := TC
       End
       Else
       If Cut and (c1 In ['!','/']) Then    { the "cut" }
       Begin
         c1 := GetChar(c1);
-        C := InstallConst('!');
+        C := InstallConst(P^.PP_DCON,'!');
         T := TC
       End
       Else
@@ -182,14 +182,14 @@ Begin
       If NextChar(c1) = '(' Then { a predicate }
       Begin
         c1 := GetChar(c1);
-        C := InstallConst(Ch);
-        F := GetArgument(')');
+        C := InstallConst(P^.PP_DCON,Ch);
+        F := GetArgument(P,')');
         F2 := NewSymbol(TC,TF);
         T := TF2
       End
       Else
       Begin { a constant }
-        C := InstallConst(Ch);
+        C := InstallConst(P^.PP_DCON,Ch);
         T := TC
       End
     End
@@ -198,8 +198,8 @@ Begin
   If c1 = '.' Then    { a list element }
   Begin
     c1 := GetChar(c1);
-    C := InstallConst('.');
-    F := NewSymbol(ReadOneTerm(False),Nil); { q: new term }
+    C := InstallConst(P^.PP_DCON,'.');
+    F := NewSymbol(ReadOneTerm(P,False),Nil); { q: new term }
     F2 := NewSymbol(T,TF); { t: term read above }
     F3 := NewSymbol(TC,TF2); { t.q }
     T := TF3
@@ -208,7 +208,7 @@ Begin
 End;
 
 { read an equations or a inequation }
-Function ReadEquation : EqPtr;
+Function ReadEquation( P : ProgPtr ) : EqPtr;
 Var
   E : EqPtr;
   T1, T2 : TermPtr;
@@ -216,7 +216,7 @@ Var
   c : Char;
 Begin
   E := Nil;
-  T1 := ReadOneTerm(False);
+  T1 := ReadOneTerm(P,False);
   If Not Error Then
   Begin
     c := GetCharNb(c);
@@ -233,14 +233,14 @@ Begin
     End
   End;
   If Not Error Then
-    T2 := ReadOneTerm(False);  { right term }
+    T2 := ReadOneTerm(P,False);  { right term }
   If Not Error Then
     E := PushEquation(Code,T1,T2);
   ReadEquation := E
 End;
 
 { read a system of equations or inequations }
-Function ReadSystem : EqPtr;
+Function ReadSystem( P : ProgPtr ) : EqPtr;
 Var
   E, FirstE, PrevE : EqPtr;
   First : Boolean;
@@ -253,7 +253,7 @@ Begin
   Begin
     First := True;
     Repeat
-      E := ReadEquation;
+      E := ReadEquation(P);
       If First Then
       Begin
         FirstE := E;
@@ -271,13 +271,13 @@ End;
 { compile and reduce a system; equations in the reduced system are encoded
   within the variables; inequations in the reduced system are encoded 
   as a list of inequations }
-Function CompileSystem : EqPtr;
+Function CompileSystem( P : ProgPtr ) : EqPtr;
 Var
   E : EqPtr;
   S : SysPtr;
   U : RestorePtr;
 Begin
-  E := ReadSystem;
+  E := ReadSystem(P);
   If Not Error Then
   Begin
 
@@ -293,20 +293,20 @@ Begin
 End;
 
 { compile a term }
-Function CompileOneTerm( Cut : Boolean ) : BTermPtr;
+Function CompileOneTerm( P : ProgPtr; Cut : Boolean ) : BTermPtr;
 Var B : BTermPtr;
 Begin
   B := NewBTerm;
   With B^ Do
   Begin
-    BT_TERM := ReadOneTerm(Cut);
+    BT_TERM := ReadOneTerm(P,Cut);
     BT_CONS := Access(BT_TERM)
   End;
   CompileOneTerm := B
 End;
 
 { compile a sequence of terms, stopping at a char in StopChars  }
-Function CompileTerms( StopChars : CharSet ) : BTermPtr;
+Function CompileTerms( P : ProgPtr; StopChars : CharSet ) : BTermPtr;
 Var
   B : BTermPtr;
   c : Char;
@@ -317,9 +317,9 @@ Begin
     B := NewBTerm;
     With B^ Do
     Begin
-      BT_TERM := ReadOneTerm(True);
+      BT_TERM := ReadOneTerm(P,True);
       BT_CONS := Access(BT_TERM);
-      BT_NEXT := CompileTerms(StopChars)
+      BT_NEXT := CompileTerms(P,StopChars)
     End
   End
   Else
@@ -328,7 +328,7 @@ Begin
 End;
 
 { compile a rule }
-Procedure CompileOneRule( R : RulePtr );
+Procedure CompileOneRule( P : ProgPtr; R : RulePtr );
 Var 
   B : BTermPtr;
   E : EqPtr;
@@ -340,16 +340,16 @@ Begin
   Begin
     RU_FVAR := NbVar + 1;
     RU_SYST := Nil;
-    B := CompileOneTerm(False); { head }
+    B := CompileOneTerm(P,False); { head }
     RU_FBTR := B;
     Verify('->');
     If Not Error Then
     Begin
-      B^.BT_NEXT := CompileTerms(['{',';',EndOfInput]);
+      B^.BT_NEXT := CompileTerms(P,['{',';',EndOfInput]);
       c := NextCharNb(c);
       If c = '{' Then
       Begin
-        E := CompileSystem; { WARNING: MAY ADD THINGS }
+        E := CompileSystem(P); { WARNING: MAY ADD THINGS }
         RU_SYST := E 
       End;
       Verify(';');
@@ -360,7 +360,7 @@ Begin
 End;
 
 { compile a sequence of rules, stopping at a char in StopChars  }
-Function CompileRules( StopChars : CharSet; RuleType : RuType ) : RulePtr;
+Function CompileRules( P : ProgPtr; StopChars : CharSet; RuleType : RuType ) : RulePtr;
 Var
   R : RulePtr;
   c : Char;
@@ -369,8 +369,8 @@ Begin
   If (Not (c In StopChars)) And (Not Error) Then
   Begin
     R := NewRule(RuleType);
-    CompileOneRule(R);
-    R^.RU_NEXT := CompileRules(StopChars,RuleType)
+    CompileOneRule(P,R);
+    R^.RU_NEXT := CompileRules(P,StopChars,RuleType)
   End
   Else
     R := Nil;
@@ -378,7 +378,7 @@ Begin
 End;
 
 { compile a query; reduce the system iif any }
-Procedure CompileOneQuery( Q : QueryPtr );
+Procedure CompileOneQuery( P : ProgPtr; Q : QueryPtr );
 Var
   E : EqPtr;
   c : Char;
@@ -390,13 +390,12 @@ Begin
     QU_FRUL := Nil;
     QU_LRUL := Nil;
     QU_FVAR := NbVar + 1;
-    QU_FCON := NbConst + 1;
-    QU_FBTR := CompileTerms(['{',';',EndOfInput]);
+    QU_FBTR := CompileTerms(P,['{',';',EndOfInput]);
     QU_SYST := Nil;
     c := NextCharNb(c);
     If c = '{' Then
     Begin
-      E := CompileSystem;
+      E := CompileSystem(P);
       QU_SYST := E { WARNING: MAY ADD THINGS }
     End;
     Verify(';');
@@ -421,8 +420,8 @@ Begin
   Begin
     If WithArrow Then
       Verify('->');
-    ptr := NewPrologObject(QU, SizeOf(TObjQuery), 5);
-    CompileOneQuery(Q);
+    ptr := NewPrologObject(QU, SizeOf(TObjQuery), 5, 5);
+    CompileOneQuery(P,Q);
     Q^.QU_FRUL := P^.PP_FRUL;
     Q^.QU_LRUL := P^.PP_LRUL;
     Q^.QU_NEXT := CompileQueries(P,WithArrow,ContChar,StopChars)
@@ -434,7 +433,7 @@ End;
 Procedure RemoveCommandLineQueries( P : ProgPtr );
 Begin
   NbVar   := P^.PP_LVAR;
-  NbConst := P^.PP_LCON
+  P^.PP_DCON := P^.PP_LCON { forget all the constants added in user commands }
 End;
 
 { compile queries typed by the user }
@@ -497,7 +496,7 @@ Begin
     End
     Else { a rule }
     Begin
-      R := CompileRules([EndOfInput,';','-','"'],RuleType);
+      R := CompileRules(P,[EndOfInput,';','-','"'],RuleType);
       { set program's first rule if not set yet }
       If P^.PP_FRUL = Nil Then
         P^.PP_FRUL := R;
@@ -514,6 +513,6 @@ Begin
   Until Stop Or Error;
   { machine state }
   P^.PP_LVAR := NbVar;
-  P^.PP_LCON := NbConst;
+  P^.PP_LCON := P^.PP_DCON;
   CompileRulesAndQueries := FirstQ
 End;

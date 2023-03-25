@@ -21,13 +21,13 @@ Type PredefArr = Array[1..NbPredef] Of StrConst;
 
 Const Predef  : PredefArr = ('SYSCALL');         { Predefined constants    }
 
-Procedure InstallPredefinedConstants;
+Procedure InstallPredefinedConstants( P : ProgPtr );
 Var
   C : ConstPtr;
   K : Integer;
 Begin
   For K := 1 to NbPredef Do
-    C := InstallConst(Predef[K]);
+    C := InstallConst(P^.PP_DCON,Predef[K]);
 End;
 
 { execute a system call <SYSCALL,Code,Arg1,...ArgN> }
@@ -48,7 +48,7 @@ Var
   Begin
     T := Argument(N,F);
     CheckCondition(TypeOfTerm(T) = Constant,'GetConstArg: constant expected');
-    GetConstArg := DictConst[CT^.TC_CONS]
+    GetConstArg := CT^.TC_DCON^.DC_CVAL
   End;
 
 Begin

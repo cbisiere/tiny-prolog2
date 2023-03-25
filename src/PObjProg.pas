@@ -36,9 +36,11 @@ Type
   RuType = (RTYPE_AUTO, RTYPE_USER);
   TObjRule = Record
     PO_META : TObjMeta;
+    { deep copied: }
     RU_NEXT : RulePtr; { next rule }
     RU_FBTR : BTermPtr; { list of terms (the first is the rule head) }
     RU_SYST : EqPtr; { list of equation or inequation in the rule; Warning: not GC}
+    { extra data: }
     RU_FVAR : Integer; { variables local to the rule: first index }
     RU_LVAR : Integer; { variables local to the rule: last index }
     RU_TYPE : RuType { type of rule: read from init file, or user }
@@ -49,14 +51,15 @@ Type
   QueryPtr = ^TObjQuery;
   TObjQuery = Record
     PO_META : TObjMeta;
+    { deep copied: }
     QU_NEXT : QueryPtr; { next query }
     QU_FRUL : RulePtr; { first rule to try }
     QU_LRUL : RulePtr; { last rule to try }
     QU_FBTR : BTermPtr; { terms in the query }
     QU_SYST : EqPtr; { list of equation or inequation in the query }
+    { extra data: }
     QU_FVAR : Integer; { variables local to the query: first index }
-    QU_LVAR : Integer; { variables local to the query: last index }
-    QU_FCON : Integer { index of the first constant in the query }
+    QU_LVAR : Integer { variables local to the query: last index }
   End;
 
 { program }
@@ -64,12 +67,16 @@ Type
   ProgPtr = ^TObjProg;
   TObjProg = Record
     PO_META : TObjMeta;
+    { deep copied: }
     PP_FQRY : QueryPtr; { first query }
     PP_LQRY : QueryPtr; { last query }
     PP_FRUL : RulePtr; { first rule }
     PP_LRUL : RulePtr; { last rule }
-    PP_LVAR : Integer; { variables local to the program: last index }
-    PP_LCON : Integer { constants local to the program: last index }
+    { not deep copied: }
+    PP_DCON : DictConstPtr; { list of all constants }
+    PP_LCON : DictConstPtr; { constant list head before processing command line }
+    { extra data: }
+    PP_LVAR : Integer { variables local to the program: last index }
   End;
 
 
@@ -83,7 +90,7 @@ Var
   B : BTermPtr;
   ptr : TPObjPtr Absolute B;
 Begin
-  ptr := NewPrologObject(BT, SizeOf(TObjBTerm), 3);
+  ptr := NewPrologObject(BT, SizeOf(TObjBTerm), 3, 3);
   With B^ Do
   Begin
     BT_TERM := Nil;
@@ -99,7 +106,7 @@ Var
   R : RulePtr;
   ptr : TPObjPtr Absolute R;
 Begin
-  ptr := NewPrologObject(RU, SizeOf(TObjRule), 3);
+  ptr := NewPrologObject(RU, SizeOf(TObjRule), 3, 3);
   With R^ Do
   Begin
     RU_NEXT := Nil;
@@ -118,15 +125,16 @@ Var
   P : ProgPtr;
   ptr : TPObjPtr Absolute P;
 Begin
-  ptr := NewPrologObject(PR, SizeOf(TObjProg), 4);
+  ptr := NewPrologObject(PR, SizeOf(TObjProg), 6, 4);
   With P^ Do
   Begin
     PP_FRUL := Nil;
     PP_LRUL := Nil;
     PP_FQRY := Nil;
     PP_LQRY := Nil;
-    PP_LVAR := NbVar; { TODO }
-    PP_LCON := NbConst
+    PP_DCON := Nil;
+    PP_LCON := Nil;
+    PP_LVAR := NbVar { TODO }
   End;
   NewProgram := P
 End;

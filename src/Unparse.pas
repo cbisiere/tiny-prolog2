@@ -76,7 +76,7 @@ End;
 Function GetConstAsString( C : ConstPtr; Quotes : Boolean ) : AnyStr;
 Var Cste : AnyStr;
 Begin
-  Cste := DictConst[C^.TC_CONS];
+  Cste := C^.TC_DCON^.DC_CVAL;
   If (Not Quotes) And (Length(Cste) >= 2) Then
     If (Cste[1] = '"') And (Cste[Length(Cste)] = '"') Then
     Begin
@@ -162,7 +162,6 @@ Var
   F : FuncPtr;
   C : ConstPtr;
   LeftT : TermPtr;
-  ConsIdx : Integer;
   Cste : StrConst;
   CT : ConstPtr Absolute T;
   VT : VarPtr Absolute T;
@@ -202,8 +201,7 @@ Begin
       LeftT := F^.TF_LTER;
       If (TypeOfTerm(LeftT) = Constant) Then
       Begin
-        ConsIdx := CLeftT^.TC_CONS;
-        Cste := DictConst[ConsIdx];
+        Cste := CLeftT^.TC_DCON^.DC_CVAL;
         If (Cste[1] In Digits) Then { should only happen when printing subtrees during debugging}
         Begin
           WriteTuple(F)
