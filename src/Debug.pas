@@ -18,7 +18,11 @@
 {----------------------------------------------------------------------------}
 
 Function ToString; (* ( p : TPObjPtr ) : AnyStr; *)
-Var s : AnyStr;
+Var 
+  s : AnyStr;
+  Cp : ConstPtr Absolute p;
+  Vp : VarPtr Absolute p;
+  Fp : FuncPtr Absolute p;
 Begin
   s := '';
   Case PObjectType(p) Of
@@ -39,16 +43,16 @@ Begin
     End;
   CO:
     Begin
-      s := GetConstAsString(ConstPtr(p), True);
+      s := GetConstAsString(Cp, True);
     End;
   FU:
     Begin
-      If (FuncPtr(p)^.TF_TRED <> Nil) Then
+      If (Fp^.TF_TRED <> Nil) Then
         s := '***'
     End;
   VA:
     Begin
-      s := GetVarNameAsString(VarPtr(p));
+      s := GetVarNameAsString(Vp);
     End 
   End;
   ToString := s

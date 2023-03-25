@@ -39,13 +39,16 @@ Var
   SysCallCode : StrIdent;
   NbSysCallArgs : Integer;
   C : ConstPtr;
+  FF : FuncPtr Absolute F;
 
   Function GetConstArg( N : Integer; F : FuncPtr) : StrIdent;
-  Var T : TermPtr;
+  Var 
+    T : TermPtr;
+    CT : ConstPtr Absolute T;
   Begin
     T := Argument(N,F);
     CheckCondition(TypeOfTerm(T) = Constant,'GetConstArg: constant expected');
-    GetConstArg := DictConst[ConstPtr(T)^.TC_CONS]
+    GetConstArg := DictConst[CT^.TC_CONS]
   End;
 
 Begin
@@ -54,15 +57,15 @@ Begin
     ExecutionSysCallOk := False;
     Exit
   End;
-  SysCallCode := GetConstArg(1,FuncPtr(F));
+  SysCallCode := GetConstArg(1,FF);
   CheckCondition(SysCallCode = 'SYSCALL','Not a SYSCALL');
-  NbArgs := NbArguments(FuncPtr(F));
+  NbArgs := NbArguments(FF);
   If NbArgs < 2 Then
   Begin
     ExecutionSysCallOk := False;
     Exit
   End;
-  Ident := GetConstArg(2,FuncPtr(F));
+  Ident := GetConstArg(2,FF);
   NbSysCallArgs := NbArgs - 2;
   ExecutionSysCallOk := True;
   If Ident = 'QUIT' Then
@@ -75,7 +78,7 @@ Begin
       ExecutionSysCallOk := False
     Else
     Begin
-      C := EvaluateToConstant(Argument(2+1,FuncPtr(F)));
+      C := EvaluateToConstant(Argument(2+1,FF));
       Fail := C = Nil;
       If Not Fail Then
       Begin
@@ -93,12 +96,12 @@ Begin
     If NbSysCallArgs <> 1 Then
       ExecutionSysCallOk := False
     Else
-      WriteTerm(Argument(2+1,FuncPtr(F)))
+      WriteTerm(Argument(2+1,FF))
   Else If Ident = 'OUTM' Then
     If NbSysCallArgs <> 1 Then
       ExecutionSysCallOk := False
     Else
-      WriteTermBis(Argument(2+1,FuncPtr(F)),False,False)
+      WriteTermBis(Argument(2+1,FF),False,False)
   Else If Ident = 'LINE' Then
     If NbSysCallArgs <> 0 Then
       ExecutionSysCallOk := False

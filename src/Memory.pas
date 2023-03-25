@@ -32,7 +32,7 @@ Procedure InitMemoryStats;
 Var t : TypePrologObj;
 Begin
   mem := 0;
-  For t in TypePrologObj Do
+  For t := PR To RE Do
     PObjCount[t] := 0
 End;
 
@@ -64,8 +64,8 @@ Procedure PrintMemoryStats;
 Var t : TypePrologObj;
 Begin
   WriteLn('Bytes allocated: ',mem:10:0);
-  For t in TypePrologObj Do
-    Write(' ',t:2,PObjCount[t]:3);
+  For t := PR To RE Do
+    Write(' ',Ord(t),PObjCount[t]:3);
   WriteLn
 End;
 
@@ -130,7 +130,7 @@ Type
   { metadata }
   TObjMeta = Record
     PO_TYPE : TypePrologObj; { type of object }
-    PO_NAME : LongInt;       { object unique identifier (for convenience) }
+    PO_GUID : LongInt;       { Prolog object globally unique identifier (for convenience and sorting) }
     PO_SIZE : Integer;       { size in bytes (including metadata) }
     PO_NPTR : Byte;          { number of pointer fields (which must immediately follow) }
     { deep copy }
@@ -168,7 +168,7 @@ Begin
   If (p = Nil) Then
     s := '-'
   Else
-    s := '#' + RealToStr(p^.PO_META.PO_NAME,0); //FIXME: LongInt under FP? No error?
+    s := '#' + RealToStr(p^.PO_META.PO_GUID,0); (* FIXME: LongInt under FP? No error? *)
   PtrToName := s
 End;
 
@@ -180,7 +180,7 @@ Begin
   Write(PtrToName(p):5,' : ');
   With p^.PO_META Do
   Begin
-    Write(PO_TYPE,' ',PtrToName(PO_NEXT):5,' ',MarkToStr(PO_MARK),' ',PO_NCOP,' ',PO_DEEP,' ',PtrToName(PO_COPY):5);
+    Write(Ord(PO_TYPE),' ',PtrToName(PO_NEXT):5,' ',MarkToStr(PO_MARK),' ',PO_NCOP,' ',PO_DEEP,' ',PtrToName(PO_COPY):5);
     For i := 1 To PO_NPTR Do
       Write('  ',PtrToName(p^.PO_PTRS[i]):5)
   End;
@@ -218,9 +218,9 @@ Begin
     PO_NEXT := AllocHead;
     SetMark(PO_MARK,False);
     If (PO_NEXT = Nil) Then
-      PO_NAME := 0
+      PO_GUID := 0
     Else
-      PO_NAME := PO_NEXT^.PO_META.PO_NAME + 1
+      PO_GUID := PO_NEXT^.PO_META.PO_GUID + 1
   End;
   AllocHead := p
 End;
@@ -228,12 +228,14 @@ End;
 
 { free an object p, and return the next object }
 Function FreeObject( prev, p : TPObjPtr ) : TPObjPtr;
-Var nxt : TPObjPtr;
+Var 
+  nxt : TPObjPtr;
+  ptr : Pointer Absolute p;
 Begin
   With p^.PO_META Do
   Begin
     nxt := PO_NEXT;
-    FreeMemory(PO_TYPE,p,PO_SIZE)
+    FreeMemory(PO_TYPE,ptr,PO_SIZE)
   End;
   If (prev = Nil) Then
     AllocHead := nxt
@@ -267,6 +269,12 @@ Begin
     End
 End;
 
+{ arbitrary order on Prolog objects }
+Function AreOrdered( p1,p2 : TPObjPtr ) : Boolean;
+Begin
+  CheckCondition((p1<> Nil) And (p2<>Nil),'Undefined order');
+  AreOrdered := p1^.PO_META.PO_GUID <= p2^.PO_META.PO_GUID
+End;
 
 {----------------------------------------------------------------------------}
 { marking                                                                    }
@@ -316,9 +324,11 @@ End;
 
 { allocate a Prolog object of size s }
 Function NewPrologObject( t : TypePrologObj; s : Integer; n : Byte ) : TPObjPtr;
-Var p : TPObjPtr;
+Var 
+  p : TPObjPtr;
+  ptr : Pointer Absolute p;
 Begin
-  GetMemory(t,p,s);
+  GetMemory(t,ptr,s);
 
   With p^.PO_META Do
   Begin
@@ -344,11 +354,12 @@ End;
 Function CopyObject( p : TPObjPtr ) : TPObjPtr;
 Var 
   pc : TPObjPtr;
+  ptr : Pointer Absolute pc;
 Begin
   CheckCondition(Not p^.PO_META.PO_DEEP,'Copy of an already visited object');
   With p^.PO_META Do { memory copy }
   Begin
-    GetMemory(PO_TYPE,pc,PO_SIZE); 
+    GetMemory(PO_TYPE,ptr,PO_SIZE); 
     Move(p^,pc^,PO_SIZE)
   End;
   RegisterObject(pc);

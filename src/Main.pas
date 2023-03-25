@@ -59,12 +59,13 @@ End;
 Procedure Main;
 var
   P : ProgPtr;
+  PP : TPObjPtr Absolute P;
   Q : QueryPtr;
   FileName : AnyStr;
 Begin
   MMInit;
   P := ResetMachine;
-  AddGCRoot(TPObjPtr(P));
+  AddGCRoot(PP);
   LoadProgram(P,'start.pro',RTYPE_AUTO);
   If ParamCount = 1 Then
   Begin

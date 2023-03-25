@@ -27,13 +27,15 @@ Type
   End;
 
 Procedure FreeRestore( Var U : RestorePtr );
+Var ptr : Pointer Absolute U;
 Begin
-  FreeMemory(RE, U,SizeOf(TObjRestore))
+  FreeMemory(RE,ptr,SizeOf(TObjRestore))
 End;
 
 Procedure NewRestore( Var U : RestorePtr );
+Var ptr : Pointer Absolute U;
 Begin
-  GetMemory(RE, U,SizeOf(TObjRestore))
+  GetMemory(RE,ptr,SizeOf(TObjRestore))
 End;
 
 

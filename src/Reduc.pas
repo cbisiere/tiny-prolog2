@@ -84,11 +84,19 @@ Var
     Procedure Unify( Tg,Td : TermPtr );
     Var 
       T1,T2 : TermPtr;
-      F1,F2 : FuncPtr;
+      PT1 : TPObjPtr Absolute T1;
+      PT2 : TPObjPtr Absolute T2;
+      VT1 : VarPtr Absolute T1;
+      FT1 : FuncPtr Absolute T1;
+      FT2 : FuncPtr Absolute T2;
+      TRValT2 : TRVal Absolute T2;
       E : EqPtr;
 
       { representative of a term }
       Function RepresentativeOf( T : TermPtr ) : TermPtr;
+      Var
+        VT : VarPtr Absolute T;
+        FT : FuncPtr Absolute T;
       Begin
         If T = Nil Then
           RepresentativeOf := Nil
@@ -97,13 +105,13 @@ Var
           Constant :
             RepresentativeOf := T;
           Variable  :
-            If VarPtr(T)^.TV_TRED <> Nil Then
-              RepresentativeOf := RepresentativeOf(VarPtr(T)^.TV_TRED)
+            If VT^.TV_TRED <> Nil Then
+              RepresentativeOf := RepresentativeOf(VT^.TV_TRED)
             Else
               RepresentativeOf := T;
           FuncSymbol  :
-            If FuncPtr(T)^.TF_TRED <> Nil Then
-              RepresentativeOf := RepresentativeOf(FuncPtr(T)^.TF_TRED)
+            If FT^.TF_TRED <> Nil Then
+              RepresentativeOf := RepresentativeOf(FT^.TF_TRED)
             Else
               RepresentativeOf := T
           End
@@ -111,11 +119,14 @@ Var
 
       { return true if T1 and T2 are equal }
       Function SameTerms( T1,T2 : TermPtr ) : Boolean;
-      Var Same : Boolean;
+      Var 
+        Same : Boolean;
+        CT1 : ConstPtr Absolute T1;
+        CT2 : ConstPtr Absolute T2;
       Begin
         Same := T1 = T2;
         If (Not Same) And (TypeOfTerm(T1)=Constant) And (TypeOfTerm(T2)=Constant) Then
-          Same := ConstPtr(T1)^.TC_CONS = ConstPtr(T2)^.TC_CONS;
+          Same := CT1^.TC_CONS = CT2^.TC_CONS;
         SameTerms := Same
       End;
 
@@ -130,8 +141,10 @@ Var
 
       { add an equation T1 = T2 in the reduced system }
       Procedure CreateLiaison( V1 : VarPtr; T2 : TermPtr );
+      Var
+        TRValT2 : TRVal Absolute T2;
       Begin
-        SetMem(L,Addr(V1^.TV_TRED),T2,Backtrackable);  { add v=t in the reduced system }
+        SetMem(L,Addr(V1^.TV_TRED),TRValT2,Backtrackable);  { add v=t in the reduced system }
 
         { step 2 of system solving is handled here}
         If V1^.TV_FWAT <> Nil Then { x already watched a liaison }
@@ -156,31 +169,28 @@ Var
       If Not SameTerms(T1,T2) Then 
       Begin
         { ordering: variables always first, and arbitrary order on variables (memory) }
-        If (TypeOfTerm(T2)=Variable) And Not ((TypeOfTerm(T1)=Variable) And (T1<T2)) Then
+        If (TypeOfTerm(T2)=Variable) And Not ((TypeOfTerm(T1)=Variable) And AreOrdered(PT1,PT2)) Then
           SwapTerms(T1,T2);
 
         { left term is a variable, thus at least one of the terms is a variable (thanks to sorting) }
         If (TypeOfTerm(T1)=Variable) Then
         Begin
-          Production(VarPtr(T1),T2)
+          Production(VT1,T2)
         End
         { two functional symbols }
         Else If (TypeOfTerm(T1)=FuncSymbol) And (TypeOfTerm(T2)=FuncSymbol) Then
         Begin
-          { for convenience }
-          F1 := FuncPtr(T1);
-          F2 := FuncPtr(T2);
           { add "f = f" to the reduced system }
-          SetMem(Uf,Addr(F1^.TF_TRED),T2,Backtrackable);
+          SetMem(Uf,Addr(FT1^.TF_TRED),TRValT2,Backtrackable);
           { insert in the unreduced system l1=l2 and r1=r2 }
-          If (RightArg(F1) <> Nil) And (RightArg(F2) <> Nil) Then
+          If (RightArg(FT1) <> Nil) And (RightArg(FT2) <> Nil) Then
           Begin
-            E := NewEq(REL_EQUA,RightArg(F1),RightArg(F2));
+            E := NewEq(REL_EQUA,RightArg(FT1),RightArg(FT2));
             InsertOneEqInSys(S,E)
           End;
-          If (LeftArg(F1) <> Nil) And (LeftArg(F2) <> Nil) Then
+          If (LeftArg(FT1) <> Nil) And (LeftArg(FT2) <> Nil) Then
           Begin
-            E := NewEq(REL_EQUA,LeftArg(F1),LeftArg(F2));
+            E := NewEq(REL_EQUA,LeftArg(FT1),LeftArg(FT2));
             InsertOneEqInSys(S,E)
           End
         End
@@ -301,6 +311,7 @@ Var Fails : Boolean;
     Procedure BasicOperation;
       Var
         NewE, E      : EqPtr;
+        TRValNewE    : TRVal Absolute NewE;
         Tg,Td        : TermPtr;
         VarProd      : VarPtr;
         Ok           : Boolean;
@@ -329,14 +340,14 @@ Var Fails : Boolean;
           If VarProd^.TV_FWAT = Nil Then
           Begin
             { first watch }
-            SetMem(L,Addr(VarProd^.TV_FWAT),NewE,Backtrackable)
+            SetMem(L,Addr(VarProd^.TV_FWAT),TRValNewE,Backtrackable)
           End
           Else
           Begin
             { add a watch }
             E := VarProd^.TV_FWAT;
             While(E^.EQ_NEXT <> Nil) Do E := E^.EQ_NEXT;
-            SetMem(L,Addr(E^.EQ_NEXT),NewE,Backtrackable)
+            SetMem(L,Addr(E^.EQ_NEXT),TRValNewE,Backtrackable)
           End
         End
         Else

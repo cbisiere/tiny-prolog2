@@ -54,9 +54,11 @@ Type
 
 { create a new constant }
 Function NewConst : ConstPtr;
-Var C : ConstPtr;
+Var 
+  C : ConstPtr;
+  ptr : TPObjPtr Absolute C;
 Begin
-  C := ConstPtr(NewPrologObject(CO, SizeOf(TObjConst), 0));
+  ptr := NewPrologObject(CO, SizeOf(TObjConst), 0);
   With C^ Do
   Begin
     TC_CONS := 0
@@ -66,9 +68,11 @@ End;
 
 { create a new variable }
 Function NewVar : VarPtr;
-Var V : VarPtr;
+Var 
+  V : VarPtr;
+  ptr : TPObjPtr Absolute V;
 Begin
-  V := VarPtr(NewPrologObject(VA, SizeOf(TObjVar), 2));
+  ptr := NewPrologObject(VA, SizeOf(TObjVar), 2);
   With V^ Do
   Begin
     TV_NVAR := 0;
@@ -80,9 +84,11 @@ End;
 
 { create a new binary functional symbol }
 Function NewSymbol( T1,T2 : TermPtr ) : FuncPtr;
-Var F : FuncPtr;
+Var 
+  F : FuncPtr;
+  ptr : TPObjPtr Absolute F;
 Begin
-  F := FuncPtr(NewPrologObject(FU, SizeOf(TObjFunc), 3));
+  ptr := NewPrologObject(FU, SizeOf(TObjFunc), 3);
   With F^ Do
   Begin
     TF_TRED := Nil;
@@ -116,24 +122,30 @@ End;
 
 { return the access constant of a term, or Nil; use for quick pre-unification }
 Function Access( T : TermPtr ) : ConstPtr;
-Var LeftT : TermPtr;
+Var 
+  C : ConstPtr;
+  FT : FuncPtr Absolute T;
+  CT : ConstPtr Absolute T;
+  LeftT : TermPtr;
+  CLeftT : ConstPtr Absolute LeftT;
 Begin
-  Access := Nil;
+  C := Nil;
   Case TypeOfTerm(T) Of
   Constant :
-    Access := ConstPtr(T);
+    C := CT;
   FuncSymbol  :
     Begin
-      LeftT := FuncPtr(T)^.TF_LTER;
+      LeftT := FT^.TF_LTER;
       Case TypeOfTerm(LeftT) Of
       Constant :
-        Access := ConstPtr(LeftT);
+        C := CLeftT;
       FuncSymbol  :
         Begin
         End
       End
     End
-  End
+  End;
+  Access := C
 End;
 
 { left term of a functional symbol }
@@ -151,23 +163,35 @@ End;
 { return the number of arguments of a f(a,b,c) or <a,b,c> construct;
   in the former case, the number of argument is 4 }
 Function NbArguments( F : FuncPtr ) : Integer;
+Var 
+  T : TermPtr;
+  FT : FuncPtr Absolute T;
 Begin
   CheckCondition(F <> Nil,'NbArguments of Nil does not make sense');
   If F^.TF_RTER = Nil  Then
     NbArguments := 1
   Else
-    NbArguments := NbArguments(FuncPtr(F^.TF_RTER)) + 1
+  Begin
+    T := F^.TF_RTER;
+    NbArguments := NbArguments(FT) + 1
+  End
 End;
 
 { return the N-th argument of a f(a,b,c) or <a,b,c> construct;
   in the former case, the 1st argument is f }
 Function Argument( N : Integer; F : FuncPtr ) : TermPtr;
+Var 
+  T : TermPtr;
+  FT : FuncPtr Absolute T;
 Begin
   CheckCondition(F <> Nil,'Argument of Nil does not make sense');
   If N = 1 Then
     Argument := F^.TF_LTER
   Else
-    Argument := Argument(N-1,FuncPtr(F^.TF_RTER))
+  Begin
+    T := F^.TF_RTER;
+    Argument := Argument(N-1,FT)
+  End
 End;
 
 

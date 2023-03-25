@@ -54,6 +54,9 @@ Procedure WriteTermBis( T : TermPtr; ArgList,Quotes : Boolean); Forward;
 {----------------------------------------------------------------------------}
 
 Procedure WriteArgument( F : FuncPtr );
+Var 
+  T : TermPtr;
+  FT : FuncPtr Absolute T;
 Begin
   WriteTermBis(F^.TF_LTER,False,True);
   If F^.TF_RTER <> Nil Then
@@ -61,7 +64,8 @@ Begin
     Write(',');
     CheckCondition((F^.TF_RTER=Nil) Or (TypeOfTerm(F^.TF_RTER)=FuncSymbol),
       'broken argument list');
-    WriteArgument(FuncPtr(F^.TF_RTER))
+    T := F^.TF_RTER;
+    WriteArgument(FT)
   End
 End;
 
@@ -88,12 +92,14 @@ End;
 
 Function GetVarNameAsString( V : VarPtr ) : AnyStr;
 Var 
+  TV : TermPtr Absolute V;
+  PV : TPObjPtr Absolute V;
   s : AnyStr;
   k : Integer;
 Begin
-  CheckCondition(TypeOfTerm(TermPtr(V))=Variable,
+  CheckCondition(TypeOfTerm(TV)=Variable,
     'GetVarNameAsString(V): V is not a variable');
-  k := PObjectCopyNumber(TPObjPtr(V));
+  k := PObjectCopyNumber(PV);
   If k = 0 Then
     s := DictVar[V^.TV_NVAR].Name
   Else
@@ -101,7 +107,7 @@ Begin
     Str(k,s);
     s := DictVar[V^.TV_NVAR].Name + '_' + s { FIXME: should be an invalid variable name }
   End;
-  GetVarNameAsString := s // + '_' + PtrToName(TPObjPtr(V))
+  GetVarNameAsString := s (* + '_' + PtrToName(TPObjPtr(V)) *)
 End;
 
 {----------------------------------------------------------------------------}
@@ -119,15 +125,18 @@ End;
 {----------------------------------------------------------------------------}
 
 Function EvaluateToConstant( T : TermPtr ) : ConstPtr;
-Var C : ConstPtr;
+Var 
+  C : ConstPtr;
+  CT : ConstPtr Absolute T;
+  VT : VarPtr Absolute T;
 Begin
   C := Nil;
   Case TypeOfTerm(T) Of
   Constant :
-    C := ConstPtr(T);
+    C := CT;
   Variable :
-    If VarPtr(T)^.TV_TRED <> Nil Then
-      C := EvaluateToConstant(VarPtr(T)^.TV_TRED)
+    If VT^.TV_TRED <> Nil Then
+      C := EvaluateToConstant(VT^.TV_TRED)
   End;
   EvaluateToConstant := C
 End;
@@ -150,22 +159,30 @@ End;
 Procedure WriteTermBis; (* ( T : TermPtr; ArgList,Quotes : Boolean ); *)
 Var
   V : VarPtr;
-  F,F1,F2 : FuncPtr;
+  F : FuncPtr;
   C : ConstPtr;
   LeftT : TermPtr;
   ConsIdx : Integer;
   Cste : StrConst;
+  CT : ConstPtr Absolute T;
+  VT : VarPtr Absolute T;
+  FT : FuncPtr Absolute T;
+  PV : TPObjPtr Absolute V;
+  CLeftT : ConstPtr Absolute LeftT;
+  T1,T2 : TermPtr;
+  FT1 : FuncPtr Absolute T1;
+  FT2 : FuncPtr Absolute T2;
 Begin
   Case TypeOfTerm(T) Of
   Constant :
     Begin
-      C := ConstPtr(T);
+      C := CT;
       Write(GetConstAsString(C,Quotes))
     End;
   Variable  :
     Begin
-      V := VarPtr(T);
-      If PObjectCopyNumber(TPObjPtr(V)) = 0 Then
+      V := VT;
+      If PObjectCopyNumber(PV) = 0 Then
       Begin
         WriteVarName(V)
       End
@@ -181,11 +198,11 @@ Begin
     End;
   FuncSymbol  :
     Begin
-      F := FuncPtr(T);
+      F := FT;
       LeftT := F^.TF_LTER;
       If (TypeOfTerm(LeftT) = Constant) Then
       Begin
-        ConsIdx := ConstPtr(LeftT)^.TC_CONS;
+        ConsIdx := CLeftT^.TC_CONS;
         Cste := DictConst[ConsIdx];
         If (Cste[1] In Digits) Then { should only happen when printing subtrees during debugging}
         Begin
@@ -194,11 +211,11 @@ Begin
         Else If Cste = '.' Then { F(.,F(a,F(b,Nil))) => a.b }
         Begin
           If ArgList Then Write('(');
-          F1 := FuncPtr(F^.TF_RTER);
-          WriteTermBis(F1^.TF_LTER,True,True);
+          T1 := F^.TF_RTER;
+          WriteTermBis(FT1^.TF_LTER,True,True);
           Write('.');
-          F2 := FuncPtr(F1^.TF_RTER); { TODO: check type }
-          WriteTermBis(F2^.TF_LTER,False,True);
+          T2 := FT1^.TF_RTER; { TODO: check type }
+          WriteTermBis(FT2^.TF_LTER,False,True);
           If ArgList Then Write(')')
         End
         Else
@@ -206,8 +223,9 @@ Begin
           Write(Cste);
           If F^.TF_RTER<>Nil Then { F(name,F(a,F(b,Nil) => name(a,b) }
           Begin
+            T1 := F^.TF_RTER;
             Write('(');
-            WriteArgument(FuncPtr(F^.TF_RTER)); { TODO: check type }
+            WriteArgument(FT1); { TODO: check type }
             Write( ')')
           End
         End

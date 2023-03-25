@@ -79,9 +79,11 @@ Type
 
 { new block }
 Function NewBTerm : BTermPtr;
-Var B : BTermPtr;
+Var 
+  B : BTermPtr;
+  ptr : TPObjPtr Absolute B;
 Begin
-  B := BTermPtr(NewPrologObject(BT, SizeOf(TObjBTerm), 3));
+  ptr := NewPrologObject(BT, SizeOf(TObjBTerm), 3);
   With B^ Do
   Begin
     BT_TERM := Nil;
@@ -93,9 +95,11 @@ End;
 
 { new rule }
 Function NewRule( RuleType : RuType ) : RulePtr;
-Var R : RulePtr;
+Var 
+  R : RulePtr;
+  ptr : TPObjPtr Absolute R;
 Begin
-  R := RulePtr(NewPrologObject(RU, SizeOf(TObjRule), 3));
+  ptr := NewPrologObject(RU, SizeOf(TObjRule), 3);
   With R^ Do
   Begin
     RU_NEXT := Nil;
@@ -110,9 +114,11 @@ End;
 
 { new program }
 Function NewProgram : ProgPtr;
-Var P : ProgPtr;
+Var 
+  P : ProgPtr;
+  ptr : TPObjPtr Absolute P;
 Begin
-  P := ProgPtr(NewPrologObject(PR, SizeOf(TObjProg), 4));
+  ptr := NewPrologObject(PR, SizeOf(TObjProg), 4);
   With P^ Do
   Begin
     PP_FRUL := Nil;

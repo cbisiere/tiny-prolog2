@@ -45,11 +45,16 @@ Function GetArgument( EndChar : Char ) : FuncPtr;
 Var
   T : TermPtr;
   c : Char;
+  F : FuncPtr;
+  TF : TermPtr Absolute F;
 Begin
   T := ReadOneTerm(False);
   c := GetCharNb(c);
   If c =  ',' Then
-    GetArgument := NewSymbol(T,TermPtr(GetArgument(EndChar)))
+  Begin
+    F := GetArgument(EndChar);
+    GetArgument := NewSymbol(T,TF)
+  End
   Else
   If c = EndChar  Then
     GetArgument := NewSymbol(T,Nil)
@@ -100,8 +105,18 @@ End;
 Function ReadOneTerm; (* ( Cut : Boolean ) : TermPtr *)
 Var
   T : TermPtr;
+  C : ConstPtr;
+  TC : TermPtr Absolute C;
+  F : FuncPtr;
+  TF : TermPtr Absolute F;
+  V : VarPtr;
+  TV : TermPtr Absolute V;
+  F2 : FuncPtr;
+  TF2 : TermPtr Absolute F2;
+  F3 : FuncPtr;
+  TF3 : TermPtr Absolute F3;
   Ch  : AnyStr;
-  c,c2 : Char;
+  c1,c2 : Char;
   Count : Byte;
 Begin
   Ch := '';
@@ -110,36 +125,40 @@ Begin
   Case Count Of
   0 :
     Begin
-      c := NextChar(c);
-      If c In Digits Then     { an integer }
+      c1 := NextChar(c1);
+      If c1 In Digits Then     { an integer }
       Begin
         GetCharWhile(Ch,Digits);
-        T := TermPtr(InstallConst(Ch));
+        C := InstallConst(Ch);
+        T := TC
       End
       Else
-      If c ='(' Then          { ( <term> ) }
+      If c1 ='(' Then          { ( <term> ) }
       Begin
-        c := GetChar(c);
+        c1 := GetChar(c1);
         T := ReadOneTerm(False);
         Verify(')')
       End
       Else
-      If c = '<' Then        { a tuple }
+      If c1 = '<' Then        { a tuple }
       Begin
-        c := GetChar(c);
-        T := TermPtr(GetArgument('>'))
+        c1 := GetChar(c1);
+        F := GetArgument('>');
+        T := TF
       End
       Else
-      If c = '"' Then        { a string }
+      If c1 = '"' Then        { a string }
       Begin
         Ch := ReadString;
-        T := TermPtr(InstallConst(Ch))
+        C := InstallConst(Ch);
+        T := TC
       End
       Else
-      If Cut and (c In ['!','/']) Then    { the "cut" }
+      If Cut and (c1 In ['!','/']) Then    { the "cut" }
       Begin
-        c := GetChar(c);
-        T := TermPtr(InstallConst('!'))
+        c1 := GetChar(c1);
+        C := InstallConst('!');
+        T := TC
       End
       Else
         RaiseError('term expected')
@@ -148,32 +167,42 @@ Begin
     Begin                      { a variable }
       GetCharWhile(Ch,Digits);
       GetCharWhile(Ch,['''']);
-      T := TermPtr(InstallVariable(Ch,TopVar));
+      V := InstallVariable(Ch,TopVar);
+      T := TV;
     End;
   Else { at least 2 letters: an identifier }
     Begin
       Count := GrabLetters(Ch);
-      While (NextChar(c)='-') And IsLetter(NextNextChar(c2)) Do
+      While (NextChar(c1)='-') And IsLetter(NextNextChar(c2)) Do
       Begin
-        Ch := Ch + GetChar(c); { read the '-' }
+        Ch := Ch + GetChar(c1); { read the '-' }
         Count := GrabLetters(Ch);
       End;
       GetCharWhile(Ch,Digits);
-      If NextChar(c) = '(' Then { a predicate }
+      If NextChar(c1) = '(' Then { a predicate }
       Begin
-        c := GetChar(c);
-        T := TermPtr(NewSymbol(TermPtr(InstallConst(Ch)),TermPtr(GetArgument(')'))));
+        c1 := GetChar(c1);
+        C := InstallConst(Ch);
+        F := GetArgument(')');
+        F2 := NewSymbol(TC,TF);
+        T := TF2
       End
       Else
-        T := TermPtr(InstallConst(Ch)) { a constant }
+      Begin { a constant }
+        C := InstallConst(Ch);
+        T := TC
+      End
     End
   End;
-  c := NextChar(c);
-  If c = '.' Then    { a list element }
+  c1 := NextChar(c1);
+  If c1 = '.' Then    { a list element }
   Begin
-    c := GetChar(c);
-    T := TermPtr(NewSymbol( TermPtr(InstallConst('.')),
-        TermPtr(NewSymbol(T,TermPtr(NewSymbol(ReadOneTerm(False),Nil)))) ))
+    c1 := GetChar(c1);
+    C := InstallConst('.');
+    F := NewSymbol(ReadOneTerm(False),Nil); { q: new term }
+    F2 := NewSymbol(T,TF); { t: term read above }
+    F3 := NewSymbol(TC,TF2); { t.q }
+    T := TF3
   End;
   ReadOneTerm := T
 End;
@@ -382,6 +411,7 @@ Function CompileQueries( P : ProgPtr; WithArrow : Boolean;
   ContChar, StopChars : CharSet ) : QueryPtr;
 Var
   Q : QueryPtr;
+  ptr : TPObjPtr Absolute Q;
   c : Char;
 Begin
   Q := Nil;
@@ -391,7 +421,7 @@ Begin
   Begin
     If WithArrow Then
       Verify('->');
-    Q := QueryPtr(NewPrologObject(QU, SizeOf(TObjQuery), 5));
+    ptr := NewPrologObject(QU, SizeOf(TObjQuery), 5);
     CompileOneQuery(Q);
     Q^.QU_FRUL := P^.PP_FRUL;
     Q^.QU_LRUL := P^.PP_LRUL;

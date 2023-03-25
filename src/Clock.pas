@@ -82,9 +82,11 @@ Var ClockTime : LongInt; { Prolog clock time }
   Procedure NewClockHeader(Var H : HeadPtr; Fbcl : BTermPtr; R : RulePtr; 
     ACut : Boolean; 
     isSys, isCut : Boolean );
-  Var NewH : HeadPtr;
+  Var 
+    NewH : HeadPtr;
+    ptr : Pointer Absolute NewH;
   Begin
-    GetMemory(HE,NewH,SizeOf(TObjHead));
+    GetMemory(HE,ptr,SizeOf(TObjHead));
     With NewH^ Do
     Begin
       HH_FBCL := Fbcl;
@@ -97,8 +99,9 @@ Var ClockTime : LongInt; { Prolog clock time }
   End;
 
   Procedure FreeClockHeader( Var H : HeadPtr );
+  Var ptr : Pointer Absolute H;
   Begin
-    FreeMemory(HE,H,SizeOf(TObjHead))
+    FreeMemory(HE,ptr,SizeOf(TObjHead))
   End;
 
 {----------------------------------------------------------------------------}
@@ -137,13 +140,16 @@ Var
   { are two terms possibly unifiable? if not, there is not point in copying
   a rule, etc. }
   Function Unifiable( T1,T2 : TermPtr ) : Boolean;
-  Var Ok : Boolean;
+  Var 
+    Ok : Boolean;
+    CT1 : ConstPtr Absolute T1;
+    CT2 : ConstPtr Absolute T2;
   Begin
     CheckCondition((T1<>Nil) Or (T2<>Nil),'Call to Unifiable with two Nil terms');
     Ok := (T1=T2) Or (T1=Nil) Or (T2=Nil);
     If Not Ok Then
       If (TypeOfTerm(T1)=Constant) And (TypeOfTerm(T2)=Constant) Then
-        Ok := ConstPtr(T1)^.TC_CONS = ConstPtr(T2)^.TC_CONS;
+        Ok := CT1^.TC_CONS = CT2^.TC_CONS;
     Unifiable := Ok
   End;
 
@@ -163,7 +169,10 @@ Var
   Function FirstCandidateRule( R : RulePtr; B : BTermPtr; Var isSys : Boolean ; Var isCut : Boolean ) : RulePtr;
   Var
     FirstR : RulePtr;
-    T1,T2 : TermPtr;
+    C1 : ConstPtr;
+    TC1 : TermPtr Absolute C1;
+    C2 : ConstPtr;
+    TC2 : TermPtr Absolute C2;
     Stop : Boolean;
     ConstVal : AnyStr;
   Begin
@@ -173,10 +182,10 @@ Var
     If B <> Nil Then
     Begin
       Stop := False;
-      T1 := TermPtr(AccessTerm(B));
-      If TypeOfTerm(T1) = Constant Then { FIXME: if it is not a constant: the query is a variable "x" -- do we want to handle this?}
+      C1 := AccessTerm(B);
+      If TypeOfTerm(TC1) = Constant Then { FIXME: if it is not a constant: the query is a variable "x" -- do we want to handle this?}
       Begin
-        ConstVal := DictConst[ConstPtr(T1)^.TC_CONS];
+        ConstVal := DictConst[C1^.TC_CONS];
         If ConstVal = 'SYSCALL' Then
         Begin
           isSys := True;
@@ -191,8 +200,8 @@ Var
       End;
       While (R<>Nil) And Not Stop Do
       Begin
-        T2 := TermPtr(AccessTerm(R^.RU_FBTR)); { FIXME: check constant? Otherwise the rule head is a variable -- not parsable}
-        If Unifiable(T1,T2) Then
+        C2 := AccessTerm(R^.RU_FBTR); { FIXME: check constant? Otherwise the rule head is a variable -- not parsable}
+        If Unifiable(TC1,TC2) Then
         Begin
           FirstR := R;
           Stop := True
@@ -320,12 +329,17 @@ End;
 
   Procedure MoveForward( Var H : HeadPtr );
   Var
-    ClearB, RuleB, B : BTermPtr;
+    ClearB, B : BTermPtr;
     ClearT : TermPtr;
     R : RulePtr;
     isCut, isSys : Boolean;
     E : EqPtr;
     Ss : SysPtr;
+    RuleB : BTermPtr;
+    PRuleB : TPObjPtr Absolute RuleB;
+    CopyRuleP : TPObjPtr;
+    BCopyRuleP : BTermPtr Absolute CopyRuleP;
+
   Begin
     GetHeaderRule(H,R,isSys,isCut); { rule to apply }
 
@@ -355,19 +369,20 @@ End;
     Else
     Begin
       { copy the terms of the target rule }
-      RuleB := BTermPtr(DeepCopy(TPObjPtr(R^.RU_FBTR)));
+      RuleB := R^.RU_FBTR;
+      CopyRuleP := DeepCopy(PRuleB);
 
       { Contrainte à réduire : terme à réduire = tête de la règle }
       Ss := NewSys;
-      E := NewEq(REL_EQUA,ClearT,RuleB^.BT_TERM);
+      E := NewEq(REL_EQUA,ClearT,BCopyRuleP^.BT_TERM);
       InsertOneEqInSys(Ss,E);
 
       { new list of terms to clear: rule queue + previous terms but the first }
-      B := RuleB;
+      B := BCopyRuleP;
       While (NextTerm(B)<>Nil) Do
         B := NextTerm(B);
       B^.BT_NEXT := NextTerm(ClearB);
-      H^.HH_FBCL := NextTerm(RuleB);
+      H^.HH_FBCL := NextTerm(BCopyRuleP);
 
       Solvable := ReduceSystem(Ss,True,H^.HH_REST);
 

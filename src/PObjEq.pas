@@ -45,10 +45,12 @@ Type
 
 { create a new equation as a GC-managed object }
 Function PushEquation( Code : EqType; T1,T2 : TermPtr ) : EqPtr;
-Var E : EqPtr;
+Var 
+  E : EqPtr;
+  ptr : TPObjPtr Absolute E;
 Begin
   CheckCondition((Code=REL_EQUA) Or (Code=REL_INEQ), 'Unknown relation');
-  E := EqPtr(NewPrologObject(EQ, SizeOf(TObjEq), 3));
+  ptr := NewPrologObject(EQ, SizeOf(TObjEq), 3);
   With E^ Do
   Begin
     EQ_TYPE := Code;
@@ -62,9 +64,11 @@ End;
 
 { create a new equation }
 Function NewEq( EType: EqType; T1,T2 : TermPtr ) : EqPtr;
-Var E : EqPtr;
+Var 
+  E : EqPtr;
+  ptr : Pointer Absolute E;
 Begin
-  GetMemory(EQ,E,SizeOf(TObjEq));
+  GetMemory(EQ,ptr,SizeOf(TObjEq));
   With E^ Do
   Begin
     EQ_TYPE := EType;
@@ -84,8 +88,9 @@ End;
 
 { free an equation }
 Procedure FreeEq(E : EqPtr);
+Var ptr : Pointer Absolute E;
 Begin
-  FreeMemory(EQ,E,SizeOf(TObjEq))
+  FreeMemory(EQ,ptr,SizeOf(TObjEq))
 End;
 
 { free all equations in a list }
@@ -100,9 +105,11 @@ End;
 
 { allocate a new system }
 Function NewSys : SysPtr;
-Var S : SysPtr;
+Var 
+  S : SysPtr;
+  ptr : Pointer Absolute S;
 Begin
-  GetMemory(SY,S,SizeOf(TObjSys));
+  GetMemory(SY,ptr,SizeOf(TObjSys));
   With S^ Do
   Begin
     SY_EQUA := Nil;
@@ -113,10 +120,11 @@ End;
 
 { free a system S and all its equations; terms themselves are not freed }
 Procedure FreeSys(S : SysPtr);
+Var ptr : Pointer Absolute S;
 Begin
   FreeAllEq(S^.SY_EQUA);
   FreeAllEq(S^.SY_INEQ);
-  FreeMemory(SY,S,SizeOf(TObjSys))
+  FreeMemory(SY,ptr,SizeOf(TObjSys))
 End;
 
 
