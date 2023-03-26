@@ -40,9 +40,10 @@ Type
     RU_NEXT : RulePtr; { next rule }
     RU_FBTR : BTermPtr; { list of terms (the first is the rule head) }
     RU_SYST : EqPtr; { list of equation or inequation in the rule; Warning: not GC}
+    { not deep copied: }
+    RU_FVAR : DictVarPtr; { where to start looking up }
+    RU_LVAR : DictVarPtr; { where to stop looking up }
     { extra data: }
-    RU_FVAR : Integer; { variables local to the rule: first index }
-    RU_LVAR : Integer; { variables local to the rule: last index }
     RU_TYPE : RuType { type of rule: read from init file, or user }
   End;
 
@@ -57,9 +58,9 @@ Type
     QU_LRUL : RulePtr; { last rule to try }
     QU_FBTR : BTermPtr; { terms in the query }
     QU_SYST : EqPtr; { list of equation or inequation in the query }
-    { extra data: }
-    QU_FVAR : Integer; { variables local to the query: first index }
-    QU_LVAR : Integer { variables local to the query: last index }
+    { not deep copied: }
+    QU_FVAR : DictVarPtr; { where to start looking up }
+    QU_LVAR : DictVarPtr { where to stop looking up }
   End;
 
 { program }
@@ -74,9 +75,10 @@ Type
     PP_LRUL : RulePtr; { last rule }
     { not deep copied: }
     PP_DCON : DictConstPtr; { list of all constants }
-    PP_LCON : DictConstPtr; { constant list head before processing command line }
-    { extra data: }
-    PP_LVAR : Integer { variables local to the program: last index }
+    PP_UCON : DictConstPtr; { constant list head before processing user's command line }
+    PP_DVAR : DictVarPtr; { list of all variable identifiers }
+    PP_UVAR : DictVarPtr; { variable identifier list head before processing user's command line }
+    PP_LVAR : DictVarPtr { last identifier to lookup when parsing (local variables)}
   End;
 
 
@@ -106,14 +108,14 @@ Var
   R : RulePtr;
   ptr : TPObjPtr Absolute R;
 Begin
-  ptr := NewPrologObject(RU, SizeOf(TObjRule), 3, 3);
+  ptr := NewPrologObject(RU, SizeOf(TObjRule), 5, 3);
   With R^ Do
   Begin
     RU_NEXT := Nil;
     RU_FBTR := Nil;
     RU_SYST := Nil;
-    RU_FVAR := 0;
-    RU_LVAR := 0;
+    RU_FVAR := Nil;
+    RU_LVAR := Nil;
     RU_TYPE := RuleType
   End;
   NewRule := R
@@ -125,7 +127,7 @@ Var
   P : ProgPtr;
   ptr : TPObjPtr Absolute P;
 Begin
-  ptr := NewPrologObject(PR, SizeOf(TObjProg), 6, 4);
+  ptr := NewPrologObject(PR, SizeOf(TObjProg), 9, 4);
   With P^ Do
   Begin
     PP_FRUL := Nil;
@@ -133,8 +135,10 @@ Begin
     PP_FQRY := Nil;
     PP_LQRY := Nil;
     PP_DCON := Nil;
-    PP_LCON := Nil;
-    PP_LVAR := NbVar { TODO }
+    PP_UCON := Nil;
+    PP_DVAR := Nil;
+    PP_UVAR := Nil;
+    PP_LVAR := Nil
   End;
   NewProgram := P
 End;

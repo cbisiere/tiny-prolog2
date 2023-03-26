@@ -19,14 +19,13 @@
 { types                                                                 }
 {-----------------------------------------------------------------------}
 
+{ constant: identifier, number or string; list of constants  }
 Const
   MaxSizeConst = 40;  { maximum length of a constant }
 
 Type
   StrConst   = String[MaxSizeConst];
 
-{ constant: identifier, number or string; list of constants  }
-Type 
   ConstPtr = ^TObjConst; { term: constant }
   DictConstPtr = ^TObjDictConst; { list of unique constant values }
 
@@ -54,13 +53,31 @@ Type
 
 
 { variable }
+Const
+  MaxSizeIdent = 40;  { maximum length of a variable identifier }
+
 Type 
+  StrIdent   = String[MaxSizeIdent];
+
   VarPtr = ^TObjVar;
+  DictVarPtr = ^TObjDictVar; { list of unique constant values }
+
   TObjVar = Record
     PO_META : TObjMeta;
+    { deep copied: }
     TV_TRED : TermPtr; { right member of the equation in the reduced system }
     TV_FWAT : EqPtr; { first inequation this variable watches }
-    TV_NVAR : Integer { index in the dictionary }
+    { not deep copied: }
+    TV_DVAR : DictVarPtr
+  End;
+
+  TObjDictVar = Record
+    DV_META : TObjMeta;
+    { deep copied: }
+    DV_NEXT : DictVarPtr;
+    DV_PVAR : VarPtr;
+    { extra data: }
+    DV_NAME : StrIdent
   End;
 
 
@@ -103,14 +120,30 @@ Var
   V : VarPtr;
   ptr : TPObjPtr Absolute V;
 Begin
-  ptr := NewPrologObject(VA, SizeOf(TObjVar), 2, 2);
+  ptr := NewPrologObject(VA, SizeOf(TObjVar), 3, 2);
   With V^ Do
   Begin
-    TV_NVAR := 0;
     TV_TRED := Nil;
-    TV_FWAT := Nil
+    TV_FWAT := Nil;
+    TV_DVAR := Nil
   End;
   NewVar := V
+End;
+
+{ create a new variable identifier }
+Function NewVarIdentifier : DictVarPtr;
+Var 
+  V : DictVarPtr;
+  ptr : TPObjPtr Absolute V;
+Begin
+  ptr := NewPrologObject(VV, SizeOf(TObjDictConst), 2, 2);
+  With V^ Do
+  Begin
+    DV_NEXT := Nil;
+    DV_PVAR := Nil;
+    DV_NAME := ''
+  End;
+  NewVarIdentifier := V
 End;
 
 { create a new binary functional symbol }
@@ -266,4 +299,59 @@ Begin
     TC_DCON := LookupConst(list,Ch)
   End;
   InstallConst := C
+End;
+
+
+{ look in a list for an identifier, from start to stop (excluding stop); 
+  return a pointer to the list entry, or Nil }
+Function LookupVarIdentifier( start,stop : DictVarPtr; str : StrIdent ) : DictVarPtr;
+Var
+  e : DictVarPtr;
+  Found : Boolean;
+Begin
+  e := start;
+  Found := False;
+  While (e<>Nil) And (e<>stop) And Not Found Do
+  Begin
+    If e^.DV_NAME = str Then
+      Found := True
+    Else
+      e := e^.DV_NEXT
+  End;
+  If Not Found Then
+    e := Nil;
+  LookupVarIdentifier := e
+End;
+
+{ append a variable to the dictionary }
+Function AppendVarIdentifier( Var list : DictVarPtr; str : StrIdent; V : VarPtr ) : DictVarPtr;
+Var e : DictVarPtr;
+Begin
+  e := NewVarIdentifier;
+  With e^ Do
+  Begin
+    DV_NEXT := list;
+    DV_NAME := str;
+    DV_PVAR := V
+  End;
+  list := e;
+  AppendVarIdentifier := e
+End;
+
+{ create a variable if it does not exist in list (up to stop, excluded); return it }
+Function InstallVariable( Var list : DictVarPtr; stop : DictVarPtr; Ch : StrIdent ) : VarPtr;
+Var
+  V : VarPtr;
+  DV : DictVarPtr;
+Begin
+  DV := LookupVarIdentifier(list,stop,Ch);
+  If DV = Nil Then
+  Begin
+    V := NewVar;
+    DV := AppendVarIdentifier(list,Ch,V);
+    V^.TV_DVAR := DV
+  End
+  Else
+    V := DV^.DV_PVAR;
+  InstallVariable := V
 End;

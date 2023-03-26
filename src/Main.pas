@@ -22,16 +22,16 @@
 
 {$I String.pas }  { restore stack }
 
-Procedure DumpState; Forward;
-Procedure DumpBacktrace; Forward;
 Procedure CheckCondition( Cond : Boolean; Message : AnyStr ); Forward;
+Procedure DumpBacktrace; Forward;
+
+
 
 {$I Memory.pas   }  { memory management: GC, cloning...           }
 {$I Restore.pas  }  { restore stack                               }
 {$I PObj.pas     }  { Prolog objects: common definitions          }
 {$I PObjEq.pas   }  { Prolog objects: (in)equations, system       }
 {$I PObjTerm.pas }  { Prolog objects: terms                       }
-{$I Dict.pas     }  { dictionaries: variables, constants          }
 {$I PObjProg.pas }  { Prolog objects: program, rules, queries     }
 {$I Keyboard.pas }  { read from keyboard w/ history               }
 {$I Input.pas    }  { read the input flow                         }

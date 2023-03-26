@@ -17,8 +17,7 @@
 
 Procedure Initialisation;
 Begin
-  FileIsOpen  := False;                { Le Fichier est Fermé        }
-  Error    := False;                   { Il n'y a pas d'erreur       }
-  PtrIn    := 0;                       { Init Pointeur Buffer        }
-  NbVar    := 0                        { DictVar vide                }
+  FileIsOpen := False;              { Le Fichier est Fermé        }
+  Error := False;                   { Il n'y a pas d'erreur       }
+  PtrIn := 0                        { Init Pointeur Buffer        }
 End;

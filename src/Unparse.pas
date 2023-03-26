@@ -101,11 +101,11 @@ Begin
     'GetVarNameAsString(V): V is not a variable');
   k := PObjectCopyNumber(PV);
   If k = 0 Then
-    s := DictVar[V^.TV_NVAR].Name
+    s := V^.TV_DVAR^.DV_NAME
   Else
   Begin
     Str(k,s);
-    s := DictVar[V^.TV_NVAR].Name + '_' + s { FIXME: should be an invalid variable name }
+    s := V^.TV_DVAR^.DV_NAME + '_' + s { FIXME: should be an invalid variable name }
   End;
   GetVarNameAsString := s (* + '_' + PtrToName(TPObjPtr(V)) *)
 End;
@@ -309,10 +309,10 @@ End;
 { du dictionnaire comprises entre First et Last.                             }
 {----------------------------------------------------------------------------}
 
-Procedure WriteSystem( First,Last : Integer; Curl : Boolean );
+Procedure WriteSystem( start,stop : DictVarPtr; Curl : Boolean );
 Var
-  I       : Integer;
-  V       : VarPtr;
+  e : DictVarPtr;
+  V : VarPtr;
   Before  : Boolean;
   Printed  : Boolean;
 
@@ -330,9 +330,10 @@ Begin
   If Curl Then CurlyBrace;
   InitIneq;
   Before  := False;
-  For I := First To Last Do
+  e := start;
+  While (e<>Nil) And (e<>stop) Do
   Begin
-    V := DictVar[I].Ptr;
+    V := e^.DV_PVAR;
     If V^.TV_TRED <> Nil Then
     Begin
       CurlyBrace;
@@ -345,7 +346,8 @@ Begin
     Begin
       CurlyBrace;
       AddIneq(V^.TV_FWAT)
-    End
+    End;
+    e := e^.DV_NEXT
   End;
   WriteInequations(Before);
   If Printed Then

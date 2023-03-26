@@ -15,8 +15,6 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-Var TopVar : Integer; { Start index when searching a variable (locals) }
-
 Function ReduceSystem( S : SysPtr; Backtrackable : Boolean; Var L : RestorePtr) : Boolean; Forward;
 
 {-----------------------------------------------------------------------}
@@ -167,7 +165,7 @@ Begin
     Begin                      { a variable }
       GetCharWhile(Ch,Digits);
       GetCharWhile(Ch,['''']);
-      V := InstallVariable(Ch,TopVar);
+      V := InstallVariable(P^.PP_DVAR,P^.PP_LVAR,Ch);
       T := TV;
     End;
   Else { at least 2 letters: an identifier }
@@ -327,6 +325,19 @@ Begin
   CompileTerms := B
 End;
 
+{ set up local variable context to prepare compiling a new rule }
+Procedure OpenLocalContextForRule( P : ProgPtr; R : RulePtr );
+Begin
+  P^.PP_LVAR := P^.PP_DVAR;
+  R^.RU_LVAR := P^.PP_DVAR
+End;
+
+{ close this local variable context }
+Procedure CloseLocalContextForRule( P : ProgPtr; R : RulePtr );
+Begin
+  R^.RU_FVAR := P^.PP_DVAR
+End;
+
 { compile a rule }
 Procedure CompileOneRule( P : ProgPtr; R : RulePtr );
 Var 
@@ -334,11 +345,10 @@ Var
   E : EqPtr;
   c : Char;
 Begin
-  TopVar := NbVar + 1;
+  OpenLocalContextForRule(P,R);
   Spaces;
   With R^ Do
   Begin
-    RU_FVAR := NbVar + 1;
     RU_SYST := Nil;
     B := CompileOneTerm(P,False); { head }
     RU_FBTR := B;
@@ -352,11 +362,10 @@ Begin
         E := CompileSystem(P); { WARNING: MAY ADD THINGS }
         RU_SYST := E 
       End;
-      Verify(';');
-      RU_LVAR := NbVar;
-      TopVar := NbVar + 1
+      Verify(';')
     End
-  End
+  End;
+  CloseLocalContextForRule(P,R)
 End;
 
 { compile a sequence of rules, stopping at a char in StopChars  }
@@ -377,19 +386,31 @@ Begin
   CompileRules := R
 End;
 
+{ set up local variable context to prepare compiling a new query }
+Procedure OpenLocalContextForQuery( P : ProgPtr; Q : QueryPtr );
+Begin
+  P^.PP_LVAR := P^.PP_DVAR;
+  Q^.QU_LVAR := P^.PP_DVAR
+End;
+
+{ close this local variable context }
+Procedure CloseLocalContextForQuery( P : ProgPtr; Q : QueryPtr );
+Begin
+  Q^.QU_FVAR := P^.PP_DVAR
+End;
+
 { compile a query; reduce the system iif any }
 Procedure CompileOneQuery( P : ProgPtr; Q : QueryPtr );
 Var
   E : EqPtr;
   c : Char;
 Begin
+  OpenLocalContextForQuery(P,Q);
   Spaces;
-  TopVar := NbVar + 1;
   With Q^ Do
   Begin
     QU_FRUL := Nil;
     QU_LRUL := Nil;
-    QU_FVAR := NbVar + 1;
     QU_FBTR := CompileTerms(P,['{',';',EndOfInput]);
     QU_SYST := Nil;
     c := NextCharNb(c);
@@ -398,9 +419,9 @@ Begin
       E := CompileSystem(P);
       QU_SYST := E { WARNING: MAY ADD THINGS }
     End;
-    Verify(';');
-    QU_LVAR := NbVar
-  End
+    Verify(';')
+  End;
+  CloseLocalContextForQuery(P,Q) 
 End;
 
 { compile a sequence of queries; if ContChar is not empty, each query 
@@ -420,7 +441,7 @@ Begin
   Begin
     If WithArrow Then
       Verify('->');
-    ptr := NewPrologObject(QU, SizeOf(TObjQuery), 5, 5);
+    ptr := NewPrologObject(QU, SizeOf(TObjQuery), 7, 5);
     CompileOneQuery(P,Q);
     Q^.QU_FRUL := P^.PP_FRUL;
     Q^.QU_LRUL := P^.PP_LRUL;
@@ -432,8 +453,8 @@ End;
 { remove the queries typed by the user }
 Procedure RemoveCommandLineQueries( P : ProgPtr );
 Begin
-  NbVar   := P^.PP_LVAR;
-  P^.PP_DCON := P^.PP_LCON { forget all the constants added in user commands }
+  P^.PP_DVAR := P^.PP_UVAR; { forget variables }
+  P^.PP_DCON := P^.PP_UCON { forget constants }
 End;
 
 { compile queries typed by the user }
@@ -512,7 +533,7 @@ Begin
     End
   Until Stop Or Error;
   { machine state }
-  P^.PP_LVAR := NbVar;
-  P^.PP_LCON := P^.PP_DCON;
+  P^.PP_UVAR := P^.PP_DVAR;
+  P^.PP_UCON := P^.PP_DCON;
   CompileRulesAndQueries := FirstQ
 End;

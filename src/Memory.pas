@@ -22,7 +22,7 @@
 
 { type of allocated objects; note that SY, EQ, HE, RE are not managed by GC }
 Type
-  TypePrologObj = (PR, RU, QU, SY, EQ, BT, CO, FU, VA, CV, HE, RE);
+  TypePrologObj = (PR, RU, QU, SY, EQ, BT, CO, FU, VA, CV, VV, HE, RE);
 
 Var 
   mem : Real; { total number of bytes allocated }

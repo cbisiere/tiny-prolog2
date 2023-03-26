@@ -117,28 +117,33 @@ Begin
 End;
 
 {----------------------------------------------------------------------------}
-{ Affiche le dictionnaire des variables.                                     }
+{ display variable identifiers from start to stop (excluding stop)           }
 {----------------------------------------------------------------------------}
 
-Procedure DumpDictVar;
+Procedure DumpDictVar( start,stop : DictVarPtr );
 Var 
-  K : Integer;
+  e : DictVarPtr;
   V : VarPtr;
 Begin
-  If NbVar > 0 Then
+  WriteLn('Variables:');
+  e := start;
+  while (e<>Nil) And (e<>stop) Do
   Begin
-    WriteLn('Variables:');
-    For K := 1 To NbVar Do
+    V := e^.DV_PVAR;
+    Write('  ');
+    WriteVarName(V);
+    If V^.TV_TRED <> Nil Then
     Begin
-      V := DictVar[K].Ptr;
-      WriteVarName(V);
-      If V^.TV_TRED <> Nil Then
-      Begin
-        Write(' = ');
-        WriteTerm(V^.TV_TRED)
-      End;
-      WriteLn
-    End
+      Write(' = ');
+      WriteTerm(V^.TV_TRED)
+    End;
+    If V^.TV_FWAT <> Nil Then
+    Begin
+      Write(', ');
+      WriteOneEquation(V^.TV_FWAT)
+    End;    
+    WriteLn;
+    e := e^.DV_NEXT
   End
 End;
 
@@ -159,24 +164,14 @@ Begin
 End;
 
 {----------------------------------------------------------------------------}
-{ Affiche les variables globales d'état.                                     }
-{----------------------------------------------------------------------------}
-
-Procedure DumpState;
-Begin
-  WriteLn('NbVar = ',NbVar);
-End;
-
-{----------------------------------------------------------------------------}
 { Affiche l'état complet de la machine Prolog.                               }
 {----------------------------------------------------------------------------}
 
 Procedure CoreDump( P : ProgPtr; Message : AnyStr; Trace : Boolean );
 Begin
   WriteLn('Begin Core Dump: "',Message,'"');
-  DumpState;
   DumpDictConst(P);
-  DumpDictVar;
+  DumpDictVar(P^.PP_DVAR,Nil);
   If Trace Then
     DumpBacktrace;
   WriteLn('End Code Dump: "',Message,'"')
