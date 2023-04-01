@@ -91,17 +91,17 @@ Begin
     If NbSysCallArgs <> 0 Then
       ExecutionSysCallOk := False
     Else
-      UnparseQuestionRules(Q,RTYPE_USER)
+      OutQuestionRules(Q,RTYPE_USER)
   Else If Ident = 'OUT' Then
     If NbSysCallArgs <> 1 Then
       ExecutionSysCallOk := False
     Else
-      WriteTerm(Argument(2+1,FF))
+      OutTerm(Argument(2+1,FF))
   Else If Ident = 'OUTM' Then
     If NbSysCallArgs <> 1 Then
       ExecutionSysCallOk := False
     Else
-      WriteTermBis(Argument(2+1,FF),False,False)
+      OutTermBis(Argument(2+1,FF),False,False)
   Else If Ident = 'LINE' Then
     If NbSysCallArgs <> 0 Then
       ExecutionSysCallOk := False

@@ -43,7 +43,7 @@ Begin
     End;
   EQ:
     Begin
-      WriteOneEquation(E)
+      OutOneEquation(E)
     End;
   BT:
     Begin
@@ -76,6 +76,9 @@ Begin
   HE:
     Begin
     End;
+  ST:
+    Begin
+    End;
   RE:
     Begin
     End
@@ -96,7 +99,7 @@ Var
 Begin
   WriteLn('Header level ',H^.HH_CLOC);
   Write('  Terms: ');
-  UnparseTerms(H^.HH_FBCL,True);
+  OutTerms(H^.HH_FBCL,True);
   WriteLn;
   Write('  Rule: ');
   GetHeaderRule(H,R,isSys,isCut);
@@ -107,7 +110,7 @@ Begin
   Else if (isCut) Then
     WriteLn('!')
   Else
-    UnparseOneRule(R);
+    OutOneRule(R);
   Write('  Restore: ');
   U := H^.HH_REST;
   While U<>Nil Do
@@ -159,16 +162,16 @@ Begin
   Begin
     V := e^.DV_PVAR;
     Write('  ');
-    WriteVarName(V);
+    OutVarName(V);
     If V^.TV_TRED <> Nil Then
     Begin
       Write(' = ');
-      WriteTerm(V^.TV_TRED)
+      OutTerm(V^.TV_TRED)
     End;
     If V^.TV_FWAT <> Nil Then
     Begin
       Write(', ');
-      WriteOneEquation(V^.TV_FWAT)
+      OutOneEquation(V^.TV_FWAT)
     End;    
     WriteLn;
     e := e^.DV_NEXT

@@ -47,7 +47,7 @@ Var
   Procedure WriteSolution;
   Begin
     InitIneq;
-    WriteSystem(Q^.QU_FVAR,Q^.QU_LVAR,True);
+    OutSystem(Q^.QU_FVAR,Q^.QU_LVAR,True);
     WriteLn
   End;
 

@@ -21,7 +21,7 @@
 
 Procedure AnswerQuery( P : ProgPtr; Q : QueryPtr );
 Begin
-  UnparseOneQuery(Q);
+  OutOneQuery(Q);
   Clock(P,Q)
 End;
 

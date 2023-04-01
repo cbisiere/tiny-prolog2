@@ -28,6 +28,7 @@ Procedure DumpBacktrace; Forward;
 {$I Memory.pas    }  { memory management: GC, cloning...           }
 {$I Restore.pas   }  { restore stack                               }
 {$I PObj.pas      }  { Prolog objects: common definitions          }
+{$I PObjStr.pas   }  { Prolog objects: long string                 }
 {$I PObjEq.pas    }  { Prolog objects: (in)equations, system       }
 {$I PObjTerm.pas  }  { Prolog objects: terms                       }
 {$I PObjProg.pas  }  { Prolog objects: program, rules, queries     }

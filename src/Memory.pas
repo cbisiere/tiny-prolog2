@@ -22,12 +22,12 @@
 
 { type of allocated objects; note that SY, EQ, HE, RE are not managed by GC }
 Type
-  TypePrologObj = (PR, RU, QU, SY, EQ, BT, CO, FU, VA, CV, VV, HE, RE);
+  TypePrologObj = (PR, RU, QU, SY, EQ, BT, CO, FU, VA, CV, VV, HE, ST, RE);
   TypePrologObjStr = Array[TypePrologObj] Of String[2];
 
 Const
   ObjStr : TypePrologObjStr = ('PR', 'RU', 'QU', 'SY', 'EQ', 'BT', 'CO', 
-    'FU', 'VA', 'CV', 'VV', 'HE', 'RE');
+    'FU', 'VA', 'CV', 'VV', 'HE', 'ST', 'RE');
 
 Var 
   mem : Real; { total number of bytes allocated }

@@ -122,23 +122,23 @@ The following executions show that what the engine forgets after executing a cut
 
 
 ```
--> choice1(u) ;
+-> choice1(u);
 { u = red.big }
 { u = red.small }
 { u = blue.big }
 { u = blue.small }
 { u = "that's all" }
--> choice2(u) ;
+-> choice2(u);
 { u = red.big }
 { u = red.small }
 { u = blue.big }
 { u = blue.small }
--> choice3(u) ;
+-> choice3(u);
 { u = red.big }
 { u = red.small }
 -> choice4(u) ;
 { u = red.big }
--> choice1(u) ! ;
+-> choice1(u) !;
 { u = red.big }
 ```
 
@@ -192,14 +192,14 @@ To execute this program, run `tprolog2 examples/permu.pro`:
 ```
 $ ./tprolog2 examples/permu.pro
 Program "examples/permu.pro" loaded
--> permutation(1.2.3.nil,x) ;
+-> permutation(1.2.3.nil,x);
 { x = 1.2.3.nil }
 { x = 2.1.3.nil }
 { x = 2.3.1.nil }
 { x = 1.3.2.nil }
 { x = 3.1.2.nil }
 { x = 3.2.1.nil }
--> permutation(3.a.1.b.nil,2.4.c.d.nil) ;
+-> permutation(3.a.1.b.nil,2.4.c.d.nil);
 { a = 2, b = 4, c = 3, d = 1 }
 { a = 2, b = 4, c = 1, d = 3 }
 { a = 4, b = 2, c = 3, d = 1 }
@@ -211,7 +211,7 @@ The final `>`is a prompt, inviting you to type in other queries to execute, e.g.
 
 ```
 > permutation(1.2.3.nil,3.x.y.nil);
--> permutation(1.2.3.nil,3.x.y.nil) ;
+-> permutation(1.2.3.nil,3.x.y.nil);
 { x = 1, y = 2 }
 { x = 2, y = 1 }
 >
@@ -222,11 +222,11 @@ Predefined commands include `list` to list the user current rules:
 ```
 > list fail;
 -> list fail ;
-permutation(nil,nil) -> ;
+permutation(nil,nil) ->;
 permutation(e.x,z) ->
         permutation(x,y)
         insertion(e,y,z);
-insertion(e,x,e.x) -> ;
+insertion(e,x,e.x) ->;
 insertion(e,f.x,f.y) ->
         insertion(e,x,y);
 >
@@ -238,7 +238,7 @@ When you are done, use `quit` or hit `Ctrl+C` to quit the interpreter.
 
 ```
 > quit;
--> quit ;
+-> quit;
 Bye!
 $
 ```
