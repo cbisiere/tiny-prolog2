@@ -17,7 +17,8 @@
 
 Procedure Initialisation;
 Begin
-  FileIsOpen := False;              { Le Fichier est Fermé        }
-  Error := False;                   { Il n'y a pas d'erreur       }
-  PtrIn := 0                        { Init Pointeur Buffer        }
+  FileIsOpen := False;
+  Error := False;
+  PtrIn := 0;
+  CurrentProgram := Nil
 End;

@@ -233,7 +233,7 @@ Begin
   If Not Error Then
     T2 := ReadOneTerm(P,False);  { right term }
   If Not Error Then
-    E := PushEquation(Code,T1,T2);
+    E := NewEquation(Code,T1,T2);
   ReadEquation := E
 End;
 
@@ -279,13 +279,12 @@ Begin
   If Not Error Then
   Begin
 
-    S := NewSys;
+    S := NewSystem;
     CopyAllEqInSys(S,E);
 
     U := Nil;
     If Not ReduceSystem(S,False,U) Then
-      RaiseError('Constraints cannot be satisfied');
-    FreeSys(S);
+      RaiseError('Constraints cannot be satisfied')
   End;
   CompileSystem := E
 End;

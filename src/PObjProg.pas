@@ -25,9 +25,10 @@ Type
   BTermPtr = ^TObjBTerm;
   TObjBTerm = Record
     PO_META : TObjMeta;
+    { deep copied: }
     BT_NEXT : BTermPtr; { next element }
     BT_TERM : TermPtr; { term }
-    BT_CONS : ConstPtr {access constant or 0 }
+    BT_CONS : ConstPtr { access constant or 0 }
   End;
 
 { rule }
@@ -63,9 +64,12 @@ Type
     QU_LVAR : DictVarPtr { where to stop looking up }
   End;
 
-{ program }
+{ program and clock }
 Type 
   ProgPtr = ^TObjProg;
+  HeadPtr = ^TObjHead;
+
+  { program }
   TObjProg = Record
     PO_META : TObjMeta;
     { deep copied: }
@@ -74,6 +78,7 @@ Type
     PP_FRUL : RulePtr; { first rule }
     PP_LRUL : RulePtr; { last rule }
     { not deep copied: }
+    PP_HEAD : HeadPtr; { current clock head (during execution or a query) }
     PP_DCON : DictConstPtr; { list of all constants }
     PP_UCON : DictConstPtr; { constant list head before processing user's command line }
     PP_DVAR : DictVarPtr; { list of all variable identifiers }
@@ -81,9 +86,23 @@ Type
     PP_LVAR : DictVarPtr { last identifier to lookup when parsing (local variables)}
   End;
 
+  { clock header }
+  TObjHead = Record
+      PO_META : TObjMeta;
+      { not deep copied: }
+      HH_NEXT : HeadPtr; { previous clock header or Nil }
+      HH_RULE : RulePtr; { rule to apply }
+      HH_FBCL : BTermPtr; { terms to clear }
+      HH_REST : RestorePtr; { restoration stack }
+      { extra data: }
+      HH_ACUT : Boolean; { a cut has been cleared }
+      HH_ISYS : Boolean; { term to clear is a system call? }
+      HH_ICUT : Boolean { term to clear is a cut? }
+  End;
+
 
 {-----------------------------------------------------------------------}
-{ create / destroy                                                      }
+{ constructors                                                          }
 {-----------------------------------------------------------------------}
 
 { new block }
@@ -127,13 +146,14 @@ Var
   P : ProgPtr;
   ptr : TPObjPtr Absolute P;
 Begin
-  ptr := NewPrologObject(PR, SizeOf(TObjProg), 9, 4);
+  ptr := NewPrologObject(PR, SizeOf(TObjProg), 10, 4);
   With P^ Do
   Begin
     PP_FRUL := Nil;
     PP_LRUL := Nil;
     PP_FQRY := Nil;
     PP_LQRY := Nil;
+    PP_HEAD := Nil;
     PP_DCON := Nil;
     PP_UCON := Nil;
     PP_DVAR := Nil;
@@ -141,6 +161,26 @@ Begin
     PP_LVAR := Nil
   End;
   NewProgram := P
+End;
+
+{ new clock header }
+Function NewClockHeader : HeadPtr;
+Var 
+  H : HeadPtr;
+  ptr : TPObjPtr Absolute H;
+Begin
+  ptr := NewPrologObject(HE, SizeOf(TObjHead), 4, 0);
+  With H^ Do
+  Begin
+    HH_NEXT := Nil;
+    HH_RULE := Nil;
+    HH_FBCL := Nil;
+    HH_REST := Nil;
+    HH_ACUT := False;
+    HH_ISYS := False;
+    HH_ICUT := False
+  End;
+  NewClockHeader := H
 End;
 
 {-----------------------------------------------------------------------}
@@ -180,4 +220,45 @@ Begin
   While (Q^.QU_NEXT <> Nil) Do
     Q := Q^.QU_NEXT;
   LastQuery := Q
+End;
+
+
+{ append a clock header to a list }
+Procedure AppendClockHeader(Var list : HeadPtr; H : HeadPtr );
+Begin
+  H^.HH_NEXT := list;
+  list := H
+End;
+
+{ get the rule data of a clock header }
+Procedure GetHeaderRule( H : HeadPtr; Var R : RulePtr; Var isSys : Boolean; Var isCut : Boolean );
+Begin
+  R := H^.HH_RULE;
+  isSys := H^.HH_ISYS;
+  isCut := H^.HH_ICUT
+End;
+
+{ set the rule data of a clock header }
+Procedure SetHeaderRule( H : HeadPtr; R : RulePtr; isSys, isCut : Boolean);
+Begin
+  With H^ Do
+  Begin
+    HH_RULE := R;
+    HH_ISYS := isSys;
+    HH_ICUT := isCut
+  End
+End;
+{ create and set a clock header on top of a list of headers }
+Procedure CreateClockHeader(Var list : HeadPtr; Fbcl : BTermPtr; R : RulePtr; 
+    ACut : Boolean; isSys, isCut : Boolean );
+Var H : HeadPtr;
+Begin
+  H := NewClockHeader;
+  With H^ Do
+  Begin
+    HH_FBCL := Fbcl;
+    HH_ACUT := ACut
+  End;
+  SetHeaderRule(H,R,isSys,isCut);
+  AppendClockHeader(list,H);
 End;

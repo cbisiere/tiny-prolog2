@@ -23,6 +23,9 @@ Var
   Cp : ConstPtr Absolute p;
   Vp : VarPtr Absolute p;
   Fp : FuncPtr Absolute p;
+  Dv : DictVarPtr Absolute p;
+  Dc : DictConstPtr Absolute p;
+  E : EqPtr Absolute p;
 Begin
   s := '';
   Case PObjectType(p) Of
@@ -35,15 +38,19 @@ Begin
   QU:
     Begin
     End;
+  SY:
+    Begin
+    End;
   EQ:
     Begin
+      WriteOneEquation(E)
     End;
   BT:
     Begin
     End;
   CO:
     Begin
-      s := GetConstAsString(Cp, True);
+      s := GetConstAsString(Cp, True)
     End;
   FU:
     Begin
@@ -53,7 +60,25 @@ Begin
   VA:
     Begin
       s := GetVarNameAsString(Vp);
-    End 
+      If (Vp^.TV_TRED <> Nil) Then
+      Begin
+        s := s + ' = ...';
+      End
+    End;
+  CV:
+    Begin
+      s := Dc^.DC_CVAL
+    End;
+  VV:
+    Begin
+      s := GetVarNameAsString(Dv^.DV_PVAR)
+    End;
+  HE:
+    Begin
+    End;
+  RE:
+    Begin
+    End
   End;
   ToString := s
 End;
@@ -88,8 +113,10 @@ Begin
   While U<>Nil Do
     With U^ Do
     Begin
+      Write('.');
       U := RE_NEXT
     End;
+  Writeln;
   Write('  Cut: ');
   WriteLn(H^.HH_ACUT)
 End;
@@ -104,8 +131,7 @@ Begin
   Begin
     DumpHeader(H);
     H := H^.HH_NEXT
-  End;
-  WriteLn('*EoB*');
+  End
 End;
 
 {----------------------------------------------------------------------------}
@@ -114,6 +140,8 @@ End;
 
 Procedure DumpBacktrace;
 Begin
+  If CurrentProgram<>Nil Then
+    Backtrace(CurrentProgram^.PP_HEAD)
 End;
 
 {----------------------------------------------------------------------------}
@@ -164,15 +192,15 @@ Begin
 End;
 
 {----------------------------------------------------------------------------}
-{ Affiche l'état complet de la machine Prolog.                               }
+{ core dump a Prolog program                                                 }
 {----------------------------------------------------------------------------}
 
-Procedure CoreDump( P : ProgPtr; Message : AnyStr; Trace : Boolean );
+Procedure CoreDump; (* ( P : ProgPtr; Message : AnyStr; Trace : Boolean ); *)
 Begin
   WriteLn('Begin Core Dump: "',Message,'"');
   DumpDictConst(P);
   DumpDictVar(P^.PP_DVAR,Nil);
   If Trace Then
-    DumpBacktrace;
+    Backtrace(P^.PP_HEAD);
   WriteLn('End Code Dump: "',Message,'"')
 End;

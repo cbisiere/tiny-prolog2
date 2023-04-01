@@ -19,91 +19,6 @@ Function ExecutionSysCallOk( F : TermPtr; P : ProgPtr; Q : QueryPtr ) : Boolean;
 
 Var ClockTime : LongInt; { Prolog clock time }
 
-  {-----------------------------------------------------------------------}
-  {                                                                       }
-  {  LE SOMMET DE LA PILE PRINCIPALE µ :                                  }
-  {                                                                       }
-  {               |-------|                                               }
-  {               |       |                                               }
-  {         µ     | FBCL  |---> Pointe vers la suite des termes à         }
-  {               |       |     effacer.                                  }
-  {               |-------|                                               }
-  {               |       |                                               }
-  {         µ+1   | RULE  |---> Pointe vers la règle à appliquer.         }
-  {               |       |                                               }
-  {               |-------|                                               }
-  {               |       |                                               }
-  {         µ+2   | REST  |---> Pointe, avant le lancement de la          }
-  {               |       |     procédure de réduction, sur le sommet de  }
-  {               |-------|     la pile de restauration.                  }
-  {               |       |                                               }
-  {         µ+4   | PREV  |---> Pointe dans la pile principale vers       }
-  {               |       |     l'entête de l'étape précédente (ou Nil    }
-  {               |-------|     si pas d'étape précédente).               }
-  {               |       |                                               }
-  {         µ+5   | ACUT  |---> True if the term to clear is a cut.       }
-  {               |       |                                               }
-  {               |-------|                                               }
-  {                                                                       }
-  {-----------------------------------------------------------------------}
-
-  Type 
-    HeadPtr = ^TObjHead;
-    TObjHead = Record
-      HH_REST : RestorePtr; { restoration stack }
-      HH_ACUT : Boolean; { a cut has been cleared }
-      HH_NEXT : HeadPtr; { previous clock header or Nil }
-
-      HH_ISYS : Boolean; { term to clear is a system call? }
-      HH_ICUT : Boolean; { term to clear is a cut? }
-      HH_RULE : RulePtr; { rule to apply }
-
-      HH_FBCL : BTermPtr { terms to clear }
-    End;
-
-  { create a clock header }
-  Procedure GetHeaderRule( H : HeadPtr; Var R : RulePtr; Var isSys : Boolean; Var isCut : Boolean );
-  Begin
-    R := H^.HH_RULE;
-    isSys := H^.HH_ISYS;
-    isCut := H^.HH_ICUT
-  End;
-
-  Procedure SetHeaderRule( H : HeadPtr; R : RulePtr; isSys, isCut : Boolean);
-  Begin
-    With H^ Do
-    Begin
-      HH_RULE := R;
-      HH_ISYS := isSys;
-      HH_ICUT := isCut
-    End
-  End;
-
-  Procedure NewClockHeader(Var H : HeadPtr; Fbcl : BTermPtr; R : RulePtr; 
-    ACut : Boolean; 
-    isSys, isCut : Boolean );
-  Var 
-    NewH : HeadPtr;
-    ptr : Pointer Absolute NewH;
-  Begin
-    GetMemory(HE,ptr,SizeOf(TObjHead));
-    With NewH^ Do
-    Begin
-      HH_FBCL := Fbcl;
-      SetHeaderRule(NewH,R,isSys,isCut);
-      HH_REST := Nil;
-      HH_ACUT := ACut;
-      HH_NEXT := H
-    End;
-    H := NewH
-  End;
-
-  Procedure FreeClockHeader( Var H : HeadPtr );
-  Var ptr : Pointer Absolute H;
-  Begin
-    FreeMemory(HE,ptr,SizeOf(TObjHead))
-  End;
-
 {----------------------------------------------------------------------------}
 {                                                                            }
 {                                C L O C K                                   }
@@ -114,20 +29,21 @@ Var ClockTime : LongInt; { Prolog clock time }
 Procedure Clock( P : ProgPtr; Q : QueryPtr );
 
 Var
-  Solvable     : Boolean;  { Système de contraintes soluble ?              }
+  Solvable    : Boolean;  { Système de contraintes soluble ?              }
   EndOfClock  : Boolean;  { Fin de l'horloge ?                            }
-  H           : HeadPtr;  { Entête                                        }
   R           : RulePtr;
   B           : BTermPtr;
   isSys       : Boolean;
   isCut       : Boolean;
+  GCCount     : Integer;  { counter to trigger GC }
 
   { init the clock }
   Procedure InitClock;
   Begin
-    H := Nil;
+    P^.PP_HEAD := Nil;
     EndOfClock := False;        { Ce n'est pas encore la fin !              }
-    ClockTime := 0              { Le temps initial                          }
+    ClockTime := 0;             { Le temps initial                          }
+    GCCount := 0
   End;
 
   { display constraints only about the variables in the query }
@@ -272,7 +188,7 @@ Var
         { backtracks one step }
         NextH := H^.HH_NEXT;
         Restore(H^.HH_REST); { restore and free restore object }
-        FreeClockHeader(H);
+        H^.HH_REST := Nil;
         H := NextH;
         ClockTime := ClockTime - 1;
         { set next rule to apply, if any }
@@ -351,7 +267,7 @@ End;
 
     ClockTime := ClockTime + 1;
 
-    NewClockHeader(H,Nil,Nil,False,False,False);
+    CreateClockHeader(H,Nil,Nil,False,False,False);
 
     If isCut Then
     Begin
@@ -373,8 +289,8 @@ End;
       CopyRuleP := DeepCopy(PRuleB);
 
       { Contrainte à réduire : terme à réduire = tête de la règle }
-      Ss := NewSys;
-      E := NewEq(REL_EQUA,ClearT,BCopyRuleP^.BT_TERM);
+      Ss := NewSystem;
+      E := NewEquation(REL_EQUA,ClearT,BCopyRuleP^.BT_TERM);
       InsertOneEqInSys(Ss,E);
 
       { new list of terms to clear: rule queue + previous terms but the first }
@@ -384,9 +300,7 @@ End;
       B^.BT_NEXT := NextTerm(ClearB);
       H^.HH_FBCL := NextTerm(BCopyRuleP);
 
-      Solvable := ReduceSystem(Ss,True,H^.HH_REST);
-
-      FreeSys(Ss)
+      Solvable := ReduceSystem(Ss,True,H^.HH_REST)
     End
   End;
 
@@ -417,16 +331,22 @@ Begin
   Begin
     Exit
   End;
-  NewClockHeader(H,B,R,False,isSys,isCut);
+  CreateClockHeader(P^.PP_HEAD,B,R,False,isSys,isCut);
   Repeat
-    MoveForward(H);
+    MoveForward(P^.PP_HEAD);
     If (Not Solvable) Or    { system has no solution }
-        (H^.HH_FBCL = Nil) { no more terms to clear }
+        (P^.PP_HEAD^.HH_FBCL = Nil) { no more terms to clear }
     Then
-      MoveBackward(H)
+      MoveBackward(P^.PP_HEAD)
     Else
-      FirstRule(H)
+      FirstRule(P^.PP_HEAD);
+    { trigger GC after a certain number of steps }
+    GCCount := GCCount + 1;
+    If GCCount = 100 Then
+    Begin
+      GarbageCollector;
+      GCCount := 0
+    End
   Until EndOfClock;
-  FreeClockHeader(H);
   GarbageCollector
 End;

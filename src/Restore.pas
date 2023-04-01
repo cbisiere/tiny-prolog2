@@ -15,34 +15,48 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-{ list of (addr, value) elements, where addr and value are pointers }
+{ list of (addr, value) elements, where addr is the address of a Prolog object pointer,
+  and value is a Prolog object pointers }
 Type
-  TRVal = Pointer; { a value to restore }
+  TRVal = TPObjPtr; { a value to restore }
   TRAddr = ^TRVal; { an address where to store or restore a value }
   RestorePtr = ^TObjRestore;
   TObjRestore = Record
-    RE_ADDR : TRAddr; { address of the pointer value }
+    PO_META : TObjMeta;
+    { not deep copied: }
+    RE_NEXT : RestorePtr;
     RE_PVAL : TRVal; { backup of the pointer value }
-    RE_NEXT : RestorePtr
+    { extra data: }
+    RE_ADDR : TRAddr { address of the pointer value }
   End;
 
-Procedure FreeRestore( Var U : RestorePtr );
-Var ptr : Pointer Absolute U;
+{-----------------------------------------------------------------------}
+{ constructor                                                           }
+{-----------------------------------------------------------------------}
+
+Function NewRestore : RestorePtr;
+Var 
+  U : RestorePtr;
+  ptr : TPObjPtr Absolute U;
 Begin
-  FreeMemory(RE,ptr,SizeOf(TObjRestore))
+  ptr := NewPrologObject(RE,SizeOf(TObjRestore),2,0);
+  With U^ Do
+  Begin
+    RE_PVAL := Nil;
+    RE_ADDR := Nil;
+    RE_NEXT := Nil
+  End;
+  NewRestore := U
 End;
 
-Procedure NewRestore( Var U : RestorePtr );
-Var ptr : Pointer Absolute U;
-Begin
-  GetMemory(RE,ptr,SizeOf(TObjRestore))
-End;
-
+{-----------------------------------------------------------------------}
+{ methods                                                               }
+{-----------------------------------------------------------------------}
 
 Procedure PushRestore( Var U : RestorePtr; p : TRAddr; V : TRVal );
 Var NewU : RestorePtr;
 Begin
-  NewRestore(NewU);
+  NewU := NewRestore;
   With NewU^ Do
   Begin
     RE_ADDR := p;
@@ -66,7 +80,6 @@ Begin
     With U^ Do
     Begin
       Restore(RE_NEXT);
-      RE_ADDR^ := RE_PVAL;
-      FreeRestore(U)
+      RE_ADDR^ := RE_PVAL
     End
 End;

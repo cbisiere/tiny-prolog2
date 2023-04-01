@@ -12,6 +12,8 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 
+Procedure CoreDump( P : ProgPtr; Message : AnyStr; Trace : Boolean ); Forward;
+
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
@@ -37,6 +39,7 @@ Var
   LineNum : Integer;
   Error   : Boolean;                     { an error?                     }
   Source  : TInput;                      { where do we get input?        }
+  CurrentProgram : ProgPtr;              { current Prolog program        }
 
 { an error occurred; display a message }
 Procedure RaiseError( S : AnyStr );
@@ -64,6 +67,11 @@ Begin
   If Not Cond Then
   Begin
     RaiseError('Internal error: ' + Message);
+    Writeln('CORE DUMP:');
+    PrintMemoryStats;
+    DumpRegisteredObject;
+    If CurrentProgram <> Nil Then
+      CoreDump(CurrentProgram,'Runtime error',True);
     Halt(1)
   End
 End;

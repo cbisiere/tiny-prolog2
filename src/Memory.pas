@@ -23,6 +23,11 @@
 { type of allocated objects; note that SY, EQ, HE, RE are not managed by GC }
 Type
   TypePrologObj = (PR, RU, QU, SY, EQ, BT, CO, FU, VA, CV, VV, HE, RE);
+  TypePrologObjStr = Array[TypePrologObj] Of String[2];
+
+Const
+  ObjStr : TypePrologObjStr = ('PR', 'RU', 'QU', 'SY', 'EQ', 'BT', 'CO', 
+    'FU', 'VA', 'CV', 'VV', 'HE', 'RE');
 
 Var 
   mem : Real; { total number of bytes allocated }
@@ -36,20 +41,23 @@ Begin
     PObjCount[t] := 0
 End;
 
+Procedure PrintMemoryStats;
+Var t : TypePrologObj;
+Begin
+  WriteLn('Bytes allocated: ',mem:10:0);
+  For t := PR To RE Do
+    Writeln(' ',ObjStr[t]:2,': ',PObjCount[t]:3)
+End;
+
 Procedure GetMemory( t : TypePrologObj; Var p : Pointer; size : Integer );
 Begin
   p := Malloc(size);
-  If p<>Nil Then
-  Begin
-    FillChar(p^,size,0);
-    mem := mem + size;
-    PObjCount[t] := PObjCount[t] + 1
-  End
-  Else
-  Begin
-    Write('PANIC: MEMORY EXHAUSTED'); { TODO: try to recover }
-    Halt(1)
-  End
+  { GC cannot only be run at some specific execution points, so in case of 
+    OOM we just abort }
+  CheckCondition(p<>Nil,'Memory exhausted');
+  FillChar(p^,size,0);
+  mem := mem + size;
+  PObjCount[t] := PObjCount[t] + 1
 End;
 
 Procedure FreeMemory( t : TypePrologObj; Var p : Pointer; size : Integer );
@@ -59,16 +67,6 @@ Begin
   mem := mem - size;
   PObjCount[t] := PObjCount[t] - 1
 End;
-
-Procedure PrintMemoryStats;
-Var t : TypePrologObj;
-Begin
-  WriteLn('Bytes allocated: ',mem:10:0);
-  For t := PR To RE Do
-    Write(' ',Ord(t),PObjCount[t]:3);
-  WriteLn
-End;
-
 
 {----------------------------------------------------------------------------}
 { marking primitives                                                         }
@@ -181,9 +179,11 @@ Begin
   Write(PtrToName(p):5,' : ');
   With p^.PO_META Do
   Begin
-    Write(Ord(PO_TYPE),' ',PtrToName(PO_NEXT):5,' ',MarkToStr(PO_MARK),' ',PO_NCOP,' ',PO_DEEP,' ',PtrToName(PO_COPY):5);
+    Write(ObjStr[PO_TYPE]:2,' ',MarkToStr(PO_MARK),' ',PO_NCOP,' ',Ord(PO_DEEP),' ',PtrToName(PO_COPY):5);
+    Write(' [');
     For i := 1 To PO_NPTR Do
-      Write('  ',PtrToName(p^.PO_PTRS[i]):5)
+      Write('  ',PtrToName(p^.PO_PTRS[i]));
+    Write(' ]')
   End;
   Write(' ' + ToString(p));
   WriteLn
@@ -442,7 +442,7 @@ Const MaxGCRoots = 255;
 
 Var 
   NbRoots : Byte;
-  Roots : Array[1..MaxGCRoots] Of TPObjPtr;
+  Roots : Array[1..MaxGCRoots] Of ^TPObjPtr;
 
 Procedure InitGCRoots;
 Begin
@@ -453,7 +453,7 @@ Procedure AddGCRoot(r : TPObjPtr);
 Begin
   CheckCondition(NbRoots<MaxGCRoots,'GC root pool is full');
   NbRoots := NbRoots + 1;
-  Roots[NbRoots] := r
+  Roots[NbRoots] := Addr(r)
 End;
 
 
@@ -472,7 +472,7 @@ Procedure GarbageCollector;
 Var i : Byte;
 Begin
   For i := 1 To NbRoots Do
-    Mark(Roots[i]);
+    Mark(Roots[i]^);
   Sweep;
   UnMark
 End;

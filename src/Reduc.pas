@@ -185,12 +185,12 @@ Var
           { insert in the unreduced system l1=l2 and r1=r2 }
           If (RightArg(FT1) <> Nil) And (RightArg(FT2) <> Nil) Then
           Begin
-            E := NewEq(REL_EQUA,RightArg(FT1),RightArg(FT2));
+            E := NewEquation(REL_EQUA,RightArg(FT1),RightArg(FT2));
             InsertOneEqInSys(S,E)
           End;
           If (LeftArg(FT1) <> Nil) And (LeftArg(FT2) <> Nil) Then
           Begin
-            E := NewEq(REL_EQUA,LeftArg(FT1),LeftArg(FT2));
+            E := NewEquation(REL_EQUA,LeftArg(FT1),LeftArg(FT2));
             InsertOneEqInSys(S,E)
           End
         End
@@ -205,8 +205,7 @@ Var
   Begin { BasicOperation }
     E := RemoveOneEqFromSys(S,REL_EQUA);
     CheckCondition(E<>Nil,'Object of type REL_EQUA expected');
-    Unify(E^.EQ_LTER,E^.EQ_RTER);
-    FreeEq(E)
+    Unify(E^.EQ_LTER,E^.EQ_RTER)
   End; { BasicOperation }
 
 Begin { Reduce }
@@ -217,6 +216,7 @@ Begin { Reduce }
     BasicOperation;
   { remove "f = f" equations from the reduced system }
   Restore(Uf);
+  Uf := Nil; { free this restoration stack }
   Reduce := Not Abnormal;
 End; { Reduce }
 
@@ -326,16 +326,15 @@ Var Fails : Boolean;
       Td := E^.EQ_RTER;
 
       { put it into its own little system }
-      Ss := NewSys;
+      Ss := NewSystem;
       InsertOneEqInSys(Ss,E);
       Ok := Reduce(Ss,True,VarProd,Backtrackable,L);
-      FreeSys(Ss);
 
       If Ok Then
       Begin
         If VarProd<>Nil Then
         Begin
-          NewE := PushEquation(REL_INEQ,Tg,Td);
+          NewE := NewEquation(REL_INEQ,Tg,Td);
           { this variable now watches this inequation }
           If VarProd^.TV_FWAT = Nil Then
           Begin

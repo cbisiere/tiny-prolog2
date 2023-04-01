@@ -31,12 +31,15 @@ Type
 
   TObjConst = Record
     PO_META : TObjMeta;
+    { not deep copied: }
     TC_DCON : DictConstPtr
   End;
 
   TObjDictConst = Record
-    DC_META : TObjMeta;
+    PO_META : TObjMeta;
+    { not deep copied: }
     DC_NEXT : DictConstPtr;
+    { extra data: }
     DC_CVAL : StrConst
   End;
 
@@ -46,6 +49,7 @@ Type
   FuncPtr = ^TObjFunc;
   TObjFunc = Record
     PO_META : TObjMeta;
+    { deep copied: }
     TF_TRED : TermPtr; { right member of the equation in the reduced system }
     TF_LTER : TermPtr; { left term }
     TF_RTER : TermPtr { right term }
@@ -72,17 +76,17 @@ Type
   End;
 
   TObjDictVar = Record
-    DV_META : TObjMeta;
+    PO_META : TObjMeta;
     { deep copied: }
     DV_NEXT : DictVarPtr;
-    DV_PVAR : VarPtr;
+    DV_PVAR : VarPtr; { corresponding variable (meaningful only for user-provided variables)}
     { extra data: }
     DV_NAME : StrIdent
   End;
 
 
 {-----------------------------------------------------------------------}
-{ create / destroy                                                      }
+{ constructors                                                          }
 {-----------------------------------------------------------------------}
 
 { create a new constant }
@@ -120,7 +124,7 @@ Var
   V : VarPtr;
   ptr : TPObjPtr Absolute V;
 Begin
-  ptr := NewPrologObject(VA, SizeOf(TObjVar), 3, 2);
+  ptr := NewPrologObject(VA, SizeOf(TObjVar), 3, 2); { do not copy TV_DVAR for the sake of speed }
   With V^ Do
   Begin
     TV_TRED := Nil;

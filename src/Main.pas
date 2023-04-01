@@ -20,30 +20,28 @@
 
 {$I TP3.pas     }  { TP3.pas: Turbo Pascal 3; FPC.pas: Free Pascal Compiler }
 
-{$I String.pas }  { restore stack }
+{$I String.pas }  { string type and helpers }
 
 Procedure CheckCondition( Cond : Boolean; Message : AnyStr ); Forward;
 Procedure DumpBacktrace; Forward;
 
+{$I Memory.pas    }  { memory management: GC, cloning...           }
+{$I Restore.pas   }  { restore stack                               }
+{$I PObj.pas      }  { Prolog objects: common definitions          }
+{$I PObjEq.pas    }  { Prolog objects: (in)equations, system       }
+{$I PObjTerm.pas  }  { Prolog objects: terms                       }
+{$I PObjProg.pas  }  { Prolog objects: program, rules, queries     }
+{$I Keyboard.pas  }  { read from keyboard w/ history               }
+{$I Input.pas     }  { read the input flow                         }
+{$I Unparse.pas   }  { decode objects                              }
+{$I Parse.pas     }  { encode objects                              }
+{$I Reduc.pas     }  { system reduction                            }
+{$I Clock.pas     }  { Prolog clock                                }
+{$I Run.pas       }  { load rules and execute queries              }
+{$I Sys.pas       }  { system calls                                }
 
-
-{$I Memory.pas   }  { memory management: GC, cloning...           }
-{$I Restore.pas  }  { restore stack                               }
-{$I PObj.pas     }  { Prolog objects: common definitions          }
-{$I PObjEq.pas   }  { Prolog objects: (in)equations, system       }
-{$I PObjTerm.pas }  { Prolog objects: terms                       }
-{$I PObjProg.pas }  { Prolog objects: program, rules, queries     }
-{$I Keyboard.pas }  { read from keyboard w/ history               }
-{$I Input.pas    }  { read the input flow                         }
-{$I Unparse.pas  }  { decode objects                              }
-{$I Parse.pas    }  { encode objects                              }
-{$I Reduc.pas    }  { system reduction                            }
-{$I Clock.pas    }  { Prolog clock                                }
-{$I Run.pas      }  { load rules and execute queries              }
-{$I Sys.pas      }  { system calls                                }
-
-{$I Init.pas     }  { Module : Initializations                    }
-{$I Debug.pas    }
+{$I Init.pas      }  { Module : Initializations                    }
+{$I Debug.pas     }
 
 { reset the Prolog engine }
 Function ResetMachine : ProgPtr;
@@ -51,7 +49,8 @@ Var P : ProgPtr;
 Begin
   Initialisation;
   P := NewProgram;
-  InstallPredefinedConstants(P);
+  CurrentProgram := P; { debug }
+  RegisterPredefinedConstants(P);
   ResetMachine := P
 End;
 

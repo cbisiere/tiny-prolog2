@@ -21,13 +21,13 @@ Type PredefArr = Array[1..NbPredef] Of StrConst;
 
 Const Predef  : PredefArr = ('SYSCALL');         { Predefined constants    }
 
-Procedure InstallPredefinedConstants( P : ProgPtr );
+Procedure RegisterPredefinedConstants( P : ProgPtr );
 Var
-  C : ConstPtr;
+  C : DictConstPtr;
   K : Integer;
 Begin
   For K := 1 to NbPredef Do
-    C := InstallConst(P^.PP_DCON,Predef[K]);
+    C := LookupConst(P^.PP_DCON,Predef[K])
 End;
 
 { execute a system call <SYSCALL,Code,Arg1,...ArgN> }
