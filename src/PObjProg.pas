@@ -95,6 +95,7 @@ Type
       HH_FBCL : BTermPtr; { terms to clear }
       HH_REST : RestorePtr; { restoration stack }
       { extra data: }
+      HH_CLOC : LongInt; { clock time (unlikely to overflow)}
       HH_ACUT : Boolean; { a cut has been cleared }
       HH_ISYS : Boolean; { term to clear is a system call? }
       HH_ICUT : Boolean { term to clear is a cut? }
@@ -176,6 +177,7 @@ Begin
     HH_RULE := Nil;
     HH_FBCL := Nil;
     HH_REST := Nil;
+    HH_CLOC := 0;
     HH_ACUT := False;
     HH_ISYS := False;
     HH_ICUT := False
@@ -227,7 +229,9 @@ End;
 Procedure AppendClockHeader(Var list : HeadPtr; H : HeadPtr );
 Begin
   H^.HH_NEXT := list;
-  list := H
+  list := H;
+  If H^.HH_NEXT<>Nil Then
+    H^.HH_CLOC := H^.HH_NEXT^.HH_CLOC + 1
 End;
 
 { get the rule data of a clock header }
@@ -249,7 +253,7 @@ Begin
   End
 End;
 { create and set a clock header on top of a list of headers }
-Procedure CreateClockHeader(Var list : HeadPtr; Fbcl : BTermPtr; R : RulePtr; 
+Procedure PushNewClockHeader(Var list : HeadPtr; Fbcl : BTermPtr; R : RulePtr; 
     ACut : Boolean; isSys, isCut : Boolean );
 Var H : HeadPtr;
 Begin

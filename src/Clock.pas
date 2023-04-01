@@ -17,8 +17,6 @@
 
 Function ExecutionSysCallOk( F : TermPtr; P : ProgPtr; Q : QueryPtr ) : Boolean; Forward;
 
-Var ClockTime : LongInt; { Prolog clock time }
-
 {----------------------------------------------------------------------------}
 {                                                                            }
 {                                C L O C K                                   }
@@ -42,7 +40,6 @@ Var
   Begin
     P^.PP_HEAD := Nil;
     EndOfClock := False;        { Ce n'est pas encore la fin !              }
-    ClockTime := 0;             { Le temps initial                          }
     GCCount := 0
   End;
 
@@ -168,7 +165,7 @@ Var
 {      à appliquer.                                                          }
 {                                                                            }
 { Si ce dernier pointeur est nul (épuisement des règles applicables) et      }
-{ que ce n'est pas la fin (ClockTime=0), on recommence l'opération.          }
+{ que ce n'est pas la fin (Clock=0), on recommence l'opération.              }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
@@ -183,14 +180,13 @@ Var
     isSys := False;
     isCut := False;
     Repeat
-      If (ClockTime > 0) And (Not H^.HH_ACUT) Then
+      If (H^.HH_CLOC > 0) And (Not H^.HH_ACUT) Then
       Begin
         { backtracks one step }
         NextH := H^.HH_NEXT;
         Restore(H^.HH_REST); { restore and free restore object }
         H^.HH_REST := Nil;
         H := NextH;
-        ClockTime := ClockTime - 1;
         { set next rule to apply, if any }
         NextR := NextCandidateRule(H^.HH_RULE,H^.HH_FBCL,isSys,isCut)
       End
@@ -265,9 +261,7 @@ End;
     ClearB := H^.HH_FBCL; { list of terms to clear }
     ClearT := ClearB^.BT_TERM; { current term to clear }
 
-    ClockTime := ClockTime + 1;
-
-    CreateClockHeader(H,Nil,Nil,False,False,False);
+    PushNewClockHeader(H,Nil,Nil,False,False,False);
 
     If isCut Then
     Begin
@@ -331,7 +325,7 @@ Begin
   Begin
     Exit
   End;
-  CreateClockHeader(P^.PP_HEAD,B,R,False,isSys,isCut);
+  PushNewClockHeader(P^.PP_HEAD,B,R,False,isSys,isCut);
   Repeat
     MoveForward(P^.PP_HEAD);
     If (Not Solvable) Or    { system has no solution }

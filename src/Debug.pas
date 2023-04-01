@@ -94,7 +94,7 @@ Var
   isCut : Boolean;
   U : RestorePtr;
 Begin
-  WriteLn('Header at : ');
+  WriteLn('Header level ',H^.HH_CLOC);
   Write('  Terms: ');
   UnparseTerms(H^.HH_FBCL,True);
   WriteLn;
