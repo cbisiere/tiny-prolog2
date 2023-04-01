@@ -46,6 +46,7 @@ Var
   { display constraints only about the variables in the query }
   Procedure WriteSolution;
   Begin
+    InitIneq;
     WriteSystem(Q^.QU_FVAR,Q^.QU_LVAR,True);
     WriteLn
   End;

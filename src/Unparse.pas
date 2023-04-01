@@ -258,10 +258,10 @@ Procedure WriteEquationsBis( E : EqPtr; Var Comma : Boolean );
 Begin
   If E <> Nil Then
   Begin
+    WriteEquationsBis(E^.EQ_NEXT, Comma);
     If Comma Then Write(', ');
     Comma := True;
-    WriteOneEquation(E);
-    WriteEquationsBis(E^.EQ_NEXT, Comma)
+    WriteOneEquation(E)
   End
 End;
 
@@ -303,52 +303,57 @@ Begin
   WriteTermBis(T,False,True)
 End;
 
-{----------------------------------------------------------------------------}
-{ Restitue une partie intéressante du système réduit. La                     }
-{ partie intéressante est définie comme la partie qui concerne les variables }
-{ du dictionnaire comprises entre First et Last.                             }
-{----------------------------------------------------------------------------}
 
-Procedure WriteSystem( start,stop : DictVarPtr; Curl : Boolean );
-Var
-  e : DictVarPtr;
-  V : VarPtr;
-  Before  : Boolean;
-  Printed  : Boolean;
-
-  Procedure CurlyBrace;
-  Begin
-    If not Printed Then
-    Begin
-      Printed := True;
-      Write('{ ')
-    End
-  End;
-
+{ print an opening curly brace if it has not been printed yet }
+Procedure CurlyBrace( Var Printed : Boolean );
 Begin
-  Printed := False;
-  If Curl Then CurlyBrace;
-  InitIneq;
-  Before  := False;
-  e := start;
-  While (e<>Nil) And (e<>stop) Do
+  If not Printed Then
   Begin
-    V := e^.DV_PVAR;
+    Printed := True;
+    Write('{ ')
+  End
+End;
+
+
+{ write constraints on variables from DV1 to DV2 (excluding DV2); Printed is
+  true if a curly brace has already been printed; Before is true if an equation
+  or inequation has already been printed; if Curl then curly braces are 
+  always printed, even if there are no equations or inequations to print  }
+
+Procedure WriteSystemBis( DV1,DV2 : DictVarPtr; Curl : Boolean; 
+    Var Printed, Before : Boolean );
+Var V : VarPtr;
+Begin
+  If (DV1<>Nil) And (DV1<>DV2) Then
+  Begin
+    WriteSystemBis(DV1^.DV_NEXT,DV2,Curl,Printed,Before);
+    V := DV1^.DV_PVAR;
+    { equation in the reduced system }
     If V^.TV_TRED <> Nil Then
     Begin
-      CurlyBrace;
+      CurlyBrace(Printed);
       If Before Then Write(', ');
       Write(GetVarNameAsString(V),' = ');
       Before := True;
       WriteTerm(V^.TV_TRED)
     End;
+    { inequations in the reduced system }
     If V^.TV_FWAT <> Nil Then
     Begin
-      CurlyBrace;
+      CurlyBrace(Printed);
       AddIneq(V^.TV_FWAT)
-    End;
-    e := e^.DV_NEXT
-  End;
+    End
+  End
+End;
+
+Procedure WriteSystem( start,stop : DictVarPtr; Curl : Boolean );
+Var
+  Printed, Before : Boolean;
+Begin
+  Printed := False;
+  Before := False;
+  If Curl Then CurlyBrace(Printed);
+  WriteSystemBis(start,stop,Curl,Printed,Before);
   WriteInequations(Before);
   If Printed Then
     Write(' }')
