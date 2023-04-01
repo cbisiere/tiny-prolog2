@@ -15,19 +15,19 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+{ TODO: add the modified object itself to make sure it is not GC'ed }
+
 { list of (addr, value) elements, where addr is the address of a Prolog object pointer,
   and value is a Prolog object pointers }
 Type
-  TRVal = TPObjPtr; { a value to restore }
-  TRAddr = ^TRVal; { an address where to store or restore a value }
   RestorePtr = ^TObjRestore;
   TObjRestore = Record
     PO_META : TObjMeta;
     { not deep copied: }
     RE_NEXT : RestorePtr;
-    RE_PVAL : TRVal; { backup of the pointer value }
+    RE_PVAL : TPObjPtr; { backup of the pointer value }
     { extra data: }
-    RE_ADDR : TRAddr { address of the pointer value }
+    RE_ADDR : ^TPObjPtr { address of the pointer value }
   End;
 
 {-----------------------------------------------------------------------}
@@ -53,25 +53,25 @@ End;
 { methods                                                               }
 {-----------------------------------------------------------------------}
 
-Procedure PushRestore( Var U : RestorePtr; p : TRAddr; V : TRVal );
+Procedure PushRestore( Var U : RestorePtr; Var p : TPObjPtr );
 Var NewU : RestorePtr;
 Begin
   NewU := NewRestore;
   With NewU^ Do
   Begin
-    RE_ADDR := p;
-    RE_PVAL := V;
+    RE_ADDR := Addr(p);
+    RE_PVAL := p;
     RE_NEXT := U
   End;
   U := NewU
 End;
 
 
-Procedure SetMem( Var U : RestorePtr; p : TRAddr; V : TRVal; Backtrackable : Boolean);
+Procedure SetMem( Var U : RestorePtr; Var p : TPObjPtr; V : TPObjPtr; Backtrackable : Boolean);
 Begin
   If Backtrackable Then 
-    PushRestore(U,p,p^);
-  p^ := V
+    PushRestore(U,p);
+  p := V
 End;
 
 Procedure Restore( Var U : RestorePtr );

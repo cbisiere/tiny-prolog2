@@ -166,3 +166,12 @@ Begin
   End;
   RemoveOneEqFromSys := E
 End;
+
+{ assign an equation, possibly allowing for backtracking }
+Procedure SetMemEq( Var U : RestorePtr; Var E : EqPtr; V : EqPtr; Backtrackable : Boolean);
+Var 
+  p : TPObjPtr Absolute E;
+  pV : TPObjPtr Absolute V;
+Begin
+  SetMem(U,p,pV,Backtrackable)
+End;

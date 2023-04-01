@@ -89,7 +89,6 @@ Var
       VT1 : VarPtr Absolute T1;
       FT1 : FuncPtr Absolute T1;
       FT2 : FuncPtr Absolute T2;
-      TRValT2 : TRVal Absolute T2;
       E : EqPtr;
 
       { representative of a term }
@@ -141,16 +140,14 @@ Var
 
       { add an equation T1 = T2 in the reduced system }
       Procedure CreateLiaison( V1 : VarPtr; T2 : TermPtr );
-      Var
-        TRValT2 : TRVal Absolute T2;
       Begin
-        SetMem(L,Addr(V1^.TV_TRED),TRValT2,Backtrackable);  { add v=t in the reduced system }
+        SetMem(L,V1^.TV_TRED,T2,Backtrackable);  { add v=t in the reduced system }
 
         { step 2 of system solving is handled here}
         If V1^.TV_FWAT <> Nil Then { x already watched a liaison }
         Begin
           CopyAllEqInSys(S,V1^.TV_FWAT);
-          SetMem(L,Addr(V1^.TV_FWAT),Nil,Backtrackable)
+          SetMemEq(L,V1^.TV_FWAT,Nil,Backtrackable)
         End
       End;
 
@@ -181,7 +178,7 @@ Var
         Else If (TypeOfTerm(T1)=FuncSymbol) And (TypeOfTerm(T2)=FuncSymbol) Then
         Begin
           { add "f = f" to the reduced system }
-          SetMem(Uf,Addr(FT1^.TF_TRED),TRValT2,Backtrackable);
+          SetMem(Uf,FT1^.TF_TRED,T2,Backtrackable);
           { insert in the unreduced system l1=l2 and r1=r2 }
           If (RightArg(FT1) <> Nil) And (RightArg(FT2) <> Nil) Then
           Begin
@@ -311,7 +308,6 @@ Var Fails : Boolean;
     Procedure BasicOperation;
       Var
         NewE, E      : EqPtr;
-        TRValNewE    : TRVal Absolute NewE;
         Tg,Td        : TermPtr;
         VarProd      : VarPtr;
         Ok           : Boolean;
@@ -339,14 +335,14 @@ Var Fails : Boolean;
           If VarProd^.TV_FWAT = Nil Then
           Begin
             { first watch }
-            SetMem(L,Addr(VarProd^.TV_FWAT),TRValNewE,Backtrackable)
+            SetMemEq(L,VarProd^.TV_FWAT,NewE,Backtrackable)
           End
           Else
           Begin
             { add a watch }
             E := VarProd^.TV_FWAT;
             While(E^.EQ_NEXT <> Nil) Do E := E^.EQ_NEXT;
-            SetMem(L,Addr(E^.EQ_NEXT),TRValNewE,Backtrackable)
+            SetMemEq(L,E^.EQ_NEXT,NewE,Backtrackable)
           End
         End
         Else
