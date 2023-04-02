@@ -19,7 +19,7 @@ Here are two additional interesting papers:
 
 
 ## Overview
-The interpreter handles classical Prolog rules, expressed in so-called "Marseille syntax". Being a simple implementation exercice, it offers no built-in functions or other advanced features.
+The interpreter handles classical Prolog rules, expressed in so-called "Marseille syntax". Being a simple implementation exercice, it offers only a few built-in functions and no advanced features.
 
 The source code contains detailed comments (though in French) about the implementation (parsing and execution).
 
@@ -147,7 +147,7 @@ The following executions show that what the engine forgets after executing a cut
 
 ### Turbo Pascal 3
 
-The program was initially developed in [Turbo Pascal 3](https://en.wikipedia.org/wiki/Turbo_Pascal#Version_3) (TP3). Turbo Pascal 3.02A is [provided](https://web.archive.org/web/20101124092418/http://edn.embarcadero.com/article/20792) to the Borland community free of charge, as a [zip file] (https://web.archive.org/web/20110815014726/http://altd.embarcadero.com/download/museum/tp302.zip).
+The program was initially developed in [Turbo Pascal 3](https://en.wikipedia.org/wiki/Turbo_Pascal#Version_3) (TP3). Turbo Pascal 3.02A is [provided](https://web.archive.org/web/20101124092418/http://edn.embarcadero.com/article/20792) to the Borland community free of charge, as a [zip file](https://web.archive.org/web/20110815014726/http://altd.embarcadero.com/download/museum/tp302.zip).
 
 I chose to maintain compatibility with TP3. Because why not.
 
