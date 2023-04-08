@@ -250,7 +250,7 @@ letter ::= "a" | ... | "z" | "A" | ... | "Z" | "_"
 digits ::= <digit>[<digit>]*
 letters := <letter>[<letter>]*
 
-variable ::= <letter>[<digits>]["'"]*
+variable ::= <letter>["-"<letters>]*[<digits>]["'"]*
 
 identifier ::= <ident-start>[<ident-middle>]*[<ident-end>]
 

@@ -163,6 +163,13 @@ Begin
     End;
   1 :
     Begin                      { a variable }
+      { ["-"<letters>]* }
+      While (NextChar(c1)='-') And IsLetter(NextNextChar(c2)) Do
+      Begin
+        Ch := Ch + GetChar(c1); { read the '-' }
+        Count := GrabLetters(Ch);
+      End;
+      { [<digits>]["'"]* }
       GetCharWhile(Ch,Digits);
       GetCharWhile(Ch,['''']);
       V := InstallVariable(P^.PP_DVAR,P^.PP_LVAR,Ch);
@@ -171,16 +178,19 @@ Begin
   Else { at least 2 letters: an identifier }
     Begin
       Count := GrabLetters(Ch);
+      { ["-"<letters>]* }
       While (NextChar(c1)='-') And IsLetter(NextNextChar(c2)) Do
       Begin
         Ch := Ch + GetChar(c1); { read the '-' }
         Count := GrabLetters(Ch);
       End;
+      { [<digits>] }
       GetCharWhile(Ch,Digits);
       If NextChar(c1) = '(' Then { a predicate }
       Begin
         c1 := GetChar(c1);
         C := InstallConst(P^.PP_DCON,Ch);
+        { predicate's argument }
         F := GetArgument(P,')');
         F2 := NewSymbol(TC,TF);
         T := TF2
