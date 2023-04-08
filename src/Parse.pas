@@ -209,7 +209,7 @@ Begin
       End
     End
   End;
-  c1 := NextChar(c1);
+  c1 := NextCharNb(c1);
   If c1 = '.' Then    { a list element }
   Begin
     c1 := GetChar(c1);
