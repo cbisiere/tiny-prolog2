@@ -269,7 +269,7 @@ term ::= <simple-term> ["."<term>]
 simple-term ::= <constant> |                               
                 <variable>  |                               
                 <identifier>"(" <term> ["," <term>]* ")" |  
-                "<" <term> ["," <term>]* ">" |                   
+                "<" [<term> ["," <term>]*] ">" |                   
                 "(" <term> ")"                                 
 
 constraint ::= <term> "=" <term> |

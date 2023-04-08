@@ -129,6 +129,12 @@ Var
         SameTerms := Same
       End;
 
+      { return true if T1 xor T2 is Nil }
+      Function OneIsNil( T1,T2 : TermPtr ) : Boolean;
+      Begin
+        OneIsNil := (T1=Nil) Xor (T2=Nil)
+      End;
+
       { swap two terms }
       Procedure SwapTerms( Var T1, T2 : TermPtr );
       Var Tmp : TermPtr;
@@ -175,20 +181,25 @@ Var
           Production(VT1,T2)
         End
         { two functional symbols }
-        Else If (TypeOfTerm(T1)=FuncSymbol) And (TypeOfTerm(T2)=FuncSymbol) Then
+        Else If (TypeOfTerm(T1)=FuncSymbol) And (TypeOfTerm(T2)=FuncSymbol) Then 
         Begin
-          { add "f = f" to the reduced system }
-          SetMem(Uf,FT1^.TF_TRED,T2,Backtrackable);
-          { insert in the unreduced system l1=l2 and r1=r2 }
-          If (RightArg(FT1) <> Nil) And (RightArg(FT2) <> Nil) Then
+          If OneIsNil(RightArg(FT1),RightArg(FT2)) Or OneIsNil(LeftArg(FT1),LeftArg(FT2)) Then
+              Abnormal := True
+          Else
           Begin
-            E := NewEquation(REL_EQUA,RightArg(FT1),RightArg(FT2));
-            InsertOneEqInSys(S,E)
-          End;
-          If (LeftArg(FT1) <> Nil) And (LeftArg(FT2) <> Nil) Then
-          Begin
-            E := NewEquation(REL_EQUA,LeftArg(FT1),LeftArg(FT2));
-            InsertOneEqInSys(S,E)
+            { add "f = f" to the reduced system }
+            SetMem(Uf,FT1^.TF_TRED,T2,Backtrackable);
+            { insert in the unreduced system l1=l2 and r1=r2 }
+            If (RightArg(FT1) <> Nil) And (RightArg(FT2) <> Nil) Then
+            Begin
+              E := NewEquation(REL_EQUA,RightArg(FT1),RightArg(FT2));
+              InsertOneEqInSys(S,E)
+            End;
+            If (LeftArg(FT1) <> Nil) And (LeftArg(FT2) <> Nil) Then
+            Begin
+              E := NewEquation(REL_EQUA,LeftArg(FT1),LeftArg(FT2));
+              InsertOneEqInSys(S,E)
+            End
           End
         End
         Else

@@ -141,7 +141,14 @@ Begin
       If c1 = '<' Then        { a tuple }
       Begin
         c1 := GetChar(c1);
-        F := GetArgument(P,'>');
+        If NextChar(c1)='>' Then
+        Begin
+          { empty tuple "<>" }
+          c1 := GetChar(c1);
+          F := NewSymbol(Nil,Nil)
+        End
+        Else
+          F := GetArgument(P,'>');
         T := TF
       End
       Else
