@@ -15,19 +15,11 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-{ predefined constants }
-Const NbPredef = 1;
-Type PredefArr = Array[1..NbPredef] Of StrConst;
-
-Const Predef  : PredefArr = ('SYSCALL');         { Predefined constants    }
-
+{ install all predefined constants }
 Procedure RegisterPredefinedConstants( P : ProgPtr );
-Var
-  C : DictConstPtr;
-  K : Integer;
+Var DC : DictConstPtr;
 Begin
-  For K := 1 to NbPredef Do
-    C := LookupConst(P^.PP_DCON,Predef[K])
+  DC := LookupConst(P^.PP_DCON,NewStringFrom('SYSCALL'),Identifier)
 End;
 
 { execute a system call <SYSCALL,Code,Arg1,...ArgN> }
@@ -58,7 +50,7 @@ Begin
     Exit
   End;
   SysCallCode := GetConstArg(1,FF);
-  CheckCondition(SysCallCode = 'SYSCALL','Not a SYSCALL');
+  CheckCondition(StrEqualTo(SysCallCode,'SYSCALL'),'Not a SYSCALL');
   NbArgs := NbArguments(FF);
   If NbArgs < 2 Then
   Begin
@@ -68,12 +60,12 @@ Begin
   Ident := GetConstArg(2,FF);
   NbSysCallArgs := NbArgs - 2;
   ExecutionSysCallOk := True;
-  If Ident = 'QUIT' Then
+  If StrEqualTo(Ident,'QUIT') Then
     If NbSysCallArgs <> 0 Then
       ExecutionSysCallOk := False
     Else
       Halt
-  Else If Ident = 'INSERT' Then
+  Else If StrEqualTo(Ident,'INSERT') Then
     If NbSysCallArgs <> 1 Then
       ExecutionSysCallOk := False
     Else
@@ -87,32 +79,32 @@ Begin
       End;
       ExecutionSysCallOk := Not Fail
     End
-  Else If Ident = 'LIST' Then
+  Else If StrEqualTo(Ident,'LIST') Then
     If NbSysCallArgs <> 0 Then
       ExecutionSysCallOk := False
     Else
       OutQuestionRules(Q,RTYPE_USER)
-  Else If Ident = 'OUT' Then
+  Else If StrEqualTo(Ident,'OUT') Then
     If NbSysCallArgs <> 1 Then
       ExecutionSysCallOk := False
     Else
       OutTerm(Argument(2+1,FF))
-  Else If Ident = 'OUTM' Then
+  Else If StrEqualTo(Ident,'OUTM') Then
     If NbSysCallArgs <> 1 Then
       ExecutionSysCallOk := False
     Else
       OutTermBis(Argument(2+1,FF),False,False)
-  Else If Ident = 'LINE' Then
+  Else If StrEqualTo(Ident,'LINE') Then
     If NbSysCallArgs <> 0 Then
       ExecutionSysCallOk := False
     Else
       WriteLn
-  Else If Ident = 'BACKTRACE' Then
+  Else If StrEqualTo(Ident,'BACKTRACE') Then
     If NbSysCallArgs <> 0 Then
       ExecutionSysCallOk := False
     Else
       DumpBacktrace
-  Else If Ident = 'CLRSRC' Then
+  Else If StrEqualTo(Ident,'CLRSRC') Then
     If NbSysCallArgs <> 0 Then
       ExecutionSysCallOk := False
     Else

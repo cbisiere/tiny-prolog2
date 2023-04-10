@@ -18,7 +18,6 @@ Procedure CoreDump( P : ProgPtr; Message : AnyStr; Trace : Boolean ); Forward;
 {$V-} { No strict type checking for strings. }
 
 Type
-  CharSet   = Set Of Char;
   TInput    = (InputFile, Repl);          { input type                 }
 
 Const
@@ -31,10 +30,12 @@ Const
 
 Var
   CurrentLine : AnyStr;                  { string read                   }
-  PtrInp  : Byte;                        { next char in CurrentLine      }
+  PtrInp  : 0..AnyStrMaxSize;            { index of last char read       }
+  HaveChars : Boolean;                   { are chars still available?    }
+  WasEOL : Boolean;                      { last char was end of line     }
   BufIn   : Array[1..SizeBufIn] Of Char; { input buffer                  }
   PtrIn   : Byte;                        { pointer to this buffer        }
-  CurrentFile : Text;                    { use file                      }
+  CurrentFile : File Of Char;            { use file                      }
   FileIsOpen : Boolean;                  { is a file open?               }
   LineNum : Integer;
   Error   : Boolean;                     { an error?                     }
@@ -80,13 +81,16 @@ End;
 Procedure InitCurrentLine;
 Begin
   CurrentLine := '';
-  PtrInp := Length(CurrentLine) + 1
+  HaveChars := False;
+  PtrInp := 0
 End;
 
 { initialize the input system }
 Procedure InitInput;
 Begin
   InitCurrentLine;
+  WasEOL := True; { fake }
+  LineNum := 0;
   PtrIn := 0
 End;
 
@@ -112,62 +116,86 @@ Procedure ReadCommand;
 Begin
   InitInput;
   Source := Repl;
-  ReadLnKbd(CurrentLine)
+  ReadLnKbd(CurrentLine);
+  HaveChars := Length(CurrentLine) > 0
+End;
+
+{ read from the file, converting CR-LF, CR, and LF to EndOfLine}
+Procedure ReadFromFile;
+Var 
+  c : Char;
+  s : AnyStr; { current char, or two chars if CR is followed by a char that is not LF}
+Begin
+  InitCurrentLine;
+  While Not Eof(CurrentFile) And (Length(CurrentLine)<AnyStrMaxSize-1) Do { leave one place for a char after CR }
+  Begin
+    Read(CurrentFile,c);
+    If (Ord(c)=13) Or (Ord(c)=10) Then
+      s := EndOfLine
+    Else
+      s := c;
+    { handle possible CR-LF sequence }
+    If Ord(c)=13 Then
+    Begin
+      If Not Eof(CurrentFile) Then
+      Begin
+        Read(CurrentFile,c);
+        If Ord(c)<>10 Then { not LF: make sure we do not lose it }
+          s := s + c
+      End
+    End;
+    CurrentLine := CurrentLine + s
+  End;
+  HaveChars := Length(CurrentLine) > 0
+End;
+
+{ grad a char }
+Function OneChar : Char;
+Var c : Char;
+Begin
+  PtrInp := PtrInp + 1;
+  c := CurrentLine[PtrInp];
+  HaveChars := PtrInp < Length(CurrentLine);
+  OneChar := c
 End;
 
 { read a char; if there is no more characters to read, read a new line in 
   CurrentLine and return EndOfLine; if the end of the file has been reached
   return EndOfInput }
 Function GetC( Var c : Char ) : Char;
-
-  Function HaveChars : Boolean;
-  Begin
-    HaveChars := (Length(CurrentLine) > 0) And (PtrInp <= Length(CurrentLine))
-  End;
-
 Begin
+  If WasEOL Then { first char after EndOfLine }
+    LineNum := LineNum + 1;
+  WasEOL := False;
+
   If Not HaveChars Then
+  Begin
     Case Source Of
     InputFile :
-      If Not Eof(CurrentFile) Then
       Begin
-        InitCurrentLine;
-        ReadLn(CurrentFile,CurrentLine);
-        LineNum := LineNum + 1;
-        If LineNum > 1 Then { actually, we just finished reading a line }
+        If Eof(CurrentFile) Then
         Begin
-          GetC := EndOfLine;
+          If FileIsOpen Then 
+            Close(CurrentFile);
+          FileIsOpen := False;
+          c := EndOfInput;
+          GetC := c;
           Exit
-        End
-      End
-      Else
-      Begin
-        If FileIsOpen Then Close(CurrentFile);
-        FileIsOpen := False;
-        GetC := EndOfInput;
-        Exit
+        End;
+        ReadFromFile
       End;
     Repl:
       Begin
-        GetC := EndOfInput;
+        c := EndOfInput;
+        GetC := c;
         Exit
       End
-    End;
-  If HaveChars Then
-  Begin
-    c := CurrentLine[PtrInp];
-    PtrInp := PtrInp + 1
-  End
-  Else
-  Begin
-    InitCurrentLine;
-    Case Source Of
-    InputFile:
-      c := EndOfLine;
-    Repl:
-      c := EndOfInput
     End
   End;
+
+  c := OneChar;
+  If c = EndOfLine Then
+    WasEOL := True;
   GetC := c
 End;
 
@@ -237,12 +265,21 @@ Begin
   c := NextCharNb(c)
 End;
 
-{ append to a string chars while they belong to a certain set }
-Procedure GetCharWhile( Var Ch : AnyStr; E : CharSet );
-Var c : Char;
+{ append to a string chars while they belong to a certain set; return
+  the number of chats appended }
+Function GetCharWhile( Ch : StrPtr; E : CharSet ) : LongInt;
+Var 
+  c : Char;
+  n : LongInt;
 Begin
-  While (GetChar(c) In E) Do Ch := Ch + c;
-  UnGetChar(c)
+  n := 0;
+  While (GetChar(c) In E) Do 
+  Begin
+    StrAppendChar(Ch,c);
+    n := n + 1
+  End;
+  UnGetChar(c);
+  GetCharWhile := n
 End;
 
 { returns True if c is a ISO-8859-1 letter or the first byte 
@@ -261,44 +298,41 @@ End;
   the input stream is either ISO-8859-1 or UTF-8 encoded; we rely on 
   heuristics; the function returns the number of characters added to the
   string }
-Function GrabLetters( Var Ch : AnyStr ) : Integer;
+Function GrabLetters( Var Ch : StrPtr ) : LongInt;
 Var
   c,c2 : Char;
-  S : AnyStr;
-  n : Byte;
+  n : LongInt;
   Stop : Boolean;
 Begin
   n := 0;
   Repeat
     Stop := False;
     { get next run of ASCII letters }
-    S := '';
-    GetCharWhile(S,Letters);
-    n := n + length(S);
-    Ch := Ch + S;
+    n := n + GetCharWhile(Ch,Letters);
     { examine the char on which we stopped }
     c := NextChar(c);
     Stop := Not IsLetter(c);
     If Not Stop Then
     Begin
-      Ch := Ch + GetChar(c); { glob it }
+      StrAppendChar(Ch,GetChar(c)); { glob it }
       n := n + 1;
       { could be a 2-byte UTF8 character? }
       If c In [#$C0..#$DF] Then
         { Heuristic 2: no identifiers or variable names in a UTF8 program }
         {  contain a 2-byte UTF8 letter made of these two codes }
         If (c = #$C3) and (NextChar(c2) in [#$80..#$BF]) Then
-          Ch := Ch + GetChar(c2) { glob it without counting it }
+          StrAppendChar(Ch,GetChar(c2)) { glob it without counting it }
     End
   Until Stop;
   GrabLetters := n
 End;
 
-{ append chars to Ch until a char in E is read }
-Procedure GetCharUntil( Var Ch : AnyStr; E : CharSet );
+{ append chars to string Ch until a char in E is read }
+Procedure GetCharUntil( Var Ch : StrPtr; E : CharSet );
 Var c : Char;
 Begin
-  While Not (GetChar(c) In E) Do Ch := Ch + c;
+  While Not (GetChar(c) In E) Do 
+    StrAppendChar(Ch,c);
   UnGetChar(c)
 End;
 

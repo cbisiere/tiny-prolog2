@@ -63,32 +63,33 @@ Begin
   End
 End;
 
-{ read and return a constant string, including the double quotes }
-Function ReadString : AnyStr;
+{ read and return a constant string, not including the double quotes }
+Function ReadString : StrPtr;
 Var
   c : Char;
-  Ch : AnyStr;
+  Ch : StrPtr;
   Done : Boolean;
 Begin
   CheckCondition(NextChar(c) = '"', 'string expected');
-  Ch := GetChar(c); { both quotes are part of the string }
+  c := GetChar(c); { discard it, since double quotes are not part of the string }
+  Ch := NewString;
   Repeat
     Done := False;
     GetCharUntil(Ch,['"',EndOfLine,EndOfInput]);
     Case NextChar(c) Of
     '"':
       Begin
-        Ch := Ch + GetChar(c); { accept it }
-        If NextChar(c) = '"' Then { doubled: discard the second one }
-          c := GetChar(c)
+        c := GetChar(c); { discard it }
+        If NextChar(c) = '"' Then { doubled: keep only one }
+          StrAppendChar(Ch,GetChar(c))
         Else
           Done := True
       End;
     EndOfLine:
-      If Ch[Length(Ch)] = '\' Then { string continuation on next line }
+      If StrEndsWith(Ch,['\']) Then { string continuation on next line }
       Begin
         c := GetChar(c);
-        Delete(Ch,Length(Ch),1)
+        StrDeleteLastChar(Ch)
       End
       Else
         RaiseError('End of line while reading a constant string');
@@ -113,107 +114,105 @@ Var
   TF2 : TermPtr Absolute F2;
   F3 : FuncPtr;
   TF3 : TermPtr Absolute F3;
-  Ch  : AnyStr;
+  Ch  : StrPtr;
   c1,c2 : Char;
-  Count : Byte;
+  n : LongInt;
 Begin
-  Ch := '';
   Spaces;
-  Count := GrabLetters(Ch);
-  Case Count Of
-  0 :
+  Ch := NewString;
+  n := GrabLetters(Ch);
+  If n=0 Then
+  Begin
+    c1 := NextChar(c1);
+    If c1 In Digits Then     { an integer }
     Begin
-      c1 := NextChar(c1);
-      If c1 In Digits Then     { an integer }
+      n := GetCharWhile(Ch,Digits);
+      C := InstallConst(P^.PP_DCON,Ch,Number);
+      T := TC
+    End
+    Else
+    If c1 ='(' Then          { ( <term> ) }
+    Begin
+      c1 := GetChar(c1);
+      T := ReadOneTerm(P,False);
+      Verify(')')
+    End
+    Else
+    If c1 = '<' Then        { a tuple }
+    Begin
+      c1 := GetChar(c1);
+      If NextChar(c1)='>' Then
       Begin
-        GetCharWhile(Ch,Digits);
-        C := InstallConst(P^.PP_DCON,Ch);
-        T := TC
-      End
-      Else
-      If c1 ='(' Then          { ( <term> ) }
-      Begin
+        { empty tuple "<>" }
         c1 := GetChar(c1);
-        T := ReadOneTerm(P,False);
-        Verify(')')
+        F := NewSymbol(Nil,Nil)
       End
       Else
-      If c1 = '<' Then        { a tuple }
-      Begin
-        c1 := GetChar(c1);
-        If NextChar(c1)='>' Then
-        Begin
-          { empty tuple "<>" }
-          c1 := GetChar(c1);
-          F := NewSymbol(Nil,Nil)
-        End
-        Else
-          F := GetArgument(P,'>');
-        T := TF
-      End
-      Else
-      If c1 = '"' Then        { a string }
-      Begin
-        Ch := ReadString;
-        C := InstallConst(P^.PP_DCON,Ch);
-        T := TC
-      End
-      Else
-      If Cut and (c1 In ['!','/']) Then    { the "cut" }
-      Begin
-        c1 := GetChar(c1);
-        C := InstallConst(P^.PP_DCON,'!');
-        T := TC
-      End
-      Else
-        RaiseError('term expected')
+        F := GetArgument(P,'>');
+      T := TF
+    End
+    Else
+    If c1 = '"' Then        { a string }
+    Begin
+      Ch := ReadString;
+      C := InstallConst(P^.PP_DCON,Ch,QString);
+      T := TC
+    End
+    Else
+    If Cut and (c1 In ['!','/']) Then    { the "cut" }
+    Begin
+      c1 := GetChar(c1);
+      C := InstallConst(P^.PP_DCON,NewStringFrom('!'),Identifier);
+      T := TC
+    End
+    Else
+      RaiseError('term expected')
+  End
+  Else if n=1 Then
+  Begin                      { a variable }
+    { ["-"<letters>]* }
+    While (NextChar(c1)='-') And IsLetter(NextNextChar(c2)) Do
+    Begin
+      StrAppendChar(Ch,GetChar(c1)); { read the '-' }
+      n := GrabLetters(Ch);
     End;
-  1 :
-    Begin                      { a variable }
-      { ["-"<letters>]* }
-      While (NextChar(c1)='-') And IsLetter(NextNextChar(c2)) Do
-      Begin
-        Ch := Ch + GetChar(c1); { read the '-' }
-        Count := GrabLetters(Ch);
-      End;
-      { [<digits>]["'"]* }
-      GetCharWhile(Ch,Digits);
-      GetCharWhile(Ch,['''']);
-      V := InstallVariable(P^.PP_DVAR,P^.PP_LVAR,Ch);
-      T := TV;
-    End;
+    { [<digits>]["'"]* }
+    n := GetCharWhile(Ch,Digits);
+    n := GetCharWhile(Ch,['''']);
+    V := InstallVariable(P^.PP_DVAR,P^.PP_LVAR,Ch);
+    T := TV;
+  End
   Else { at least 2 letters: an identifier }
+  Begin
+    n := GrabLetters(Ch);
+    { ["-"<letters>]* }
+    While (NextChar(c1)='-') And IsLetter(NextNextChar(c2)) Do
     Begin
-      Count := GrabLetters(Ch);
-      { ["-"<letters>]* }
-      While (NextChar(c1)='-') And IsLetter(NextNextChar(c2)) Do
-      Begin
-        Ch := Ch + GetChar(c1); { read the '-' }
-        Count := GrabLetters(Ch);
-      End;
-      { [<digits>] }
-      GetCharWhile(Ch,Digits);
-      If NextChar(c1) = '(' Then { a predicate }
-      Begin
-        c1 := GetChar(c1);
-        C := InstallConst(P^.PP_DCON,Ch);
-        { predicate's argument }
-        F := GetArgument(P,')');
-        F2 := NewSymbol(TC,TF);
-        T := TF2
-      End
-      Else
-      Begin { a constant }
-        C := InstallConst(P^.PP_DCON,Ch);
-        T := TC
-      End
+      StrAppendChar(Ch,GetChar(c1)); { read the '-' }
+      n := GrabLetters(Ch);
+    End;
+    { [<digits>] }
+    n := GetCharWhile(Ch,Digits);
+    If NextChar(c1) = '(' Then { a predicate }
+    Begin
+      c1 := GetChar(c1);
+      C := InstallConst(P^.PP_DCON,Ch,Identifier);
+      { predicate's argument }
+      F := GetArgument(P,')');
+      F2 := NewSymbol(TC,TF);
+      T := TF2
+    End
+    Else
+    Begin { an identifier that is not a predicate }
+      C := InstallConst(P^.PP_DCON,Ch,Identifier);
+      T := TC
     End
   End;
   c1 := NextCharNb(c1);
   If c1 = '.' Then    { a list element }
   Begin
     c1 := GetChar(c1);
-    C := InstallConst(P^.PP_DCON,'.');
+    C := InstallConst(P^.PP_DCON,NewStringFrom('.'),Identifier);
     F := NewSymbol(ReadOneTerm(P,False),Nil); { q: new term }
     F2 := NewSymbol(T,TF); { t: term read above }
     F3 := NewSymbol(TC,TF2); { t.q }
@@ -492,7 +491,7 @@ Var
   FirstQ, HeadQ, Q : QueryPtr;
   HeadR, R : RulePtr;
   c : Char;
-  Comment : AnyStr;
+  Comment : StrPtr;
   Stop : Boolean;
 Begin
   Stop := False;

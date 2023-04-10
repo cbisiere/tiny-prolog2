@@ -61,37 +61,40 @@ Begin
 End;
 
 
-{ return a constant, with or without quotes }
-Function GetConstAsString( C : ConstPtr; Quotes : Boolean ) : AnyStr;
-Var Cste : AnyStr;
+{ return a constant as a string, with or without quotes }
+Function GetConstAsString( C : ConstPtr; Quotes : Boolean ) : StrPtr;
+Var 
+  quoted : Boolean; { does the constant need to be quoted? }
+  s : StrPtr;
 Begin
-  Cste := C^.TC_DCON^.DC_CVAL;
-  If (Not Quotes) And (Length(Cste) >= 2) Then
-    If (Cste[1] = '"') And (Cste[Length(Cste)] = '"') Then
-    Begin
-      Delete(Cste,1,1);
-      Delete(Cste,Length(Cste),1)
-    End;
-  GetConstAsString := Cste
+  quoted := Quotes And (ConstType(C)=QString);
+  s := NewString;
+  If quoted Then
+    StrAppend(s,'"');
+  StrConcat(s,ConstGetStr(C));
+  If quoted Then
+    StrAppend(s,'"');
+  GetConstAsString := s
 End;
 
+
 { return the name of a user or temporary variable }
-Function GetVarNameAsString( V : VarPtr ) : AnyStr;
+Function GetVarNameAsString( V : VarPtr ) : StrPtr;
 Var 
   TV : TermPtr Absolute V;
   PV : TPObjPtr Absolute V;
-  s : AnyStr;
+  s : StrPtr;
   k : Integer;
+  ks : AnyStr;
 Begin
   CheckCondition(TypeOfTerm(TV)=Variable,
     'GetVarNameAsString(V): V is not a variable');
+  s := StrClone(V^.TV_DVAR^.DV_NAME);
   k := PObjectCopyNumber(PV);
-  If k = 0 Then
-    s := V^.TV_DVAR^.DV_NAME
-  Else
+  If k > 0 Then
   Begin
-    Str(k,s);
-    s := V^.TV_DVAR^.DV_NAME + '_' + s { FIXME: make sure it is an invalid variable name }
+    Str(k,ks);
+    StrAppend(s, '_' + ks) { FIXME: make sure it is an invalid variable name }
   End;
   GetVarNameAsString := s
 End;
@@ -119,9 +122,14 @@ End;
 { write the name of a user or temporary variable }
 Procedure WriteVarName( s : StrPtr; V : VarPtr );
 Begin
-  StrAppend(s,GetVarNameAsString(V))
+  StrConcat(s,GetVarNameAsString(V))
 End;
 
+{ write a constant }
+Procedure WriteConst( s : StrPtr; C : ConstPtr );
+Begin
+  StrConcat(s,GetConstAsString(C,True))
+End;
 
 { return the constant the term T is equal to, of Nil if T is not equal to a 
   constant }
@@ -157,7 +165,6 @@ Var
   F : FuncPtr;
   C : ConstPtr;
   LeftT : TermPtr;
-  Cste : StrConst;
   CT : ConstPtr Absolute T;
   VT : VarPtr Absolute T;
   FT : FuncPtr Absolute T;
@@ -171,7 +178,7 @@ Begin
   Constant :
     Begin
       C := CT;
-      StrAppend(s,GetConstAsString(C,Quotes))
+      StrConcat(s,GetConstAsString(C,Quotes))
     End;
   Variable  :
     Begin
@@ -196,12 +203,11 @@ Begin
       LeftT := F^.TF_LTER;
       If (TypeOfTerm(LeftT) = Constant) Then
       Begin
-        Cste := CLeftT^.TC_DCON^.DC_CVAL;
-        If (Cste[1] In Digits) Then { should only happen when printing subtrees during debugging}
+        If ConstStartWith(CLeftT,Digits) Then { should only happen when printing subtrees during debugging}
         Begin
           WriteTuple(s,F)
         End
-        Else If Cste = '.' Then { F(.,F(a,F(b,Nil))) => a.b }
+        Else If ConstEqualTo(CLeftT,'.') Then { F(.,F(a,F(b,Nil))) => a.b }
         Begin
           If ArgList Then 
             StrAppend(s,'(');
@@ -215,7 +221,7 @@ Begin
         End
         Else
         Begin 
-          StrAppend(s,Cste);
+          StrConcat(s,ConstGetStr(CLeftT));
           If F^.TF_RTER<>Nil Then { F(name,F(a,F(b,Nil) => name(a,b) }
           Begin
             T1 := F^.TF_RTER;
@@ -286,8 +292,13 @@ Procedure WriteInequations( s : StrPtr; Var Before : Boolean );
 Var I,K : Integer;
 Begin
   K := IdxIneq;
-  For I := 1 To K Do 
-    WriteEquationsBis(s,Ineq[I],Before)
+  For I := K DownTo 1 Do 
+  Begin
+    If Before Then
+      StrAppend(s,', ');
+    WriteOneEquation(s,Ineq[I]);
+    Before := True
+  End
 End;
 
 { write a term that is not an argument of a predicate }
@@ -460,6 +471,14 @@ End;
 {----------------------------------------------------------------------------}
 { output using long strings                                                  }
 {----------------------------------------------------------------------------}
+
+Procedure OutConst( C : ConstPtr );
+Var s : StrPtr;
+Begin
+  s := NewString;
+  WriteConst(s,C);
+  StrWrite(s)
+End;
 
 Procedure OutVarName( V : VarPtr );
 Var s : StrPtr;

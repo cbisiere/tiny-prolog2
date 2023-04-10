@@ -52,15 +52,24 @@ End;
 { if any.                                                                    }
 {----------------------------------------------------------------------------}
 
-Procedure LoadProgram( P : ProgPtr; FileName : AnyStr; RuleType : RuType );
-Var Q : QueryPtr;
+Procedure LoadProgram( P : ProgPtr; s : StrPtr; RuleType : RuType );
+Var 
+  Filename : AnyStr;
+  Q : QueryPtr;
 Begin
-  If SetFileForInput(FileName) Then
+  If StrLength(s)<=AnyStrMaxSize Then
   Begin
-    Q := CompileRulesAndQueries(P,RuleType);
-    if (Not Error) And (Q <> Nil) Then
-      AnswerQueries(P,Q);
+    FileName := StrGetString(s);
+    If SetFileForInput(FileName) Then
+    Begin
+      Q := CompileRulesAndQueries(P,RuleType);
+      if (Not Error) And (Q <> Nil) Then
+        AnswerQueries(P,Q);
+    End
+    Else
+      RaiseError('Cannot open file ')
   End
   Else
-    RaiseError('Cannot open file ' + FileName)
+    RaiseError('filename is too long');
+
 End;

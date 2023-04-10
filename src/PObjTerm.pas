@@ -19,12 +19,11 @@
 { types                                                                 }
 {-----------------------------------------------------------------------}
 
-{ constant: identifier, number or string; list of constants  }
-Const
-  MaxSizeConst = 40;  { maximum length of a constant }
-
+{ constant: identifier, number or quoted string; list of constants  }
 Type
-  StrConst   = String[MaxSizeConst];
+  TConst = (Identifier,Number,QString);
+
+  StrConst = StrPtr;
 
   ConstPtr = ^TObjConst; { term: constant }
   DictConstPtr = ^TObjDictConst; { list of unique constant values }
@@ -33,14 +32,16 @@ Type
     PO_META : TObjMeta;
     { not deep copied: }
     TC_DCON : DictConstPtr
+    
   End;
 
   TObjDictConst = Record
     PO_META : TObjMeta;
     { not deep copied: }
     DC_NEXT : DictConstPtr;
+    DC_CVAL : StrConst;
     { extra data: }
-    DC_CVAL : StrConst
+    DC_TYPE : TConst
   End;
 
 
@@ -57,11 +58,8 @@ Type
 
 
 { variable }
-Const
-  MaxSizeIdent = 40;  { maximum length of a variable identifier }
-
 Type 
-  StrIdent   = String[MaxSizeIdent];
+  StrIdent   = StrPtr;
 
   VarPtr = ^TObjVar;
   DictVarPtr = ^TObjDictVar; { list of unique constant values }
@@ -80,7 +78,7 @@ Type
     { deep copied: }
     DV_NEXT : DictVarPtr;
     DV_PVAR : VarPtr; { corresponding variable (meaningful only for user-provided variables)}
-    { extra data: }
+    { not deep copied: }
     DV_NAME : StrIdent
   End;
 
@@ -103,17 +101,18 @@ Begin
   NewConst := C
 End;
 
-{ create a new constant value object }
-Function NewConstValue : DictConstPtr;
+{ create a new constant value object of type t; string is not cloned }
+Function NewConstValue( str : StrPtr; t : TConst ) : DictConstPtr;
 Var 
   C : DictConstPtr;
   ptr : TPObjPtr Absolute C;
 Begin
-  ptr := NewPrologObject(CV, SizeOf(TObjDictConst), 1, 0);
+  ptr := NewPrologObject(CV, SizeOf(TObjDictConst), 2, 0);
   With C^ Do
   Begin
     DC_NEXT := Nil;
-    DC_CVAL := ''
+    DC_TYPE := t;
+    DC_CVAL := str
   End;
   NewConstValue := C
 End;
@@ -140,12 +139,12 @@ Var
   V : DictVarPtr;
   ptr : TPObjPtr Absolute V;
 Begin
-  ptr := NewPrologObject(VV, SizeOf(TObjDictConst), 2, 2);
+  ptr := NewPrologObject(VV, SizeOf(TObjDictVar), 3, 2);
   With V^ Do
   Begin
     DV_NEXT := Nil;
     DV_PVAR := Nil;
-    DV_NAME := ''
+    DV_NAME := NewString
   End;
   NewVarIdentifier := V
 End;
@@ -263,9 +262,45 @@ Begin
 End;
 
 
+{ return the type of a constant }
+Function ConstType( C : ConstPtr ) : TConst;
+Begin
+  ConstType := C^.TC_DCON^.DC_TYPE
+End;
+
+{ return the string value of a constant; not cloning }
+Function ConstGetStr( C : ConstPtr ) : StrPtr;
+Begin
+  ConstGetStr := C^.TC_DCON^.DC_CVAL
+End;
+
+{ is a constant value equal to a Pascal string? }
+Function DictConstEqualTo( DC : DictConstPtr; ps : AnyStr ) : Boolean;
+Begin
+  DictConstEqualTo := StrEqualTo(DC^.DC_CVAL,ps)
+End;
+
+{ is a constant equal to a Pascal string? }
+Function ConstEqualTo( C : ConstPtr; ps : AnyStr ) : Boolean;
+Begin
+  ConstEqualTo := DictConstEqualTo(C^.TC_DCON,ps)
+End;
+
+{ is a constant value starting with a char in a given set? not UTF-8 aware }
+Function DictConstStartWith( DC : DictConstPtr; E : CharSet ) : Boolean;
+Begin
+  DictConstStartWith := StrStartsWith(DC^.DC_CVAL,E)
+End;
+
+{ is a constant starting with a char in a given set? not UTF-8 aware }
+Function ConstStartWith( C : ConstPtr; E : CharSet ) : Boolean;
+Begin
+  ConstStartWith := DictConstStartWith(C^.TC_DCON,E)
+End;
+
 { look in a list for a constant value; append it to the list if not found;
-  return a pointer to the list entry }
-Function LookupConst( Var list : DictConstPtr; str : StrConst ) : DictConstPtr;
+  return a pointer to the list entry; note that the string is not cloned }
+Function LookupConst( Var list : DictConstPtr; str : StrPtr; t : TConst ) : DictConstPtr;
 Var
   e : DictConstPtr;
   Found : Boolean;
@@ -274,19 +309,15 @@ Begin
   Found := False;
   While (e<>Nil) And Not Found Do
   Begin
-    If e^.DC_CVAL = str Then
+    If StrEqual(e^.DC_CVAL,str) Then
       Found := True
     Else
       e := e^.DC_NEXT
   End;
   If Not Found Then
   Begin
-    e := NewConstValue;
-    With e^ Do
-    Begin
-      DC_CVAL := str;
-      DC_NEXT := list
-    End;
+    e := NewConstValue(str,t);
+    e^.DC_NEXT := list;
     list := e
   End;
   LookupConst := e
@@ -294,13 +325,13 @@ End;
 
 
 { create a new constant }
-Function InstallConst( Var list : DictConstPtr; Ch : StrConst ) : ConstPtr;
+Function InstallConst( Var list : DictConstPtr; s : StrPtr; t : TConst ) : ConstPtr;
 Var C : ConstPtr;
 Begin
   C := NewConst;
   With C^ Do
   Begin
-    TC_DCON := LookupConst(list,Ch)
+    TC_DCON := LookupConst(list,s,t)
   End;
   InstallConst := C
 End;
@@ -317,7 +348,7 @@ Begin
   Found := False;
   While (e<>Nil) And (e<>stop) And Not Found Do
   Begin
-    If e^.DV_NAME = str Then
+    If StrEqual(e^.DV_NAME,str) Then
       Found := True
     Else
       e := e^.DV_NEXT
@@ -328,7 +359,7 @@ Begin
 End;
 
 { append a variable to the dictionary }
-Function AppendVarIdentifier( Var list : DictVarPtr; str : StrIdent; V : VarPtr ) : DictVarPtr;
+Function AppendVarIdentifier( Var list : DictVarPtr; str : StrPtr; V : VarPtr ) : DictVarPtr;
 Var e : DictVarPtr;
 Begin
   e := NewVarIdentifier;
@@ -343,7 +374,7 @@ Begin
 End;
 
 { create a variable if it does not exist in list (up to stop, excluded); return it }
-Function InstallVariable( Var list : DictVarPtr; stop : DictVarPtr; Ch : StrIdent ) : VarPtr;
+Function InstallVariable( Var list : DictVarPtr; stop : DictVarPtr; Ch : StrPtr ) : VarPtr;
 Var
   V : VarPtr;
   DV : DictVarPtr;

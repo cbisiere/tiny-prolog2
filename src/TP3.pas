@@ -15,10 +15,41 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+{ non dynamic short string }
+Const
+  AnyStrMaxSize = 255;
+Type
+  AnyStr = String[AnyStrMaxSize];
 
 Type 
   LongInt = Real; { simulate a LongInt }
   Pointer = ^Integer; { generic pointer }
+
+{ trim whitespace from the beginning of a string }
+Function TrimLeft( s : AnyStr ) : AnyStr;
+Var 
+  c,i : Byte;
+Label
+  Break;
+Begin
+  c := 0;
+  For i := 1 to Length(s) Do
+    If s[i]=' ' Then
+      c := c + 1
+    Else
+      Goto Break;
+  Break: If c>0 Then
+    Delete(s,1,c);
+  TrimLeft := s
+End;
+
+{ format a LongInt for display }
+Function LongIntToStr( v : LongInt ) : AnyStr;
+Var s : AnyStr;
+Begin
+  Str(v:AnyStrMaxSize:0,s);
+  LongIntToStr := TrimLeft(s);
+End;
 
 { ReadKey, as in Free Pascal Compiler's Crt module }
 Function ReadKey : Char;

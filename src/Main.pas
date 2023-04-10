@@ -20,8 +20,6 @@
 
 {$I TP3.pas     }  { TP3.pas: Turbo Pascal 3; FPC.pas: Free Pascal Compiler }
 
-{$I String.pas }  { string type and helpers }
-
 Procedure CheckCondition( Cond : Boolean; Message : AnyStr ); Forward;
 Procedure DumpBacktrace; Forward;
 
@@ -61,18 +59,17 @@ var
   P : ProgPtr;
   PP : TPObjPtr Absolute P;
   Q : QueryPtr;
-  FileName : AnyStr;
+  FileName : StrPtr;
+  FileNameObj : TPObjPtr Absolute FileName;
 Begin
   MMInit;
   P := ResetMachine;
   AddGCRoot(PP);
-  LoadProgram(P,'start.pro',RTYPE_AUTO);
+  LoadProgram(P,NewStringFrom('start.pro'),RTYPE_AUTO);
   If ParamCount = 1 Then
   Begin
-    FileName := ParamStr(1);
+    FileName := NewStringFrom(ParamStr(1)); { warning: this string might be GC'ed }
     LoadProgram(P,FileName,RTYPE_USER);
-    if Not Error Then
-      WriteLn('Program "' + FileName + '" loaded')
   End;
   InitHistory;
   Repeat

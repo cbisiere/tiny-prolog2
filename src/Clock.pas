@@ -88,7 +88,6 @@ Var
     C2 : ConstPtr;
     TC2 : TermPtr Absolute C2;
     Stop : Boolean;
-    ConstVal : AnyStr;
   Begin
     FirstR := Nil;
     isSys := False;
@@ -99,14 +98,13 @@ Var
       C1 := AccessTerm(B);
       If TypeOfTerm(TC1) = Constant Then { FIXME: if it is not a constant: the query is a variable "x" -- do we want to handle this?}
       Begin
-        ConstVal := C1^.TC_DCON^.DC_CVAL;
-        If ConstVal = 'SYSCALL' Then
+        If ConstEqualTo(C1,'SYSCALL') Then
         Begin
           isSys := True;
           Stop := True
         End
         Else
-        If ConstVal = '!' Then
+        If ConstEqualTo(C1,'!') Then
         Begin
           isCut := True;
           Stop := True

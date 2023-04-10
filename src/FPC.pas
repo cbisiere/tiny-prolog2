@@ -16,6 +16,20 @@
 
 Uses Crt;
 
+{ non dynamic short string }
+Const
+  AnyStrMaxSize = 255;
+Type
+  AnyStr = String[AnyStrMaxSize];
+
+{ format a LongInt for display }
+Function LongIntToStr( v : LongInt ) : AnyStr;
+Var s : AnyStr;
+Begin
+  Str(v,s);
+  LongIntToStr := s
+End;
+
 { set out-of-memory detection }
 Procedure InitMalloc;
 Begin

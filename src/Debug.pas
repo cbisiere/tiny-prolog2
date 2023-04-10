@@ -14,20 +14,20 @@
 
 
 {----------------------------------------------------------------------------}
-{ String representation of a Prolog object.                                  }
+{ Write extra data of a Prolog object.                                       }
 {----------------------------------------------------------------------------}
 
-Function ToString; (* ( p : TPObjPtr ) : AnyStr; *)
+Procedure WriteExtraData; (*( p : TPObjPtr );*)
 Var 
-  s : AnyStr;
   Cp : ConstPtr Absolute p;
   Vp : VarPtr Absolute p;
   Fp : FuncPtr Absolute p;
   Dv : DictVarPtr Absolute p;
   Dc : DictConstPtr Absolute p;
   E : EqPtr Absolute p;
+  Sda : StrDataPtr Absolute p;
+  S : StrPtr Absolute p;
 Begin
-  s := '';
   Case PObjectType(p) Of
   PR:
     Begin
@@ -50,40 +50,46 @@ Begin
     End;
   CO:
     Begin
-      s := GetConstAsString(Cp, True)
+      OutConst(Cp)
     End;
   FU:
     Begin
       If (Fp^.TF_TRED <> Nil) Then
-        s := '***'
+        Write('***');
     End;
   VA:
     Begin
-      s := GetVarNameAsString(Vp);
+      OutVarName(Vp);
       If (Vp^.TV_TRED <> Nil) Then
       Begin
-        s := s + ' = ...';
+        Write(' = ...');
       End
     End;
   CV:
     Begin
-      s := Dc^.DC_CVAL
+      StrWrite(Dc^.DC_CVAL)
     End;
   VV:
     Begin
-      s := GetVarNameAsString(Dv^.DV_PVAR)
+      OutVarName(Dv^.DV_PVAR)
     End;
   HE:
     Begin
     End;
   ST:
     Begin
+      StrWrite(s);
+      Write(' (',LongIntToStr(s^.ST_NDAT),',',LongIntToStr(StrLength(s)),')')
+    End;
+  SD:
+    Begin
+      Write('"',Sda^.SD_DATA,'"');
+      Write(' (',Length(Sda^.SD_DATA),')')
     End;
   RE:
     Begin
     End
-  End;
-  ToString := s
+  End
 End;
 
 {----------------------------------------------------------------------------}
@@ -97,7 +103,7 @@ Var
   isCut : Boolean;
   U : RestorePtr;
 Begin
-  WriteLn('Header level ',H^.HH_CLOC);
+  WriteLn('Header level ',LongIntToStr(H^.HH_CLOC));
   Write('  Terms: ');
   OutTerms(H^.HH_FBCL,True);
   WriteLn;
@@ -189,7 +195,7 @@ Begin
   e := P^.PP_DCON;
   while (e<>Nil) Do
   Begin
-    WriteLn(e^.DC_CVAL);
+    StrWriteln(e^.DC_CVAL);
     e := e^.DC_NEXT
   End
 End;

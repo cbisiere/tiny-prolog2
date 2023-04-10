@@ -17,20 +17,20 @@
 
 
 {----------------------------------------------------------------------------}
-{ low level memory allocation procedure                                      }
+{ low level memory allocation procedures                                     }
 {----------------------------------------------------------------------------}
 
 { type of allocated objects; note that SY, EQ, HE, RE are not managed by GC }
 Type
-  TypePrologObj = (PR, RU, QU, SY, EQ, BT, CO, FU, VA, CV, VV, HE, ST, RE);
+  TypePrologObj = (PR, RU, QU, SY, EQ, BT, CO, FU, VA, CV, VV, HE, ST, SD, RE);
   TypePrologObjStr = Array[TypePrologObj] Of String[2];
 
 Const
   ObjStr : TypePrologObjStr = ('PR', 'RU', 'QU', 'SY', 'EQ', 'BT', 'CO', 
-    'FU', 'VA', 'CV', 'VV', 'HE', 'ST', 'RE');
+    'FU', 'VA', 'CV', 'VV', 'HE', 'ST', 'SD', 'RE');
 
 Var 
-  mem : Real; { total number of bytes allocated }
+  mem : Real; { total number of bytes allocated; even a LongInt is not enough }
   PObjCount : Array[TypePrologObj] of LongInt;
 
 Procedure InitMemoryStats;
@@ -46,7 +46,7 @@ Var t : TypePrologObj;
 Begin
   WriteLn('Bytes allocated: ',mem:10:0);
   For t := PR To RE Do
-    Writeln(' ',ObjStr[t]:2,': ',PObjCount[t]:3)
+    Writeln(' ',ObjStr[t]:2,': ',LongIntToStr(PObjCount[t]):5)
 End;
 
 Procedure GetMemory( t : TypePrologObj; Var p : Pointer; size : Integer );
@@ -133,7 +133,8 @@ Type
     PO_NPTR : Byte;          { number of PObject pointers (which must immediately follow the metadata) }
     { deep copy }
     PO_DEEP : Boolean;       { has been visited during the current deep copy operation }
-    PO_COPY : TPObjPtr;      { pointer to a copy made during a deep copy }
+    PO_COPY : TPObjPtr;      { pointer to a copy made during a deep copy; warning: copy may have been GC'ed }
+    PO_CUID : LongInt;       { GUID of this copy, or 0; for display purpose, as the copy may not exist }
     PO_NCOP : Integer;       { copy number - FIXME: may overflow }
     PO_NDEE : Byte;          { number of PObject pointers to deep copy (must be less of equal to PO_NPTR) }
     { garbage collection }
@@ -160,6 +161,13 @@ End;
 { dump                                                                       }
 {----------------------------------------------------------------------------}
 
+{ global object ID to string }
+Function GuidToStr( guid : LongInt ) : AnyStr;
+Begin
+  GuidToStr := '#' + LongIntToStr(guid)
+End;
+
+{ object pointer to object name }
 Function PtrToName( p : TPObjPtr ) : AnyStr;
 Var
   s : AnyStr;
@@ -167,11 +175,11 @@ Begin
   If (p = Nil) Then
     s := '-'
   Else
-    s := '#' + RealToStr(p^.PO_META.PO_GUID,0); (* FIXME: LongInt under FP? No error? *)
+    s := GuidToStr(p^.PO_META.PO_GUID);
   PtrToName := s
 End;
 
-Function ToString( p : TPObjPtr ) : AnyStr; forward;
+Procedure WriteExtraData( p : TPObjPtr ); forward;
 
 Procedure DumpObject( p : TPObjPtr );
 Var i : Byte;
@@ -179,14 +187,16 @@ Begin
   Write(PtrToName(p):5,' : ');
   With p^.PO_META Do
   Begin
-    Write(ObjStr[PO_TYPE]:2,' ',MarkToStr(PO_MARK),' ',PO_NCOP,' ',Ord(PO_DEEP),' ',PtrToName(PO_COPY):5);
+    Write(PO_SIZE-SizeOf(TObjMeta):3,' ');
+    Write(ObjStr[PO_TYPE]:2,' ',MarkToStr(PO_MARK),' ',PO_NCOP,' ',Ord(PO_DEEP),' ',GuidToStr(PO_CUID):5);
     Write(' [');
     For i := 1 To PO_NPTR Do
       Write('  ',PtrToName(p^.PO_PTRS[i]));
     Write(' ]')
   End;
-  Write(' ' + ToString(p));
-  WriteLn
+  Write(' ');
+  WriteExtraData(p);
+  Writeln
 End;
 
 Procedure DumpObjects( p : TPObjPtr );
@@ -219,7 +229,7 @@ Begin
     PO_NEXT := AllocHead;
     SetMark(PO_MARK,False);
     If (PO_NEXT = Nil) Then
-      PO_GUID := 0
+      PO_GUID := 1
     Else
       PO_GUID := PO_NEXT^.PO_META.PO_GUID + 1
   End;
@@ -341,6 +351,7 @@ Begin
     { deep copy metadata: }
     PO_DEEP := False;
     PO_COPY := Nil;
+    PO_CUID := 0;
     PO_NCOP := 0;
     PO_NDEE := d
   End;
@@ -371,12 +382,14 @@ Begin
   Begin
     PO_DEEP := True;
     PO_COPY := Nil;
+    PO_CUID := 0;
     PO_NCOP := PO_NCOP + 1 { note it is an additional copy }
   End;
   With p^.PO_META Do { old object has been copied }
   Begin
     PO_DEEP := True;
-    PO_COPY := pc  { link old -> copy }
+    PO_COPY := pc;  { link old -> copy }
+    PO_CUID := pc^.PO_META.PO_GUID
   End;
   CopyObject := pc
 End;
@@ -426,6 +439,7 @@ Begin
       Begin
         PO_DEEP := False;
         PO_COPY := Nil;
+        PO_CUID := 0;
         For i := 1 To PO_NDEE Do
           PrepareDeepCopy(p^.PO_PTRS[i])
       End
@@ -449,13 +463,20 @@ Begin
   NbRoots := 0
 End;
 
+Procedure DumpGCRoots;
+Var i : Byte;
+Begin
+  Writeln('GC roots:');
+  For i := 1 To NbRoots Do
+    Writeln(i:3,' ',PtrToName(Roots[i]^):5)
+End;
+
 Procedure AddGCRoot(r : TPObjPtr);
 Begin
   CheckCondition(NbRoots<MaxGCRoots,'GC root pool is full');
   NbRoots := NbRoots + 1;
   Roots[NbRoots] := Addr(r)
 End;
-
 
 {----------------------------------------------------------------------------}
 { garbage collector                                                          }

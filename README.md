@@ -2,9 +2,11 @@
 A simple Prolog II interpreter written in Pascal
 
 ## Why?
-2022 is [the 50th anniversary of Prolog](http://prologyear.logicprogramming.org/). As a modest tribute for this anniversary, I decided to dig up a Prolog interpreter I wrote almost 35 years ago, clean it a bit, add a few missing features (e.g., the "cut"), and push it online. As this program remains a toy program, this serves no real purpose other than to celebrate this anniversary.
+2022 is [the 50th anniversary of Prolog](http://prologyear.logicprogramming.org/). As a modest tribute for this anniversary, I decided to dig up a Prolog interpreter I wrote almost 35 years ago, clean it a bit, add a few missing features (e.g., the "cut", garbage collection), and push it online. As this program remains a toy program, this serves no real purpose other than to celebrate this anniversary.
 
 I wrote this program as a course assignment, back in 1988, when I was a student at the University of Aix-Marseille II, pursuing a MSc in Computer Science and Mathematics ("Diplôme d'Études Approfondies en Informatique et Mathématique"). The course, entitled "Prolog II", was taught by the late [Alain Colmerauer](https://en.wikipedia.org/wiki/Alain_Colmerauer), creator of the language.
+
+One of the courses I also took in this MSc was Henri Méloni's course on speech recognition. As the Prolog II interpreter gains additional features, executing the Prolog programs I wrote for this course might even become possible.
 
 ## References
 Basically, the program implements two algorithms described in the following paper: 
@@ -19,9 +21,11 @@ Here are two additional interesting papers:
 
 
 ## Overview
-The interpreter handles classical Prolog rules, expressed in so-called "Marseille syntax". Being a simple implementation exercice, it offers only a few built-in functions and no advanced features.
+The interpreter handles classical Prolog rules, expressed in so-called "Marseille syntax". Being a simple implementation exercice, it offers only a few built-in functions and no advanced features. 
 
-The source code contains detailed comments (though in French) about the implementation (parsing and execution).
+Nonetheless, the interpreter is fully garbage collected, and has almost no hard-coded limits.  
+
+The source code contains detailed comments (though mostly in French) about the implementation (parsing and execution).
 
 ### Lists
 A dot `.` is used to separate items in a list. For instance, the rules defining the insertion of an element before any item in a list could be written as:
@@ -31,7 +35,7 @@ insertion(e,x,e.x) ->;
 insertion(e,f.x,f.y) -> insertion(e,x,y);
 ```
 
-Note that variable names (e.g., `e`) start with a single letter, while identifiers (e.g., `insertion` start with at least two letters.
+Note that variable names (e.g., `e`) start with a single letter, while identifiers (e.g., `insertion` start with at least two letters. Names and identifiers can have any length.
 
 Inserting an element in a list of four items gives three different solutions:
 
@@ -60,13 +64,13 @@ while the following query displays the resulting constraints:
 
 ```
 -> dif(x,1);
-{ x = x_94 , x_94 <> 1 }
+{ x = x_1 , x_1 <> 1 }
 ```
-(Note that the interpreter has created an additional variable `x_94`, and does not try to get rid of it when displaying the resulting constraint set.)
+(Note that the interpreter has created an additional variable `x_1`, and does not try to get rid of it when displaying the resulting constraint set.)
 
 ### Strings
 
-Strings are used as values or as comments. They must be double quoted. Inside a string, `"` must be doubled as `""`. Backslash `\`is a continuation character. Comments can appear anywhere outside of rules.
+Strings are used as values or as comments. They must be double quoted. Inside a string, `"` must be doubled as `""`. Backslash `\`is a continuation character. Comments can appear anywhere outside of rules. String can have any length.
 
 Querying the program
 
@@ -149,7 +153,7 @@ The following executions show that what the engine forgets after executing a cut
 
 The program was initially developed in [Turbo Pascal 3](https://en.wikipedia.org/wiki/Turbo_Pascal#Version_3) (TP3). Turbo Pascal 3.02A is [provided](https://web.archive.org/web/20101124092418/http://edn.embarcadero.com/article/20792) to the Borland community free of charge, as a [zip file](https://web.archive.org/web/20110815014726/http://altd.embarcadero.com/download/museum/tp302.zip).
 
-I chose to maintain compatibility with TP3. Because why not.
+I chose to maintain compatibility with TP3. Because why not. So, no classes, and a few restrictions on the syntax. Workarounds had to be implemented for the most annoying limitations, namely 16-bit integers and 255-char strings. 
 
 You may use a FreeDOS box to install TP3, compile `Main.pas` and run the Prolog interpreter.
 
@@ -168,7 +172,7 @@ fpc.sh
 
 ## Execution
 
-A Prolog program to execute is a text file containing both the program rules and the queries. Rules are written using the old "Marseille syntax". Each query starts with a `->`and ends with a `;`. The end of the text file, or, alternatively, an additional `;`, ends the program.
+A Prolog program to execute is a text file containing both the program rules and the queries. Rules are written using the old "Marseille syntax". Each query starts with a `->`and ends with a `;`. The end of the text file, or, alternatively, an additional `;`, ends the program. Lines in the input file can have any length. 
 
 For instance, the file `examples/permu.pro` contains four rules and two queries:
 
@@ -191,7 +195,6 @@ To execute this program, run `tprolog2 examples/permu.pro`:
 
 ```
 $ ./tprolog2 examples/permu.pro
-Program "examples/permu.pro" loaded
 -> permutation(1.2.3.nil,x);
 { x = 1.2.3.nil }
 { x = 2.1.3.nil }
@@ -233,6 +236,8 @@ insertion(e,f.x,f.y) ->
 ```
 
 and `insert(f)` to insert rules and queries from a file with file path `f`. 
+
+You can navigate into the history of previous queries using the up and down arrow keys.  
 
 When you are done, use `quit` or hit `Ctrl+C` to quit the interpreter.
 
