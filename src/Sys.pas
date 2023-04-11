@@ -15,6 +15,54 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+{ predefined predicates }
+
+Const
+  NBPred = 8;
+  MaxPredLength = 9;
+Type 
+  TPP = (PP_QUIT,PP_INSERT,PP_LIST,PP_OUT,PP_OUTM,PP_LINE,PP_BACKTRACE,PP_CLRSRC);
+  TPPred = Record
+    I : TPP; { identifier }
+    S : String[MaxPredLength]; { identifier as string }
+    N : Byte { number of arguments }
+  End;
+  TAPPred = Array[1..NBPred] Of TPPred;
+
+Const 
+  APPred : TAPPred = (
+    (I:PP_QUIT;S:'QUIT';N:0),
+    (I:PP_INSERT;S:'INSERT';N:1),
+    (I:PP_LIST;S:'LIST';N:0),
+    (I:PP_OUT;S:'OUT';N:1),
+    (I:PP_OUTM;S:'OUTM';N:1),
+    (I:PP_LINE;S:'LINE';N:0),
+    (I:PP_BACKTRACE;S:'BACKTRACE';N:0),
+    (I:PP_CLRSRC;S:'CLRSRC';N:0)
+  );
+
+{ lookup for a predicate; set the found predicate record; return True if found  }
+Function LookupPred( str : AnyStr; Var rec : TPPred) : Boolean;
+Var 
+  i : 0..NBPred;
+  Found : Boolean;
+Begin
+  i := 0;
+  Found := False;
+  While (Not Found) And (i<NBPred) Do
+  Begin
+    i := i + 1;
+    If APPred[i].S = str Then
+    Begin
+      Found := True;
+      rec := APPred[i]
+    End
+  End;
+  LookupPred := Found
+End;
+
+
+
 { install all predefined constants }
 Procedure RegisterPredefinedConstants( P : ProgPtr );
 Var DC : DictConstPtr;
@@ -22,91 +70,91 @@ Begin
   DC := LookupConst(P^.PP_DCON,NewStringFrom('SYSCALL'),Identifier)
 End;
 
-{ execute a system call <SYSCALL,Code,Arg1,...ArgN> }
-Function ExecutionSysCallOk; (* ( F : TermPtr; P : ProgPtr; Q : QueryPtr ) : Boolean; *)
+{ execute a system call <SYSCALL,Code,Arg1,...ArgN>, meaning Code(Arg1,...,ArgN) }
+Function ExecutionSysCallOk; (* ( T : TermPtr; P : ProgPtr; Q : QueryPtr ) : Boolean; *)
 Var
-  Fail : Boolean;
+  FT : FuncPtr Absolute T;
+  Ok : Boolean;
   Ident : StrIdent;
   NbArgs : Integer;
   SysCallCode : StrIdent;
-  NbSysCallArgs : Integer;
+  NbPar : Integer; { number of parameters of the system call }
+  T1 : TermPtr;
+  CT1 : ConstPtr Absolute T1;
+  T2 : TermPtr;
+  CT2 : ConstPtr Absolute T2;
   C : ConstPtr;
-  FF : FuncPtr Absolute F;
+  rec : TPPred;
+  str : AnyStr;
 
-  Function GetConstArg( N : Integer; F : FuncPtr) : StrIdent;
-  Var 
-    T : TermPtr;
-    CT : ConstPtr Absolute T;
+  { get n-th argument of the predicate represented by tuple F }
+  Function GetPArg( n : Byte; F : FuncPtr ) : TermPtr;
   Begin
-    T := Argument(N,F);
-    CheckCondition(TypeOfTerm(T) = Constant,'GetConstArg: constant expected');
-    GetConstArg := CT^.TC_DCON^.DC_CVAL
+    GetPArg := Argument(2+n,F)
   End;
 
 Begin
-  If TypeOfTerm(F) <> FuncSymbol Then
-  Begin
-    ExecutionSysCallOk := False;
-    Exit
-  End;
-  SysCallCode := GetConstArg(1,FF);
+  { coded as a functional symbol }
+  CheckCondition(TypeOfTerm(T) = FuncSymbol,'SYSCALL: functional symbol expected');
+  
+  { first parameter is SYSCALL }
+  T1 := Argument(1,FT);
+  CheckCondition(TypeOfTerm(T1) = Constant,'SYSCALL: constant expected');
+  SysCallCode := ConstGetStr(CT1);
   CheckCondition(StrEqualTo(SysCallCode,'SYSCALL'),'Not a SYSCALL');
-  NbArgs := NbArguments(FF);
-  If NbArgs < 2 Then
+
+  { there are at least two arguments: <SYSCALL,identifier,..> }
+  NbArgs := NbArguments(FT);
+  Ok := NbArgs >= 2;  
+  If Ok Then
   Begin
-    ExecutionSysCallOk := False;
-    Exit
+    T2 := Argument(2,FT);
+    Ident := ConstGetStr(CT2);
+    Ok := StrLength(Ident) <= MaxPredLength
   End;
-  Ident := GetConstArg(2,FF);
-  NbSysCallArgs := NbArgs - 2;
-  ExecutionSysCallOk := True;
-  If StrEqualTo(Ident,'QUIT') Then
-    If NbSysCallArgs <> 0 Then
-      ExecutionSysCallOk := False
-    Else
-      Halt
-  Else If StrEqualTo(Ident,'INSERT') Then
-    If NbSysCallArgs <> 1 Then
-      ExecutionSysCallOk := False
-    Else
+
+  { predicate is known and has the correct number of parameters }
+  If Ok Then
+  Begin
+    str := StrGetString(Ident);
+    Ok := LookupPred(str,rec);
+    If Ok Then
     Begin
-      C := EvaluateToConstant(Argument(2+1,FF));
-      Fail := C = Nil;
-      If Not Fail Then
+      NbPar := NbArgs - 2;
+      Ok := NbPar = rec.N
+    End;
+  End;
+
+  { clear the predicate }
+  If Ok Then
+  Begin
+    Case rec.I Of
+    PP_QUIT:
+      Halt;
+    PP_INSERT:
       Begin
-        LoadProgram(P,GetConstAsString(C,False),RTYPE_USER);
-        Fail := Error
+        C := EvaluateToConstant(GetPArg(1,FT));
+        Ok := C <> Nil;
+        If Ok Then
+        Begin
+          LoadProgram(P,GetConstAsString(C,False),RTYPE_USER);
+          Ok := Not Error
+        End
       End;
-      ExecutionSysCallOk := Not Fail
-    End
-  Else If StrEqualTo(Ident,'LIST') Then
-    If NbSysCallArgs <> 0 Then
-      ExecutionSysCallOk := False
-    Else
-      OutQuestionRules(Q,RTYPE_USER)
-  Else If StrEqualTo(Ident,'OUT') Then
-    If NbSysCallArgs <> 1 Then
-      ExecutionSysCallOk := False
-    Else
-      OutTerm(Argument(2+1,FF))
-  Else If StrEqualTo(Ident,'OUTM') Then
-    If NbSysCallArgs <> 1 Then
-      ExecutionSysCallOk := False
-    Else
-      OutTermBis(Argument(2+1,FF),False,False)
-  Else If StrEqualTo(Ident,'LINE') Then
-    If NbSysCallArgs <> 0 Then
-      ExecutionSysCallOk := False
-    Else
-      WriteLn
-  Else If StrEqualTo(Ident,'BACKTRACE') Then
-    If NbSysCallArgs <> 0 Then
-      ExecutionSysCallOk := False
-    Else
-      DumpBacktrace
-  Else If StrEqualTo(Ident,'CLRSRC') Then
-    If NbSysCallArgs <> 0 Then
-      ExecutionSysCallOk := False
-    Else
+    PP_LIST:
+      OutQuestionRules(Q,RTYPE_USER);
+    PP_OUT:
+      OutTerm(GetPArg(1,FT));
+    PP_OUTM:
+      OutTermBis(GetPArg(1,FT),False,False);
+    PP_LINE:
+      WriteLn;
+    PP_BACKTRACE:
+      DumpBacktrace;
+    PP_CLRSRC:
       ClrScr
+    End
+  End;
+    
+  ExecutionSysCallOk := Ok
 End;

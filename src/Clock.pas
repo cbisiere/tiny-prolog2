@@ -15,7 +15,7 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-Function ExecutionSysCallOk( F : TermPtr; P : ProgPtr; Q : QueryPtr ) : Boolean; Forward;
+Function ExecutionSysCallOk( T : TermPtr; P : ProgPtr; Q : QueryPtr ) : Boolean; Forward;
 
 {----------------------------------------------------------------------------}
 {                                                                            }
