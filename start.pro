@@ -14,6 +14,10 @@ outml(s) -> outm(s) line;
 page -> <SYSCALL,CLRSRC>;
 clear -> page fail;
 
+"eval"
+
+val(t1,t2) -> <SYSCALL,EVAL,t1,t2>;
+
 "debug"
 
 bt -> <SYSCALL,BACKTRACE>;

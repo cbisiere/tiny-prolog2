@@ -104,13 +104,13 @@ Var
           Constant :
             RepresentativeOf := T;
           Variable  :
-            If VT^.TV_TRED <> Nil Then
-              RepresentativeOf := RepresentativeOf(VT^.TV_TRED)
+            If VRed(VT) <> Nil Then
+              RepresentativeOf := RepresentativeOf(VRed(VT))
             Else
               RepresentativeOf := T;
           FuncSymbol  :
-            If FT^.TF_TRED <> Nil Then
-              RepresentativeOf := RepresentativeOf(FT^.TF_TRED)
+            If FRed(FT) <> Nil Then
+              RepresentativeOf := RepresentativeOf(FRed(FT))
             Else
               RepresentativeOf := T
           End
@@ -150,9 +150,9 @@ Var
         SetMem(L,V1^.TV_TRED,T2,Backtrackable);  { add v=t in the reduced system }
 
         { step 2 of system solving is handled here}
-        If V1^.TV_FWAT <> Nil Then { x already watched a liaison }
+        If VWatchIneq(V1) <> Nil Then { x already watched a liaison }
         Begin
-          CopyAllEqInSys(S,V1^.TV_FWAT);
+          CopyAllEqInSys(S,VWatchIneq(V1));
           SetMemEq(L,V1^.TV_FWAT,Nil,Backtrackable)
         End
       End;
@@ -183,21 +183,21 @@ Var
         { two functional symbols }
         Else If (TypeOfTerm(T1)=FuncSymbol) And (TypeOfTerm(T2)=FuncSymbol) Then 
         Begin
-          If OneIsNil(RightArg(FT1),RightArg(FT2)) Or OneIsNil(LeftArg(FT1),LeftArg(FT2)) Then
+          If OneIsNil(FRightArg(FT1),FRightArg(FT2)) Or OneIsNil(FLeftArg(FT1),FLeftArg(FT2)) Then
               Abnormal := True
           Else
           Begin
             { add "f = f" to the reduced system }
             SetMem(Uf,FT1^.TF_TRED,T2,Backtrackable);
             { insert in the unreduced system l1=l2 and r1=r2 }
-            If (RightArg(FT1) <> Nil) And (RightArg(FT2) <> Nil) Then
+            If (FRightArg(FT1) <> Nil) And (FRightArg(FT2) <> Nil) Then
             Begin
-              E := NewEquation(REL_EQUA,RightArg(FT1),RightArg(FT2));
+              E := NewEquation(REL_EQUA,FRightArg(FT1),FRightArg(FT2));
               InsertOneEqInSys(S,E)
             End;
-            If (LeftArg(FT1) <> Nil) And (LeftArg(FT2) <> Nil) Then
+            If (FLeftArg(FT1) <> Nil) And (FLeftArg(FT2) <> Nil) Then
             Begin
-              E := NewEquation(REL_EQUA,LeftArg(FT1),LeftArg(FT2));
+              E := NewEquation(REL_EQUA,FLeftArg(FT1),FLeftArg(FT2));
               InsertOneEqInSys(S,E)
             End
           End
@@ -343,7 +343,7 @@ Var Fails : Boolean;
         Begin
           NewE := NewEquation(REL_INEQ,Tg,Td);
           { this variable now watches this inequation }
-          If VarProd^.TV_FWAT = Nil Then
+          If VWatchIneq(VarProd) = Nil Then
           Begin
             { first watch }
             SetMemEq(L,VarProd^.TV_FWAT,NewE,Backtrackable)
@@ -351,7 +351,7 @@ Var Fails : Boolean;
           Else
           Begin
             { add a watch }
-            E := VarProd^.TV_FWAT;
+            E := VWatchIneq(VarProd);
             While(E^.EQ_NEXT <> Nil) Do E := E^.EQ_NEXT;
             SetMemEq(L,E^.EQ_NEXT,NewE,Backtrackable)
           End

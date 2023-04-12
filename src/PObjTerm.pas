@@ -187,6 +187,59 @@ Begin
     End
 End;
 
+{ reduced system }
+
+{ return the first inequation V is watching in the reduced system }
+Function VWatchIneq( V : VarPtr ) : EqPtr;
+Begin
+  VWatchIneq := V^.TV_FWAT
+End;
+
+{ return V if equation V = T is in the reduced system, or Nil }
+Function VRed( V : VarPtr ) : TermPtr;
+Begin
+  VRed := V^.TV_TRED
+End;
+
+{ return T if equation F = T is in the reduced system, or Nil }
+Function FRed( F : FuncPtr ) : TermPtr;
+Begin
+  FRed := F^.TF_TRED
+End;
+
+{ return the constant the term T is equal to in the reduced system, 
+  of Nil if T is not equal to a constant; 
+  TODO: take into account evaluable functions: add, mul, div...}
+Function EvaluateToConstant( T : TermPtr ) : ConstPtr;
+Var 
+  C : ConstPtr;
+  CT : ConstPtr Absolute T;
+  VT : VarPtr Absolute T;
+Begin
+  C := Nil;
+  Case TypeOfTerm(T) Of
+  Constant :
+    C := CT;
+  Variable :
+    If VRed(VT) <> Nil Then
+      C := EvaluateToConstant(VRed(VT))
+  End;
+  EvaluateToConstant := C
+End;
+
+
+{ left term of a functional symbol }
+Function FLeftArg( F : FuncPtr ) : TermPtr;
+Begin
+  FLeftArg := F^.TF_LTER
+End;
+
+{ right term of a functional symbol }
+Function FRightArg( F : FuncPtr ) : TermPtr;
+Begin
+  FRightArg := F^.TF_RTER
+End;
+
 { return the access constant of a term, or Nil; use for quick pre-unification }
 Function Access( T : TermPtr ) : ConstPtr;
 Var 
@@ -202,7 +255,7 @@ Begin
     C := CT;
   FuncSymbol  :
     Begin
-      LeftT := FT^.TF_LTER;
+      LeftT := FLeftArg(FT);
       Case TypeOfTerm(LeftT) Of
       Constant :
         C := CLeftT;
@@ -215,18 +268,6 @@ Begin
   Access := C
 End;
 
-{ left term of a functional symbol }
-Function LeftArg( F : FuncPtr ) : TermPtr;
-Begin
-  LeftArg := F^.TF_LTER
-End;
-
-{ right term of a functional symbol }
-Function RightArg( F : FuncPtr ) : TermPtr;
-Begin
-  RightArg := F^.TF_RTER
-End;
-
 { return the number of arguments of a f(a,b,c) or <a,b,c> construct;
   in the former case, the number of argument is 4 }
 Function NbArguments( F : FuncPtr ) : Integer;
@@ -235,11 +276,11 @@ Var
   FT : FuncPtr Absolute T;
 Begin
   CheckCondition(F <> Nil,'NbArguments of Nil does not make sense');
-  If F^.TF_RTER = Nil  Then
+  If FRightArg(F) = Nil  Then
     NbArguments := 1
   Else
   Begin
-    T := F^.TF_RTER;
+    T := FRightArg(F);
     NbArguments := NbArguments(FT) + 1
   End
 End;
@@ -253,10 +294,10 @@ Var
 Begin
   CheckCondition(F <> Nil,'Argument of Nil does not make sense');
   If N = 1 Then
-    Argument := F^.TF_LTER
+    Argument := FLeftArg(F)
   Else
   Begin
-    T := F^.TF_RTER;
+    T := FRightArg(F);
     Argument := Argument(N-1,FT)
   End
 End;

@@ -108,13 +108,13 @@ Var
   T : TermPtr;
   FT : FuncPtr Absolute T;
 Begin
-  WriteTermBis(s,F^.TF_LTER,False,True);
-  If F^.TF_RTER <> Nil Then
+  WriteTermBis(s,FLeftArg(F),False,True);
+  If FRightArg(F) <> Nil Then
   Begin
     StrAppend(s,',');
-    CheckCondition((F^.TF_RTER=Nil) Or (TypeOfTerm(F^.TF_RTER)=FuncSymbol),
+    CheckCondition((FRightArg(F)=Nil) Or (TypeOfTerm(FRightArg(F))=FuncSymbol),
       'broken argument list');
-    T := F^.TF_RTER;
+    T := FRightArg(F);
     WriteArgument(s,FT)
   End
 End;
@@ -129,25 +129,6 @@ End;
 Procedure WriteConst( s : StrPtr; C : ConstPtr );
 Begin
   StrConcat(s,GetConstAsString(C,True))
-End;
-
-{ return the constant the term T is equal to, of Nil if T is not equal to a 
-  constant }
-Function EvaluateToConstant( T : TermPtr ) : ConstPtr;
-Var 
-  C : ConstPtr;
-  CT : ConstPtr Absolute T;
-  VT : VarPtr Absolute T;
-Begin
-  C := Nil;
-  Case TypeOfTerm(T) Of
-  Constant :
-    C := CT;
-  Variable :
-    If VT^.TV_TRED <> Nil Then
-      C := EvaluateToConstant(VT^.TV_TRED)
-  End;
-  EvaluateToConstant := C
 End;
 
 { write a tuple }
@@ -188,19 +169,19 @@ Begin
         WriteVarName(s,V)
       End
       Else
-        If V^.TV_TRED = Nil Then
+        If VRed(V) = Nil Then
           WriteVarName(s,V)
         Else
         Begin
-          WriteTermBis(s,V^.TV_TRED,False,Quotes)
+          WriteTermBis(s,VRed(V),False,Quotes)
         End;
-      If V^.TV_FWAT <> Nil Then
-        AddIneq(V^.TV_FWAT)
+      If VWatchIneq(V) <> Nil Then
+        AddIneq(VWatchIneq(V))
     End;
   FuncSymbol  :
     Begin
       F := FT;
-      LeftT := F^.TF_LTER;
+      LeftT := FLeftArg(F);
       If (TypeOfTerm(LeftT) = Constant) Then
       Begin
         If ConstStartWith(CLeftT,Digits) Then { should only happen when printing subtrees during debugging}
@@ -211,20 +192,20 @@ Begin
         Begin
           If ArgList Then 
             StrAppend(s,'(');
-          T1 := F^.TF_RTER;
-          WriteTermBis(s,FT1^.TF_LTER,True,True);
+          T1 := FRightArg(F);
+          WriteTermBis(s,FLeftArg(FT1),True,True);
           StrAppend(s,'.');
-          T2 := FT1^.TF_RTER; { TODO: check type }
-          WriteTermBis(s,FT2^.TF_LTER,False,True);
+          T2 := FRightArg(FT1); { TODO: check type }
+          WriteTermBis(s,FLeftArg(FT2),False,True);
           If ArgList Then 
             StrAppend(s,')')
         End
         Else
         Begin 
           StrConcat(s,ConstGetStr(CLeftT));
-          If F^.TF_RTER<>Nil Then { F(name,F(a,F(b,Nil) => name(a,b) }
+          If FRightArg(F)<>Nil Then { F(name,F(a,F(b,Nil) => name(a,b) }
           Begin
-            T1 := F^.TF_RTER;
+            T1 := FRightArg(F);
             StrAppend(s,'(');
             WriteArgument(s,FT1); { TODO: check type }
             StrAppend(s, ')')
@@ -333,7 +314,7 @@ Begin
     WriteSystemBis(s,DV1^.DV_NEXT,DV2,Curl,SpaceBeforeCurl,Printed,Before);
     V := DV1^.DV_PVAR;
     { equation in the reduced system }
-    If V^.TV_TRED <> Nil Then
+    If VRed(V) <> Nil Then
     Begin
       WriteCurlyBrace(s,SpaceBeforeCurl,Printed);
       If Before Then 
@@ -341,13 +322,13 @@ Begin
       WriteVarName(s,V);
       StrAppend(s,' = ');
       Before := True;
-      WriteTerm(s,V^.TV_TRED)
+      WriteTerm(s,VRed(V))
     End;
     { inequations in the reduced system }
-    If V^.TV_FWAT <> Nil Then
+    If VWatchIneq(V) <> Nil Then
     Begin
       WriteCurlyBrace(s,SpaceBeforeCurl,Printed);
-      AddIneq(V^.TV_FWAT)
+      AddIneq(VWatchIneq(V))
     End
   End
 End;

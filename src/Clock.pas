@@ -281,10 +281,8 @@ End;
       RuleB := R^.RU_FBTR;
       CopyRuleP := DeepCopy(PRuleB);
 
-      { Contrainte à réduire : terme à réduire = tête de la règle }
-      Ss := NewSystem;
-      E := NewEquation(REL_EQUA,ClearT,BCopyRuleP^.BT_TERM);
-      InsertOneEqInSys(Ss,E);
+      { contraint to reduce: term to clear = rule head }
+      Ss := NewSystemWithEq(ClearT,BCopyRuleP^.BT_TERM);
 
       { new list of terms to clear: rule queue + previous terms but the first }
       B := BCopyRuleP;

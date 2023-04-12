@@ -54,13 +54,13 @@ Begin
     End;
   FU:
     Begin
-      If (Fp^.TF_TRED <> Nil) Then
+      If (FRed(Fp) <> Nil) Then
         Write('***');
     End;
   VA:
     Begin
       OutVarName(Vp);
-      If (Vp^.TV_TRED <> Nil) Then
+      If (VRed(Vp) <> Nil) Then
       Begin
         Write(' = ...');
       End
@@ -169,15 +169,15 @@ Begin
     V := e^.DV_PVAR;
     Write('  ');
     OutVarName(V);
-    If V^.TV_TRED <> Nil Then
+    If VRed(V) <> Nil Then
     Begin
       Write(' = ');
-      OutTerm(V^.TV_TRED)
+      OutTerm(VRed(V))
     End;
-    If V^.TV_FWAT <> Nil Then
+    If VWatchIneq(V) <> Nil Then
     Begin
       Write(', ');
-      OutOneEquation(V^.TV_FWAT)
+      OutOneEquation(VWatchIneq(V))
     End;    
     WriteLn;
     e := e^.DV_NEXT

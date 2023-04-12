@@ -18,10 +18,10 @@
 { predefined predicates }
 
 Const
-  NBPred = 8;
-  MaxPredLength = 9;
+  NBPred = 9;
+  MaxPredLength = 9; { max string length of predefined predicate }
 Type 
-  TPP = (PP_QUIT,PP_INSERT,PP_LIST,PP_OUT,PP_OUTM,PP_LINE,PP_BACKTRACE,PP_CLRSRC);
+  TPP = (PP_QUIT,PP_INSERT,PP_LIST,PP_OUT,PP_OUTM,PP_LINE,PP_BACKTRACE,PP_CLRSRC,PP_EVAL);
   TPPred = Record
     I : TPP; { identifier }
     S : String[MaxPredLength]; { identifier as string }
@@ -38,7 +38,8 @@ Const
     (I:PP_OUTM;S:'OUTM';N:1),
     (I:PP_LINE;S:'LINE';N:0),
     (I:PP_BACKTRACE;S:'BACKTRACE';N:0),
-    (I:PP_CLRSRC;S:'CLRSRC';N:0)
+    (I:PP_CLRSRC;S:'CLRSRC';N:0),
+    (I:PP_EVAL;S:'EVAL';N:2)
   );
 
 { lookup for a predicate; set the found predicate record; return True if found  }
@@ -84,8 +85,12 @@ Var
   T2 : TermPtr;
   CT2 : ConstPtr Absolute T2;
   C : ConstPtr;
+  TC : TPObjPtr Absolute C;
   rec : TPPred;
   str : AnyStr;
+
+  S : SysPtr;
+  U : RestorePtr;
 
   { get n-th argument of the predicate represented by tuple F }
   Function GetPArg( n : Byte; F : FuncPtr ) : TermPtr;
@@ -129,6 +134,17 @@ Begin
   If Ok Then
   Begin
     Case rec.I Of
+    PP_EVAL:
+      Begin
+        C := EvaluateToConstant(GetPArg(1,FT));
+        Ok := C <> Nil;
+        If Ok Then
+        Begin
+          S := NewSystemWithEq(GetPArg(2,FT),TC);
+          U := Nil;
+          Ok := ReduceSystem(S,False,U)
+        End
+      End;
     PP_QUIT:
       Halt;
     PP_INSERT:
