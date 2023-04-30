@@ -146,6 +146,21 @@ The following executions show that what the engine forgets after executing a cut
 { u = red.big }
 ```
 
+### Assignments
+
+Identifiers can be assigned using the predicate `assign(i,t)`. The identifier `i` then becomes a global, "static" (resist backtracking) variable, whose value is equal to the term `t`. It can be further reassigned to a different term. Its value can be read using the predicate `val(i,v)`. 
+
+```
+-> assign(file_name,"file.txt");
+{  }
+-> val(file_name,x);
+{ x = "file.txt" }
+-> assign(file_name,"another_file.txt");
+{  }
+-> val(file_name,x);
+{ x = "another_file.txt" }
+>
+```
 
 ## Compilation
 

@@ -21,9 +21,9 @@ Procedure WriteExtraData; (*( p : TPObjPtr );*)
 Var 
   Cp : ConstPtr Absolute p;
   Vp : VarPtr Absolute p;
+  Ip : IdPtr Absolute p;
   Fp : FuncPtr Absolute p;
-  Dv : DictVarPtr Absolute p;
-  Dc : DictConstPtr Absolute p;
+  Dp : DictPtr Absolute p;
   E : EqPtr Absolute p;
   Sda : StrDataPtr Absolute p;
   S : StrPtr Absolute p;
@@ -52,6 +52,11 @@ Begin
     Begin
       OutConst(Cp)
     End;
+  ID:
+    Begin
+      Write(Ip^.TV_ASSI,' ');
+      OutIdentifier(Ip)
+    End;
   FU:
     Begin
       If (FRed(Fp) <> Nil) Then
@@ -65,13 +70,9 @@ Begin
         Write(' = ...');
       End
     End;
-  CV:
+  DE:
     Begin
-      StrWrite(Dc^.DC_CVAL)
-    End;
-  VV:
-    Begin
-      OutVarName(Dv^.DV_PVAR)
+      StrWrite(Dp^.DE_STRI)
     End;
   HE:
     Begin
@@ -157,16 +158,17 @@ End;
 { display variable identifiers from start to stop (excluding stop)           }
 {----------------------------------------------------------------------------}
 
-Procedure DumpDictVar( start,stop : DictVarPtr );
+Procedure DumpDictVar( start,stop : DictPtr );
 Var 
-  e : DictVarPtr;
+  e : DictPtr;
   V : VarPtr;
+  TV : TermPtr Absolute V;
 Begin
   WriteLn('Variables:');
   e := start;
   while (e<>Nil) And (e<>stop) Do
   Begin
-    V := e^.DV_PVAR;
+    TV := e^.DE_TERM;
     Write('  ');
     OutVarName(V);
     If VRed(V) <> Nil Then
@@ -174,29 +176,27 @@ Begin
       Write(' = ');
       OutTerm(VRed(V))
     End;
-    If VWatchIneq(V) <> Nil Then
+    If WatchIneq(V) <> Nil Then
     Begin
       Write(', ');
-      OutOneEquation(VWatchIneq(V))
+      OutOneEquation(WatchIneq(V))
     End;    
     WriteLn;
-    e := e^.DV_NEXT
+    e := e^.DE_NEXT
   End
 End;
 
 {----------------------------------------------------------------------------}
-{ Affiche le dictionnaire des constantes.                                    }
+{ dump a dictionary of constants                                             }
 {----------------------------------------------------------------------------}
 
-Procedure DumpDictConst( P : ProgPtr );
-Var e : DictConstPtr;
+Procedure DumpDictConst( e : DictPtr; title : AnyStr );
 Begin
-  WriteLn('Constants:');
-  e := P^.PP_DCON;
+  WriteLn(title);
   while (e<>Nil) Do
   Begin
-    StrWriteln(e^.DC_CVAL);
-    e := e^.DC_NEXT
+    StrWriteln(e^.DE_STRI);
+    e := e^.DE_NEXT
   End
 End;
 
@@ -207,7 +207,11 @@ End;
 Procedure CoreDump; (* ( P : ProgPtr; Message : AnyStr; Trace : Boolean ); *)
 Begin
   WriteLn('Begin Core Dump: "',Message,'"');
-  DumpDictConst(P);
+  PrintMemoryStats;
+  DumpGCRoots;
+  DumpRegisteredObject;
+  DumpDictConst(P^.PP_DCON,'Constants:');
+  DumpDictConst(P^.PP_DIDE,'Identifiers:');
   DumpDictVar(P^.PP_DVAR,Nil);
   If Trace Then
     Backtrace(P^.PP_HEAD);

@@ -1,7 +1,7 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   File        : Objects.pas                                                }
+{   File        : PObjTerm.pas                                               }
 {   Author      : Christophe Bisière                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
@@ -21,29 +21,15 @@
 
 { constant: identifier, number or quoted string; list of constants  }
 Type
-  TConst = (Identifier,Number,QString);
-
-  StrConst = StrPtr;
+  TConst = (Number,QString);
 
   ConstPtr = ^TObjConst; { term: constant }
-  DictConstPtr = ^TObjDictConst; { list of unique constant values }
-
   TObjConst = Record
     PO_META : TObjMeta;
     { not deep copied: }
-    TC_DCON : DictConstPtr
+    TC_DCON : DictPtr 
     
   End;
-
-  TObjDictConst = Record
-    PO_META : TObjMeta;
-    { not deep copied: }
-    DC_NEXT : DictConstPtr;
-    DC_CVAL : StrConst;
-    { extra data: }
-    DC_TYPE : TConst
-  End;
-
 
 { binary functional symbol }
 Type 
@@ -56,31 +42,24 @@ Type
     TF_RTER : TermPtr { right term }
   End;
 
-
-{ variable }
+{ variable or (assignable) identifier; only variables are subject to deep-copy }
 Type 
-  StrIdent   = StrPtr;
+  AssPtr = ^TObjAss;
+  VarPtr = AssPtr; { variable }
+  IdPtr = AssPtr; { identifier: TV_TRED is set when the identifier has been assigned }
 
-  VarPtr = ^TObjVar;
-  DictVarPtr = ^TObjDictVar; { list of unique constant values }
-
-  TObjVar = Record
+  TObjAss = Record
     PO_META : TObjMeta;
-    { deep copied: }
+    { VA: deep copied: }
     TV_TRED : TermPtr; { right member of the equation in the reduced system }
     TV_FWAT : EqPtr; { first inequation this variable watches }
-    { not deep copied: }
-    TV_DVAR : DictVarPtr
+    { VA: not deep copied: }
+    TV_DVAR : DictPtr; { dictionary entry }
+    TV_IRED : IdPtr; { VA: identifier this variable as been initially bound to }
+    { extra data: }
+    TV_ASSI : Boolean { true if the term is an identifier that can be assigned }
   End;
 
-  TObjDictVar = Record
-    PO_META : TObjMeta;
-    { deep copied: }
-    DV_NEXT : DictVarPtr;
-    DV_PVAR : VarPtr; { corresponding variable (meaningful only for user-provided variables)}
-    { not deep copied: }
-    DV_NAME : StrIdent
-  End;
 
 
 {-----------------------------------------------------------------------}
@@ -93,7 +72,7 @@ Var
   C : ConstPtr;
   ptr : TPObjPtr Absolute C;
 Begin
-  ptr := NewPrologObject(CO, SizeOf(TObjConst), 1, 0);
+  ptr := NewPrologObject(CO,SizeOf(TObjConst),1,False,0);
   With C^ Do
   Begin
     TC_DCON := Nil
@@ -101,52 +80,22 @@ Begin
   NewConst := C
 End;
 
-{ create a new constant value object of type t; string is not cloned }
-Function NewConstValue( str : StrPtr; t : TConst ) : DictConstPtr;
+{ create a (potentially) assignable object: variable or identifier }
+Function NewAssignable( ty : TypePrologObj; CanCopy : Boolean) : AssPtr;
 Var 
-  C : DictConstPtr;
-  ptr : TPObjPtr Absolute C;
-Begin
-  ptr := NewPrologObject(CV, SizeOf(TObjDictConst), 2, 0);
-  With C^ Do
-  Begin
-    DC_NEXT := Nil;
-    DC_TYPE := t;
-    DC_CVAL := str
-  End;
-  NewConstValue := C
-End;
-
-{ create a new variable }
-Function NewVar : VarPtr;
-Var 
-  V : VarPtr;
+  V : AssPtr;
   ptr : TPObjPtr Absolute V;
 Begin
-  ptr := NewPrologObject(VA, SizeOf(TObjVar), 3, 2); { do not copy TV_DVAR for the sake of speed }
+  ptr := NewPrologObject(ty,SizeOf(TObjAss),4,CanCopy,2);
   With V^ Do
   Begin
     TV_TRED := Nil;
     TV_FWAT := Nil;
-    TV_DVAR := Nil
+    TV_DVAR := Nil;
+    TV_IRED := Nil;
+    TV_ASSI := False
   End;
-  NewVar := V
-End;
-
-{ create a new variable identifier }
-Function NewVarIdentifier : DictVarPtr;
-Var 
-  V : DictVarPtr;
-  ptr : TPObjPtr Absolute V;
-Begin
-  ptr := NewPrologObject(VV, SizeOf(TObjDictVar), 3, 2);
-  With V^ Do
-  Begin
-    DV_NEXT := Nil;
-    DV_PVAR := Nil;
-    DV_NAME := NewString
-  End;
-  NewVarIdentifier := V
+  NewAssignable := V
 End;
 
 { create a new binary functional symbol }
@@ -155,7 +104,7 @@ Var
   F : FuncPtr;
   ptr : TPObjPtr Absolute F;
 Begin
-  ptr := NewPrologObject(FU, SizeOf(TObjFunc), 3, 3);
+  ptr := NewPrologObject(FU, SizeOf(TObjFunc),3,True,3);
   With F^ Do
   Begin
     TF_TRED := Nil;
@@ -167,66 +116,96 @@ End;
 
 
 {-----------------------------------------------------------------------}
-{ methods                                                               }
+{ methods: terms                                                        }
 {-----------------------------------------------------------------------}
 
-Type TTerm = (Variable,Constant,FuncSymbol,Dummy);
+Type TTerm = (Variable,Identifier,Constant,FuncSymbol,Dummy);
 
 { type of term }
 Function TypeOfTerm( T : TermPtr ) : TTerm;
 Begin
-  TypeOfTerm := Dummy;
+  TypeOfTerm := Dummy; { FIXME: get rid of this }
   If T <> Nil Then
     Case T^.PO_META.PO_TYPE Of
-    CO :
+    CO:
       TypeOfTerm := Constant;
-    VA :
+    ID:
+      TypeOfTerm := Identifier;
+    VA:
       TypeOfTerm := Variable;
-    FU :
+    FU:
       TypeOfTerm := FuncSymbol
     End
 End;
 
-{ reduced system }
 
-{ return the first inequation V is watching in the reduced system }
-Function VWatchIneq( V : VarPtr ) : EqPtr;
+{ return true if T1 xor T2 is Nil }
+Function OneIsNil( T1,T2 : TermPtr ) : Boolean;
 Begin
-  VWatchIneq := V^.TV_FWAT
+  OneIsNil := (T1=Nil) Xor (T2=Nil)
 End;
 
-{ return V if equation V = T is in the reduced system, or Nil }
-Function VRed( V : VarPtr ) : TermPtr;
+{ swap two terms }
+Procedure SwapTerms( Var T1, T2 : TermPtr );
+Var Tmp : TermPtr;
 Begin
-  VRed := V^.TV_TRED
+  Tmp := T1;
+  T1 := T2;
+  T2 := Tmp
 End;
 
-{ return T if equation F = T is in the reduced system, or Nil }
-Function FRed( F : FuncPtr ) : TermPtr;
-Begin
-  FRed := F^.TF_TRED
-End;
+{-----------------------------------------------------------------------}
+{ methods: constants                                                    }
+{-----------------------------------------------------------------------}
 
-{ return the constant the term T is equal to in the reduced system, 
-  of Nil if T is not equal to a constant; 
-  TODO: take into account evaluable functions: add, mul, div...}
-Function EvaluateToConstant( T : TermPtr ) : ConstPtr;
-Var 
-  C : ConstPtr;
-  CT : ConstPtr Absolute T;
-  VT : VarPtr Absolute T;
+{ return the type of a constant }
+Function ConstType( C : ConstPtr ) : TConst;
+Var t : TConst;
 Begin
-  C := Nil;
-  Case TypeOfTerm(T) Of
-  Constant :
-    C := CT;
-  Variable :
-    If VRed(VT) <> Nil Then
-      C := EvaluateToConstant(VRed(VT))
+  Case C^.TC_DCON^.DE_TYPE Of
+  CS: t := QString;
+  CN: t := Number;
   End;
-  EvaluateToConstant := C
+  ConstType := t
 End;
 
+{ return the string value of a constant; not cloning }
+Function ConstGetStr( C : ConstPtr ) : StrPtr;
+Begin
+  ConstGetStr := C^.TC_DCON^.DE_STRI
+End;
+
+{ is a constant equal to a given Pascal string? }
+Function ConstEqualTo( C : ConstPtr; ps : AnyStr ) : Boolean;
+Begin
+  ConstEqualTo := DictStrEqualTo(C^.TC_DCON,ps)
+End;
+
+{ is a constant starting with a char in a given set? not UTF-8 aware }
+Function ConstStartWith( C : ConstPtr; E : CharSet ) : Boolean;
+Begin
+  ConstStartWith := DictStrStartWith(C^.TC_DCON,E)
+End;
+
+{-----------------------------------------------------------------------}
+{ methods: identifiers                                                  }
+{-----------------------------------------------------------------------}
+
+{ return the string value of an identifier; not cloning }
+Function IdentifierGetStr( I : IdPtr ) : StrPtr;
+Begin
+  IdentifierGetStr := I^.TV_DVAR^.DE_STRI
+End;
+
+{ is an identifier equal to a given Pascal string? }
+Function IdentifierEqualTo( I : IdPtr; ps : AnyStr ) : Boolean;
+Begin
+  IdentifierEqualTo := DictStrEqualTo(I^.TV_DVAR,ps)
+End;
+
+{-----------------------------------------------------------------------}
+{ methods: functional symbol                                            }
+{-----------------------------------------------------------------------}
 
 { left term of a functional symbol }
 Function FLeftArg( F : FuncPtr ) : TermPtr;
@@ -238,34 +217,6 @@ End;
 Function FRightArg( F : FuncPtr ) : TermPtr;
 Begin
   FRightArg := F^.TF_RTER
-End;
-
-{ return the access constant of a term, or Nil; use for quick pre-unification }
-Function Access( T : TermPtr ) : ConstPtr;
-Var 
-  C : ConstPtr;
-  FT : FuncPtr Absolute T;
-  CT : ConstPtr Absolute T;
-  LeftT : TermPtr;
-  CLeftT : ConstPtr Absolute LeftT;
-Begin
-  C := Nil;
-  Case TypeOfTerm(T) Of
-  Constant :
-    C := CT;
-  FuncSymbol  :
-    Begin
-      LeftT := FLeftArg(FT);
-      Case TypeOfTerm(LeftT) Of
-      Constant :
-        C := CLeftT;
-      FuncSymbol  :
-        Begin
-        End
-      End
-    End
-  End;
-  Access := C
 End;
 
 { return the number of arguments of a f(a,b,c) or <a,b,c> construct;
@@ -302,132 +253,284 @@ Begin
   End
 End;
 
+{-----------------------------------------------------------------------}
+{ methods: reduced system                                               }
+{-----------------------------------------------------------------------}
 
-{ return the type of a constant }
-Function ConstType( C : ConstPtr ) : TConst;
+{ return the first inequation V is watching in the reduced system }
+Function WatchIneq( V : VarPtr ) : EqPtr;
 Begin
-  ConstType := C^.TC_DCON^.DC_TYPE
+  WatchIneq := V^.TV_FWAT
 End;
 
-{ return the string value of a constant; not cloning }
-Function ConstGetStr( C : ConstPtr ) : StrPtr;
+{ add an inequation E to the watch list of variable V }
+Procedure AddWatch( V : VarPtr; E : EqPtr; Backtrackable : Boolean; Var L : RestorePtr );
+Var Ec : EqPtr;
 Begin
-  ConstGetStr := C^.TC_DCON^.DC_CVAL
+  If WatchIneq(V) = Nil Then { first watch }
+    SetMemEq(L,V^.TV_FWAT,E,Backtrackable)
+  Else
+  Begin { add a watch }
+    Ec := WatchIneq(V);
+    While (Ec^.EQ_NEXT <> Nil) Do Ec := Ec^.EQ_NEXT;
+    SetMemEq(L,Ec^.EQ_NEXT,E,Backtrackable)
+  End
 End;
 
-{ is a constant value equal to a Pascal string? }
-Function DictConstEqualTo( DC : DictConstPtr; ps : AnyStr ) : Boolean;
+{ return T if equation V = T is in the reduced system, or Nil }
+Function VRed( V : VarPtr ) : TermPtr;
 Begin
-  DictConstEqualTo := StrEqualTo(DC^.DC_CVAL,ps)
+  VRed := V^.TV_TRED
 End;
 
-{ is a constant equal to a Pascal string? }
-Function ConstEqualTo( C : ConstPtr; ps : AnyStr ) : Boolean;
+{ return T if equation I = T is in the reduced system, or Nil }
+Function IRed( I : IdPtr ) : TermPtr;
 Begin
-  ConstEqualTo := DictConstEqualTo(C^.TC_DCON,ps)
+  IRed := I^.TV_TRED
 End;
 
-{ is a constant value starting with a char in a given set? not UTF-8 aware }
-Function DictConstStartWith( DC : DictConstPtr; E : CharSet ) : Boolean;
+{ return T if equation F = T is in the reduced system, or Nil }
+Function FRed( F : FuncPtr ) : TermPtr;
 Begin
-  DictConstStartWith := StrStartsWith(DC^.DC_CVAL,E)
+  FRed := F^.TF_TRED
 End;
 
-{ is a constant starting with a char in a given set? not UTF-8 aware }
-Function ConstStartWith( C : ConstPtr; E : CharSet ) : Boolean;
+{ return T2 if equation T = T2 is in the reduced system, Nil otherwise }
+Function Red( T : TermPtr ) : TermPtr;
+Var 
+  FT : FuncPtr Absolute T;
+  VT : VarPtr Absolute T;
+  IT : IdPtr Absolute T;
+  T2 : TermPtr;
 Begin
-  ConstStartWith := DictConstStartWith(C^.TC_DCON,E)
+  Case TypeOfTerm(T) Of
+  Constant:
+    T2 := Nil;
+  Identifier:
+    T2 := IRed(IT);
+  Variable :
+    T2 := VRed(VT);
+  FuncSymbol:
+    T2 := FRed(FT)
+  End;
+  Red := T2
 End;
 
-{ look in a list for a constant value; append it to the list if not found;
-  return a pointer to the list entry; note that the string is not cloned }
-Function LookupConst( Var list : DictConstPtr; str : StrPtr; t : TConst ) : DictConstPtr;
+{ representative of a term t in a reduced system S
+
+  See Colmeraurer (1984, p.93)
+  
+  S is a reduced system, that is, a system having the following two 
+  properties: (i) the left hand sides of its equations are distinct 
+  variables, (ii) it does not contain and endless subsystem;
+  
+  Rep[t,S], the representative of term t in S is defined as follows:
+
+  Rep[t,S] = 
+    Rep[t',S] if S contains an equation of the form t=t'
+    t otherwise }
+
+Function RepresentativeOf( T : TermPtr ) : TermPtr;
 Var
-  e : DictConstPtr;
-  Found : Boolean;
+  T2 : TermPtr;
 Begin
-  e := list;
-  Found := False;
-  While (e<>Nil) And Not Found Do
+  If T <> Nil Then
   Begin
-    If StrEqual(e^.DC_CVAL,str) Then
-      Found := True
-    Else
-      e := e^.DC_NEXT
+    T2 := Red(T);
+    If T2<>Nil Then
+      T := RepresentativeOf(T2)
   End;
-  If Not Found Then
-  Begin
-    e := NewConstValue(str,t);
-    e^.DC_NEXT := list;
-    list := e
-  End;
-  LookupConst := e
+  RepresentativeOf := T
+End;
+
+{ return the constant term (number or string constant) the term T is 
+  equal to, possibly going through the reduced system, of Nil if T is 
+  not equal to a constant term; 
+  TODO: make sure this cannot loop }
+Function EvaluateToConstant( T : TermPtr ) : ConstPtr;
+Var 
+  CT : ConstPtr Absolute T;
+Begin
+  T := RepresentativeOf(T);
+  If TypeOfTerm(T) <> Constant Then
+    T := Nil;
+  EvaluateToConstant := CT
+End;
+
+{ return the identifier term the term T is equal to, possibly going 
+  through the reduced system, of Nil if T is not equal to an 
+  identifier term; note: when looking at the reduced system we do
+  not consider the global assignments of identifiers, otherwise
+  reassignments would fail: considering two goals
+  "assign(ident,1) assign(ident,2))" the ident in the second goal 
+  would resolve to 2, not to the ident itself 
+  TODO: take into account evaluable functions: add, mul, div...
+  TODO: make sure this cannot loop }
+Function EvaluateToIdentifier( T : TermPtr ) : IdPtr;
+Var
+  IT : IdPtr Absolute T;
+Begin
+  If T <> Nil Then
+    If TypeOfTerm(T) <> Identifier Then
+      IT := EvaluateToIdentifier(Red(T));
+  EvaluateToIdentifier := IT
+End;
+
+{ return the access identifier of a term, or Nil }
+Function AccessIdentifier( T : TermPtr ) : IdPtr;
+Var 
+  FT : FuncPtr Absolute T;
+  IT : IdPtr Absolute T;
+Begin
+  If TypeOfTerm(T) = FuncSymbol Then
+    T := FLeftArg(FT);
+  IT := EvaluateToIdentifier(T);
+  AccessIdentifier := IT
 End;
 
 
-{ create a new constant }
-Function InstallConst( Var list : DictConstPtr; s : StrPtr; t : TConst ) : ConstPtr;
-Var C : ConstPtr;
+{-----------------------------------------------------------------------}
+{ methods: assignable identifiers                                       }
+{-----------------------------------------------------------------------}
+
+{ Is an identifier assigned? (even if it may not be bound yet) }
+Function IsAssigned( I : IdPtr ) : Boolean;
 Begin
-  C := NewConst;
-  With C^ Do
+  IsAssigned := I^.TV_ASSI
+End;
+
+{ is term T a variable, that is, is or may be the left-hand side of an equation 
+  in the reduced system }
+Function IsVariable( T : TermPtr ) : Boolean;
+Var 
+  Ok : Boolean;
+  IT : IdPtr Absolute T;
+Begin
+  Ok := (TypeOfTerm(T)=Variable) Or (TypeOfTerm(T)=Identifier);
+  If Ok And (TypeOfTerm(T)=Identifier) Then
+    Ok := IsAssigned(IT);
+  IsVariable := Ok
+End;
+
+{ order two terms if one of them happens to be an identifier, the other one
+  not being a variable; in that case, an assigned identifier should come 
+  first; if both are assigned identifiers, the order is defined as in the 
+  memory management system; this ordering is necessary for the  reduction
+  algorithm to work properly, as an identifier, once assigned, behaves as a
+  variable }
+Procedure OrderIdentifiers( Var T1,T2: TermPtr );
+Var 
+  IT1 : IdPtr Absolute T1;
+  IT2 : IdPtr Absolute T2;
+Begin
+  If TypeOfTerm(T2) = Identifier Then 
+    If IsAssigned(IT2) Then
+      If TypeOfTerm(T1) = Identifier Then
+        If Not (IsAssigned(IT1) And ObjectsAreOrdered(T1,T2)) Then
+          SwapTerms(T1,T2)
+End;
+
+{ order two terms, as required by the reduction algorithm: 
+  (i) variables, assigned identifiers, in that order 
+  (ii) withing those two types, order is defined as in the memory management system 
+  having variable first is required by the reduction algorithm; this implementation 
+  also takes into account (dynamically) assigned identifiers }
+Procedure OrderTerms( Var T1,T2: TermPtr );
+Begin
+  If (TypeOfTerm(T2) = Variable) And 
+    Not ((TypeOfTerm(T1) = Variable) And ObjectsAreOrdered(T1,T2)) Then
+    SwapTerms(T1,T2)
+  Else 
+    OrderIdentifiers(T1,T2)
+End;
+
+{ keep track that of "var = assigned ident" unification; this is needed because
+  when clearing "assign(test,1) assign(test,2)" the identifier "test" in the 
+  second goal will be equal to 1 in the reduced system, and the goal will fail  }
+Procedure TrackAssignment( T1,T2: TermPtr );
+Var 
+  VT1 : VarPtr Absolute T1;
+  IT2 : IdPtr Absolute T2;
+  VT2 : VarPtr Absolute T2;
+Begin        
+  OrderTerms(T1,T2);
+  CheckCondition(IsVariable(T1),'assigned identifier: not a variable');
+  If (TypeOfTerm(T1) = Variable) Then 
   Begin
-    TC_DCON := LookupConst(list,s,t)
-  End;
+    CheckCondition(VT1^.TV_IRED = Nil,'assigned identifier: unhandled case 2');
+    If (TypeOfTerm(T2) = Identifier) Then 
+    Begin
+      If (VT1^.TV_IRED = Nil) And IsAssigned(IT2) Then { var = assigned_ident }
+        VT1^.TV_IRED := IT2
+    End 
+    Else If (TypeOfTerm(T2) = Variable) Then { var = var: propagate }
+      If (VT1^.TV_IRED = Nil) And (VT2^.TV_IRED <> Nil) Then
+        VT1^.TV_IRED := VT2^.TV_IRED
+  End 
+End;
+
+{-----------------------------------------------------------------------}
+{ methods: install                                                      }
+{-----------------------------------------------------------------------}
+
+{ create a new constant if it does not exist in a list; 
+  invariant: 
+  - there is a 1:1 relationship between constant terms and constant values, 
+  that is, any constant like "123" appearing several times in a program
+  of queries only exist through a single constant term (and a single
+  dictionary entry as well), and everyone points to that term; consequently
+  constant terms and dictionary entries are not copied when they are
+  reached through a deep copy }
+Function InstallConst( Var list : DictPtr; str : StrPtr; ty : TypePrologObj ) : ConstPtr;
+Var 
+  C : ConstPtr;
+  TC : TermPtr Absolute C;
+  e : DictPtr;
+Begin
+  e := DictLookup(list,Nil,str);
+  If e = Nil Then
+  Begin
+    C := NewConst;
+    e := DictAppend(list,str,TC,ty);
+    C^.TC_DCON := e
+  End
+  Else
+    TC := e^.DE_TERM;
   InstallConst := C
 End;
 
-
-{ look in a list for an identifier, from start to stop (excluding stop); 
-  return a pointer to the list entry, or Nil }
-Function LookupVarIdentifier( start,stop : DictVarPtr; str : StrIdent ) : DictVarPtr;
+{ create an assignable object (variable or identifier) if it does not 
+  exist in list (up to stop, excluded); return it }
+Function InstallAssignable( Var list : DictPtr; stop : DictPtr; 
+    str : StrPtr; ty : TypePrologObj; CanCopy : Boolean) : AssPtr;
 Var
-  e : DictVarPtr;
-  Found : Boolean;
+  V : AssPtr;
+  TV : TermPtr Absolute V;
+  e : DictPtr;
 Begin
-  e := start;
-  Found := False;
-  While (e<>Nil) And (e<>stop) And Not Found Do
+  CheckCondition((ty=VA) Or (ty=ID),'InstallAssignable: VA or ID expected');
+  e := DictLookup(list,stop,str);
+  If e = Nil Then
   Begin
-    If StrEqual(e^.DV_NAME,str) Then
-      Found := True
-    Else
-      e := e^.DV_NEXT
-  End;
-  If Not Found Then
-    e := Nil;
-  LookupVarIdentifier := e
-End;
-
-{ append a variable to the dictionary }
-Function AppendVarIdentifier( Var list : DictVarPtr; str : StrPtr; V : VarPtr ) : DictVarPtr;
-Var e : DictVarPtr;
-Begin
-  e := NewVarIdentifier;
-  With e^ Do
-  Begin
-    DV_NEXT := list;
-    DV_NAME := str;
-    DV_PVAR := V
-  End;
-  list := e;
-  AppendVarIdentifier := e
-End;
-
-{ create a variable if it does not exist in list (up to stop, excluded); return it }
-Function InstallVariable( Var list : DictVarPtr; stop : DictVarPtr; Ch : StrPtr ) : VarPtr;
-Var
-  V : VarPtr;
-  DV : DictVarPtr;
-Begin
-  DV := LookupVarIdentifier(list,stop,Ch);
-  If DV = Nil Then
-  Begin
-    V := NewVar;
-    DV := AppendVarIdentifier(list,Ch,V);
-    V^.TV_DVAR := DV
+    V := NewAssignable(ty,CanCopy);
+    e := DictAppend(list,str,TV,VA);
+    V^.TV_DVAR := e
   End
   Else
-    V := DV^.DV_PVAR;
-  InstallVariable := V
+    TV := e^.DE_TERM;
+  InstallAssignable := V
+End;
+
+{ create a variable if it does not exist in list (up to stop, excluded);
+  a variable is subject to deep copy }
+Function InstallVariable( Var list : DictPtr; stop : DictPtr; str : StrPtr ) : VarPtr;
+Begin
+  InstallVariable := InstallAssignable(list,stop,str,VA,True)
+End;
+
+{ create an identifier if it does not exist in list; an identifier is
+  not deep-copyable }
+Function InstallIdentifier( Var list : DictPtr; str : StrPtr ) : IdPtr;
+Begin
+  InstallIdentifier := InstallAssignable(list,Nil,str,ID,False)
 End;

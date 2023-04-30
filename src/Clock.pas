@@ -27,8 +27,8 @@ Function ExecutionSysCallOk( T : TermPtr; P : ProgPtr; Q : QueryPtr ) : Boolean;
 Procedure Clock( P : ProgPtr; Q : QueryPtr );
 
 Var
-  Solvable    : Boolean;  { Système de contraintes soluble ?              }
-  EndOfClock  : Boolean;  { Fin de l'horloge ?                            }
+  Solvable    : Boolean;  { system has a solution? }
+  EndOfClock  : Boolean;
   R           : RulePtr;
   B           : BTermPtr;
   isSys       : Boolean;
@@ -39,31 +39,27 @@ Var
   Procedure InitClock;
   Begin
     P^.PP_HEAD := Nil;
-    EndOfClock := False;        { Ce n'est pas encore la fin !              }
+    EndOfClock := False;
     GCCount := 0
   End;
 
   { display constraints only about the variables in the query }
-  Procedure WriteSolution;
+  Procedure WriteQuerySolution;
   Begin
-    InitIneq;
-    OutSystem(Q^.QU_FVAR,Q^.QU_LVAR,True);
+    OutQuerySolution(Q);
     WriteLn
   End;
 
   { are two terms possibly unifiable? if not, there is not point in copying
-  a rule, etc. }
+    a rule, etc.; note that since we make sure that a given constant value 
+    (identifiers, numbers, strings) is represented by exactly one term,
+    comparing pointers is fine even for constants }
   Function Unifiable( T1,T2 : TermPtr ) : Boolean;
   Var 
     Ok : Boolean;
-    CT1 : ConstPtr Absolute T1;
-    CT2 : ConstPtr Absolute T2;
   Begin
-    CheckCondition((T1<>Nil) Or (T2<>Nil),'Call to Unifiable with two Nil terms');
+    CheckCondition((T1<>Nil) Or (T2<>Nil),'Call to Unifiable with two Nil terms'); { FIXME: is it really a problem?}
     Ok := (T1=T2) Or (T1=Nil) Or (T2=Nil);
-    If Not Ok Then
-      If (TypeOfTerm(T1)=Constant) And (TypeOfTerm(T2)=Constant) Then
-        Ok := CT1^.TC_DCON = CT2^.TC_DCON;
     Unifiable := Ok
   End;
 
@@ -83,10 +79,10 @@ Var
   Function FirstCandidateRule( R : RulePtr; B : BTermPtr; Var isSys : Boolean ; Var isCut : Boolean ) : RulePtr;
   Var
     FirstR : RulePtr;
-    C1 : ConstPtr;
-    TC1 : TermPtr Absolute C1;
-    C2 : ConstPtr;
-    TC2 : TermPtr Absolute C2;
+    I1 : IdPtr;
+    TI1 : TermPtr Absolute I1;
+    I2 : IdPtr;
+    TI2 : TermPtr Absolute I2;
     Stop : Boolean;
   Begin
     FirstR := Nil;
@@ -95,16 +91,16 @@ Var
     If B <> Nil Then
     Begin
       Stop := False;
-      C1 := AccessTerm(B);
-      If TypeOfTerm(TC1) = Constant Then { FIXME: if it is not a constant: the query is a variable "x" -- do we want to handle this?}
+      I1 := AccessIdentifier(B^.BT_TERM); { use Access to tackle dynamic assignment of identifiers }
+      If I1 <> Nil Then
       Begin
-        If ConstEqualTo(C1,'SYSCALL') Then
+        If IdentifierEqualTo(I1,'SYSCALL') Then
         Begin
           isSys := True;
           Stop := True
         End
         Else
-        If ConstEqualTo(C1,'!') Then
+        If IdentifierEqualTo(I1,'!') Then
         Begin
           isCut := True;
           Stop := True
@@ -112,8 +108,8 @@ Var
       End;
       While (R<>Nil) And Not Stop Do
       Begin
-        C2 := AccessTerm(R^.RU_FBTR); { FIXME: check constant? Otherwise the rule head is a variable -- not parsable}
-        If Unifiable(TC1,TC2) Then
+        I2 := AccessTerm(R^.RU_FBTR); { FIXME: check ident? Otherwise the rule head is a variable -- not parsable}
+        If Unifiable(TI1,TI2) Then
         Begin
           FirstR := R;
           Stop := True
@@ -244,7 +240,6 @@ End;
     ClearT : TermPtr;
     R : RulePtr;
     isCut, isSys : Boolean;
-    E : EqPtr;
     Ss : SysPtr;
     RuleB : BTermPtr;
     PRuleB : TPObjPtr Absolute RuleB;
@@ -277,21 +272,40 @@ End;
     End
     Else
     Begin
-      { copy the terms of the target rule }
-      RuleB := R^.RU_FBTR;
-      CopyRuleP := DeepCopy(PRuleB);
+      Solvable := True;
 
-      { contraint to reduce: term to clear = rule head }
-      Ss := NewSystemWithEq(ClearT,BCopyRuleP^.BT_TERM);
+      { if any, reduce the equations given as a system in the rule itself; 
+        this must be done each time the rule is applied to take into account 
+        global assignments; e.g. "go -> { test=1 )" may succeed or fail, 
+        depending on the value of the identifier "test" if any; this value 
+        will be 1 if a goal "assign(test,1)" has been cleared before;
+        this reduction must be done *before* the rule is copied, such that
+        the liaisons are copied as part of the rule itself }
+      If R^.RU_SYST <> Nil Then
+      Begin
+        Ss := NewSystem;
+        CopyAllEqInSys(Ss,R^.RU_SYST);
+        Solvable := ReduceSystem(Ss,True,H^.HH_REST)
+      End;
 
-      { new list of terms to clear: rule queue + previous terms but the first }
-      B := BCopyRuleP;
-      While (NextTerm(B)<>Nil) Do
-        B := NextTerm(B);
-      B^.BT_NEXT := NextTerm(ClearB);
-      H^.HH_FBCL := NextTerm(BCopyRuleP);
+      If Solvable Then
+      Begin
+        { copy the terms of the target rule }
+        RuleB := R^.RU_FBTR;
+        CopyRuleP := DeepCopy(PRuleB);
 
-      Solvable := ReduceSystem(Ss,True,H^.HH_REST)
+        { contraint to reduce: term to clear = rule head }
+        Ss := NewSystemWithEq(ClearT,BCopyRuleP^.BT_TERM);
+
+        { new list of terms to clear: rule queue + previous terms but the first }
+        B := BCopyRuleP;
+        While (NextTerm(B)<>Nil) Do
+          B := NextTerm(B);
+        B^.BT_NEXT := NextTerm(ClearB);
+        H^.HH_FBCL := NextTerm(BCopyRuleP);
+
+        Solvable := ReduceSystem(Ss,True,H^.HH_REST)
+      End
     End
   End;
 
@@ -305,23 +319,36 @@ End;
   Procedure MoveBackward( Var H : HeadPtr );
   Begin
     If Solvable Then
-      WriteSolution;
+      WriteQuerySolution;
     Backtracking(H,EndOfClock)
   End;
 
 Begin
   InitClock;
-  B := Q^.QU_FBTR;
-  If B = Nil Then { no terms to clear in the query }
+
+  { try to reduce the system in the query, if any, and fail if it has 
+    no solutions; note that the system is reduced before clearing any 
+    goal, including goals that sets global variables; thus a query 
+    like "assign(aa,1) { aa = 1 )" will fail right away  }
+  If Q^.QU_SYST <> Nil Then
+    If Not ReduceEquations(Q^.QU_SYST) Then
+      Exit;
+
+  B := Q^.QU_FBTR; { list of terms to clear }
+
+  { no terms to clear: success }
+  If B = Nil Then
   Begin
-    WriteSolution;
+    WriteQuerySolution;
     Exit
   End;
-  R := FirstCandidateRule(Q^.QU_FRUL, B, isSys, isCut); 
+
+  R := FirstCandidateRule(Q^.QU_FRUL, B, isSys, isCut);
+
+  { not even a candidate rule to try: fail }
   If (R = Nil) And (Not isSys) And (Not isCut) Then
-  Begin
-    Exit
-  End;
+    Exit;
+
   PushNewClockHeader(P^.PP_HEAD,B,R,False,isSys,isCut);
   Repeat
     MoveForward(P^.PP_HEAD);

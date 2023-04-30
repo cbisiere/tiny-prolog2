@@ -15,8 +15,6 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-Function ReduceSystem( S : SysPtr; Backtrackable : Boolean; Var L : RestorePtr) : Boolean; Forward;
-
 {-----------------------------------------------------------------------}
 {                                                                       }
 {   The functional symbol F is used encode predicates as follows:       }
@@ -110,6 +108,8 @@ Var
   TF : TermPtr Absolute F;
   V : VarPtr;
   TV : TermPtr Absolute V;
+  I : IdPtr;
+  TI : TermPtr Absolute I;
   F2 : FuncPtr;
   TF2 : TermPtr Absolute F2;
   F3 : FuncPtr;
@@ -127,7 +127,7 @@ Begin
     If c1 In Digits Then     { an integer }
     Begin
       n := GetCharWhile(Ch,Digits);
-      C := InstallConst(P^.PP_DCON,Ch,Number);
+      C := InstallConst(P^.PP_DCON,Ch,CN);
       T := TC
     End
     Else
@@ -155,15 +155,15 @@ Begin
     If c1 = '"' Then        { a string }
     Begin
       Ch := ReadString;
-      C := InstallConst(P^.PP_DCON,Ch,QString);
+      C := InstallConst(P^.PP_DCON,Ch,CS);
       T := TC
     End
     Else
     If Cut and (c1 In ['!','/']) Then    { the "cut" }
     Begin
       c1 := GetChar(c1);
-      C := InstallConst(P^.PP_DCON,NewStringFrom('!'),Identifier);
-      T := TC
+      I := InstallIdentifier(P^.PP_DIDE,NewStringFrom('!'));
+      T := TI
     End
     Else
       RaiseError('term expected')
@@ -196,26 +196,26 @@ Begin
     If NextChar(c1) = '(' Then { a predicate }
     Begin
       c1 := GetChar(c1);
-      C := InstallConst(P^.PP_DCON,Ch,Identifier);
+      I := InstallIdentifier(P^.PP_DIDE,Ch);
       { predicate's argument }
       F := GetArgument(P,')');
-      F2 := NewSymbol(TC,TF);
+      F2 := NewSymbol(TI,TF);
       T := TF2
     End
     Else
     Begin { an identifier that is not a predicate }
-      C := InstallConst(P^.PP_DCON,Ch,Identifier);
-      T := TC
+      I := InstallIdentifier(P^.PP_DIDE,Ch);
+      T := TI
     End
   End;
   c1 := NextCharNb(c1);
   If c1 = '.' Then    { a list element }
   Begin
     c1 := GetChar(c1);
-    C := InstallConst(P^.PP_DCON,NewStringFrom('.'),Identifier);
+    I := InstallIdentifier(P^.PP_DIDE,NewStringFrom('.'));
     F := NewSymbol(ReadOneTerm(P,False),Nil); { q: new term }
     F2 := NewSymbol(T,TF); { t: term read above }
-    F3 := NewSymbol(TC,TF2); { t.q }
+    F3 := NewSymbol(TI,TF2); { t.q }
     T := TF3
   End;
   ReadOneTerm := T
@@ -282,27 +282,10 @@ Begin
   ReadSystem := FirstE
 End;
 
-{ compile and reduce a system; equations in the reduced system are encoded
-  within the variables; inequations in the reduced system are encoded 
-  as a list of inequations }
+{ compile a system of equations and inequations }
 Function CompileSystem( P : ProgPtr ) : EqPtr;
-Var
-  E : EqPtr;
-  S : SysPtr;
-  U : RestorePtr;
 Begin
-  E := ReadSystem(P);
-  If Not Error Then
-  Begin
-
-    S := NewSystem;
-    CopyAllEqInSys(S,E);
-
-    U := Nil;
-    If Not ReduceSystem(S,False,U) Then
-      RaiseError('Constraints cannot be satisfied')
-  End;
-  CompileSystem := E
+  CompileSystem := ReadSystem(P)
 End;
 
 { compile a term }
@@ -313,7 +296,7 @@ Begin
   With B^ Do
   Begin
     BT_TERM := ReadOneTerm(P,Cut);
-    BT_CONS := Access(BT_TERM)
+    BT_ACCE := AccessIdentifier(BT_TERM)
   End;
   CompileOneTerm := B
 End;
@@ -331,7 +314,7 @@ Begin
     With B^ Do
     Begin
       BT_TERM := ReadOneTerm(P,True);
-      BT_CONS := Access(BT_TERM);
+      BT_ACCE := AccessIdentifier(BT_TERM);
       BT_NEXT := CompileTerms(P,StopChars)
     End
   End
@@ -353,11 +336,11 @@ Begin
   R^.RU_FVAR := P^.PP_DVAR
 End;
 
-{ compile a rule }
+{ compile a rule; note that the system cannot be reduced right away
+  as the reduction may depends on global assignments }
 Procedure CompileOneRule( P : ProgPtr; R : RulePtr );
 Var 
   B : BTermPtr;
-  E : EqPtr;
   c : Char;
 Begin
   OpenLocalContextForRule(P,R);
@@ -373,10 +356,7 @@ Begin
       B^.BT_NEXT := CompileTerms(P,['{',';',EndOfInput]);
       c := NextCharNb(c);
       If c = '{' Then
-      Begin
-        E := CompileSystem(P); { WARNING: MAY ADD THINGS }
-        RU_SYST := E 
-      End;
+        RU_SYST := CompileSystem(P);
       Verify(';')
     End
   End;
@@ -414,10 +394,11 @@ Begin
   Q^.QU_FVAR := P^.PP_DVAR
 End;
 
-{ compile a query; reduce the system iif any }
+{ compile a query, including a system of equations and equations if any;
+  note that this system cannot be reduced right away, as its 
+  solvability may depend on global variables }
 Procedure CompileOneQuery( P : ProgPtr; Q : QueryPtr );
 Var
-  E : EqPtr;
   c : Char;
 Begin
   OpenLocalContextForQuery(P,Q);
@@ -430,10 +411,7 @@ Begin
     QU_SYST := Nil;
     c := NextCharNb(c);
     If c = '{' Then
-    Begin
-      E := CompileSystem(P);
-      QU_SYST := E { WARNING: MAY ADD THINGS }
-    End;
+      QU_SYST := CompileSystem(P);
     Verify(';')
   End;
   CloseLocalContextForQuery(P,Q) 
@@ -456,7 +434,7 @@ Begin
   Begin
     If WithArrow Then
       Verify('->');
-    ptr := NewPrologObject(QU, SizeOf(TObjQuery), 7, 5);
+    ptr := NewPrologObject(QU,SizeOf(TObjQuery),7,True,5);
     CompileOneQuery(P,Q);
     Q^.QU_FRUL := P^.PP_FRUL;
     Q^.QU_LRUL := P^.PP_LRUL;
@@ -465,11 +443,12 @@ Begin
   CompileQueries := Q
 End;
 
-{ remove the queries typed by the user }
+{ remove the queries typed by the user; FIXME: we cannot discard constants 
+  and identifiers, since they have a global scope (plus, identifiers can be
+  assigned); as more queries are submitted, more memory is consumed }
 Procedure RemoveCommandLineQueries( P : ProgPtr );
 Begin
-  P^.PP_DVAR := P^.PP_UVAR; { forget variables }
-  P^.PP_DCON := P^.PP_UCON { forget constants }
+  P^.PP_DVAR := P^.PP_UVAR { forget variables }
 End;
 
 { compile queries typed by the user }

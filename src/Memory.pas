@@ -22,12 +22,12 @@
 
 { type of allocated objects; note that SY, EQ, HE, RE are not managed by GC }
 Type
-  TypePrologObj = (PR, RU, QU, SY, EQ, BT, CO, FU, VA, CV, VV, HE, ST, SD, RE);
+  TypePrologObj = (PR, RU, QU, SY, EQ, BT, CO, FU, VA, ID, CS, CN, DE, HE, ST, SD, RE);
   TypePrologObjStr = Array[TypePrologObj] Of String[2];
 
 Const
-  ObjStr : TypePrologObjStr = ('PR', 'RU', 'QU', 'SY', 'EQ', 'BT', 'CO', 
-    'FU', 'VA', 'CV', 'VV', 'HE', 'ST', 'SD', 'RE');
+  ObjStr : TypePrologObjStr = ('PR', 'RU', 'QU', 'SY', 'EQ', 'BT', 
+    'CO',   'FU', 'VA', 'ID', 'CS', 'CN', 'DE', 'HE', 'ST', 'SD', 'RE');
 
 Var 
   mem : Real; { total number of bytes allocated; even a LongInt is not enough }
@@ -132,9 +132,10 @@ Type
     PO_SIZE : Integer;       { size in bytes (including metadata) }
     PO_NPTR : Byte;          { number of PObject pointers (which must immediately follow the metadata) }
     { deep copy }
+    PO_DPOK : Boolean;       { deep copy of this object is allowed }
     PO_DEEP : Boolean;       { has been visited during the current deep copy operation }
     PO_COPY : TPObjPtr;      { pointer to a copy made during a deep copy; warning: copy may have been GC'ed }
-    PO_CUID : LongInt;       { GUID of this copy, or 0; for display purpose, as the copy may not exist }
+    PO_CUID : LongInt;       { GUID of the copy, or 0; for display purpose, as the copy may not exist }
     PO_NCOP : Integer;       { copy number - FIXME: may overflow }
     PO_NDEE : Byte;          { number of PObject pointers to deep copy (must be less of equal to PO_NPTR) }
     { garbage collection }
@@ -281,10 +282,10 @@ Begin
 End;
 
 { arbitrary order on Prolog objects }
-Function AreOrdered( p1,p2 : TPObjPtr ) : Boolean;
+Function ObjectsAreOrdered( p1,p2 : TPObjPtr ) : Boolean;
 Begin
   CheckCondition((p1<> Nil) And (p2<>Nil),'Undefined order');
-  AreOrdered := p1^.PO_META.PO_GUID <= p2^.PO_META.PO_GUID
+  ObjectsAreOrdered := p1^.PO_META.PO_GUID <= p2^.PO_META.PO_GUID
 End;
 
 {----------------------------------------------------------------------------}
@@ -335,8 +336,9 @@ End;
 
 { allocate a Prolog object of size s; metadata are followed by n Prolog child object
   pointers; the first d child objects of these n are copied when the object is
-  deep copied }
-Function NewPrologObject( t : TypePrologObj; s : Integer; n,d : Byte ) : TPObjPtr;
+  deep copied (but only if deep copy is allowed for that object: CanCopy)}
+Function NewPrologObject( t : TypePrologObj; s : Integer; n: Byte; 
+  CanCopy : Boolean; d : Byte ) : TPObjPtr;
 Var 
   p : TPObjPtr;
   ptr : Pointer Absolute p;
@@ -349,6 +351,7 @@ Begin
     PO_SIZE := s;
     PO_NPTR := n;
     { deep copy metadata: }
+    PO_DPOK := CanCopy;
     PO_DEEP := False;
     PO_COPY := Nil;
     PO_CUID := 0;
@@ -406,7 +409,9 @@ Begin
   Begin
     With p^.PO_META Do
     Begin
-      If PO_DEEP Then { object has already been visited during this deep copy }
+      If Not PO_DPOK Then { deep copy not authorized: return the object itself }
+        pc := p
+      Else If PO_DEEP Then { object has already been visited during this deep copy }
       Begin 
         If PO_COPY=Nil Then { is a copy }
           pc := p
@@ -435,7 +440,7 @@ Begin
   Begin
     With p^.PO_META Do
     Begin
-      If PO_DEEP Then
+      If PO_DPOK And PO_DEEP Then
       Begin
         PO_DEEP := False;
         PO_COPY := Nil;

@@ -14,13 +14,15 @@ outml(s) -> outm(s) line;
 page -> <SYSCALL,CLRSRC>;
 clear -> page fail;
 
-"eval"
+"assign and eval"
 
+assign(i,t) -> <SYSCALL,ASSIGN,i,t>;
 val(t1,t2) -> <SYSCALL,EVAL,t1,t2>;
 
 "debug"
 
 bt -> <SYSCALL,BACKTRACE>;
+dump -> <SYSCALL,DUMP>;
 
 "helpers"
 

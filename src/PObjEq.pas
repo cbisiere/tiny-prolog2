@@ -46,7 +46,7 @@ Type
 
 
 {-----------------------------------------------------------------------}
-{ constructors / copy                                                   }
+{ constructors / copy / compare                                         }
 {-----------------------------------------------------------------------}
 
 { new equation }
@@ -56,7 +56,7 @@ Var
   ptr : TPObjPtr Absolute E;
 Begin
   CheckCondition((EType=REL_EQUA) Or (EType=REL_INEQ), 'Unknown relation');
-  ptr := NewPrologObject(EQ, SizeOf(TObjEq), 3, 3);
+  ptr := NewPrologObject(EQ,SizeOf(TObjEq),3,True,3);
   With E^ Do
   Begin
     EQ_TYPE := EType;
@@ -82,13 +82,29 @@ Var
   S : SysPtr;
   ptr : TPObjPtr Absolute S;
 Begin
-  ptr := NewPrologObject(SY, SizeOf(TObjSys), 2, 2);
+  ptr := NewPrologObject(SY,SizeOf(TObjSys),2,True,2);
   With S^ Do
   Begin
     SY_EQUA := Nil;
     SY_INEQ := Nil
   End;
   NewSystem := S
+End;
+
+{ are two equations equivalent? }
+Function SameEquations( E1,E2 : EqPtr ) : Boolean;
+Var same : Boolean;
+Begin
+  same := E1^.EQ_TYPE = E2^.EQ_TYPE;
+  If same Then
+    If SameTerms(E1^.EQ_LTER,E2^.EQ_LTER) Then 
+      same := SameTerms(E1^.EQ_RTER,E2^.EQ_RTER)
+    Else 
+      If SameTerms(E1^.EQ_LTER,E2^.EQ_RTER) Then
+        same := SameTerms(E1^.EQ_RTER,E2^.EQ_LTER)
+      Else
+        same := False;
+  SameEquations := same
 End;
 
 {-----------------------------------------------------------------------}

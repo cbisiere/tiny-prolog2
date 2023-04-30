@@ -84,77 +84,25 @@ Var
     Procedure Unify( Tg,Td : TermPtr );
     Var 
       T1,T2 : TermPtr;
-      PT1 : TPObjPtr Absolute T1;
-      PT2 : TPObjPtr Absolute T2;
       VT1 : VarPtr Absolute T1;
       FT1 : FuncPtr Absolute T1;
       FT2 : FuncPtr Absolute T2;
       E : EqPtr;
 
-      { representative of a term }
-      Function RepresentativeOf( T : TermPtr ) : TermPtr;
-      Var
-        VT : VarPtr Absolute T;
-        FT : FuncPtr Absolute T;
-      Begin
-        If T = Nil Then
-          RepresentativeOf := Nil
-        Else
-          Case TypeOfTerm(T) Of
-          Constant :
-            RepresentativeOf := T;
-          Variable  :
-            If VRed(VT) <> Nil Then
-              RepresentativeOf := RepresentativeOf(VRed(VT))
-            Else
-              RepresentativeOf := T;
-          FuncSymbol  :
-            If FRed(FT) <> Nil Then
-              RepresentativeOf := RepresentativeOf(FRed(FT))
-            Else
-              RepresentativeOf := T
-          End
-      End;
-
-      { return true if T1 and T2 are equal }
-      Function SameTerms( T1,T2 : TermPtr ) : Boolean;
-      Var 
-        Same : Boolean;
-        CT1 : ConstPtr Absolute T1;
-        CT2 : ConstPtr Absolute T2;
-      Begin
-        Same := T1 = T2;
-        If (Not Same) And (TypeOfTerm(T1)=Constant) And (TypeOfTerm(T2)=Constant) Then
-          Same := CT1^.TC_DCON = CT2^.TC_DCON;
-        SameTerms := Same
-      End;
-
-      { return true if T1 xor T2 is Nil }
-      Function OneIsNil( T1,T2 : TermPtr ) : Boolean;
-      Begin
-        OneIsNil := (T1=Nil) Xor (T2=Nil)
-      End;
-
-      { swap two terms }
-      Procedure SwapTerms( Var T1, T2 : TermPtr );
-      Var Tmp : TermPtr;
-      Begin
-        Tmp := T1;
-        T1 := T2;
-        T2 := Tmp
-      End;
-
-      { add an equation T1 = T2 in the reduced system }
-      Procedure CreateLiaison( V1 : VarPtr; T2 : TermPtr );
+      { add an equation V1 = T2 in the reduced system }
+      Procedure CreateLiaison( V1 : VarPtr; T2 : TermPtr ); {xxx take note if V1 is an (assignable) ident?}
       Begin
         SetMem(L,V1^.TV_TRED,T2,Backtrackable);  { add v=t in the reduced system }
 
         { step 2 of system solving is handled here}
-        If VWatchIneq(V1) <> Nil Then { x already watched a liaison }
+        If WatchIneq(V1) <> Nil Then { x already watched a liaison }
         Begin
-          CopyAllEqInSys(S,VWatchIneq(V1));
+          CopyAllEqInSys(S,WatchIneq(V1));
           SetMemEq(L,V1^.TV_FWAT,Nil,Backtrackable)
-        End
+        End;
+
+        { assigned identifier feature: keep track of var = ident unification }
+        TrackAssignment(Tg,Td)
       End;
 
       { create a liaison "x = term" in the reduced system }
@@ -171,12 +119,13 @@ Var
       T2 := RepresentativeOf(Td);
       If Not SameTerms(T1,T2) Then 
       Begin
-        { ordering: variables always first, and arbitrary order on variables (memory) }
-        If (TypeOfTerm(T2)=Variable) And Not ((TypeOfTerm(T1)=Variable) And AreOrdered(PT1,PT2)) Then
-          SwapTerms(T1,T2);
+        { ordering: variables always first; for two variables, an arbitrary order is 
+          given by the memory management system }
+        OrderTerms(T1,T2);
 
-        { left term is a variable, thus at least one of the terms is a variable (thanks to sorting) }
-        If (TypeOfTerm(T1)=Variable) Then
+        { left term is a variable, thus at least one of the terms is a variable 
+          (thanks to sorting) }
+        If IsVariable(T1) Then
         Begin
           Production(VT1,T2)
         End
@@ -242,8 +191,8 @@ End; { Reduce }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-Function ReduceSystem; (* (S : SysPtr;
-                       Backtrackable : Boolean; Var L : RestorePtr ) : Boolean; *)
+Function ReduceSystem( S : SysPtr;
+    Backtrackable : Boolean; Var L : RestorePtr ) : Boolean;
 Var Fails : Boolean;
 
 {---------------------------------------------------------}
@@ -295,67 +244,44 @@ Var Fails : Boolean;
 
       {---------------------------------------------------------}
       {                                                         }
-      {  OPERATION DE BASE :                                    }
+      {  BASIC OPERATION:                                       }
       {                                                         }
-      {      Choisir dans Z<> une occurence de contrainte s<>t, }
-      {  l'enlever et appliquer l'algorithme de réduction       }
-      {  d'équations sur le couple <S=,(s=t)>. Trois situations }
-      {  peuvent se présenter :                                 }
+      {  Remove from Z an occurrence of an inequation s<>t,     }
+      {  and apply the reduction algorithm on the pair          }
+      {  <S=,(s=t)>. Three cases are possible:                  }
       {                                                         }
-      {      (1) L'algorithme de réduction d'équations termine  }
-      {  sur un échec : l'operation de base est terminée.       }
+      {  (1) the reduction algorithm fails to produce a reduced }
+      {    system: in this case the operation terminates.       }
       {                                                         }
-      {      (2) L'algorithme de réduction d'équations est      }
-      {  amené à ajouter à S= une équation de la forme x = r :  }
-      {  au lieu de cela on ajoute à S<> la contrainte s<x>t.   }
+      {  (2) the reduced system added to S= an equation x=r.    }
+      {    instead, we add to S<> the contraint s<x>t.          }
       {                                                         }
-      {      (3) Ni la situation (1), ni la situation (2) ne    }
-      {  se présentent et on aboutit à la configuration finale  }
-      {  < S=,^ > : l'opération de base se déroule anormal-     }
-      {  ement.                                                 }
+      {  (3) otherwise the system is < S=,^ >. in this case     }
+      {  the execution of the basic operation is abnormal.      }
       {                                                         }
       {---------------------------------------------------------}
 
     Procedure BasicOperation;
       Var
-        NewE, E      : EqPtr;
-        Tg,Td        : TermPtr;
-        VarProd      : VarPtr;
-        Ok           : Boolean;
+        E : EqPtr;
+        VarProd : VarPtr;
+        Ok : Boolean;
         Ss : SysPtr;
     Begin
-      { extract from Z an inequation and transform it into an equation }
+      { extract from Z an inequation s<>t }
       E := RemoveOneEqFromSys(S,REL_INEQ);
       CheckCondition(E<>Nil,'Object of type REL_INEQ expected');
-      E^.EQ_TYPE := REL_EQUA;
 
-      Tg := E^.EQ_LTER;
-      Td := E^.EQ_RTER;
-
-      { put it into its own little system }
-      Ss := NewSystem;
-      InsertOneEqInSys(Ss,E);
+      { check whether the corresponding equation s=t can be 
+        inserted into S}
+      Ss := NewSystemWithEq(E^.EQ_LTER,E^.EQ_RTER);
       Ok := Reduce(Ss,True,VarProd,Backtrackable,L);
 
       If Ok Then
       Begin
         If VarProd<>Nil Then
-        Begin
-          NewE := NewEquation(REL_INEQ,Tg,Td);
           { this variable now watches this inequation }
-          If VWatchIneq(VarProd) = Nil Then
-          Begin
-            { first watch }
-            SetMemEq(L,VarProd^.TV_FWAT,NewE,Backtrackable)
-          End
-          Else
-          Begin
-            { add a watch }
-            E := VWatchIneq(VarProd);
-            While(E^.EQ_NEXT <> Nil) Do E := E^.EQ_NEXT;
-            SetMemEq(L,E^.EQ_NEXT,NewE,Backtrackable)
-          End
-        End
+          AddWatch(VarProd,E,Backtrackable,L)
         Else
           Abnormal := True
       End
@@ -377,4 +303,26 @@ Begin
     Step3
   End;
   ReduceSystem := Not Fails
+End;
+
+{ reduce a list of equations and inequations E; non backtrackable }
+Function ReduceEquations( E : EqPtr ) : Boolean;
+Var
+  S : SysPtr;
+  U : RestorePtr;
+Begin
+  S := NewSystem;
+  CopyAllEqInSys(S,E);
+  U := Nil;
+  ReduceEquations := ReduceSystem(S,False,U)
+End;
+
+{ reduce a single equation; reduced equations may be already attached 
+  to elements in T1 or T2; non backtrackable }
+Function ReduceOneEq( T1,T2 : TermPtr ) : Boolean;
+Var   
+  E : EqPtr;
+Begin
+  E := NewEquation(REL_EQUA,T1,T2);
+  ReduceOneEq := ReduceEquations(E)
 End;

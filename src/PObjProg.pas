@@ -28,7 +28,7 @@ Type
     { deep copied: }
     BT_NEXT : BTermPtr; { next element }
     BT_TERM : TermPtr; { term }
-    BT_CONS : ConstPtr { access constant or 0 }
+    BT_ACCE : IdPtr { access identifier or Nil }
   End;
 
 { rule }
@@ -40,10 +40,10 @@ Type
     { deep copied: }
     RU_NEXT : RulePtr; { next rule }
     RU_FBTR : BTermPtr; { list of terms (the first is the rule head) }
-    RU_SYST : EqPtr; { list of equation or inequation in the rule; Warning: not GC}
+    RU_SYST : EqPtr; { list of equation or inequation in the rule; Warning: not GC }
     { not deep copied: }
-    RU_FVAR : DictVarPtr; { where to start looking up }
-    RU_LVAR : DictVarPtr; { where to stop looking up }
+    RU_FVAR : DictPtr; { where to start looking up }
+    RU_LVAR : DictPtr; { where to stop looking up }
     { extra data: }
     RU_TYPE : RuType { type of rule: read from init file, or user }
   End;
@@ -60,8 +60,8 @@ Type
     QU_FBTR : BTermPtr; { terms in the query }
     QU_SYST : EqPtr; { list of equation or inequation in the query }
     { not deep copied: }
-    QU_FVAR : DictVarPtr; { where to start looking up }
-    QU_LVAR : DictVarPtr { where to stop looking up }
+    QU_FVAR : DictPtr; { where to start looking up }
+    QU_LVAR : DictPtr { where to stop looking up }
   End;
 
 { program and clock }
@@ -79,11 +79,12 @@ Type
     PP_LRUL : RulePtr; { last rule }
     { not deep copied: }
     PP_HEAD : HeadPtr; { current clock head (during execution or a query) }
-    PP_DCON : DictConstPtr; { list of all constants }
-    PP_UCON : DictConstPtr; { constant list head before processing user's command line }
-    PP_DVAR : DictVarPtr; { list of all variable identifiers }
-    PP_UVAR : DictVarPtr; { variable identifier list head before processing user's command line }
-    PP_LVAR : DictVarPtr { last identifier to lookup when parsing (local variables)}
+    PP_DCON : DictPtr; { list of all constants }
+    PP_UCON : DictPtr; { constant list head before processing user's command line; unused }
+    PP_DIDE : DictPtr; { list of all identifiers (globals, can be assigned, must not backtrack) }
+    PP_DVAR : DictPtr; { list of all variable identifiers }
+    PP_UVAR : DictPtr; { variable identifier list head before processing user's command line }
+    PP_LVAR : DictPtr { last identifier to lookup when parsing (local variables)}
   End;
 
   { clock header }
@@ -112,12 +113,12 @@ Var
   B : BTermPtr;
   ptr : TPObjPtr Absolute B;
 Begin
-  ptr := NewPrologObject(BT, SizeOf(TObjBTerm), 3, 3);
+  ptr := NewPrologObject(BT,SizeOf(TObjBTerm),3,True,3);
   With B^ Do
   Begin
     BT_TERM := Nil;
     BT_NEXT := Nil;
-    BT_CONS := Nil
+    BT_ACCE := Nil
   End;
   NewBTerm := B
 End;
@@ -128,7 +129,7 @@ Var
   R : RulePtr;
   ptr : TPObjPtr Absolute R;
 Begin
-  ptr := NewPrologObject(RU, SizeOf(TObjRule), 5, 3);
+  ptr := NewPrologObject(RU,SizeOf(TObjRule),5,True,3);
   With R^ Do
   Begin
     RU_NEXT := Nil;
@@ -147,7 +148,7 @@ Var
   P : ProgPtr;
   ptr : TPObjPtr Absolute P;
 Begin
-  ptr := NewPrologObject(PR, SizeOf(TObjProg), 10, 4);
+  ptr := NewPrologObject(PR,SizeOf(TObjProg),11,True,4);
   With P^ Do
   Begin
     PP_FRUL := Nil;
@@ -157,6 +158,7 @@ Begin
     PP_HEAD := Nil;
     PP_DCON := Nil;
     PP_UCON := Nil;
+    PP_DIDE := Nil;
     PP_DVAR := Nil;
     PP_UVAR := Nil;
     PP_LVAR := Nil
@@ -170,7 +172,7 @@ Var
   H : HeadPtr;
   ptr : TPObjPtr Absolute H;
 Begin
-  ptr := NewPrologObject(HE, SizeOf(TObjHead), 4, 0);
+  ptr := NewPrologObject(HE,SizeOf(TObjHead),4,True,0);
   With H^ Do
   Begin
     HH_NEXT := Nil;
@@ -196,10 +198,10 @@ Begin
   NextTerm := B^.BT_NEXT;
 End;
 
-{ access constant of a block }
-Function AccessTerm( B : BTermPtr ) : ConstPtr;
+{ access identifier of a block }
+Function AccessTerm( B : BTermPtr ) : IdPtr;
 Begin
-  AccessTerm := B^.BT_CONS
+  AccessTerm := B^.BT_ACCE
 End;
 
 { next rule }

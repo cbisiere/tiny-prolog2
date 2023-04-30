@@ -19,9 +19,10 @@
 { Execute query Q.                                                           }
 {----------------------------------------------------------------------------}
 
-Procedure AnswerQuery( P : ProgPtr; Q : QueryPtr );
+Procedure AnswerQuery( P : ProgPtr; Q : QueryPtr; Echo : Boolean );
 Begin
-  OutOneQuery(Q);
+  If Echo Then
+    OutOneQuery(Q);
   Clock(P,Q)
 End;
 
@@ -29,22 +30,13 @@ End;
 { Execute all queries starting with list head Q.                             }
 {----------------------------------------------------------------------------}
 
-Procedure AnswerQueries( P : ProgPtr; Q : QueryPtr );
+Procedure AnswerQueries( P : ProgPtr; Q : QueryPtr; Echo : Boolean );
 Begin
   While Q <> Nil Do
   Begin
-    AnswerQuery(P,Q);
+    AnswerQuery(P,Q,Echo);
     Q := Q^.QU_NEXT
   End
-End;
-
-{----------------------------------------------------------------------------}
-{ Execute all queries in program P.                                          }
-{----------------------------------------------------------------------------}
-
-Procedure AnswerProgramQueries( P : ProgPtr );
-Begin
-  AnswerQueries(P,P^.PP_FQRY)
 End;
 
 {----------------------------------------------------------------------------}
@@ -64,12 +56,11 @@ Begin
     Begin
       Q := CompileRulesAndQueries(P,RuleType);
       if (Not Error) And (Q <> Nil) Then
-        AnswerQueries(P,Q);
+        AnswerQueries(P,Q,True);
     End
     Else
       RaiseError('Cannot open file ')
   End
   Else
     RaiseError('filename is too long');
-
 End;

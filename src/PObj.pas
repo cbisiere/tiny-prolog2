@@ -18,3 +18,13 @@
 { term: constant, variable, functional symbol }
 Type
   TermPtr = TPObjPtr;
+
+{ return true if T1 and T2 are equal, that is: same variable, same
+  identifier or same constant value; an invariant (unique constant 
+  values and terms) simplify the test greatly, as testing checking 
+  pointers are equal is enough }
+Function SameTerms( T1,T2 : TermPtr ) : Boolean;
+Begin
+  SameTerms := T1 = T2
+End;
+

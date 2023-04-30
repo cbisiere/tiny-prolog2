@@ -39,7 +39,7 @@ Begin
   I := 1;
   While (I<=IdxIneq) And Not Found Do
   Begin
-    Found := Ineq[I] = E;
+    Found := SameEquations(Ineq[I],E);
     I := I + 1
   End;
   If Not Found Then
@@ -89,7 +89,7 @@ Var
 Begin
   CheckCondition(TypeOfTerm(TV)=Variable,
     'GetVarNameAsString(V): V is not a variable');
-  s := StrClone(V^.TV_DVAR^.DV_NAME);
+  s := StrClone(V^.TV_DVAR^.DE_STRI);
   k := PObjectCopyNumber(PV);
   If k > 0 Then
   Begin
@@ -100,22 +100,22 @@ Begin
 End;
 
 
-Procedure WriteTermBis( s : StrPtr; T : TermPtr; ArgList,Quotes : Boolean); Forward;
+Procedure WriteTermBis( s : StrPtr; T : TermPtr; ArgList,Quotes,Solution : Boolean); Forward;
 
 { write a comma-separated list of arguments, coded as F(arg1,F(arg2,Nil)) }
-Procedure WriteArgument( s : StrPtr; F : FuncPtr );
+Procedure WriteArgument( s : StrPtr; F : FuncPtr; Solution : Boolean );
 Var 
   T : TermPtr;
   FT : FuncPtr Absolute T;
 Begin
-  WriteTermBis(s,FLeftArg(F),False,True);
+  WriteTermBis(s,FLeftArg(F),False,True,Solution);
   If FRightArg(F) <> Nil Then
   Begin
     StrAppend(s,',');
     CheckCondition((FRightArg(F)=Nil) Or (TypeOfTerm(FRightArg(F))=FuncSymbol),
       'broken argument list');
     T := FRightArg(F);
-    WriteArgument(s,FT)
+    WriteArgument(s,FT,Solution)
   End
 End;
 
@@ -126,127 +126,139 @@ Begin
 End;
 
 { write a constant }
-Procedure WriteConst( s : StrPtr; C : ConstPtr );
+Procedure WriteConst( s : StrPtr; C : ConstPtr; Quote : Boolean );
 Begin
-  StrConcat(s,GetConstAsString(C,True))
+  StrConcat(s,GetConstAsString(C,Quote))
 End;
 
+{ write an identifier }
+Procedure WriteIdentifier( s : StrPtr; I : IdPtr );
+Begin
+  StrConcat(s,IdentifierGetStr(I))
+End;
+
+
 { write a tuple }
-Procedure WriteTuple( s : StrPtr; F : FuncPtr );
+Procedure WriteTuple( s : StrPtr; F : FuncPtr; Solution : Boolean );
 Begin
   StrAppend(s,'<');
-  WriteArgument(s,F);
+  WriteArgument(s,F,Solution);
   StrAppend(s,'>')
 End;
 
-{ write a term, possibly as an argument of a predicate, and with quotes }
-Procedure WriteTermBis; (* ( s : StrPtr; T : TermPtr; ArgList,Quotes : Boolean ); *)
+{ write a term, possibly as an argument of a predicate, and with quotes; 
+  if Solution is true, we are currently printing a solution (that is, a 
+  reduced system), and not the item as given in the source code ) }
+Procedure WriteTermBis; (* ( s : StrPtr; T : TermPtr; ArgList,Quotes,Solution : Boolean ); *)
 Var
-  V : VarPtr;
-  F : FuncPtr;
-  C : ConstPtr;
-  LeftT : TermPtr;
+  { all casts of T: }
   CT : ConstPtr Absolute T;
   VT : VarPtr Absolute T;
+  IT : IdPtr Absolute T;
   FT : FuncPtr Absolute T;
-  PV : TPObjPtr Absolute V;
-  CLeftT : ConstPtr Absolute LeftT;
+  PT : TPObjPtr Absolute T;
+  { others: }
+  F : FuncPtr;
+  LeftT : TermPtr;
+  ILeftT : IdPtr Absolute LeftT;
   T1,T2 : TermPtr;
   FT1 : FuncPtr Absolute T1;
   FT2 : FuncPtr Absolute T2;
 Begin
   Case TypeOfTerm(T) Of
-  Constant :
+  Constant:
     Begin
-      C := CT;
-      StrConcat(s,GetConstAsString(C,Quotes))
+      WriteConst(s,CT,Quotes)
     End;
-  Variable  :
+  Identifier: { isolated identifier, e.g., hello -> world }
     Begin
-      V := VT;
-      If PObjectCopyNumber(PV) = 0 Then
-      Begin
-        WriteVarName(s,V)
-      End
+      WriteIdentifier(s,IT)
+    End;
+  Variable:
+    Begin
+      If Not Solution Then
+        WriteVarName(s,VT)
       Else
-        If VRed(V) = Nil Then
-          WriteVarName(s,V)
-        Else
+      Begin
+        If PObjectCopyNumber(PT) = 0 Then
         Begin
-          WriteTermBis(s,VRed(V),False,Quotes)
-        End;
-      If VWatchIneq(V) <> Nil Then
-        AddIneq(VWatchIneq(V))
+          WriteVarName(s,VT)
+        End
+        Else
+          If VRed(VT) = Nil Then
+            WriteVarName(s,VT)
+          Else
+          Begin
+            WriteTermBis(s,VRed(VT),False,Quotes,Solution)
+          End;
+        If WatchIneq(VT) <> Nil Then
+          AddIneq(WatchIneq(VT))
+      End
     End;
-  FuncSymbol  :
+  FuncSymbol:
     Begin
       F := FT;
       LeftT := FLeftArg(F);
-      If (TypeOfTerm(LeftT) = Constant) Then
+      If (TypeOfTerm(LeftT) = Identifier) Then
       Begin
-        If ConstStartWith(CLeftT,Digits) Then { should only happen when printing subtrees during debugging}
-        Begin
-          WriteTuple(s,F)
-        End
-        Else If ConstEqualTo(CLeftT,'.') Then { F(.,F(a,F(b,Nil))) => a.b }
+        If IdentifierEqualTo(ILeftT,'.') Then { F(.,F(a,F(b,Nil))) => a.b }
         Begin
           If ArgList Then 
             StrAppend(s,'(');
           T1 := FRightArg(F);
-          WriteTermBis(s,FLeftArg(FT1),True,True);
+          WriteTermBis(s,FLeftArg(FT1),True,True,Solution);
           StrAppend(s,'.');
           T2 := FRightArg(FT1); { TODO: check type }
-          WriteTermBis(s,FLeftArg(FT2),False,True);
+          WriteTermBis(s,FLeftArg(FT2),False,True,Solution);
           If ArgList Then 
             StrAppend(s,')')
         End
         Else
         Begin 
-          StrConcat(s,ConstGetStr(CLeftT));
+          WriteIdentifier(s,ILeftT);
           If FRightArg(F)<>Nil Then { F(name,F(a,F(b,Nil) => name(a,b) }
           Begin
             T1 := FRightArg(F);
             StrAppend(s,'(');
-            WriteArgument(s,FT1); { TODO: check type }
+            WriteArgument(s,FT1,Solution); { TODO: check type }
             StrAppend(s, ')')
           End
         End
       End
-      Else { F(a,F(b,Nil) => <a,b> where a not a constant }
+      Else { F(a,F(b,Nil) => <a,b> where a not an identifier }
       Begin
-        WriteTuple(s,F)
+        WriteTuple(s,F,Solution)
       End
     End
   End
 End;
 
-Procedure WriteTerm( s : StrPtr; T : TermPtr ); Forward;
+Procedure WriteTerm( s : StrPtr; T : TermPtr; Solution : Boolean ); Forward;
 
 { write a single equation or inequation }
-Procedure WriteOneEquation( s : StrPtr; E : EqPtr );
+Procedure WriteOneEquation( s : StrPtr; E : EqPtr; Solution : Boolean  );
 Begin
-  WriteTerm(s,E^.EQ_LTER);
+  WriteTerm(s,E^.EQ_LTER,Solution);
   Case E^.EQ_TYPE Of
   REL_EQUA:
     StrAppend(s,' = ');
   REL_INEQ:
     StrAppend(s,' <> ');
   End;
-  WriteTerm(s,E^.EQ_RTER)
+  WriteTerm(s,E^.EQ_RTER,Solution)
 End;
 
 
-{ write equations in the list E, starting with a comma if Comma is True }
+{ write equations and inequations in the list E, starting with a comma 
+  if Comma is True }
 Procedure WriteEquationsBis( s : StrPtr; E : EqPtr; Var Comma : Boolean );
 Begin
-  If E <> Nil Then
-  Begin
-    WriteEquationsBis(s,E^.EQ_NEXT, Comma);
-    If Comma Then 
-      StrAppend(s,', ');
-    Comma := True;
-    WriteOneEquation(s,E)
-  End
+  If Comma Then 
+    StrAppend(s,', ');
+  Comma := True;
+  WriteOneEquation(s,E,False); { not part of a solution }
+  If E^.EQ_NEXT <> Nil Then
+    WriteEquationsBis(s,E^.EQ_NEXT,Comma)
 End;
 
 { write a list of equations }
@@ -257,8 +269,16 @@ Begin
   WriteEquationsBis(s,E,Comma)
 End;
 
-{ write a system }
-Procedure WriteSys( s : StrPtr; Sys : SysPtr );
+{ write a list of equations or inequations; source code only }
+Procedure WriteSourceSystem( s : StrPtr; E : EqPtr );
+Begin
+  StrAppend(s,'{ ');
+  WriteEquations(s,E);
+  StrAppend(s,' }')
+End;
+
+{ write a system; source code only; dead code for now }
+Procedure WriteSourceSys( s : StrPtr; Sys : SysPtr );
 Begin
   StrAppend(s,'{ ');
   WriteEquations(s,Sys^.SY_EQUA);
@@ -269,7 +289,7 @@ Begin
 End;
 
 { write all inequations in the stack }
-Procedure WriteInequations( s : StrPtr; Var Before : Boolean );
+Procedure WriteStackedInequations( s : StrPtr; Var Before : Boolean );
 Var I,K : Integer;
 Begin
   K := IdxIneq;
@@ -277,15 +297,15 @@ Begin
   Begin
     If Before Then
       StrAppend(s,', ');
-    WriteOneEquation(s,Ineq[I]);
+    WriteOneEquation(s,Ineq[I],True);
     Before := True
   End
 End;
 
 { write a term that is not an argument of a predicate }
-Procedure WriteTerm; (* ( s : StrPtr; T : TermPtr ); *)
+Procedure WriteTerm; (* ( s : StrPtr; T : TermPtr; Solution : Boolean ); *)
 Begin
-  WriteTermBis(s,T,False,True)
+  WriteTermBis(s,T,False,True,Solution)
 End;
 
 { print an opening curly brace if it has not been printed yet }
@@ -304,15 +324,17 @@ End;
   true if a curly brace has already been printed; Before is true if an equation
   or inequation has already been printed; if Curl then curly braces are 
   always printed, even if there are no equations or inequations to print  }
-Procedure WriteSystemBis( s : StrPtr; DV1,DV2 : DictVarPtr; 
+Procedure WriteSolutionBis( s : StrPtr; DV1,DV2 : DictPtr;
     Curl, SpaceBeforeCurl : Boolean; 
     Var Printed, Before : Boolean );
-Var V : VarPtr;
+Var 
+  V : VarPtr;
+  TV : TermPtr Absolute V;
 Begin
   If (DV1<>Nil) And (DV1<>DV2) Then
   Begin
-    WriteSystemBis(s,DV1^.DV_NEXT,DV2,Curl,SpaceBeforeCurl,Printed,Before);
-    V := DV1^.DV_PVAR;
+    WriteSolutionBis(s,DV1^.DE_NEXT,DV2,Curl,SpaceBeforeCurl,Printed,Before);
+    TV := DV1^.DE_TERM;
     { equation in the reduced system }
     If VRed(V) <> Nil Then
     Begin
@@ -322,28 +344,29 @@ Begin
       WriteVarName(s,V);
       StrAppend(s,' = ');
       Before := True;
-      WriteTerm(s,VRed(V))
+      WriteTerm(s,VRed(V),True)
     End;
     { inequations in the reduced system }
-    If VWatchIneq(V) <> Nil Then
+    If WatchIneq(V) <> Nil Then
     Begin
       WriteCurlyBrace(s,SpaceBeforeCurl,Printed);
-      AddIneq(VWatchIneq(V))
+      AddIneq(WatchIneq(V))
     End
   End
 End;
 
-Procedure WriteSystem( s : StrPtr; start, stop : DictVarPtr; 
+{ write a reduced system; see comments about parameters above }
+Procedure WriteSolution( s : StrPtr; start, stop : DictPtr;
     Curl, SpaceBeforeCurl : Boolean );
 Var
   Printed, Before : Boolean;
 Begin
-  Printed := False;
-  Before := False;
+  Printed := False; { no curly brace printed yet }
+  Before := False; { no equation printed yet }
   If Curl Then 
     WriteCurlyBrace(s,SpaceBeforeCurl,Printed);
-  WriteSystemBis(s,start,stop,Curl,SpaceBeforeCurl,Printed,Before);
-  WriteInequations(s,Before);
+  WriteSolutionBis(s,start,stop,Curl,SpaceBeforeCurl,Printed,Before);
+  WriteStackedInequations(s,Before);
   If Printed Then
     StrAppend(s,' }')
 End;
@@ -351,7 +374,7 @@ End;
 { write BTerm B }
 Procedure WriteOneBTerm( s : StrPtr; B : BTermPtr );
 Begin
-  WriteTerm(s,B^.BT_TERM)
+  WriteTerm(s,B^.BT_TERM,False)
 End;
 
 { write a list of BTerms }
@@ -380,7 +403,12 @@ Begin
   WriteOneBTerm(s,B);
   StrAppend(s,' ->');
   WriteTerms(s,B^.BT_NEXT,True);
-  WriteSystem(s,R^.RU_FVAR,R^.RU_LVAR,False,True);
+  If R^.RU_SYST <> Nil Then
+  Begin
+    StrAppend(s,' ');
+    WriteSourceSystem(s,R^.RU_SYST)
+  End;
+  {xxx WriteSolution(s,R^.RU_FVAR,R^.RU_LVAR,False,True);}
   StrAppend(s,';')
 End;
 
@@ -418,10 +446,13 @@ End;
 { write a query }
 Procedure WriteOneQuery( s : StrPtr; Q : QueryPtr );
 Begin
-  InitIneq;
   StrAppend(s,'->');
   WriteTerms(s,Q^.QU_FBTR,False);
-  WriteSystem(s,Q^.QU_FVAR,Q^.QU_LVAR,False,True);
+  If Q^.QU_SYST <> Nil Then
+  Begin
+    StrAppend(s,' ');
+    WriteSourceSystem(s,Q^.QU_SYST)
+  End;
   StrAppend(s,';')
 End;
 
@@ -457,7 +488,15 @@ Procedure OutConst( C : ConstPtr );
 Var s : StrPtr;
 Begin
   s := NewString;
-  WriteConst(s,C);
+  WriteConst(s,C,True); { with quotes }
+  StrWrite(s)
+End;
+
+Procedure OutIdentifier( I : IdPtr );
+Var s : StrPtr;
+Begin
+  s := NewString;
+  WriteIdentifier(s,I);
   StrWrite(s)
 End;
 
@@ -473,24 +512,31 @@ Procedure OutOneEquation( E : EqPtr );
 Var s : StrPtr;
 Begin
   s := NewString;
-  WriteOneEquation(s,E);
+  WriteOneEquation(s,E,False); { source code }
   StrWrite(s)
 End;
 
-Procedure OutSystem( start,stop : DictVarPtr; Curl : Boolean );
+Procedure OutSolution( start,stop : DictPtr );
 Var s : StrPtr;
 Begin
   s := NewString;
-  WriteSystem(s,start,stop,Curl,False);
+  WriteSolution(s,start,stop,True,False);
   StrWrite(s)
+End;
+
+{ output the reduced system for the variables in the current query }
+Procedure OutQuerySolution( Q : QueryPtr );
+Begin
+  InitIneq;
+  OutSolution(Q^.QU_FVAR,Q^.QU_LVAR)
 End;
 
 { output a term that is not an argument of a predicate }
-Procedure OutTermBis( T : TermPtr; ArgList, Quotes : Boolean );
+Procedure OutTermBis( T : TermPtr; ArgList,Quotes : Boolean );
 Var s : StrPtr;
 Begin
   s := NewString;
-  WriteTermBis(s,T,ArgList,Quotes);
+  WriteTermBis(s,T,ArgList,Quotes,True);
   StrWrite(s)
 End;
 

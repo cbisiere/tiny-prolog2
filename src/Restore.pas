@@ -39,7 +39,7 @@ Var
   U : RestorePtr;
   ptr : TPObjPtr Absolute U;
 Begin
-  ptr := NewPrologObject(RE,SizeOf(TObjRestore),2,0);
+  ptr := NewPrologObject(RE,SizeOf(TObjRestore),2,True,0);
   With U^ Do
   Begin
     RE_PVAL := Nil;

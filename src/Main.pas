@@ -27,14 +27,15 @@ Procedure DumpBacktrace; Forward;
 {$I Restore.pas   }  { restore stack                               }
 {$I PObj.pas      }  { Prolog objects: common definitions          }
 {$I PObjStr.pas   }  { Prolog objects: long string                 }
+{$I PObjDict.pas  }  { Prolog objects: dictionary entry            }
 {$I PObjEq.pas    }  { Prolog objects: (in)equations, system       }
 {$I PObjTerm.pas  }  { Prolog objects: terms                       }
 {$I PObjProg.pas  }  { Prolog objects: program, rules, queries     }
 {$I Keyboard.pas  }  { read from keyboard w/ history               }
 {$I Input.pas     }  { read the input flow                         }
 {$I Unparse.pas   }  { decode objects                              }
-{$I Parse.pas     }  { encode objects                              }
 {$I Reduc.pas     }  { system reduction                            }
+{$I Parse.pas     }  { encode objects                              }
 {$I Clock.pas     }  { Prolog clock                                }
 {$I Run.pas       }  { load rules and execute queries              }
 {$I Sys.pas       }  { system calls                                }
@@ -49,7 +50,7 @@ Begin
   Initialisation;
   P := NewProgram;
   CurrentProgram := P; { debug }
-  RegisterPredefinedConstants(P);
+  RegisterPredefined(P);
   ResetMachine := P
 End;
 
@@ -60,7 +61,6 @@ var
   PP : TPObjPtr Absolute P;
   Q : QueryPtr;
   FileName : StrPtr;
-  FileNameObj : TPObjPtr Absolute FileName;
 Begin
   MMInit;
   P := ResetMachine;
@@ -78,7 +78,7 @@ Begin
     ReadCommand;
     Q := CompileCommandLineQueries(P);
     If Not Error Then
-      AnswerQueries(P,Q);
+      AnswerQueries(P,Q,False);
     RemoveCommandLineQueries(P);
   Until False
 End;

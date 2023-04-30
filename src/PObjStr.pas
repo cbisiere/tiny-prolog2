@@ -58,7 +58,7 @@ Var
   sda : StrDataPtr;
   ptr : TPObjPtr Absolute sda;
 Begin
-  ptr := NewPrologObject(SD, SizeOf(TObjStrData), 2, 2);
+  ptr := NewPrologObject(SD,SizeOf(TObjStrData),2,True,2);
   With sda^ Do
   Begin
     SD_PREV := Nil;
@@ -74,7 +74,7 @@ Var
   s : StrPtr;
   ptr : TPObjPtr Absolute s;
 Begin
-  ptr := NewPrologObject(ST, SizeOf(TObjStr), 2, 2);
+  ptr := NewPrologObject(ST,SizeOf(TObjStr),2,True,2);
   With s^ Do
   Begin
     ST_FDAT := NewStringData('');

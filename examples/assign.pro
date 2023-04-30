@@ -1,0 +1,4 @@
+-> assign(file_name, "file.txt");
+-> val(file_name,x);
+-> assign(file_name, "another_file.txt");
+-> val(file_name,x);
