@@ -438,7 +438,8 @@ Begin
     CompileOneQuery(P,Q);
     Q^.QU_FRUL := P^.PP_FRUL;
     Q^.QU_LRUL := P^.PP_LRUL;
-    Q^.QU_NEXT := CompileQueries(P,WithArrow,ContChar,StopChars)
+    If Not Error Then
+      Q^.QU_NEXT := CompileQueries(P,WithArrow,ContChar,StopChars)
   End;
   CompileQueries := Q
 End;
