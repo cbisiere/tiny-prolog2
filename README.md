@@ -161,6 +161,30 @@ Identifiers can be assigned using the predicate `assign(i,t)`. The identifier `i
 { x = "another_file.txt" }
 >
 ```
+The value of a non assigned identifier is the identifier itself:
+
+```
+-> assign(un,1);
+{  }
+-> val(un,x) val(deux,y);
+{ x = 1, y = deux }
+>
+```
+
+### Evaluable functions
+
+Evaluable functions `add(x,y)`,`sub(x,y)`,`mul(x,y)`, and `div(x,y)` are recusivelly evaluated when they appear in the first argument of `val`. Arguments `x` and `y ` must evaluate to integer values.
+
+```
+-> val(add(123456789,1),x);
+{ x = 123456790 }
+-> val(div(100,9),x);
+{ x = 11 }
+-> val(add(mul(2,add(3,4)),1000),x);
+{ x = 1014 }
+>
+```
+
 
 ## Compilation
 

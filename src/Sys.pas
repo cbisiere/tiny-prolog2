@@ -15,14 +15,19 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-{ predefined predicates }
+{ predefined predicates and functions }
 
 Const
-  NBPred = 11;
-  MaxPredLength = 9; { max string length of predefined predicate }
-Type 
-  TPP = (PP_QUIT,PP_INSERT,PP_LIST,PP_OUT,PP_OUTM,PP_LINE,PP_BACKTRACE,PP_CLRSRC,PP_EVAL,PP_ASSIGN,PP_DUMP);
+  NBPred = 15;
+  MaxPredLength = 9; { max string length of a predefined predicate 
+   or a function }
+Type
+  TPPType = (PPredicate,PFunction); { type: predicate or function }
+  TPP = (PP_QUIT,PP_INSERT,PP_LIST,PP_OUT,PP_OUTM,PP_LINE,
+    PP_BACKTRACE,PP_CLRSRC,PP_EVAL,PP_ASSIGN,PP_DUMP,
+    PF_ADD,PF_SUB,PF_MUL,PF_DIV);
   TPPred = Record
+    T : TPPType;
     I : TPP; { identifier }
     S : String[MaxPredLength]; { identifier as string }
     N : Byte { number of arguments }
@@ -31,21 +36,31 @@ Type
 
 Const 
   APPred : TAPPred = (
-    (I:PP_QUIT;S:'QUIT';N:0),
-    (I:PP_INSERT;S:'INSERT';N:1),
-    (I:PP_LIST;S:'LIST';N:0),
-    (I:PP_OUT;S:'OUT';N:1),
-    (I:PP_OUTM;S:'OUTM';N:1),
-    (I:PP_LINE;S:'LINE';N:0),
-    (I:PP_BACKTRACE;S:'BACKTRACE';N:0),
-    (I:PP_CLRSRC;S:'CLRSRC';N:0),
-    (I:PP_EVAL;S:'EVAL';N:2),
-    (I:PP_ASSIGN;S:'ASSIGN';N:2),
-    (I:PP_DUMP;S:'DUMP';N:0)
+    (T:PPredicate;I:PP_QUIT;S:'QUIT';N:0),
+    (T:PPredicate;I:PP_INSERT;S:'INSERT';N:1),
+    (T:PPredicate;I:PP_LIST;S:'LIST';N:0),
+    (T:PPredicate;I:PP_OUT;S:'OUT';N:1),
+    (T:PPredicate;I:PP_OUTM;S:'OUTM';N:1),
+    (T:PPredicate;I:PP_LINE;S:'LINE';N:0),
+    (T:PPredicate;I:PP_BACKTRACE;S:'BACKTRACE';N:0),
+    (T:PPredicate;I:PP_CLRSRC;S:'CLRSRC';N:0),
+    (T:PPredicate;I:PP_EVAL;S:'EVAL';N:2),
+    (T:PPredicate;I:PP_ASSIGN;S:'ASSIGN';N:2),
+    (T:PPredicate;I:PP_DUMP;S:'DUMP';N:0),
+    (T:PFunction;I:PF_ADD;S:'add';N:2),
+    (T:PFunction;I:PF_SUB;S:'sub';N:2),
+    (T:PFunction;I:PF_MUL;S:'mul';N:2),
+    (T:PFunction;I:PF_DIV;S:'div';N:2)
   );
 
-{ lookup for a predicate; set the found predicate record; return True if found  }
-Function LookupPred( str : AnyStr; Var rec : TPPred) : Boolean;
+Const
+  MaxFuncNbParams = 2; { maximum number of parameter for a predefined function }
+Type
+  TParArray = Array[1..MaxFuncNbParams] Of LongInt; { parameter value }
+
+{ lookup for a predefined predicate or function; set the found record; 
+  return True if found  }
+Function LookupPred( typ : TPPType; str : AnyStr; Var rec : TPPred) : Boolean;
 Var 
   i : 0..NBPred;
   Found : Boolean;
@@ -55,7 +70,7 @@ Begin
   While (Not Found) And (i<NBPred) Do
   Begin
     i := i + 1;
-    If APPred[i].S = str Then
+    If (APPred[i].T = typ) And (APPred[i].S = str) Then
     Begin
       Found := True;
       rec := APPred[i]
@@ -64,13 +79,111 @@ Begin
   LookupPred := Found
 End;
 
-
-
 { install all predefined constants }
 Procedure RegisterPredefined( P : ProgPtr );
 Var I : IdPtr;
 Begin
   I := InstallIdentifier(P^.PP_DCON,NewStringFrom('SYSCALL'))
+End;
+
+{ evaluate a term T; The expression to be evaluated is constructed 
+  recursively from constants, identifiers and evaluable functions;
+  return Nil if the expression cannot be evaluated }
+Function EvaluateExpression( T : TermPtr; P : ProgPtr ) : TermPtr;
+Var
+  FT : FuncPtr Absolute T;
+  IT : IdPtr Absolute T;
+  e : TermPtr;
+  Ce : ConstPtr Absolute e;
+  Ident : TermPtr;
+  IIdent : IdPtr Absolute Ident;
+  T1,T2 : TermPtr;
+  CT1 : ConstPtr Absolute T1;
+  CT2 : ConstPtr Absolute T2;
+  r : LongInt;
+  code : Integer;
+  rs : AnyStr;
+  s : StrPtr;
+  Ok : Boolean;
+  rec : TPPred;
+  str : AnyStr;
+  ParVal : TParArray;
+  i : Byte;
+Begin
+  e := Nil;
+  T := RepresentativeOf(T);
+  If T <> Nil Then
+  Begin
+    Case TypeOfTerm(T) Of
+    Identifier, Constant:
+      e := T;
+    Variable:
+      e := T; { unbounded variable evaluates to itself (different from standard behavior) ) }
+    FuncSymbol:
+      Begin
+        { try to get an evaluate an evaluable function }
+        Ident := EvaluateExpression(Argument(1,FT),P);
+        If Ident <> Nil Then
+        Begin
+          If TypeOfTerm(Ident) = Identifier Then
+          Begin
+            { function is known and has the correct number of parameters }
+            str := IdentifierGetPStr(IIdent);
+            Ok := LookupPred(PFunction,str,rec);
+            If Ok Then
+              Ok := NbArguments(FT) = rec.N + 1
+            Else
+              e := T; { not a known function: return the term }
+            { evaluate the function's parameters }
+            If Ok Then
+              For i := 1 to rec.N Do
+              Begin
+                If Ok Then
+                Begin
+                  T1 := EvaluateExpression(Argument(1+i,FT),P);
+                  Ok := T1 <> Nil;
+                End;
+                If Ok Then
+                  Ok := TypeOfTerm(T1) = Constant;
+                If Ok Then
+                  Ok := ConstType(CT1) = Number;
+                If Ok Then
+                Begin
+                  ParVal[i] := StrToLongInt(ConstGetPStr(CT1),code);
+                  Ok := code = 0
+                End
+              End;
+            If Ok Then
+            Begin
+              Case rec.I Of
+                PF_ADD:
+                  r := ParVal[1] + ParVal[2];
+                PF_SUB:
+                  r := ParVal[1] - ParVal[2];
+                PF_MUL:
+                  r := ParVal[1] * ParVal[2];
+                PF_DIV:
+                  Begin
+                    Ok := ParVal[2] <> 0;
+                    If Ok Then
+                      r := LongIntDiv(ParVal[1],ParVal[2])
+                  End
+              End;
+              If Ok Then
+              Begin
+                rs := LongIntToStr(r);
+                s := NewStringFrom(rs);
+                Ce := InstallConst(P^.PP_DCON,s,CN)
+              End
+            End
+          End
+          Else
+            e := T { not an identifier (e.g. <100>), return the term }
+        End
+      End
+    End
+  End;
+  EvaluateExpression := e
 End;
 
 { execute a system call <SYSCALL,Code,Arg1,...ArgN>, meaning Code(Arg1,...,ArgN) }
@@ -124,7 +237,7 @@ Begin
   If Ok Then
   Begin
     str := StrGetString(Ident);
-    Ok := LookupPred(str,rec);
+    Ok := LookupPred(PPredicate,str,rec);
     If Ok Then
     Begin
       NbPar := NbArgs - 2;
@@ -170,23 +283,23 @@ Begin
           I^.TV_FWAT := Nil;
           { assign }
           I^.TV_ASSI := True;
-          { copy the term, including variables and constraints;
-          thus, our assign is similar to "cassign(i,t)";
-          see p113 of the PrologII+ documentation }
-          T2 := DeepCopy(GetPArg(2,FT));
+          T2 := GetPArg(2,FT);
           Ok := ReduceOneEq(TI,T2) { "ident = term" }
         End
       End;
     PP_EVAL: { val(100,x) }
       Begin
-        C := EvaluateToConstant(GetPArg(1,FT));
-        Ok := C <> Nil;
+        { evaluate the term; it may includes variables and constraints;
+          thus, our assign is similar to "cassign(i,t)";
+          see p113 of the PrologII+ documentation }
+        T1 := EvaluateExpression(GetPArg(1,FT),P); { FIXME: do a copy and unbound variables? }
+        Ok := T1 <> Nil;
         If Ok Then
-          Ok := ReduceOneEq(GetPArg(2,FT),TC);
+          Ok := ReduceOneEq(GetPArg(2,FT),T1) { FIXME: shouldn't it be backtrackable? }
       End;
     PP_QUIT:
       Halt;
-    PP_INSERT:
+    PP_INSERT: { insert("file.pro") }
       Begin
         C := EvaluateToConstant(GetPArg(1,FT)); { TODO: check is a QString }
         Ok := C <> Nil;

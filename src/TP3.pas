@@ -51,6 +51,21 @@ Begin
   LongIntToStr := TrimLeft(s);
 End;
 
+{ convert a Pascal string to a LongInt; code is 0 if the operation succeeded,
+  or the index of the character preventing the conversion }
+Function StrToLongInt( s : AnyStr; Var code : Integer ) : LongInt;
+Var v : LongInt;
+Begin
+  Val(s,v,code);
+  StrToLongInt := v
+End;
+
+{ integer division of two LongInt values }
+Function LongIntDiv( x,y : LongInt ) : LongInt;
+Begin
+  LongIntDiv := Int(x/y)
+End;
+
 { ReadKey, as in Free Pascal Compiler's Crt module }
 Function ReadKey : Char;
 Var c : Char;
