@@ -408,7 +408,6 @@ Begin
     StrAppend(s,' ');
     WriteSourceSystem(s,R^.RU_SYST)
   End;
-  {xxx WriteSolution(s,R^.RU_FVAR,R^.RU_LVAR,False,True);}
   StrAppend(s,';')
 End;
 

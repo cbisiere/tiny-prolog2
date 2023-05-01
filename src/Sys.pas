@@ -18,14 +18,14 @@
 { predefined predicates and functions }
 
 Const
-  NBPred = 15;
+  NBPred = 16;
   MaxPredLength = 9; { max string length of a predefined predicate 
    or a function }
 Type
   TPPType = (PPredicate,PFunction); { type: predicate or function }
   TPP = (PP_QUIT,PP_INSERT,PP_LIST,PP_OUT,PP_OUTM,PP_LINE,
     PP_BACKTRACE,PP_CLRSRC,PP_EVAL,PP_ASSIGN,PP_DUMP,
-    PF_ADD,PF_SUB,PF_MUL,PF_DIV);
+    PF_ADD,PF_SUB,PF_MUL,PF_DIV,PF_INF);
   TPPred = Record
     T : TPPType;
     I : TPP; { identifier }
@@ -50,7 +50,8 @@ Const
     (T:PFunction;I:PF_ADD;S:'add';N:2),
     (T:PFunction;I:PF_SUB;S:'sub';N:2),
     (T:PFunction;I:PF_MUL;S:'mul';N:2),
-    (T:PFunction;I:PF_DIV;S:'div';N:2)
+    (T:PFunction;I:PF_DIV;S:'div';N:2),
+    (T:PFunction;I:PF_INF;S:'inf';N:2)
   );
 
 Const
@@ -155,7 +156,7 @@ Begin
               End;
             If Ok Then
             Begin
-              Case rec.I Of
+              Case rec.I Of { TODO: absolute precision }
                 PF_ADD:
                   r := ParVal[1] + ParVal[2];
                 PF_SUB:
@@ -167,7 +168,9 @@ Begin
                     Ok := ParVal[2] <> 0;
                     If Ok Then
                       r := LongIntDiv(ParVal[1],ParVal[2])
-                  End
+                  End;
+                PF_INF:
+                  r := Ord(ParVal[1] < ParVal[2])
               End;
               If Ok Then
               Begin

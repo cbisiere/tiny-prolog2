@@ -124,8 +124,11 @@ Begin
   If n=0 Then
   Begin
     c1 := NextChar(c1);
-    If c1 In Digits Then     { an integer }
+    If (c1 In Digits) Or 
+      (c1='-') And (NextNextChar(c2) in Digits) Then  { an integer }
     Begin
+      If c1='-' Then
+        StrAppendChar(Ch,GetChar(c1));
       n := GetCharWhile(Ch,Digits);
       C := InstallConst(P^.PP_DCON,Ch,CN);
       T := TC

@@ -173,13 +173,17 @@ The value of a non assigned identifier is the identifier itself:
 
 ### Evaluable functions
 
-Evaluable functions `add(x,y)`,`sub(x,y)`,`mul(x,y)`, and `div(x,y)` are recusivelly evaluated when they appear in the first argument of `val`. Arguments `x` and `y ` must evaluate to integer values.
+Evaluable functions `add(x,y)`,`sub(x,y)`,`mul(x,y)`,`div(x,y)`, and `inf(x,y)` are recusivelly evaluated when they appear in the first argument of `val`. Arguments `x` and `y ` must evaluate to integer values.
 
 ```
 -> val(add(123456789,1),x);
 { x = 123456790 }
+-> val(sub(9,10),x);
+{ x = -1 }
 -> val(div(100,9),x);
 { x = 11 }
+-> val(inf(10,9),x);
+{ x = 0 }
 -> val(add(mul(2,add(3,4)),1000),x);
 { x = 1014 }
 >
@@ -302,7 +306,7 @@ ident-start ::= <letter><letter>[<letters>]
 ident-middle ::= "-"<letters>
 ident-end ::= <digits>
 
-integer ::= <digits>                            
+integer ::= ["-"]<digits>                            
 
 string ::= """ [<char-no-quotes> | """" | "\"<newline>]* """ 
 

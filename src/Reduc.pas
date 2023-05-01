@@ -90,7 +90,7 @@ Var
       E : EqPtr;
 
       { add an equation V1 = T2 in the reduced system }
-      Procedure CreateLiaison( V1 : VarPtr; T2 : TermPtr ); {xxx take note if V1 is an (assignable) ident?}
+      Procedure CreateLiaison( V1 : VarPtr; T2 : TermPtr );
       Begin
         SetMem(L,V1^.TV_TRED,T2,Backtrackable);  { add v=t in the reduced system }
 
