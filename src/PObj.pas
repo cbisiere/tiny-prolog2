@@ -1,8 +1,8 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   File        : Objects.pas                                                }
-{   Author      : Christophe Bisière                                         }
+{   File        : PObj.pas                                                   }
+{   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
@@ -28,3 +28,9 @@ Begin
   SameTerms := T1 = T2
 End;
 
+{ arbitrary order on terms: are two terms ordered? }
+Function OrderedTerms( T1,T2 : TermPtr ) : Boolean;
+Begin
+  CheckCondition((T1 <> Nil) And (T2 <> Nil),'Undefined order');
+  OrderedTerms := ObjectGuid(T1) <= ObjectGuid(T2)
+End;

@@ -2,7 +2,7 @@
 {                                                                            }
 {   Application : PROLOG II                                                  }
 {   File        : TP3.pas                                                    }
-{   Author      : Christophe Bisière                                         }
+{   Author      : Christophe Bisiere                                         }
 {   Date        : 2022-09-17                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
@@ -13,14 +13,19 @@
 {----------------------------------------------------------------------------}
 
 { compatibility with Turbo Pascal 3.02 }
-
-Uses Crt;
+Uses 
+  Crt,
+  Sysutils; { TrimLeft }
 
 { non dynamic short string }
 Const
   AnyStrMaxSize = 255;
 Type
   AnyStr = String[AnyStrMaxSize];
+  TAnyStrSize = 0..AnyStrMaxSize;
+
+Type
+  LongLongInt = Real; { simulate a very long integer }
 
 { format a LongInt for display }
 Function LongIntToStr( v : LongInt ) : AnyStr;
@@ -28,6 +33,14 @@ Var s : AnyStr;
 Begin
   Str(v,s);
   LongIntToStr := s
+End;
+
+{ format a LongLongInt for display }
+Function LongLongIntToStr( v : LongLongInt ) : AnyStr;
+Var s : AnyStr;
+Begin
+  Str(v:AnyStrMaxSize:0,s);
+  LongLongIntToStr := TrimLeft(s)
 End;
 
 { convert a Pascal string to a LongInt; code is 0 if the operation succeeded,
@@ -51,11 +64,9 @@ Begin
   ReturnNilIfGrowHeapFails := True
 End;
 
-{ allocate memory; return Nil if there is not enough memory }
-Function Malloc( size : Integer ) : Pointer;
-Var p : Pointer;
+{ return the number of bytes allocated on the heap for the memory block 
+  pointed by pointer p; size is equal to the value given by SizeOf() }
+Function MemSizeOf( p : Pointer; size : Integer ) : Integer;
 Begin
-  GetMem(p,size);
-  Malloc := p
+  MemSizeOf := MemSize(p)
 End;
-

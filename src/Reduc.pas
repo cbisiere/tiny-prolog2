@@ -2,7 +2,7 @@
 {                                                                            }
 {   Application : PROLOG II                                                  }
 {   File        : Reduc.pas                                                  }
-{   Author      : Christophe Bisière                                         }
+{   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }

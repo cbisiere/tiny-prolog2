@@ -2,7 +2,7 @@
 {                                                                            }
 {   Application : PROLOG II                                                  }
 {   File        : PObjTerm.pas                                               }
-{   Author      : Christophe Bisière                                         }
+{   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
@@ -27,8 +27,7 @@ Type
   TObjConst = Record
     PO_META : TObjMeta;
     { not deep copied: }
-    TC_DCON : DictPtr 
-    
+    TC_DCON : DictPtr
   End;
 
 { binary functional symbol }
@@ -72,7 +71,7 @@ Var
   C : ConstPtr;
   ptr : TPObjPtr Absolute C;
 Begin
-  ptr := NewPrologObject(CO,SizeOf(TObjConst),1,False,0);
+  ptr := NewRegisteredObject(CO,1,False,0);
   With C^ Do
   Begin
     TC_DCON := Nil
@@ -86,7 +85,7 @@ Var
   V : AssPtr;
   ptr : TPObjPtr Absolute V;
 Begin
-  ptr := NewPrologObject(ty,SizeOf(TObjAss),4,CanCopy,2);
+  ptr := NewRegisteredObject(ty,4,CanCopy,2);
   With V^ Do
   Begin
     TV_TRED := Nil;
@@ -104,7 +103,7 @@ Var
   F : FuncPtr;
   ptr : TPObjPtr Absolute F;
 Begin
-  ptr := NewPrologObject(FU, SizeOf(TObjFunc),3,True,3);
+  ptr := NewRegisteredObject(FU,3,True,3);
   With F^ Do
   Begin
     TF_TRED := Nil;
@@ -126,7 +125,7 @@ Function TypeOfTerm( T : TermPtr ) : TTerm;
 Begin
   TypeOfTerm := Dummy; { FIXME: get rid of this }
   If T <> Nil Then
-    Case T^.PO_META.PO_TYPE Of
+    Case ObjectType(T) Of
     CO:
       TypeOfTerm := Constant;
     ID:
@@ -221,6 +220,21 @@ Begin
   IdentifierEqualTo := DictStrEqualTo(I^.TV_DVAR,ps)
 End;
 
+{ is an identifier the cut? }
+Function IdentifierIsCut( I : IdPtr ) : Boolean;
+Begin
+  IdentifierIsCut := IdentifierEqualTo(I,'!')
+End;
+
+{ is a term the cut? }
+Function TermIsCut( T : TermPtr ) : Boolean;
+Var IT : IdPtr Absolute T;
+Begin
+  TermIsCut := False;
+  If TypeOfTerm(T) = Identifier Then 
+    TermIsCut := IdentifierIsCut(IT)
+End;
+
 {-----------------------------------------------------------------------}
 { methods: functional symbol                                            }
 {-----------------------------------------------------------------------}
@@ -274,6 +288,13 @@ End;
 {-----------------------------------------------------------------------}
 { methods: reduced system                                               }
 {-----------------------------------------------------------------------}
+
+{ remove bindings for a variable in the reduced system }
+Procedure UnbindVar( V : AssPtr );
+Begin
+  V^.TV_TRED := Nil;
+  V^.TV_FWAT := Nil
+End;
 
 { return the first inequation V is watching in the reduced system }
 Function WatchIneq( V : VarPtr ) : EqPtr;
@@ -363,8 +384,7 @@ End;
 
 { return the constant term (number or string constant) the term T is 
   equal to, possibly going through the reduced system, of Nil if T is 
-  not equal to a constant term; 
-  TODO: make sure this cannot loop }
+  not equal to a constant term; }
 Function EvaluateToConstant( T : TermPtr ) : ConstPtr;
 Var 
   CT : ConstPtr Absolute T;
@@ -375,22 +395,34 @@ Begin
   EvaluateToConstant := CT
 End;
 
+{ return the string the term T is equal to, Nil otherwise }
+Function EvaluateToString( T : TermPtr ) : ConstPtr;
+Var 
+  C : ConstPtr;
+Begin
+  C := EvaluateToConstant(T);
+  If C <> Nil Then
+    If ConstType(C) <> QString Then
+      C := Nil;
+  EvaluateToString := C
+End;
+
 { return the identifier term the term T is equal to, possibly going 
   through the reduced system, of Nil if T is not equal to an 
   identifier term; note: when looking at the reduced system we do
   not consider the global assignments of identifiers, otherwise
   reassignments would fail: considering two goals
   "assign(ident,1) assign(ident,2))" the ident in the second goal 
-  would resolve to 2, not to the ident itself 
-  TODO: take into account evaluable functions: add, mul, div...
-  TODO: make sure this cannot loop }
+  would resolve to 2, not to the ident itself }
 Function EvaluateToIdentifier( T : TermPtr ) : IdPtr;
 Var
   IT : IdPtr Absolute T;
 Begin
   If T <> Nil Then
+  Begin
     If TypeOfTerm(T) <> Identifier Then
-      IT := EvaluateToIdentifier(Red(T));
+      IT := EvaluateToIdentifier(Red(T))
+  End;
   EvaluateToIdentifier := IT
 End;
 
@@ -400,9 +432,19 @@ Var
   FT : FuncPtr Absolute T;
   IT : IdPtr Absolute T;
 Begin
-  If TypeOfTerm(T) = FuncSymbol Then
-    T := FLeftArg(FT);
-  IT := EvaluateToIdentifier(T);
+  If T <> Nil Then
+    Case TypeOfTerm(T) Of
+    Constant:
+      Begin
+      End;
+    Identifier:
+      Begin { ignore assignment, if any }
+      End;
+    FuncSymbol:
+      IT := AccessIdentifier(FLeftArg(FT)); { ident(arg1,...) }
+    Variable:
+      IT := AccessIdentifier(Red(T)) { x = ident }
+    End;
   AccessIdentifier := IT
 End;
 
@@ -444,7 +486,7 @@ Begin
   If TypeOfTerm(T2) = Identifier Then 
     If IsAssigned(IT2) Then
       If TypeOfTerm(T1) = Identifier Then
-        If Not (IsAssigned(IT1) And ObjectsAreOrdered(T1,T2)) Then
+        If Not (IsAssigned(IT1) And OrderedTerms(T1,T2)) Then
           SwapTerms(T1,T2)
 End;
 
@@ -456,7 +498,7 @@ End;
 Procedure OrderTerms( Var T1,T2: TermPtr );
 Begin
   If (TypeOfTerm(T2) = Variable) And 
-    Not ((TypeOfTerm(T1) = Variable) And ObjectsAreOrdered(T1,T2)) Then
+    Not ((TypeOfTerm(T1) = Variable) And OrderedTerms(T1,T2)) Then
     SwapTerms(T1,T2)
   Else 
     OrderIdentifiers(T1,T2)
@@ -475,16 +517,23 @@ Begin
   CheckCondition(IsVariable(T1),'assigned identifier: not a variable');
   If (TypeOfTerm(T1) = Variable) Then 
   Begin
-    CheckCondition(VT1^.TV_IRED = Nil,'assigned identifier: unhandled case 2');
-    If (TypeOfTerm(T2) = Identifier) Then 
-    Begin
-      If (VT1^.TV_IRED = Nil) And IsAssigned(IT2) Then { var = assigned_ident }
-        VT1^.TV_IRED := IT2
-    End 
-    Else If (TypeOfTerm(T2) = Variable) Then { var = var: propagate }
-      If (VT1^.TV_IRED = Nil) And (VT2^.TV_IRED <> Nil) Then
-        VT1^.TV_IRED := VT2^.TV_IRED
-  End 
+    Case TypeOfTerm(T2) Of  { var = ident }
+    Identifier: 
+      Begin
+        If (VT1^.TV_IRED = Nil) And IsAssigned(IT2) Then { var = assigned_ident }
+          VT1^.TV_IRED := IT2
+      End; 
+    Variable: { var = var: propagate }
+      Begin
+        CheckCondition((VT1^.TV_IRED=Nil) Or (VT2^.TV_IRED=Nil) 
+            Or (VT1^.TV_IRED=VT2^.TV_IRED),'assigned identifier: unhandled case');
+        If (VT1^.TV_IRED = Nil) Then
+          VT1^.TV_IRED := VT2^.TV_IRED
+        Else If (VT2^.TV_IRED = Nil) Then
+          VT2^.TV_IRED := VT1^.TV_IRED
+      End
+    End
+  End
 End;
 
 {-----------------------------------------------------------------------}

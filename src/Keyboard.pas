@@ -2,7 +2,7 @@
 {                                                                            }
 {   Application : PROLOG II                                                  }
 {   File        : Keyboard.pas                                               }
-{   Author      : Christophe Bisière                                         }
+{   Author      : Christophe Bisiere                                         }
 {   Date        : 2022-09-17                                                 }
 {   Updated     : 2022-09-17                                                 }
 {                                                                            }
@@ -101,9 +101,9 @@ Begin
   For k := 1 To S.Len Do
   Begin
     cc := Copy(S.Chars,p,S.RunSize[k]);
-    Write(' ',cc,' ');
+    CWrite(' ' + cc + ' ');
     For j := 1 to Length(cc) Do
-      Write('[',Ord(cc[j]),']');
+      CWrite('[' + IntToStr(Ord(cc[j])) + ']');
     p := p + S.RunSize[k]
   End
 End;
@@ -162,12 +162,13 @@ End;
 Procedure DumpHistory( H : THistory );
 Var j : THIndex;
 Begin
-  WriteLn('Len=',H.len,' Cur=',H.Cur);
+  CWrite('Len=' + IntToStr(H.len) + ' Cur=' + IntToStr(H.Cur));
+  CWriteLn;
   For j := 1 to H.Len Do
   Begin
-    Write(j,': ');
+    CWrite(IntToStr(j) + ': ');
     DumpString(H.Str[j]);
-    WriteLn;
+    CWriteLn;
   End
 End;
 
@@ -226,7 +227,7 @@ Var
       BackspaceAll;
       Hist.Cur := Hist.Cur + 1;
       Inp := Hist.Str[Hist.Cur];
-      Write(Inp.Chars)
+      CWrite(Inp.Chars)
     End
   End;
 
@@ -237,13 +238,14 @@ Var
       BackspaceAll;
       Hist.Cur := Hist.Cur - 1;
       Inp := Hist.Str[Hist.Cur];
-      Write(Inp.Chars)
+      CWrite(Inp.Chars)
     End
   End;
 
+  { echo a char and append it to the input line }
   Procedure AcceptChar( cc : AnyStr );
   Begin
-    Write(cc);
+    CWrite(cc);
     PushCharToString(Inp, cc)
   End;
 
@@ -259,19 +261,25 @@ Begin
     If KeyPressed Then
     Begin
       cc := ReadChar;
+      CheckCondition(cc[1]<>#10,
+        'fixme: terminal use LF as first char of line termination');
       Case cc[1] Of
       #08: { Backspace }
         Backspace;
-      #13: { Return }
+      #13: { Carriage Return }
         Begin
-          WriteLn;
+          CWriteLn;
           If Inp.Len > 0 Then
             PushToHistory(Hist, Inp);
+          { EndOfLine must be part of the input, so that:
+            "> in_char(c);<CR>" sets c to EndOfLine; 
+            see PII+ R 5-4 }
+          PushCharToString(Inp, EndOfLine);
           Stop := True
         End;
       #3: { Ctrl-C }
         Begin
-          WriteLn;
+          CWriteLn;
           ResetString(Inp);
           PushStringToString(Inp, 'quit;');
           Stop := True;
@@ -288,8 +296,9 @@ Begin
             Pass { ignore others }
           End
         End;
-      Else { any other character all other extended or function keys }
-        AcceptChar(cc);
+      Else 
+        { any other character all other extended or function keys }
+        AcceptChar(cc)
       End
     End
   End;

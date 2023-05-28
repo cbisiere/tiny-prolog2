@@ -1,6 +1,3 @@
-
-dif(x,y) -> { x <> y };
-
 element-de(x,x.u) ->;
 element-de(x,u.y) -> element-de(x,y);
 

@@ -2,7 +2,7 @@
 {                                                                            }
 {   Application : PROLOG II                                                  }
 {   File        : Input.pas                                                  }
-{   Author      : Christophe Bisière                                         }
+{   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
@@ -12,112 +12,276 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-Procedure CoreDump( P : ProgPtr; Message : AnyStr; Trace : Boolean ); Forward;
-
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-Type
-  TInput    = (InputFile, Repl);          { input type                 }
-
 Const
   EndOfInput = #$1A;                       { Code for 'end of input': Ctrl-Z   }
-  EndOfLine = #10;                         { Code for 'end of line'         }
   Letters : CharSet = ['a'..'z','A'..'Z','_'];  { ASCII letters + underscore }
   Digits  : CharSet = ['0'..'9'];            { digits       }
   BlankSet : CharSet = [' ',#9,EndOfLine];   { space chars  }
-  SizeBufIn = 10;                          { input buffer size      }
+  SizeBufIn = 10;                            { input buffer size      }
+
+{ input stack }
+
+Const
+  MaxNbIFiles = 10;
+
+Type
+  TIFileStackPtr = 0..MaxNbIFiles;
+
+  TIFileState = Record
+    FName : AnyStr;
+    CurrentFile : TIFile;                 { file handler                  }
+    FileIsOpen : Boolean;                 { is this file open?            }
+    DeviceType  : TIODeviceType;          { where do we get input from?   }
+    CurrentLine : AnyStr;                 { string read                   }
+    HaveChars : Boolean;                  { are chars still available?    }
+    PtrInp  : 0..AnyStrMaxSize;           { index of last char read       }
+    WasEOL : Boolean;                     { last char was end of line     }
+    LineNum : Integer;                    { current line number           }
+    BufIn : Array[1..SizeBufIn] Of Char;  { input buffer                  }
+    PtrIn : 0..SizeBufIn;                 { pointer to this buffer        }
+  End;
+  TIFileStack = Record
+    Top : TIFileStackPtr;
+    Stack : Array[1..MaxNbIFiles] Of TIFileState
+  End;
 
 Var
-  CurrentLine : AnyStr;                  { string read                   }
-  PtrInp  : 0..AnyStrMaxSize;            { index of last char read       }
-  HaveChars : Boolean;                   { are chars still available?    }
-  WasEOL : Boolean;                      { last char was end of line     }
-  BufIn   : Array[1..SizeBufIn] Of Char; { input buffer                  }
-  PtrIn   : Byte;                        { pointer to this buffer        }
-  CurrentFile : File Of Char;            { use file                      }
-  FileIsOpen : Boolean;                  { is a file open?               }
-  LineNum : Integer;
-  Error   : Boolean;                     { an error?                     }
-  Source  : TInput;                      { where do we get input?        }
-  CurrentProgram : ProgPtr;              { current Prolog program        }
+  IFileStack : TIFileStack;
 
-{ an error occurred; display a message }
-Procedure RaiseError( S : AnyStr );
-Var K : Integer;
+{ debug: return a string containing the available chars }
+Function AvailableChars : AnyStr;
+Var 
+  str : AnyStr;
+  i : 0..SizeBufIn;
 Begin
-  If Not Error Then
+  str := '';
+  With IFileStack.Stack[IFileStack.Top] Do
   Begin
-    Case Source Of
-    InputFile:
-      WriteLn('Error line ',LineNum,': ',S);
-    Repl:
-      WriteLn('Error: ',S)
-    End;
-    WriteLn(CurrentLine);
-    For K := 1 to PtrInp-1 Do
-      Write(' ');
-    WriteLn('^')
+    For i := 1 to PtrIn Do
+      str := str + BufIn[i];
+    If PtrInp < Length(CurrentLine) Then
+      str := str + Copy(CurrentLine,PtrInp+1,AnyStrMaxSize)
   End;
-  Error := True
+  AvailableChars := str
 End;
 
-{ assert }
-Procedure CheckCondition; (* ( Cond : Boolean; Message : AnyStr) *)
+{ debug: display the codes of available chars }
+Procedure DumpAvailableChars;
 Begin
-  If Not Cond Then
+  CWriteStrCharCodes(AvailableChars)
+End;
+
+{ write an error message, pointing to the error }
+Procedure DisplayInputErrorMessage; (* ( msg : AnyStr ); *)
+Var K : Integer;
+Begin
+  With IFileStack.Stack[IFileStack.Top] Do
   Begin
-    RaiseError('Internal error: ' + Message);
-    Writeln('CORE DUMP:');
-    PrintMemoryStats;
-    DumpRegisteredObject;
-    If CurrentProgram <> Nil Then
-      CoreDump(CurrentProgram,'Runtime error',True);
-    Halt(1)
+    Case DeviceType Of
+    TFile:
+      Begin
+        CWrite('Error line ' + IntToStr(LineNum) + ': ' + msg);
+        CWriteLn
+      End;
+    TTerminal:
+      Begin
+        CWrite('Error: ' + msg);
+        CWriteLn
+      End
+    End;
+    CWrite(CurrentLine);
+    CWriteLn;
+    For K := 1 to PtrInp-1 Do
+      CWrite(' ');
+    CWrite('^');
+    CWriteLn
   End
 End;
 
-{ empty the input string }
-Procedure InitCurrentLine;
+{ ignores characters remaining unread in the current input line }
+Procedure ClearInput;
 Begin
-  CurrentLine := '';
-  HaveChars := False;
-  PtrInp := 0
+  With IFileStack.Stack[IFileStack.Top] Do
+  Begin
+    CurrentLine := '';
+    PtrInp := 0;
+    PtrIn := 0; { reset "undo" buffer}
+    HaveChars := False;
+    WasEOL := True { fake }
+  End
 End;
 
-{ initialize the input system }
+{ initialize the state of the current input }
 Procedure InitInput;
 Begin
-  InitCurrentLine;
-  WasEOL := True; { fake }
-  LineNum := 0;
-  PtrIn := 0
+  ClearInput;
+  IFileStack.Stack[IFileStack.Top].LineNum := 0
 End;
 
-{ open a file }
-Function SetFileForInput( FileName : AnyStr ) : Boolean;
+{ return the name of the current input file }
+Function InputIs : AnyStr;
 Begin
-  Assign(CurrentFile,FileName);
-  {$I-}
-  Reset(CurrentFile);
-  {$I+}
-  FileIsOpen := IOResult = 0;
-  If FileIsOpen Then
+  InputIs := IFileStack.Stack[IFileStack.Top].FName
+End;
+
+{ append a file to the input stack; return zero if the file cannot
+  be opened }
+Function PushIFile( FileName : AnyStr ) : TIFileStackPtr;
+Var K : TIFileStackPtr;
+Begin
+  CheckCondition(IFileStack.Top < MaxNbIFiles,'Input Stack is full');
+  IFileStack.Top := IFileStack.Top + 1;
+  With IFileStack.Stack[IFileStack.Top] Do
   Begin
-    InitInput;
-    Source := InputFile;
-    LineNum := 0
+    FName := FileName;
+    If FName = CONSOLE_NAME Then
+    Begin
+      DeviceType := TTerminal;
+      FileIsOpen := True
+    End
+    Else
+    Begin
+      DeviceType := TFile;
+      FileIsOpen := OpenForRead(FName,CurrentFile)
+    End;
+    If FileIsOpen Then 
+    Begin
+      InitInput;
+      K := IFileStack.Top
+    End
+    Else
+    Begin
+      IFileStack.Top := IFileStack.Top - 1;
+      K := 0
+    End
   End;
-  SetFileForInput := FileIsOpen
+  PushIFile := K
+End;
+
+{ initialize the input system, setting up the console as the default 
+  input device }
+Procedure InitIFileStack;
+Var K : TIFileStackPtr;
+Begin
+  IFileStack.Top := 0;
+  K := PushIFile(CONSOLE_NAME);
+  CheckCondition(K>0,'cannot open default input console')
+End;
+
+{ lookup; return zero if the entry is not in the stack }
+Function IFileIndex( FileName : AnyStr ) : TIFileStackPtr;
+Var
+  Found : Boolean;
+  K : TIFileStackPtr;
+Begin
+  Found := False;
+  K := IFileStack.Top;
+  While Not Found And (K > 0) Do
+  Begin
+    Found := IFileStack.Stack[K].FName = FileName;
+    If Not Found Then
+      K := K - 1
+  End;
+  IFileIndex := K
+End;
+
+{ set a file as the current input file }
+Function SetFileForInput( FileName : AnyStr ) : Boolean;
+Var
+  K,I : TIFileStackPtr;
+  tmp : TIFileState;
+Begin
+  K := IFileIndex(FileName);
+  If K = 0 Then
+    K := PushIFile(FileName)
+  Else If K < IFileStack.Top Then { not on top: move to top }
+  Begin
+    tmp := IFileStack.Stack[K];
+    For I := K To IFileStack.Top - 1 Do
+      IFileStack.Stack[I] := IFileStack.Stack[I+1];
+    IFileStack.Stack[IFileStack.Top] := tmp
+  End;
+  SetFileForInput := K > 0
+End;
+
+{ close the input file at index K in the stack }
+Procedure CloseIFileAtIndex( K : TIFileStackPtr );
+Begin
+  CheckCondition((K>0) And (K<=IFileStack.Top),
+    'out of range input stack index');
+  With IFileStack.Stack[K] Do
+    If FileIsOpen And (DeviceType = TFile) Then
+    Begin
+      CloseIFile(FName,CurrentFile);
+      FileIsOpen := False
+    End
+End;
+
+{ close all the opened input files and reset the input stack }
+Procedure ResetIFileStack;
+Var
+  I : TIFileStackPtr;
+Begin
+  For I := 1 To IFileStack.Top Do
+    CloseIFileAtIndex(I);
+  InitIFileStack
+End;
+
+{ close an input file; if it is the console, move it back to 
+  position 1; TODO: what PII+ does in that case? }
+Procedure CloseInput( FileName : AnyStr );
+Var
+  K,I : TIFileStackPtr;
+  tmp : TIFileState;
+Begin
+  K := IFileIndex(FileName);
+  If K > 0 Then { delete }
+  Begin
+    CloseIFileAtIndex(K);
+    Case IFileStack.Stack[K].DeviceType Of
+    TTerminal:
+      If (K = IFileStack.Top) And (K > 1) Then
+      Begin
+        tmp := IFileStack.Stack[IFileStack.Top];
+        For I := IFileStack.Top DownTo 2 Do
+          IFileStack.Stack[I] := IFileStack.Stack[I-1];
+        IFileStack.Stack[1] := tmp
+      End;
+    TFile:
+      Begin
+        If K < IFileStack.Top Then 
+          For I := K To IFileStack.Top-1 Do
+            IFileStack.Stack[I] := IFileStack.Stack[I+1];
+        IFileStack.Top := IFileStack.Top - 1
+      End
+    End
+  End
+End;
+
+{ close the current input file, if it is not the console }
+Procedure CloseCurrentInput;
+Begin
+  CloseInput(IFileStack.Stack[IFileStack.Top].FName)
+End;
+
+{ return true if the current input is the terminal }
+Function InputIsTerminal : Boolean;
+Begin
+  InputIsTerminal := IFileStack.Stack[IFileStack.Top].DeviceType = TTerminal
 End;
 
 { read a line from the keyboard }
-Procedure ReadCommand;
+Procedure ReadFromConsole;
 Begin
-  InitInput;
-  Source := Repl;
-  ReadLnKbd(CurrentLine);
-  HaveChars := Length(CurrentLine) > 0
+  With IFileStack.Stack[IFileStack.Top] Do
+  Begin
+    InitInput;
+    ReadLnKbd(CurrentLine);
+    HaveChars := Length(CurrentLine) > 0
+  End
 End;
 
 { read from the file, converting CR-LF, CR, and LF to EndOfLine}
@@ -126,37 +290,43 @@ Var
   c : Char;
   s : AnyStr; { current char, or two chars if CR is followed by a char that is not LF}
 Begin
-  InitCurrentLine;
-  While Not Eof(CurrentFile) And (Length(CurrentLine)<AnyStrMaxSize-1) Do { leave one place for a char after CR }
+  With IFileStack.Stack[IFileStack.Top] Do
   Begin
-    Read(CurrentFile,c);
-    If (Ord(c)=13) Or (Ord(c)=10) Then
-      s := EndOfLine
-    Else
-      s := c;
-    { handle possible CR-LF sequence }
-    If Ord(c)=13 Then
+    ClearInput;
+    While Not Eof(CurrentFile) And (Length(CurrentLine)<AnyStrMaxSize-1) Do { leave one place for a char after CR }
     Begin
-      If Not Eof(CurrentFile) Then
+      Read(CurrentFile,c);
+      If (Ord(c)=13) Or (Ord(c)=10) Then
+        s := EndOfLine
+      Else
+        s := c;
+      { handle possible CR-LF sequence }
+      If Ord(c)=13 Then
       Begin
-        Read(CurrentFile,c);
-        If Ord(c)<>10 Then { not LF: make sure we do not lose it }
-          s := s + c
-      End
+        If Not Eof(CurrentFile) Then
+        Begin
+          Read(CurrentFile,c);
+          If Ord(c)<>10 Then { not LF: make sure we do not lose it }
+            s := s + c
+        End
+      End;
+      CurrentLine := CurrentLine + s
     End;
-    CurrentLine := CurrentLine + s
-  End;
-  HaveChars := Length(CurrentLine) > 0
+    HaveChars := (Length(CurrentLine) > 0) Or (PtrIn > 0)
+  End
 End;
 
-{ grad a char }
+{ grab a char }
 Function OneChar : Char;
 Var c : Char;
 Begin
-  PtrInp := PtrInp + 1;
-  c := CurrentLine[PtrInp];
-  HaveChars := PtrInp < Length(CurrentLine);
-  OneChar := c
+  With IFileStack.Stack[IFileStack.Top] Do
+  Begin
+    PtrInp := PtrInp + 1;
+    c := CurrentLine[PtrInp];
+    HaveChars := (PtrInp < Length(CurrentLine)) Or (PtrIn > 0);
+    OneChar := c
+  End
 End;
 
 { read a char; if there is no more characters to read, read a new line in 
@@ -164,66 +334,70 @@ End;
   return EndOfInput }
 Function GetC( Var c : Char ) : Char;
 Begin
-  If WasEOL Then { first char after EndOfLine }
-    LineNum := LineNum + 1;
-  WasEOL := False;
-
-  If Not HaveChars Then
+  With IFileStack.Stack[IFileStack.Top] Do
   Begin
-    Case Source Of
-    InputFile :
-      Begin
-        If Eof(CurrentFile) Then
+    If WasEOL Then { first char after EndOfLine }
+      LineNum := LineNum + 1;
+    WasEOL := False;
+
+    If Not HaveChars Then
+    Begin
+      Case DeviceType Of
+      TFile :
         Begin
-          If FileIsOpen Then 
-            Close(CurrentFile);
-          FileIsOpen := False;
+          If Eof(CurrentFile) Then
+          Begin
+            If FileIsOpen Then 
+              CloseIFile(FName,CurrentFile);
+            FileIsOpen := False;
+            c := EndOfInput;
+            GetC := c;
+            Exit
+          End;
+          ReadFromFile
+        End;
+      TTerminal:
+        Begin
           c := EndOfInput;
           GetC := c;
           Exit
-        End;
-        ReadFromFile
-      End;
-    Repl:
-      Begin
-        c := EndOfInput;
-        GetC := c;
-        Exit
+        End
       End
-    End
-  End;
+    End;
 
-  c := OneChar;
-  If c = EndOfLine Then
-    WasEOL := True;
-  GetC := c
+    c := OneChar;
+    If c = EndOfLine Then
+      WasEOL := True;
+    GetC := c
+  End
 End;
 
 { buffered read  }
 Function GetChar( Var c : Char ) : Char;
 Begin
-  If PtrIn = 0 Then
-    c := GetC( c )
-  Else
+  With IFileStack.Stack[IFileStack.Top] Do
   Begin
-    c  := BufIn[PtrIn];
-    PtrIn := PtrIn - 1
-  End;
-  GetChar := c
+    If PtrIn = 0 Then
+      c := GetC(c)
+    Else
+    Begin
+      c  := BufIn[PtrIn];
+      PtrIn := PtrIn - 1;
+      HaveChars := (PtrInp < Length(CurrentLine)) Or (PtrIn > 0);
+    End;
+    GetChar := c
+  End
 End;
 
 { put a char back in the buffer }
 Procedure UnGetChar( c : Char );
 Begin
-  If PtrIn = SizeBufIn Then
+  With IFileStack.Stack[IFileStack.Top] Do
   Begin
-    Write('Error in UnGetChar: Buffer is full.');
-    Halt
-  End
-  Else
-  Begin
+    CheckCondition(PtrIn < SizeBufIn,'UnGetChar: buffer is full.');
     PtrIn := PtrIn + 1;
-    BufIn[PtrIn] := c
+    BufIn[PtrIn] := c;
+    HaveChars := True
   End
 End;
 
@@ -353,4 +527,22 @@ Begin
   End;
   If Not Ok Then
     RaiseError('"' + Ch + '" expected')
+End;
+
+{ read a line (from the keyboard) if no more characters are available
+  in the input line; optionally skip spaces beforehand; skipping 
+  spaces is useful when reading a terms with in(t); this is the 
+  opposite when reading a char (in_char) or line (inl); }
+Procedure CheckConsoleInput( SkipSpaces : Boolean );
+Var c : Char;
+Begin
+  With IFileStack.Stack[IFileStack.Top] Do
+    If (DeviceType = TTerminal) Then
+    Begin
+      If SkipSpaces Then
+        If GetCharNb(c) = EndOfInput Then
+          InitInput;
+      If Not HaveChars Then
+        ReadFromConsole
+    End
 End;

@@ -2,7 +2,7 @@
 {                                                                            }
 {   Application : PROLOG II                                                  }
 {   File        : Unparse.pas                                                }
-{   Author      : Christophe Bisière                                         }
+{   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
@@ -90,7 +90,7 @@ Begin
   CheckCondition(TypeOfTerm(TV)=Variable,
     'GetVarNameAsString(V): V is not a variable');
   s := StrClone(V^.TV_DVAR^.DE_STRI);
-  k := PObjectCopyNumber(PV);
+  k := ObjectCopyNumber(PV);
   If k > 0 Then
   Begin
     Str(k,ks);
@@ -180,7 +180,7 @@ Begin
         WriteVarName(s,VT)
       Else
       Begin
-        If PObjectCopyNumber(PT) = 0 Then
+        If ObjectCopyNumber(PT) = 0 Then
         Begin
           WriteVarName(s,VT)
         End
@@ -378,31 +378,39 @@ Begin
 End;
 
 { write a list of BTerms }
-Procedure WriteTerms( s : StrPtr; B : BTermPtr; CR : Boolean);
-Begin
-  If B <> Nil Then
+Procedure WriteTerms( s : StrPtr; B : BTermPtr; sep : AnyStr );
+Var 
+  First : Boolean;
+  Procedure DoWriteTerms( B : BTermPtr );
   Begin
-    If CR Then
+    If B <> Nil Then
     Begin
-      StrAppend(s,Chr(13)+Chr(10));
-      StrAppend(s,'        ')
+      If Not First Then
+        StrAppend(s,sep);
+      WriteOneBTerm(s,B);
+      First := False;
+      DoWriteTerms(B^.BT_NEXT)
     End
-    Else
-      StrAppend(s,' ');
-    WriteOneBTerm(s,B);
-    WriteTerms(s,B^.BT_NEXT,CR)
-  End
+  End;
+Begin
+  First := True;
+  DoWriteTerms(B)
 End;
 
 { write a single rule }
 Procedure WriteOneRule( s : StrPtr; R : RulePtr );
-Var B : BTermPtr;
+Var 
+  B : BTermPtr;
+  prefix : AnyStr;
 Begin
+  prefix := CRLF + '        ';
   InitIneq;
   B := R^.RU_FBTR;
   WriteOneBTerm(s,B);
   StrAppend(s,' ->');
-  WriteTerms(s,B^.BT_NEXT,True);
+  if B^.BT_NEXT <> Nil Then
+    StrAppend(s,prefix);
+  WriteTerms(s,B^.BT_NEXT,prefix);
   If R^.RU_SYST <> Nil Then
   Begin
     StrAppend(s,' ');
@@ -434,7 +442,7 @@ Begin
     If R^.RU_TYPE = RuleType Then
     Begin
       WriteOneRule(s,R);
-      StrAppend(s,Chr(13)+Chr(10))
+      StrAppendCR(s)
     End;
     Stop := R = Q^.QU_LRUL;
     R := NextRule(R);
@@ -446,7 +454,7 @@ End;
 Procedure WriteOneQuery( s : StrPtr; Q : QueryPtr );
 Begin
   StrAppend(s,'->');
-  WriteTerms(s,Q^.QU_FBTR,False);
+  WriteTerms(s,Q^.QU_FBTR,' ');
   If Q^.QU_SYST <> Nil Then
   Begin
     StrAppend(s,' ');
@@ -461,7 +469,7 @@ Begin
   if Q <> Nil Then
   Begin
     WriteOneQuery(s,Q);
-    WriteQueries(s,Q^.QU_NEXT)
+    WriteQueries(s,NextQuery(Q))
   End
 End;
 
@@ -483,96 +491,121 @@ End;
 { output using long strings                                                  }
 {----------------------------------------------------------------------------}
 
-Procedure OutConst( C : ConstPtr );
+{ write a string }
+Procedure OutString( s : StrPtr; UseIOStack : Boolean );
+Begin
+  If Not UseIOStack Or OutputIsTerminal Then
+    StrWrite(s)
+  Else
+    StrWriteToCurrentFile(s)
+End;
+
+{ write a string followed by a carriage return; do not alter the
+  string passed as parameter }
+Procedure OutStringCR( s : StrPtr; UseIOStack : Boolean );
+Begin
+  OutString(s,UseIOStack);
+  OutString(NewStringFrom(CRLF),UseIOStack)
+End;
+
+{ write a carriage return }
+Procedure OutCR( UseIOStack : Boolean );
+Var s : StrPtr;
+Begin
+  s := NewString;
+  OutStringCR(s,UseIOStack)
+End;
+
+Procedure OutConst( C : ConstPtr; UseIOStack : Boolean );
 Var s : StrPtr;
 Begin
   s := NewString;
   WriteConst(s,C,True); { with quotes }
-  StrWrite(s)
+  OutString(s,UseIOStack)
 End;
 
-Procedure OutIdentifier( I : IdPtr );
+Procedure OutIdentifier( I : IdPtr; UseIOStack : Boolean );
 Var s : StrPtr;
 Begin
   s := NewString;
   WriteIdentifier(s,I);
-  StrWrite(s)
+  OutString(s,UseIOStack)
 End;
 
-Procedure OutVarName( V : VarPtr );
+Procedure OutVarName( V : VarPtr; UseIOStack : Boolean );
 Var s : StrPtr;
 Begin
   s := NewString;
   WriteVarName(s,V);
-  StrWrite(s)
+  OutString(s,UseIOStack)
 End;
 
-Procedure OutOneEquation( E : EqPtr );
+Procedure OutOneEquation( E : EqPtr; UseIOStack : Boolean );
 Var s : StrPtr;
 Begin
   s := NewString;
   WriteOneEquation(s,E,False); { source code }
-  StrWrite(s)
+  OutString(s,UseIOStack)
 End;
 
-Procedure OutSolution( start,stop : DictPtr );
+Procedure OutSolution( start,stop : DictPtr; UseIOStack : Boolean );
 Var s : StrPtr;
 Begin
   s := NewString;
   WriteSolution(s,start,stop,True,False);
-  StrWrite(s)
+  OutString(s,UseIOStack)
 End;
 
 { output the reduced system for the variables in the current query }
-Procedure OutQuerySolution( Q : QueryPtr );
+Procedure OutQuerySolution( Q : QueryPtr; UseIOStack : Boolean );
 Begin
   InitIneq;
-  OutSolution(Q^.QU_FVAR,Q^.QU_LVAR)
+  OutSolution(Q^.QU_FVAR,Q^.QU_LVAR,UseIOStack)
 End;
 
 { output a term that is not an argument of a predicate }
-Procedure OutTermBis( T : TermPtr; ArgList,Quotes : Boolean );
+Procedure OutTermBis( T : TermPtr; ArgList,Quotes : Boolean; UseIOStack : Boolean );
 Var s : StrPtr;
 Begin
   s := NewString;
   WriteTermBis(s,T,ArgList,Quotes,True);
-  StrWrite(s)
+  OutString(s,UseIOStack)
 End;
 
 { output a term }
-Procedure OutTerm( T : TermPtr );
+Procedure OutTerm( T : TermPtr; UseIOStack : Boolean );
 Begin
-  OutTermBis(T,False,True)
+  OutTermBis(T,False,True,UseIOStack)
 End;
 
-Procedure OutTerms( B : BTermPtr; CR : Boolean);
+Procedure OutTerms( B : BTermPtr; sep : AnyStr; UseIOStack : Boolean );
 Var s : StrPtr;
 Begin
   s := NewString;
-  WriteTerms(s,B,CR);
-  StrWrite(s)
+  WriteTerms(s,B,sep);
+  OutString(s,UseIOStack)
 End;
 
-Procedure OutOneRule( R : RulePtr );
+Procedure OutOneRule( R : RulePtr; UseIOStack : Boolean );
 Var s : StrPtr;
 Begin
   s := NewString;
   WriteOneRule(s,R);
-  StrWriteln(s)
+  OutStringCR(s,UseIOStack)
 End;
 
-Procedure OutQuestionRules( Q : QueryPtr; RuleType : RuType );
+Procedure OutQuestionRules( Q : QueryPtr; RuleType : RuType; UseIOStack : Boolean );
 Var s : StrPtr;
 Begin
   s := NewString;
   WriteQuestionRules(s,Q,RuleType);
-  StrWrite(s)
+  OutString(s,UseIOStack)
 End;
 
-Procedure OutOneQuery( Q : QueryPtr );
+Procedure OutOneQuery( Q : QueryPtr; UseIOStack : Boolean );
 Var s : StrPtr;
 Begin
   s := NewString;
   WriteOneQuery(s,Q);
-  StrWriteln(s)
+  OutStringCR(s,UseIOStack)
 End;

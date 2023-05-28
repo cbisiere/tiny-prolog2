@@ -1,25 +1,28 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   File        : Init.pas                                                   }
+{   File        : TP4.pas                                                    }
 {   Author      : Christophe Bisiere                                         }
-{   Date        : 1988-01-07                                                 }
+{   Date        : 2023-05-20                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
-{                     I N I T I A L I S A T I O N S                          }
+{                   T U R B O   P A S C A L  4   C O M P A T                 }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{ make Turbo Pascal 4 behaves as Turbo Pascal 3 }
 
-{ initialize the Prolog engine }
-Procedure Initialize;
-Begin
-  InitIO;
-  InitTrace;
-  OngoingCoreDump := False;
-  Error := False
-End;
+{$R-}    {Range checking off}
+{$B+}    {Boolean complete evaluation on}
+{$S+}    {Stack checking on}
+{$I+}    {I/O checking on}
+{$N-}    {No numeric coprocessor}
+{ $M 65500,16384,655360} {Turbo 3 default stack and heap}
+
+Uses
+  Crt,
+  Turbo3;
+
+{$I TP3.pas }

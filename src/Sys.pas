@@ -1,8 +1,8 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   File        : Dict.pas                                                   }
-{   Author      : Christophe Bisière                                         }
+{   File        : Sys.pas                                                    }
+{   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
@@ -15,15 +15,22 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+Procedure DumpBacktrace; Forward;
+
 { predefined predicates and functions }
 
 Const
-  NBPred = 16;
-  MaxPredLength = 9; { max string length of a predefined predicate 
-   or a function }
+  NBPred = 28;
+  MaxPredLength = 20; { max string length of a predefined predicate 
+   or evaluable function }
 Type
   TPPType = (PPredicate,PFunction); { type: predicate or function }
-  TPP = (PP_QUIT,PP_INSERT,PP_LIST,PP_OUT,PP_OUTM,PP_LINE,
+  TPP = (
+    PP_INPUT_IS,PP_INPUT,PP_CLOSE_CURRENT_INPUT,PP_CLOSE_INPUT,PP_CLEAR_INPUT,
+    PP_IN_TERM,PP_IN_CHAR,
+    PP_OUTPUT_IS,PP_OUTPUT,PP_CLOSE_CURRENT_OUTPUT,PP_CLOSE_OUTPUT,PP_FLUSH,
+    PP_QUIT,PP_INSERT,PP_LIST,
+    PP_OUT,PP_OUTM,PP_LINE,
     PP_BACKTRACE,PP_CLRSRC,PP_EVAL,PP_ASSIGN,PP_DUMP,
     PF_ADD,PF_SUB,PF_MUL,PF_DIV,PF_INF);
   TPPred = Record
@@ -36,6 +43,18 @@ Type
 
 Const 
   APPred : TAPPred = (
+    (T:PPredicate;I:PP_INPUT_IS;S:'INPUT_IS';N:1),
+    (T:PPredicate;I:PP_INPUT;S:'INPUT';N:1),
+    (T:PPredicate;I:PP_CLOSE_CURRENT_INPUT;S:'CLOSE_CURRENT_INPUT';N:0),
+    (T:PPredicate;I:PP_CLOSE_INPUT;S:'CLOSE_INPUT';N:1),
+    (T:PPredicate;I:PP_CLEAR_INPUT;S:'CLEAR_INPUT';N:0),
+    (T:PPredicate;I:PP_IN_TERM;S:'IN_TERM';N:1),
+    (T:PPredicate;I:PP_IN_CHAR;S:'IN_CHAR';N:1),
+    (T:PPredicate;I:PP_OUTPUT_IS;S:'OUTPUT_IS';N:1),
+    (T:PPredicate;I:PP_OUTPUT;S:'OUTPUT';N:1),
+    (T:PPredicate;I:PP_CLOSE_CURRENT_OUTPUT;S:'CLOSE_CURRENT_OUTPUT';N:0),
+    (T:PPredicate;I:PP_CLOSE_OUTPUT;S:'CLOSE_OUTPUT';N:1),
+    (T:PPredicate;I:PP_FLUSH;S:'FLUSH';N:0),
     (T:PPredicate;I:PP_QUIT;S:'QUIT';N:0),
     (T:PPredicate;I:PP_INSERT;S:'INSERT';N:1),
     (T:PPredicate;I:PP_LIST;S:'LIST';N:0),
@@ -203,12 +222,17 @@ Var
   VT1 : VarPtr Absolute T1;
   T2 : TermPtr;
   IT2 : IdPtr Absolute T2;
+  VT2 : VarPtr Absolute T2;
   C : ConstPtr;
   TC : TPObjPtr Absolute C;
   rec : TPPred;
   str : AnyStr;
+  ch : Char;
   I : IdPtr;
-  TI : TermPtr Absolute I; 
+  TI : TermPtr Absolute I;
+  Qi, QLast : QueryPtr;
+  Stop : Boolean;
+  FileName : AnyStr;
 
   { get n-th argument of the predicate represented by tuple F }
   Function GetPArg( n : Byte; F : FuncPtr ) : TermPtr;
@@ -271,8 +295,7 @@ Begin
             If Ok Then
             Begin
               { unbound the variable (which was bounded to the term) }
-              VT1^.TV_TRED := Nil;
-              VT1^.TV_FWAT := Nil
+              UnbindVar(VT1)
             End
           End;
         Else
@@ -282,11 +305,11 @@ Begin
         Begin
           { neutralize its role (if any) in the reduced system as variable-like, 
             assigned identifier }
-          I^.TV_TRED := Nil;
-          I^.TV_FWAT := Nil;
-          { assign }
+          UnbindVar(I);
           I^.TV_ASSI := True;
+          { second parameter }
           T2 := GetPArg(2,FT);
+          { assign }
           Ok := ReduceOneEq(TI,T2) { "ident = term" }
         End
       End;
@@ -298,34 +321,158 @@ Begin
         T1 := EvaluateExpression(GetPArg(1,FT),P); { FIXME: do a copy and unbound variables? }
         Ok := T1 <> Nil;
         If Ok Then
-          Ok := ReduceOneEq(GetPArg(2,FT),T1) { FIXME: shouldn't it be backtrackable? }
+        Begin
+          T2 := GetPArg(2,FT);
+          Ok := ReduceOneEq(T2,T1) { FIXME: shouldn't it be backtrackable? }
+        End
       End;
     PP_QUIT:
-      Halt;
+      Terminate(0);
     PP_INSERT: { insert("file.pro") }
       Begin
-        C := EvaluateToConstant(GetPArg(1,FT)); { TODO: check is a QString }
+        C := EvaluateToString(GetPArg(1,FT));
         Ok := C <> Nil;
         If Ok Then
         Begin
+          QLast := LastProgramQuery(P);
           LoadProgram(P,GetConstAsString(C,False),RTYPE_USER);
-          Ok := Not Error
+          Ok := Not Error;
+          If Ok Then 
+          Begin
+            { newly loaded rules are also in the scope of the current 
+              query and queries that follow, up to the last query before
+              the program was loaded }
+            Qi := Q;
+            Stop := False;
+            While Not Stop Do
+            Begin
+              UpdateQueryScope(P,Qi);
+              Qi := NextQuery(Qi);
+              Stop := (Qi=Nil) Or (Qi=QLast)
+            End
+          End
         End
       End;
+    PP_INPUT: { input("buffer") }
+      Begin
+        C := EvaluateToString(GetPArg(1,FT));
+        Ok := C <> Nil;
+        If Ok Then
+        Begin
+          FileName := ConstGetPStr(C);
+          CloseOutput(FileName); { close the file if it was already open for output }
+          Ok := SetFileForInput(FileName) { TODO: warn when length > 255 }
+        End
+      End;
+    PP_INPUT_IS: { input_is(s) }
+      Begin
+        C := InstallConst(P^.PP_DCON,NewStringFrom(InputIs),CS);
+        Ok := ReduceOneEq(GetPArg(1,FT),TC)
+      End;
+    PP_CLOSE_CURRENT_INPUT: { close_input }
+      Begin
+        Ok := True;
+        CloseCurrentInput
+      End;
+    PP_CLOSE_INPUT: { close_input("buffer") }
+      Begin
+        C := EvaluateToString(GetPArg(1,FT));
+        Ok := C <> Nil;
+        If Ok Then
+          CloseInput(ConstGetPStr(C)) { TODO: warn when length > 255 }
+      End;
+    PP_CLEAR_INPUT: { clear_input }
+      Begin
+        Ok := True;
+        ClearInput
+      End;
+    PP_OUTPUT: { output("buffer") }
+      Begin
+        C := EvaluateToString(GetPArg(1,FT));
+        Ok := C <> Nil;
+        If Ok Then
+        Begin
+          FileName := ConstGetPStr(C);
+          CloseInput(FileName); { close the file if it was already open for input }
+          Ok := SetFileForOutput(FileName) { TODO: warn when length > 255 }
+        End;
+      End;
+    PP_OUTPUT_IS: { output_is(s) }
+      Begin
+        C := InstallConst(P^.PP_DCON,NewStringFrom(OutputIs),CS);
+        Ok := ReduceOneEq(GetPArg(1,FT),TC)
+      End;
+    PP_CLOSE_CURRENT_OUTPUT: { close_output }
+      Begin
+        Ok := True;
+        CloseCurrentOutput
+      End;
+    PP_CLOSE_OUTPUT: { close_output("buffer") }
+      Begin
+        C := EvaluateToString(GetPArg(1,FT));
+        Ok := C <> Nil;
+        If Ok Then
+          CloseOutput(ConstGetPStr(C)) { TODO: warn when length > 255 }
+      End;
+    PP_FLUSH: { flush }
+      Begin
+        Ok := True;
+        FlushCurrentOutput
+      End;
     PP_LIST:
-      OutQuestionRules(Q,RTYPE_USER);
+      Begin
+        Ok := True;
+        OutQuestionRules(Q,RTYPE_USER,False)
+      End;
     PP_OUT:
-      OutTerm(GetPArg(1,FT));
+      Begin
+        Ok := True;
+        OutTerm(GetPArg(1,FT),True)
+      End;
     PP_OUTM:
-      OutTermBis(GetPArg(1,FT),False,False);
+      Begin
+        Ok := True;
+        OutTermBis(GetPArg(1,FT),False,False,True)
+      End;
     PP_LINE:
-      WriteLn;
-    PP_BACKTRACE:
-      DumpBacktrace;
+      Begin
+        Ok := True;
+        OutCR(True)
+      End;
     PP_CLRSRC:
-      ClrScr;
+      Begin
+        Ok := True;
+        If OutputIsTerminal Then
+          ClrScr
+      End;
+    PP_IN_TERM:
+      Begin
+        CheckConsoleInput(True);
+        T1 := ReadOneTerm(P,False);
+        If Not Error Then
+          Ok := ReduceOneEq(GetPArg(1,FT),T1)
+      End;
+    PP_IN_CHAR:
+      Begin
+        CheckConsoleInput(False);
+        str := GetChar(ch); { FIXME: UFT8 }
+        Ok := Not Error;
+        If Ok Then
+        Begin
+          C := InstallConst(P^.PP_DCON,NewStringFrom(str),CS);
+          Ok := ReduceOneEq(GetPArg(1,FT),TC)
+        End
+      End;
+    PP_BACKTRACE:
+      Begin
+        Ok := True;
+        DumpBacktrace
+      End;
     PP_DUMP:
-      DumpRegisteredObject
+      Begin
+        Ok := True;
+        DumpRegisteredObject
+      End
     End
   End;
     

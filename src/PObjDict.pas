@@ -2,7 +2,7 @@
 {                                                                            }
 {   Application : PROLOG II                                                  }
 {   File        : PObjDict.pas                                               }
-{   Author      : Christophe Bisière                                         }
+{   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
@@ -43,7 +43,7 @@ Var
   D : DictPtr;
   ptr : TPObjPtr Absolute D;
 Begin
-  ptr := NewPrologObject(DE,SizeOf(TObjDict),3,False,0);
+  ptr := NewRegisteredObject(DE,3,False,0);
   With D^ Do
   Begin
     DE_NEXT := Nil;

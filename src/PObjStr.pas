@@ -2,7 +2,7 @@
 {                                                                            }
 {   Application : PROLOG II                                                  }
 {   File        : PObjStr.pas                                                }
-{   Author      : Christophe Bisière                                         }
+{   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
@@ -58,7 +58,7 @@ Var
   sda : StrDataPtr;
   ptr : TPObjPtr Absolute sda;
 Begin
-  ptr := NewPrologObject(SD,SizeOf(TObjStrData),2,True,2);
+  ptr := NewRegisteredObject(SD,2,True,2);
   With sda^ Do
   Begin
     SD_PREV := Nil;
@@ -74,7 +74,7 @@ Var
   s : StrPtr;
   ptr : TPObjPtr Absolute s;
 Begin
-  ptr := NewPrologObject(ST,SizeOf(TObjStr),2,True,2);
+  ptr := NewRegisteredObject(ST,2,True,2);
   With s^ Do
   Begin
     ST_FDAT := NewStringData('');
@@ -89,29 +89,6 @@ End;
 {-----------------------------------------------------------------------}
 { methods                                                               }
 {-----------------------------------------------------------------------}
-
-{ write all string data }
-Procedure StrDataWrite( sd : StrDataPtr );
-Begin
-  If sd<>Nil Then
-  Begin
-    Write(sd^.SD_DATA);
-    StrDataWrite(sd^.SD_NEXT)
-  End
-End;
-
-{ write a string }
-Procedure StrWrite( s : StrPtr );
-Begin
-  StrDataWrite(s^.ST_FDAT)
-End;
-
-{ write a string followed par a new line }
-Procedure StrWriteln( s : StrPtr );
-Begin
-  StrWrite(s);
-  Writeln
-End;
 
 { return the length of a string }
 Function StrLength( s : StrPtr ) : LongInt;
@@ -186,6 +163,12 @@ End;
 Procedure StrAppendChar( s : StrPtr; c : Char );
 Begin
   StrAppend(s,c)
+End;
+
+{ append a carriage return to a string }
+Procedure StrAppendCR( s : StrPtr );
+Begin
+  StrAppend(s,CRLF)
 End;
 
 { delete the last char from a string; remove chunk, if any, will be GC'ed }
@@ -281,3 +264,42 @@ Begin
       b := SD_DATA[Length(SD_DATA)] In E;
   StrEndsWith := b
 End;
+
+{-----------------------------------------------------------------------}
+{ methods: print                                                        }
+{-----------------------------------------------------------------------}
+
+{ write all string data }
+Procedure StrDataWrite( sd : StrDataPtr );
+Begin
+  If sd<>Nil Then
+    With sd^ Do
+    Begin
+      CWrite(SD_DATA);
+      StrDataWrite(SD_NEXT)
+    End
+End;
+
+{ write all string data to the current output file }
+Procedure StrDataWriteToCurrentFile( sd : StrDataPtr );
+Begin
+  If sd<>Nil Then
+    With sd^ Do
+    Begin
+      WriteToCurrentOutput(SD_DATA);
+      StrDataWriteToCurrentFile(SD_NEXT)
+    End
+End;
+
+{ write a string }
+Procedure StrWrite( s : StrPtr );
+Begin
+  StrDataWrite(s^.ST_FDAT)
+End;
+
+{ write a string to the current output file }
+Procedure StrWriteToCurrentFile( s : StrPtr );
+Begin
+  StrDataWriteToCurrentFile(s^.ST_FDAT)
+End;
+

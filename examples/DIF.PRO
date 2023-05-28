@@ -1,5 +1,3 @@
-dif(x,y) -> { x <> y };
-
 -> dif(toto(x),toto(y));
 -> dif(x,x);
 -> dif(1,1);

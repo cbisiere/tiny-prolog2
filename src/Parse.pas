@@ -2,7 +2,7 @@
 {                                                                            }
 {   Application : PROLOG II                                                  }
 {   File        : Parse.pas                                                  }
-{   Author      : Christophe Bisière                                         }
+{   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
@@ -36,7 +36,8 @@
 { read a term, possibly accepting a cut as a valid term }
 Function ReadOneTerm( P : ProgPtr; Cut : Boolean) : TermPtr; Forward;
 
-{ read the argument of a predicate (EndChar=')') or a tuple (EndChar='>') }
+{ read the argument of a predicate (EndChar=')') or a tuple (EndChar='>');
+  return Nil if an error occurred }
 Function GetArgument( P : ProgPtr; EndChar : Char ) : FuncPtr;
 Var
   T : TermPtr;
@@ -44,21 +45,27 @@ Var
   F : FuncPtr;
   TF : TermPtr Absolute F;
 Begin
+  F := Nil;
   T := ReadOneTerm(P,False);
-  c := GetCharNb(c);
-  If c =  ',' Then
+  If Not Error Then
   Begin
-    F := GetArgument(P,EndChar);
-    GetArgument := NewSymbol(T,TF)
-  End
-  Else
-  If c = EndChar  Then
-    GetArgument := NewSymbol(T,Nil)
-  Else
-  Begin
-    RaiseError('"' + EndChar + '" expected');
-    GetArgument := Nil
-  End
+    c := GetCharNb(c);
+    If c =  ',' Then
+    Begin
+      F := GetArgument(P,EndChar);
+      If Not Error Then
+        F := NewSymbol(T,TF)
+    End
+    Else
+    If c = EndChar  Then
+      F := NewSymbol(T,Nil)
+    Else
+    Begin
+      RaiseError('"' + EndChar + '" expected');
+      F := Nil
+    End
+  End;
+  GetArgument := F
 End;
 
 { read and return a constant string, not including the double quotes }
@@ -102,6 +109,7 @@ End;
 Function ReadOneTerm; (* ( P : ProgPtr; Cut : Boolean ) : TermPtr *)
 Var
   T : TermPtr;
+  T2 : TermPtr;
   C : ConstPtr;
   TC : TermPtr Absolute C;
   F : FuncPtr;
@@ -118,6 +126,7 @@ Var
   c1,c2 : Char;
   n : LongInt;
 Begin
+  T := Nil;
   Spaces;
   Ch := NewString;
   n := GrabLetters(Ch);
@@ -138,7 +147,8 @@ Begin
     Begin
       c1 := GetChar(c1);
       T := ReadOneTerm(P,False);
-      Verify(')')
+      If Not Error Then
+        Verify(')')
     End
     Else
     If c1 = '<' Then        { a tuple }
@@ -152,14 +162,18 @@ Begin
       End
       Else
         F := GetArgument(P,'>');
-      T := TF
+      If Not Error Then
+        T := TF
     End
     Else
     If c1 = '"' Then        { a string }
     Begin
       Ch := ReadString;
-      C := InstallConst(P^.PP_DCON,Ch,CS);
-      T := TC
+      If Not Error Then
+      Begin
+        C := InstallConst(P^.PP_DCON,Ch,CS);
+        T := TC
+      End
     End
     Else
     If Cut and (c1 In ['!','/']) Then    { the "cut" }
@@ -202,8 +216,11 @@ Begin
       I := InstallIdentifier(P^.PP_DIDE,Ch);
       { predicate's argument }
       F := GetArgument(P,')');
-      F2 := NewSymbol(TI,TF);
-      T := TF2
+      If Not Error Then
+      Begin
+        F2 := NewSymbol(TI,TF);
+        T := TF2
+      End
     End
     Else
     Begin { an identifier that is not a predicate }
@@ -211,15 +228,22 @@ Begin
       T := TI
     End
   End;
-  c1 := NextCharNb(c1);
-  If c1 = '.' Then    { a list element }
+  If Not Error Then
   Begin
-    c1 := GetChar(c1);
-    I := InstallIdentifier(P^.PP_DIDE,NewStringFrom('.'));
-    F := NewSymbol(ReadOneTerm(P,False),Nil); { q: new term }
-    F2 := NewSymbol(T,TF); { t: term read above }
-    F3 := NewSymbol(TI,TF2); { t.q }
-    T := TF3
+    c1 := NextCharNb(c1);
+    If c1 = '.' Then    { a list element }
+    Begin
+      c1 := GetChar(c1);
+      I := InstallIdentifier(P^.PP_DIDE,NewStringFrom('.'));
+      T2 := ReadOneTerm(P,False);
+      If Not Error Then
+      Begin
+        F := NewSymbol(T2,Nil); { q: new term }
+        F2 := NewSymbol(T,TF); { t: term read above }
+        F3 := NewSymbol(TI,TF2); { t.q }
+        T := TF3
+      End
+    End
   End;
   ReadOneTerm := T
 End;
@@ -280,7 +304,8 @@ Begin
         PrevE^.EQ_NEXT := E;
       PrevE := E
     Until (Error) Or (GetCharNb(c) <> ',');
-    If (Not Error) And (c <> '}') Then RaiseError('Missing }')
+    If (Not Error) And (c <> '}') Then 
+      RaiseError('Missing }')
   End;
   ReadSystem := FirstE
 End;
@@ -304,26 +329,39 @@ Begin
   CompileOneTerm := B
 End;
 
-{ compile a sequence of terms, stopping at a char in StopChars  }
-Function CompileTerms( P : ProgPtr; StopChars : CharSet ) : BTermPtr;
-Var
-  B : BTermPtr;
-  c : Char;
-Begin
-  c := NextCharNb(c);
-  If (Not (c In StopChars)) And (Not Error) Then
+{ compile a sequence of terms, stopping at a char in StopChars; set HasCut to
+  true if the queue contains a cut, false otherwise }
+Function CompileTerms( P : ProgPtr; StopChars : CharSet; 
+  Var HasCut : Boolean ) : BTermPtr;
+
+  Function DoCompileTerms : BTermPtr;
+  Var
+    B : BTermPtr;
+    c : Char;
   Begin
-    B := NewBTerm;
-    With B^ Do
+    c := NextCharNb(c);
+    If (Not (c In StopChars)) And (Not Error) Then
     Begin
-      BT_TERM := ReadOneTerm(P,True);
-      BT_ACCE := AccessIdentifier(BT_TERM);
-      BT_NEXT := CompileTerms(P,StopChars)
+      B := NewBTerm;
+      With B^ Do
+      Begin
+        BT_TERM := ReadOneTerm(P,True);
+        If Not Error Then
+        Begin
+          HasCut := HasCut Or TermIsCut(BT_TERM);
+          BT_ACCE := AccessIdentifier(BT_TERM);
+          BT_NEXT := DoCompileTerms
+        End
+      End
     End
-  End
-  Else
-    B := Nil;
-  CompileTerms := B
+    Else
+      B := Nil;
+    DoCompileTerms := B
+  End;
+
+Begin
+  HasCut := False;
+  CompileTerms := DoCompileTerms
 End;
 
 { set up local variable context to prepare compiling a new rule }
@@ -345,9 +383,9 @@ Procedure CompileOneRule( P : ProgPtr; R : RulePtr );
 Var 
   B : BTermPtr;
   c : Char;
+  HasCut : Boolean;
 Begin
   OpenLocalContextForRule(P,R);
-  Spaces;
   With R^ Do
   Begin
     RU_SYST := Nil;
@@ -356,11 +394,16 @@ Begin
     Verify('->');
     If Not Error Then
     Begin
-      B^.BT_NEXT := CompileTerms(P,['{',';',EndOfInput]);
-      c := NextCharNb(c);
-      If c = '{' Then
-        RU_SYST := CompileSystem(P);
-      Verify(';')
+      B^.BT_NEXT := CompileTerms(P,['{',';'],HasCut);
+      If Not Error Then
+      Begin
+        RU_ACUT := HasCut;
+        c := NextCharNb(c);
+        If c = '{' Then
+          RU_SYST := CompileSystem(P);
+        If Not Error Then
+          Verify(';')
+      End
     End
   End;
   CloseLocalContextForRule(P,R)
@@ -403,19 +446,24 @@ End;
 Procedure CompileOneQuery( P : ProgPtr; Q : QueryPtr );
 Var
   c : Char;
+  HasCut : Boolean;
 Begin
   OpenLocalContextForQuery(P,Q);
-  Spaces;
   With Q^ Do
   Begin
     QU_FRUL := Nil;
     QU_LRUL := Nil;
-    QU_FBTR := CompileTerms(P,['{',';',EndOfInput]);
-    QU_SYST := Nil;
-    c := NextCharNb(c);
-    If c = '{' Then
-      QU_SYST := CompileSystem(P);
-    Verify(';')
+    QU_FBTR := CompileTerms(P,['{',';',EndOfInput],HasCut);
+    If Not Error Then
+    Begin
+      QU_ACUT := HasCut;
+      QU_SYST := Nil;
+      c := NextCharNb(c);
+      If c = '{' Then
+        QU_SYST := CompileSystem(P);
+      If Not Error Then
+        Verify(';')
+    End
   End;
   CloseLocalContextForQuery(P,Q) 
 End;
@@ -437,10 +485,9 @@ Begin
   Begin
     If WithArrow Then
       Verify('->');
-    ptr := NewPrologObject(QU,SizeOf(TObjQuery),7,True,5);
+    ptr := NewRegisteredObject(QU,7,True,5);
     CompileOneQuery(P,Q);
-    Q^.QU_FRUL := P^.PP_FRUL;
-    Q^.QU_LRUL := P^.PP_LRUL;
+    UpdateQueryScope(P,Q);
     If Not Error Then
       Q^.QU_NEXT := CompileQueries(P,WithArrow,ContChar,StopChars)
   End;
@@ -455,16 +502,23 @@ Begin
   P^.PP_DVAR := P^.PP_UVAR { forget variables }
 End;
 
-{ compile queries typed by the user }
+{ compile queries typed by the user; note that we stop on EndOfInput
+  (instead of EndOfLine), even if the keyboard system ensures 
+  that EndOfInput is the last char in the input string, because The *Nb
+  input primitives consider EndOfLine as one of the blank characters;
+  thus, at the end, we replace EndOfInput with EndOfLine }  
 Function CompileCommandLineQueries( P : ProgPtr ) : QueryPtr;
 Var
   Q : QueryPtr;
   c : Char;
 Begin
-  Q := CompileQueries(P,False,[],[';',EndOfInput]);
+  Q := CompileQueries(P,False,[],[EndOfInput]);
   c := NextCharNb(c);
   if c <> EndOfInput Then
     RaiseError('unexpected characters after the last query: "' + c + '"');
+  { replace EndOfInput with EndOfLine }
+  c := GetChar(c);
+  UnGetChar(EndOfLine);
   CompileCommandLineQueries := Q
 End;
 
@@ -522,7 +576,7 @@ Begin
       { attach this list to the previous one, if any }
       If (HeadR <> Nil) Then
         HeadR^.RU_NEXT := R;
-      { the new head is the last query in this list }
+      { the new head is the last rule in this list }
       R := LastRule(R);
       { set program's last rule. }
       If R <> Nil Then

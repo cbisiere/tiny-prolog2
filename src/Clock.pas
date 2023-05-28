@@ -2,7 +2,7 @@
 {                                                                            }
 {   Application : PROLOG II                                                  }
 {   File        : Clock.pas                                                  }
-{   Author      : Christophe Bisière                                         }
+{   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
@@ -46,8 +46,8 @@ Var
   { display constraints only about the variables in the query }
   Procedure WriteQuerySolution;
   Begin
-    OutQuerySolution(Q);
-    WriteLn
+    OutQuerySolution(Q,False);
+    CWriteLn
   End;
 
   { are two terms possibly unifiable? if not, there is not point in copying
@@ -58,7 +58,8 @@ Var
   Var 
     Ok : Boolean;
   Begin
-    CheckCondition((T1<>Nil) Or (T2<>Nil),'Call to Unifiable with two Nil terms'); { FIXME: is it really a problem?}
+    CheckCondition((T1<>Nil) Or (T2<>Nil),
+      'Call to Unifiable with two Nil terms'); { FIXME: is it really a problem?}
     Ok := (T1=T2) Or (T1=Nil) Or (T2=Nil);
     Unifiable := Ok
   End;
@@ -74,8 +75,7 @@ Var
       Next := NextRule(R)
   End;
 
-  { first rule that has a chance to unify with a term, starting with rule R;
-    assumes B is not a cut or a system call }
+  { first rule that has a chance to unify with a term, starting with rule R }
   Function FirstCandidateRule( R : RulePtr; B : BTermPtr; Var isSys : Boolean ; Var isCut : Boolean ) : RulePtr;
   Var
     FirstR : RulePtr;
@@ -91,7 +91,7 @@ Var
     If B <> Nil Then
     Begin
       Stop := False;
-      I1 := AccessIdentifier(B^.BT_TERM); { use Access to tackle dynamic assignment of identifiers }
+      I1 := AccessIdentifier(B^.BT_TERM); { handle dynamic assignment of identifiers }
       If I1 <> Nil Then
       Begin
         If IdentifierEqualTo(I1,'SYSCALL') Then
@@ -100,7 +100,7 @@ Var
           Stop := True
         End
         Else
-        If IdentifierEqualTo(I1,'!') Then
+        If IdentifierIsCut(I1) Then
         Begin
           isCut := True;
           Stop := True
@@ -166,29 +166,49 @@ Var
 
   Procedure Backtracking( Var H : HeadPtr; Var NoMoreChoices : Boolean );
   Var
+    CutH : HeadPtr; { target header set by a cut }
+    OnTarget, Skip : Boolean;
     NextR : RulePtr;
     NextH : HeadPtr;
     isSys, isCut : Boolean;
+    Stop : Boolean;
   Begin
-    NoMoreChoices := False;
-    NextR := Nil;
-    isSys := False;
-    isCut := False;
+    CutH := H^.HH_BACK;
     Repeat
-      If (H^.HH_CLOC > 0) And (Not H^.HH_ACUT) Then
+      NoMoreChoices := H^.HH_CLOC = 0; { no previous choice point }
+      Stop := NoMoreChoices;
+
+      If Not Stop Then
       Begin
+        { detect the first target header }
+        If (CutH = Nil) And (H^.HH_BACK <> Nil) Then
+          CutH := H^.HH_BACK;
+
+        { a target header has been reached; skip that one 
+          and then stop }
+        OnTarget := H = CutH;
+        Skip := (CutH <> Nil) And (Not OnTarget);
+        If OnTarget Then
+          CutH := Nil;
+
         { backtracks one step }
         NextH := H^.HH_NEXT;
-        Restore(H^.HH_REST); { restore and free restore object }
+        Restore(H^.HH_REST); { restore and free restore list }
         H^.HH_REST := Nil;
         H := NextH;
+
+        NextR := Nil;
+        isSys := False;
+        isCut := False;
+
         { set next rule to apply, if any }
-        NextR := NextCandidateRule(H^.HH_RULE,H^.HH_FBCL,isSys,isCut)
+        NextR := NextCandidateRule(H^.HH_RULE,H^.HH_FBCL,isSys,isCut);
+
+        Stop := (Not Skip) And ((NextR <> Nil) Or (isSys) Or (isCut))
       End
-      Else
-        NoMoreChoices := True
-    Until NoMoreChoices Or (NextR <> Nil) Or isSys Or isCut;
-    SetHeaderRule(H,NextR,isSys,isCut)
+    Until Stop;
+    If Not NoMoreChoices Then
+      SetHeaderRule(H,NextR,isSys,isCut)
 End;
 
 {------------------------------------------------------------------}
@@ -236,6 +256,7 @@ End;
 
   Procedure MoveForward( Var H : HeadPtr );
   Var
+    Hc : HeadPtr; { current header }
     ClearB, B : BTermPtr;
     ClearT : TermPtr;
     R : RulePtr;
@@ -255,12 +276,19 @@ End;
     ClearB := H^.HH_FBCL; { list of terms to clear }
     ClearT := ClearB^.BT_TERM; { current term to clear }
 
-    PushNewClockHeader(H,Nil,Nil,False,False,False);
+    { set the backward head pointer in case of a cut }
+    If (H <> Nil) And (isCut) Then
+      H^.HH_BACK := ClearB^.BT_HEAD;
+
+    { backup current header }
+    Hc := H;
+
+    { new header; the "cut" indicator propagates }
+    PushNewClockHeader(H,Nil,Nil,False,False);
 
     If isCut Then
     Begin
       Solvable := True; { "cut" is always clearable }
-      H^.HH_ACUT := True;
       H^.HH_FBCL := NextTerm(ClearB)
     End
     Else
@@ -294,10 +322,14 @@ End;
         RuleB := R^.RU_FBTR;
         CopyRuleP := DeepCopy(PRuleB);
 
+        { link each term of the rule to the header pointing to that rule }
+        SetTermsHeader(Hc,BCopyRuleP);
+
         { contraint to reduce: term to clear = rule head }
         Ss := NewSystemWithEq(ClearT,BCopyRuleP^.BT_TERM);
 
-        { new list of terms to clear: rule queue + previous terms but the first }
+        { new list of terms to clear: rule queue + all previous terms 
+          but the first }
         B := BCopyRuleP;
         While (NextTerm(B)<>Nil) Do
           B := NextTerm(B);
@@ -325,6 +357,7 @@ End;
 
 Begin
   InitClock;
+  GarbageCollector;
 
   { try to reduce the system in the query, if any, and fail if it has 
     no solutions; note that the system is reduced before clearing any 
@@ -343,13 +376,17 @@ Begin
     Exit
   End;
 
-  R := FirstCandidateRule(Q^.QU_FRUL, B, isSys, isCut);
+  R := FirstCandidateRule(Q^.QU_FRUL,B,isSys,isCut);
 
   { not even a candidate rule to try: fail }
   If (R = Nil) And (Not isSys) And (Not isCut) Then
     Exit;
 
-  PushNewClockHeader(P^.PP_HEAD,B,R,False,isSys,isCut);
+  PushNewClockHeader(P^.PP_HEAD,B,R,isSys,isCut);
+
+  { terms to clear points to this header }
+  SetTermsHeader(P^.PP_HEAD,B);
+
   Repeat
     MoveForward(P^.PP_HEAD);
     If (Not Solvable) Or    { system has no solution }
@@ -366,5 +403,5 @@ Begin
       GCCount := 0
     End
   Until EndOfClock;
-  GarbageCollector
+  P^.PP_HEAD := Nil { forget header with clock 0 }
 End;

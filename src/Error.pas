@@ -1,25 +1,40 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   File        : Init.pas                                                   }
+{   File        : Input.pas                                                  }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
-{                     I N I T I A L I S A T I O N S                          }
+{                               E R R O R S                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-{ initialize the Prolog engine }
-Procedure Initialize;
+Procedure DisplayInputErrorMessage( msg : AnyStr ); Forward;
+Procedure CloseCurrentInput; Forward;
+
+Var
+  Error : Boolean; { an error occurred? }
+
+{ an error occurred; display a message }
+Procedure RaiseError( msg : AnyStr );
 Begin
-  InitIO;
-  InitTrace;
-  OngoingCoreDump := False;
-  Error := False
+  If Not Error Then
+  Begin
+    DisplayInputErrorMessage(msg);
+    CloseCurrentInput;
+    Error := True
+  End
+End;
+
+{ terminate the programme with a return code }
+Procedure Terminate( code : Integer );
+Begin
+  TerminateTrace;
+  Halt(code)
 End;

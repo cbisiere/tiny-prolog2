@@ -2,7 +2,7 @@
 {                                                                            }
 {   Application : PROLOG II                                                  }
 {   File        : Main.pas                                                   }
-{   Author      : Christophe Bisière                                         }
+{   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
@@ -12,44 +12,50 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-{$C-} { TP3: Ctrl-C during I/O does not interrupt program execution }
-{$U-} { TP3: Ctrl-C does not interrupt program execution }
+{ $C-} { TP3: Ctrl-C during I/O does not interrupt program execution }
+{ $U-} { TP3: Ctrl-C does not interrupt program execution }
 
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-{$I TP3.pas     }  { TP3.pas: Turbo Pascal 3; FPC.pas: Free Pascal Compiler }
+{$I TP4.pas     }  { TP3|4.pas: Turbo Pascal; FPC.pas: Free Pascal }
 
+Procedure CoreDump( Message : AnyStr; Trace : Boolean ); Forward;
 Procedure CheckCondition( Cond : Boolean; Message : AnyStr ); Forward;
-Procedure DumpBacktrace; Forward;
+Procedure WriteToCurrentOutput( s : AnyStr ); Forward;
 
+{$I Files.pas     }  { i/o helpers                                 }
+{$I Strings.pas   }  { string and chars                            }
+{$I Trace.pas     }  { trace file                                  }
 {$I Memory.pas    }  { memory management: GC, cloning...           }
-{$I Restore.pas   }  { restore stack                               }
+{$I PObjRest.pas  }  { restore stack                               }
 {$I PObj.pas      }  { Prolog objects: common definitions          }
 {$I PObjStr.pas   }  { Prolog objects: long string                 }
 {$I PObjDict.pas  }  { Prolog objects: dictionary entry            }
 {$I PObjEq.pas    }  { Prolog objects: (in)equations, system       }
 {$I PObjTerm.pas  }  { Prolog objects: terms                       }
 {$I PObjProg.pas  }  { Prolog objects: program, rules, queries     }
+{$I PObjNew.pas   }  { Prolog objects: new / dispose               }
 {$I Keyboard.pas  }  { read from keyboard w/ history               }
-{$I Input.pas     }  { read the input flow                         }
+{$I Error.pas     }  { error handling, termination                 }
+{$I Input.pas     }  { terminal and input file stack               }
+{$I Output.pas    }  { terminal and output file stack              }
 {$I Unparse.pas   }  { decode objects                              }
 {$I Reduc.pas     }  { system reduction                            }
 {$I Parse.pas     }  { encode objects                              }
 {$I Clock.pas     }  { Prolog clock                                }
 {$I Run.pas       }  { load rules and execute queries              }
 {$I Sys.pas       }  { system calls                                }
-
-{$I Init.pas      }  { Module : Initializations                    }
-{$I Debug.pas     }
+{$I Debug.pas     }  { core dump                                   }
+{$I Init.pas      }  { initialization                              }
 
 { reset the Prolog engine }
 Function ResetMachine : ProgPtr;
 Var P : ProgPtr;
 Begin
-  Initialisation;
+  Initialize;
   P := NewProgram;
-  CurrentProgram := P; { debug }
+  CurrentProgram := P; 
   RegisterPredefined(P);
   ResetMachine := P
 End;
@@ -68,14 +74,14 @@ Begin
   LoadProgram(P,NewStringFrom('start.pro'),RTYPE_AUTO);
   If ParamCount = 1 Then
   Begin
-    FileName := NewStringFrom(ParamStr(1)); { warning: this string might be GC'ed }
+    FileName := NewStringFrom(ParamStr(1));
     LoadProgram(P,FileName,RTYPE_USER);
   End;
   InitHistory;
   Repeat
     Error := False;
-    Write('> ');
-    ReadCommand;
+    CWrite('> ');
+    ReadFromConsole;
     Q := CompileCommandLineQueries(P);
     If Not Error Then
       AnswerQueries(P,Q,False);

@@ -1,8 +1,8 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   File        : Objects.pas                                                }
-{   Author      : Christophe Bisière                                         }
+{   File        : PObjEq.pas                                                 }
+{   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
@@ -18,7 +18,6 @@
 {-----------------------------------------------------------------------}
 
 { equation or inequation, in the reduced or non-reduced system }
-
 Type 
   EqPtr = ^TObjEq;
   EqType = (REL_EQUA, REL_INEQ);
@@ -34,7 +33,6 @@ Type
   End;
 
 { non-reduced part of a system of equations and inequations }
-
 Type 
   SysPtr = ^TObjSys;
   TObjSys = Record
@@ -56,7 +54,7 @@ Var
   ptr : TPObjPtr Absolute E;
 Begin
   CheckCondition((EType=REL_EQUA) Or (EType=REL_INEQ), 'Unknown relation');
-  ptr := NewPrologObject(EQ,SizeOf(TObjEq),3,True,3);
+  ptr := NewRegisteredObject(EQ,3,True,3);
   With E^ Do
   Begin
     EQ_TYPE := EType;
@@ -82,7 +80,7 @@ Var
   S : SysPtr;
   ptr : TPObjPtr Absolute S;
 Begin
-  ptr := NewPrologObject(SY,SizeOf(TObjSys),2,True,2);
+  ptr := NewRegisteredObject(SY,2,True,2);
   With S^ Do
   Begin
     SY_EQUA := Nil;

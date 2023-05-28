@@ -2,7 +2,7 @@
 {                                                                            }
 {   Application : PROLOG II                                                  }
 {   File        : TP3.pas                                                    }
-{   Author      : Christophe Bisière                                         }
+{   Author      : Christophe Bisiere                                         }
 {   Date        : 2022-09-17                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
@@ -20,9 +20,11 @@ Const
   AnyStrMaxSize = 255;
 Type
   AnyStr = String[AnyStrMaxSize];
+  TAnyStrSize = 0..AnyStrMaxSize;
 
 Type 
   LongInt = Real; { simulate a LongInt }
+  LongLongInt = Real; { simulate a very LongInt }
   Pointer = ^Integer; { generic pointer }
 
 { trim whitespace from the beginning of a string }
@@ -49,6 +51,12 @@ Var s : AnyStr;
 Begin
   Str(v:AnyStrMaxSize:0,s);
   LongIntToStr := TrimLeft(s);
+End;
+
+{ format a LongLongInt for display }
+Function LongLongIntToStr( v : LongLongInt ) : AnyStr;
+Begin
+  LongLongIntToStr := LongIntToStr(v)
 End;
 
 { convert a Pascal string to a LongInt; code is 0 if the operation succeeded,
@@ -81,19 +89,9 @@ Procedure InitMalloc;
 Begin
 End;
 
-{ allocate memory; return Nil if there is not enough memory }
-Function Malloc( size : Integer ) : Pointer;
-Var 
-  m : Real;
-  p : Pointer;
+{ return the number of bytes allocated on the heap for the memory block 
+  pointed by pointer p; size is equal to the value given by SizeOf() }
+Function MemSizeOf( p : Pointer; size : Integer ) : Integer;
 Begin
-  m := MaxAvail;
-  If m<0 Then
-    m := 65536.0 + m;
-  m := m*16; { assuming 16-bit system; p126 }
-  If m < size Then
-    p := Nil
-  Else
-    GetMem(p,size);
-  Malloc := p
+  MemSizeOf := size
 End;

@@ -1,8 +1,8 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   File        : Restore.pas                                                }
-{   Author      : Christophe Bisière                                         }
+{   File        : PObjRest.pas                                               }
+{   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
@@ -27,7 +27,8 @@ Type
     RE_NEXT : RestorePtr;
     RE_PVAL : TPObjPtr; { backup of the pointer value }
     { extra data: }
-    RE_ADDR : ^TPObjPtr { address of the pointer value }
+    RE_ADDR : ^TPObjPtr; { address of the pointer value }
+    RE_DONE : Boolean { initial value has been restored (debug) }
   End;
 
 {-----------------------------------------------------------------------}
@@ -39,11 +40,12 @@ Var
   U : RestorePtr;
   ptr : TPObjPtr Absolute U;
 Begin
-  ptr := NewPrologObject(RE,SizeOf(TObjRestore),2,True,0);
+  ptr := NewRegisteredObject(RE,2,False,0);
   With U^ Do
   Begin
     RE_PVAL := Nil;
     RE_ADDR := Nil;
+    RE_DONE := False;
     RE_NEXT := Nil
   End;
   NewRestore := U
@@ -69,9 +71,12 @@ End;
 
 Procedure SetMem( Var U : RestorePtr; Var p : TPObjPtr; V : TPObjPtr; Backtrackable : Boolean);
 Begin
-  If Backtrackable Then 
-    PushRestore(U,p);
-  p := V
+  If p <> V Then
+  Begin
+    If Backtrackable Then 
+      PushRestore(U,p);
+    p := V
+  End
 End;
 
 Procedure Restore( Var U : RestorePtr );
@@ -80,6 +85,12 @@ Begin
     With U^ Do
     Begin
       Restore(RE_NEXT);
-      RE_ADDR^ := RE_PVAL
+      CheckCondition(Not RE_DONE,'double restore');
+      If RE_ADDR^ <> Nil Then 
+        CheckIsPObj(RE_ADDR^,'Restore/addr');
+      If RE_PVAL <> Nil Then 
+        CheckIsPObj(RE_PVAL,'Restore/pval');
+      RE_ADDR^ := RE_PVAL;
+      RE_DONE := True
     End
 End;

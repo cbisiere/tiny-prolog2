@@ -1,8 +1,8 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   File        : GC.pas                                                     }
-{   Author      : Christophe Bisière                                         }
+{   File        : Memory.pas                                                 }
+{   Author      : Christophe Bisiere                                         }
 {   Date        : 2023-01-02                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
@@ -23,18 +23,26 @@
 { type of allocated objects; note that SY, EQ, HE, RE are not managed by GC }
 Type
   TypePrologObj = (PR, RU, QU, SY, EQ, BT, CO, FU, VA, ID, CS, CN, DE, HE, ST, SD, RE);
-  TypePrologObjStr = Array[TypePrologObj] Of String[2];
 
+{ string representation of these types (TP3 cannot write enumerated types);
+  must match TypePrologObj }
+Type
+  TypePrologObjStr = Array[TypePrologObj] Of String[2];
 Const
   ObjStr : TypePrologObjStr = ('PR', 'RU', 'QU', 'SY', 'EQ', 'BT', 
-    'CO',   'FU', 'VA', 'ID', 'CS', 'CN', 'DE', 'HE', 'ST', 'SD', 'RE');
+    'CO', 'FU', 'VA', 'ID', 'CS', 'CN', 'DE', 'HE', 'ST', 'SD', 'RE');
+
+{----------------------------------------------------------------------------}
+{ memory allocation stats                                                    }
+{----------------------------------------------------------------------------}
 
 Var 
-  mem : Real; { total number of bytes allocated; even a LongInt is not enough }
+  mem : LongLongInt; { total number of bytes allocated }
   PObjCount : Array[TypePrologObj] of LongInt;
 
 Procedure InitMemoryStats;
-Var t : TypePrologObj;
+Var 
+  t : TypePrologObj;
 Begin
   mem := 0;
   For t := PR To RE Do
@@ -44,29 +52,22 @@ End;
 Procedure PrintMemoryStats;
 Var t : TypePrologObj;
 Begin
-  WriteLn('Bytes allocated: ',mem:10:0);
+  CWrite('Bytes allocated: ' + LongLongIntToStr(mem));
+  CWriteLn;
   For t := PR To RE Do
-    Writeln(' ',ObjStr[t]:2,': ',LongIntToStr(PObjCount[t]):5)
+  Begin
+    CWrite(' ' + ObjStr[t] + ': ' + RAlign(LongIntToStr(PObjCount[t]),5));
+    CWriteLn
+  End
 End;
 
-Procedure GetMemory( t : TypePrologObj; Var p : Pointer; size : Integer );
+{ update memory stat with delta objects of a given size }
+Procedure UpdateMemoryStats( t : TypePrologObj; delta : LongInt; size : Integer );
 Begin
-  p := Malloc(size);
-  { GC cannot only be run at some specific execution points, so in case of 
-    OOM we just abort }
-  CheckCondition(p<>Nil,'Memory exhausted');
-  FillChar(p^,size,0);
-  mem := mem + size;
-  PObjCount[t] := PObjCount[t] + 1
+  PObjCount[t] := PObjCount[t] + delta;
+  mem := mem + delta*size;
 End;
 
-Procedure FreeMemory( t : TypePrologObj; Var p : Pointer; size : Integer );
-Begin
-  FreeMem(p,size);
-  p := Nil;
-  mem := mem - size;
-  PObjCount[t] := PObjCount[t] - 1
-End;
 
 {----------------------------------------------------------------------------}
 { marking primitives                                                         }
@@ -114,19 +115,21 @@ Begin
 End;
 
 
-
 {----------------------------------------------------------------------------}
 { data structures for memory management                                      }
 {----------------------------------------------------------------------------}
 
 Const 
   MaxChildren = 255; { max numbers of child pointers per object }
+  POBJECT_MAGIC_NUMBER = 12345;
 
 { Prolog object's metadata for object management (cloning, debugging, etc.) }
 Type
   TPObjPtr = ^TPObj;
   { metadata }
   TObjMeta = Record
+    PO_MAGI : Integer;       { magic number (debug) }
+    PO_FREE : Boolean;       { object's memory has been freed (debug) }
     PO_TYPE : TypePrologObj; { type of object }
     PO_GUID : LongInt;       { Prolog object globally unique identifier (for convenience and sorting) }
     PO_SIZE : Integer;       { size in bytes (including metadata) }
@@ -147,19 +150,112 @@ Type
     PO_PTRS : Array[1..MaxChildren] Of TPObjPtr { pointers to child objects }
   End;
 
-Function PObjectType( p : TPObjPtr ) : TypePrologObj;
+{----------------------------------------------------------------------------}
+{ accessors                                                                  }
+{----------------------------------------------------------------------------}
+
+Function ObjectMagic( p : TPObjPtr ) : Integer;
 Begin
-  PObjectType := p^.PO_META.PO_TYPE
+  ObjectMagic := p^.PO_META.PO_MAGI
 End;
 
-Function PObjectCopyNumber( p : TPObjPtr ) : Integer;
+Function IsObject( p : TPObjPtr ) : Boolean;
 Begin
-  PObjectCopyNumber := p^.PO_META.PO_NCOP
+  IsObject := ObjectMagic(p) = POBJECT_MAGIC_NUMBER
 End;
 
+Procedure SetObjectMagic( p : TPObjPtr; magic : Integer );
+Begin
+  p^.PO_META.PO_MAGI := magic
+End;
+
+Function ObjectIsFree( p : TPObjPtr ) : Boolean;
+Begin
+  ObjectIsFree := p^.PO_META.PO_FREE
+End;
+
+Procedure SetObjectFree( p : TPObjPtr; IsFree : Boolean );
+Begin
+  p^.PO_META.PO_FREE := IsFree
+End;
+
+Function ObjectType( p : TPObjPtr ) : TypePrologObj;
+Begin
+  ObjectType := p^.PO_META.PO_TYPE
+End;
+
+Procedure SetObjectType( p : TPObjPtr; t : TypePrologObj );
+Begin
+  p^.PO_META.PO_TYPE := t
+End;
+
+Function ObjectSize( p : TPObjPtr ) : Integer;
+Begin
+  ObjectSize := p^.PO_META.PO_SIZE
+End;
+
+Procedure SetObjectSize( p : TPObjPtr; size : Integer );
+Begin
+  p^.PO_META.PO_SIZE := size
+End;
+
+Function ObjectNbChildren( p : TPObjPtr ) : Byte;
+Begin
+  ObjectNbChildren := p^.PO_META.PO_NPTR
+End;
+
+Function ObjectNbChildrenToCopy( p : TPObjPtr ) : Byte;
+Begin
+  ObjectNbChildrenToCopy := p^.PO_META.PO_NDEE
+End;
+
+Function ObjectChild( p : TPObjPtr; i : Byte ) : TPObjPtr;
+Begin
+  ObjectChild := p^.PO_PTRS[i]
+End;
+
+Procedure SetObjectChild( p : TPObjPtr; i : Byte; child : TPObjPtr );
+Begin
+  p^.PO_PTRS[i] := child
+End;
+
+Function ObjectCopyNumber( p : TPObjPtr ) : Integer;
+Begin
+  ObjectCopyNumber := p^.PO_META.PO_NCOP
+End;
+
+Function ObjectGuid( p : TPObjPtr ) : LongInt;
+Begin
+  ObjectGuid := p^.PO_META.PO_GUID
+End;
+
+Procedure SetObjectGuid( p : TPObjPtr; guid : LongInt);
+Begin
+  p^.PO_META.PO_GUID := guid
+End;
+
+Function ObjectIsMarked( p : TPObjPtr ) : Boolean;
+Begin
+  ObjectIsMarked := IsMark(p^.PO_META.PO_MARK)
+End;
+
+Procedure SetObjectMark( p : TPObjPtr; Marked : Boolean);
+Begin
+  SetMark(p^.PO_META.PO_MARK,Marked)
+End;
+
+Function ObjectNext( p : TPObjPtr ) : TPObjPtr;
+Begin
+  ObjectNext := p^.PO_META.PO_NEXT
+End;
+
+Procedure SetObjectNext( p,nxt : TPObjPtr );
+Begin
+  p^.PO_META.PO_NEXT := nxt
+End;
 
 {----------------------------------------------------------------------------}
-{ dump                                                                       }
+{ debug / dump                                                               }
 {----------------------------------------------------------------------------}
 
 { global object ID to string }
@@ -175,38 +271,61 @@ Var
 Begin
   If (p = Nil) Then
     s := '-'
+  Else If Not IsObject(p) Then
+    s := '<Broken>' { Bug: Not An Object }
+  Else If ObjectIsFree(p) Then
+    s := '<Free>' { Bug: Object than has been freed }
   Else
-    s := GuidToStr(p^.PO_META.PO_GUID);
+    s := GuidToStr(ObjectGuid(p));
   PtrToName := s
 End;
 
 Procedure WriteExtraData( p : TPObjPtr ); forward;
 
-Procedure DumpObject( p : TPObjPtr );
-Var i : Byte;
+{ dump an object, possibly with extra data }
+Procedure DumpObject( p : TPObjPtr; extra : Boolean );
+Var 
+  i : Byte;
+  child : TPObjPtr;
 Begin
-  Write(PtrToName(p):5,' : ');
+  CWrite(RAlign(PtrToName(p),5) + ' : ');
+  CWrite(RAlign(IntToStr(ObjectSize(p)),3) + ' ');
   With p^.PO_META Do
   Begin
-    Write(PO_SIZE-SizeOf(TObjMeta):3,' ');
-    Write(ObjStr[PO_TYPE]:2,' ',MarkToStr(PO_MARK),' ',PO_NCOP,' ',Ord(PO_DEEP),' ',GuidToStr(PO_CUID):5);
-    Write(' [');
-    For i := 1 To PO_NPTR Do
-      Write('  ',PtrToName(p^.PO_PTRS[i]));
-    Write(' ]')
+    CWrite(ObjStr[PO_TYPE] + ' ' + MarkToStr(PO_MARK) + ' ');
+    CWrite(IntToStr(PO_NCOP) + ' ' + IntToStr(Ord(PO_DEEP)) + ' ');
+    CWrite(RAlign(GuidToStr(PO_CUID),5))
   End;
-  Write(' ');
-  WriteExtraData(p);
-  Writeln
+  CWrite(' [');
+  For i := 1 To ObjectNbChildren(p) Do
+  Begin
+    child := ObjectChild(p,i);
+    CWrite('  ' + PtrToName(child))
+  End;
+  CWrite(' ]');
+  If extra Then
+  Begin
+    CWrite(' ');
+    WriteExtraData(p)
+  End;
+  CWriteLn
 End;
 
-Procedure DumpObjects( p : TPObjPtr );
+{ dump all the registered Prolog objects }
+Procedure DumpObjects( p : TPObjPtr; extra : Boolean );
 Begin
   If p<>Nil Then
   Begin
-    DumpObjects(p^.PO_META.PO_NEXT);
-    DumpObject(p)
+    DumpObject(p,extra);
+    DumpObjects(ObjectNext(p),extra)
   End
+End;
+
+{ check a memory location has a chance to be a legit Prolog object }
+Procedure CheckIsPObj( p : TPObjPtr; prompt : AnyStr );
+Begin
+  CheckCondition(IsObject(p),
+    prompt + ': ' + PtrToName(p) + ' is not a Prolog object')
 End;
 
 
@@ -216,139 +335,160 @@ End;
 
 Var 
   AllocHead : TPObjPtr; { list of all allocations }
+  OngoingGC : Boolean;  { is a GC ongoing? }
+  DoRegister : Boolean; { should new objects be registered? False during debug }
 
 Procedure InitAlloc;
 Begin
-  AllocHead := Nil
+  AllocHead := Nil;
+  OngoingGC := False;
+  DoRegister := True
+End;
+
+{ dump all registered objects }
+Procedure DumpRegisteredObject;
+Begin
+  DumpObjects(AllocHead,True)
+End;
+
+{ find the object with guid id in the object store, or Nil }
+Function FindObjectById( guid : LongInt ) : TPObjPtr;
+Var
+  p : TPObjPtr;
+  Found : Boolean;
+Begin
+  p := AllocHead;
+  Found := False;
+  While (p <> Nil) And (Not Found) Do
+  Begin
+    Found := ObjectGuid(p) = guid;
+    If Not Found Then
+      p := ObjectNext(p)
+  End;
+  FindObjectById := p
 End;
 
 { add an object to the list of allocations and set its GC metadata }
 Procedure RegisterObject( p : TPObjPtr );
-Begin
-  With p^.PO_META Do
-  Begin
-    PO_NEXT := AllocHead;
-    SetMark(PO_MARK,False);
-    If (PO_NEXT = Nil) Then
-      PO_GUID := 1
-    Else
-      PO_GUID := PO_NEXT^.PO_META.PO_GUID + 1
-  End;
-  AllocHead := p
-End;
-
-
-{ free an object p, and return the next object }
-Function FreeObject( prev, p : TPObjPtr ) : TPObjPtr;
-Var 
+Var
   nxt : TPObjPtr;
-  ptr : Pointer Absolute p;
+  guid : LongInt;
 Begin
-  With p^.PO_META Do
+  CheckCondition(Not OngoingGC Or Not DoRegister,
+      'RegisterObject: object registration during GC');
+  If DoRegister Then 
   Begin
-    nxt := PO_NEXT;
-    FreeMemory(PO_TYPE,ptr,PO_SIZE)
-  End;
-  If (prev = Nil) Then
-    AllocHead := nxt
-  Else
-    prev^.PO_META.PO_NEXT := nxt;
-  FreeObject := nxt
-End;
-
-
-Procedure DumpRegisteredObject;
-Begin
-  DumpObjects(AllocHead)
-End;
-
-{ free all unmarked objects and associated memory management record }
-Procedure Sweep;
-Var p, prev : TPObjPtr;
-Begin
-  p := AllocHead;
-  prev := Nil;
-  While (p <> Nil) Do
-    With p^.PO_META Do
-    Begin
-      If Not IsMark(PO_MARK) Then
-        p := FreeObject(prev, p)
-      Else
-      Begin
-        prev := p;
-        p := PO_NEXT
-      End
-    End
-End;
-
-{ arbitrary order on Prolog objects }
-Function ObjectsAreOrdered( p1,p2 : TPObjPtr ) : Boolean;
-Begin
-  CheckCondition((p1<> Nil) And (p2<>Nil),'Undefined order');
-  ObjectsAreOrdered := p1^.PO_META.PO_GUID <= p2^.PO_META.PO_GUID
-End;
-
-{----------------------------------------------------------------------------}
-{ marking                                                                    }
-{----------------------------------------------------------------------------}
-
-Function ObjectIsMarked( p : TPObjPtr ) : Boolean;
-Begin
-  ObjectIsMarked := IsMark(p^.PO_META.PO_MARK)
-End;
-
-Procedure MarkOneObject( p : TPObjPtr );
-Begin
-  SetMark(p^.PO_META.PO_MARK, True)
-End;
-
-{ is p a reference to an object that must be marked? }
-Function Markable( p : TPObjPtr ) : Boolean;
-Var must : Boolean;
-Begin
-  must := True;
-  If (p = Nil) Then
-    must := False
-  Else
-    If ObjectIsMarked(p) Then
-      must := False;
-  Markable := must
-End;
-
-{ mark p and all objects that are reachable from p }
-Procedure Mark( p : TPObjPtr );
-Var i : Byte;
-Begin
-  If Markable(p) Then
-  Begin
-    MarkOneObject(p);
-    With p^.PO_META Do
-      For i := 1 To PO_NPTR Do
-        Mark(p^.PO_PTRS[i])
+    SetObjectNext(p,AllocHead);
+    SetObjectMark(p,False);
+    nxt := ObjectNext(p);
+    If nxt = Nil Then
+      guid := 1
+    Else
+      guid := ObjectGuid(nxt) + 1;
+    SetObjectGuid(p,guid);
+    AllocHead := p
   End
 End;
 
-
+{ remove an object from the list of allocated objects; prev is the
+  object just before in the list, or Nil if p is the first object;
+  return the next object after p (could be Nil) }
+Function UnregisterObject( prev,p : TPObjPtr ) : TPObjPtr;
+Var 
+  nxt : TPObjPtr;
+Begin
+  CheckCondition(p <> Nil,'Unregister: p is Nil');
+  nxt := ObjectNext(p);
+  SetObjectNext(p,Nil);
+  If (prev = Nil) Then
+    AllocHead := nxt
+  Else
+    SetObjectNext(prev,nxt);
+  UnregisterObject := nxt
+End;
 
 {----------------------------------------------------------------------------}
-{ new / copy                                                                 }
+{ object allocation with accounting                                          }
 {----------------------------------------------------------------------------}
 
-{ allocate a Prolog object of size s; metadata are followed by n Prolog child object
-  pointers; the first d child objects of these n are copied when the object is
-  deep copied (but only if deep copy is allowed for that object: CanCopy)}
-Function NewPrologObject( t : TypePrologObj; s : Integer; n: Byte; 
-  CanCopy : Boolean; d : Byte ) : TPObjPtr;
+{ low-level memory function for typed Prolog objects; see PObjNew.pas }
+Function PObjNew( t : TypePrologObj ) : TPObjPtr; Forward;
+Procedure PObjDispose( t : TypePrologObj; p : TPObjPtr ); Forward;
+Function PObjSizeOf( t : TypePrologObj; p : TPObjPtr ) : Integer; Forward;
+
+{ allocate memory on the heap for an object of type t; size returns 
+  the size of the allocated object, in bytes }
+Function NewObject( t : TypePrologObj ) : TPObjPtr;
 Var 
   p : TPObjPtr;
   ptr : Pointer Absolute p;
+  size : Integer;
 Begin
-  GetMemory(t,ptr,s);
+  p := PObjNew(t);
+  { GC cannot only be run at some specific execution points, so in case of 
+    OOM we just abort }
+  CheckCondition(p<>Nil,'Memory exhausted');
+  size := MemSizeOf(ptr,PObjSizeOf(t,p)); { true allocated size }
+  FillChar(p^,size,0);
+  { set the bare minimum object data }
+  SetObjectMagic(p,POBJECT_MAGIC_NUMBER);
+  SetObjectFree(p,False);
+  SetObjectType(p,t);
+  SetObjectSize(p,size);
+  { accounting }
+  UpdateMemoryStats(t,1,size);
+  NewObject := p
+End;
 
+{ free a Prolog object }
+Procedure FreeObject( Var p : TPObjPtr );
+Begin
+  UpdateMemoryStats(ObjectType(p),-1,ObjectSize(p));
+  SetObjectFree(p,True);
+  PObjDispose(ObjectType(p),p);
+  p := Nil { prevent dangling pointers }
+End;
+
+{ clone object p in memory, and return the clone }
+Function CloneObject( p : TPObjPtr ) : TPObjPtr;
+Var 
+  pc : TPObjPtr;
+Begin
+  pc := PObjNew(ObjectType(p));
+  Move(p^,pc^,ObjectSize(p));
+  UpdateMemoryStats(ObjectType(pc),1,ObjectSize(pc));
+  CloneObject := pc
+End;
+
+{----------------------------------------------------------------------------}
+{ operations on registered objects                                           }
+{----------------------------------------------------------------------------}
+
+{ free a registered object p, and return the next object }
+Function FreeRegisteredObject( prev : TPObjPtr; Var p : TPObjPtr ) : TPObjPtr;
+Var 
+  nxt : TPObjPtr;
+Begin
+  CheckIsPObj(p,'FreeRegisteredObject');
+  CheckCondition(Not ObjectIsFree(p),'FreeRegisteredObject: double free');
+  nxt := UnregisterObject(prev,p);
+  FreeObject(p);
+  FreeRegisteredObject := nxt
+End;
+
+
+{ allocate a Prolog object of size s; metadata are followed by n Prolog child 
+  object pointers; the first d child objects of these n are copied when the 
+  object is deep copied (but only if deep copy is allowed for that object: 
+  CanCopy) }
+Function NewRegisteredObject( t : TypePrologObj; n: Byte; CanCopy : Boolean; 
+    d : Byte ) : TPObjPtr;
+Var 
+  p : TPObjPtr;
+Begin
+  p := NewObject(t);
   With p^.PO_META Do
   Begin
-    PO_TYPE := t;
-    PO_SIZE := s;
     PO_NPTR := n;
     { deep copy metadata: }
     PO_DPOK := CanCopy;
@@ -359,9 +499,8 @@ Begin
     PO_NDEE := d
   End;
   RegisterObject(p);
-  NewPrologObject := p
+  NewRegisteredObject := p
 End;
-
 
 { copy an object 
 - set PO_DEEP for both the old and copied objects, to note they have
@@ -372,14 +511,9 @@ End;
 Function CopyObject( p : TPObjPtr ) : TPObjPtr;
 Var 
   pc : TPObjPtr;
-  ptr : Pointer Absolute pc;
 Begin
   CheckCondition(Not p^.PO_META.PO_DEEP,'Copy of an already visited object');
-  With p^.PO_META Do { memory copy }
-  Begin
-    GetMemory(PO_TYPE,ptr,PO_SIZE); 
-    Move(p^,pc^,PO_SIZE) { copy the memory blindly }
-  End;
+  pc := CloneObject(p);
   RegisterObject(pc);
   With pc^.PO_META Do { new object is a copy }
   Begin
@@ -392,7 +526,7 @@ Begin
   Begin
     PO_DEEP := True;
     PO_COPY := pc;  { link old -> copy }
-    PO_CUID := pc^.PO_META.PO_GUID
+    PO_CUID := ObjectGuid(pc)
   End;
   CopyObject := pc
 End;
@@ -421,20 +555,19 @@ Begin
       Else
       Begin
         pc := CopyObject(p);
-        With pc^ Do
-        Begin
-          For i := 1 To PO_META.PO_NDEE Do
-            PO_PTRS[i] := DeepCopyObject(PO_PTRS[i])
-        End
+        For i := 1 To ObjectNbChildrenToCopy(p) Do
+          SetObjectChild(pc,i,DeepCopyObject(ObjectChild(p,i)))
       End
     End
   End;
   DeepCopyObject := pc
 End;
 
-{ reset the deep copy state of p and of all objects that are reachable from p }
+{ reset the deep copy state of p and of all objects that are reachable 
+  from p through children subject to deep copy }
 Procedure PrepareDeepCopy( p : TPObjPtr );
-Var i : Byte;
+Var 
+  i : Byte;
 Begin
   If p<>Nil Then
   Begin
@@ -445,10 +578,67 @@ Begin
         PO_DEEP := False;
         PO_COPY := Nil;
         PO_CUID := 0;
-        For i := 1 To PO_NDEE Do
-          PrepareDeepCopy(p^.PO_PTRS[i])
+        For i := 1 To ObjectNbChildrenToCopy(p) Do
+          PrepareDeepCopy(ObjectChild(p,i))
       End
     End
+  End
+End;
+
+
+{----------------------------------------------------------------------------}
+{ mark & sweep                                                               }
+{----------------------------------------------------------------------------}
+
+{ free all unmarked objects and associated memory management record }
+Procedure Sweep;
+Var 
+  p, prev : TPObjPtr;
+Begin
+  p := AllocHead;
+  prev := Nil;
+  While (p <> Nil) Do
+  Begin
+    If Not ObjectIsMarked(p) Then
+      p := FreeRegisteredObject(prev,p)
+    Else
+    Begin
+      prev := p;
+      p := ObjectNext(p)
+    End
+  End
+End;
+
+{ set p as marked to escape the next sweeping operation }
+Procedure MarkOneObject( p : TPObjPtr );
+Begin
+  SetObjectMark(p,True)
+End;
+
+{ is p a reference to an object that must be marked? }
+Function Markable( p : TPObjPtr ) : Boolean;
+Var 
+  must : Boolean;
+Begin
+  must := True;
+  If (p = Nil) Then
+    must := False
+  Else
+    If ObjectIsMarked(p) Then
+      must := False;
+  Markable := must
+End;
+
+{ mark p and all objects that are reachable from p }
+Procedure Mark( p : TPObjPtr );
+Var 
+  i : Byte;
+Begin
+  If Markable(p) Then
+  Begin
+    MarkOneObject(p);
+    For i := 1 To ObjectNbChildren(p) Do
+      Mark(ObjectChild(p,i))
   End
 End;
 
@@ -469,14 +659,19 @@ Begin
 End;
 
 Procedure DumpGCRoots;
-Var i : Byte;
+Var 
+  i : Byte;
 Begin
-  Writeln('GC roots:');
+  CWrite('GC roots:');
+  CWriteLn;
   For i := 1 To NbRoots Do
-    Writeln(i:3,' ',PtrToName(Roots[i]^):5)
+  Begin
+    CWrite(RAlign(IntToStr(i),3) + ' ' + RAlign(PtrToName(Roots[i]^),5));
+    CWriteLn
+  End
 End;
 
-Procedure AddGCRoot(r : TPObjPtr);
+Procedure AddGCRoot (r : TPObjPtr );
 Begin
   CheckCondition(NbRoots<MaxGCRoots,'GC root pool is full');
   NbRoots := NbRoots + 1;
@@ -495,12 +690,16 @@ Begin
 End;
 
 Procedure GarbageCollector;
-Var i : Byte;
+Var 
+  i : Byte;
 Begin
+  CheckCondition(Not OngoingGC, 'GC: not reentrant');
+  OngoingGC := True;
   For i := 1 To NbRoots Do
     Mark(Roots[i]^);
   Sweep;
-  UnMark
+  UnMark;
+  OngoingGC := False
 End;
 
 
@@ -509,7 +708,8 @@ End;
 {----------------------------------------------------------------------------}
 
 Function DeepCopy( p : TPObjPtr ) : TPObjPtr;
-Var pc : TPObjPtr;
+Var 
+  pc : TPObjPtr;
 Begin
   PrepareDeepCopy(p);
   pc := DeepCopyObject(p);

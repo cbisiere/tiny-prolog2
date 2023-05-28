@@ -196,13 +196,13 @@ Evaluable functions `add(x,y)`,`sub(x,y)`,`mul(x,y)`,`div(x,y)`, and `inf(x,y)` 
 
 The program was initially developed in [Turbo Pascal 3](https://en.wikipedia.org/wiki/Turbo_Pascal#Version_3) (TP3). Turbo Pascal 3.02A is [provided](https://web.archive.org/web/20101124092418/http://edn.embarcadero.com/article/20792) to the Borland community free of charge, as a [zip file](https://web.archive.org/web/20110815014726/http://altd.embarcadero.com/download/museum/tp302.zip).
 
-I chose to maintain compatibility with TP3. Because why not. So, no classes, and a few restrictions on the syntax. Workarounds had to be implemented for the most annoying limitations, namely 16-bit integers and 255-char strings. 
+I tried to maintain compatibility with TP3. So, no classes, and a few restrictions on the syntax. Workarounds had to be implemented for the most annoying limitations, namely 16-bit integers and 255-char strings. (For now, TP4 is needed as TP3 compilation triggers a memory overflow.)  
 
-You may use a FreeDOS box to install TP3, compile `Main.pas` and run the Prolog interpreter.
+You may use a FreeDOS box to install Turbo Pascal, compile `Main.pas` and run the Prolog interpreter.
 
 ### Free Pascal Compiler
 
-To compile the interpreter with the [Free Pascal Compiler](https://en.wikipedia.org/wiki/Free_Pascal) (FPC), edit `src/Main.pas`, changing the compiler directive `{$I TP3.pas }` into `{$I FPC.pas }`. Then run FPC in Turbo Pascal mode: 
+To compile the interpreter with the [Free Pascal Compiler](https://en.wikipedia.org/wiki/Free_Pascal) (FPC), edit `src/Main.pas`, changing the compiler directive `{$I TP3.pas}` (or `{$I TP4.pas}`) into `{$I FPC.pas}`. Then run FPC in Turbo Pascal mode: 
 
 ```bash
 fpc -Mtp -FE. -otprolog2 src/Main.pas
@@ -263,7 +263,7 @@ The final `>`is a prompt, inviting you to type in other queries to execute, e.g.
 >
 ```
 
-Predefined commands include `list` to list the user current rules:
+Predefined commands include `list` to list the current user rules:
 
 ```
 > list fail;
@@ -341,7 +341,7 @@ program ::= [<rules-and-queries>]* [";"]
 
 ## Author
 
-* [Christophe Bisière](https://github.com/cbisiere)
+* [Christophe Bisiere](https://github.com/cbisiere)
 
 ## License
 

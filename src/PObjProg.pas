@@ -1,8 +1,8 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   File        : Objects.pas                                                }
-{   Author      : Christophe Bisière                                         }
+{   File        : PObjProg.pas                                               }
+{   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
@@ -20,20 +20,25 @@
 { types                                                                 }
 {-----------------------------------------------------------------------}
 
-{ list of terms }
 Type 
   BTermPtr = ^TObjBTerm;
+  RulePtr = ^TObjRule;
+  QueryPtr = ^TObjQuery;
+  ProgPtr = ^TObjProg;
+  HeadPtr = ^TObjHead;
+
+  { list of terms }
   TObjBTerm = Record
     PO_META : TObjMeta;
     { deep copied: }
     BT_NEXT : BTermPtr; { next element }
     BT_TERM : TermPtr; { term }
-    BT_ACCE : IdPtr { access identifier or Nil }
+    BT_ACCE : IdPtr; { access identifier or Nil }
+    { not deep copied: }
+    BT_HEAD : HeadPtr { clock header point to the rule containing this term }
   End;
 
-{ rule }
-Type 
-  RulePtr = ^TObjRule;
+  { rule }
   RuType = (RTYPE_AUTO, RTYPE_USER);
   TObjRule = Record
     PO_META : TObjMeta;
@@ -45,12 +50,11 @@ Type
     RU_FVAR : DictPtr; { where to start looking up }
     RU_LVAR : DictPtr; { where to stop looking up }
     { extra data: }
+    RU_ACUT : Boolean; { rule queue contains a cut }
     RU_TYPE : RuType { type of rule: read from init file, or user }
   End;
 
-{ query }
-Type 
-  QueryPtr = ^TObjQuery;
+  { query }
   TObjQuery = Record
     PO_META : TObjMeta;
     { deep copied: }
@@ -61,13 +65,10 @@ Type
     QU_SYST : EqPtr; { list of equation or inequation in the query }
     { not deep copied: }
     QU_FVAR : DictPtr; { where to start looking up }
-    QU_LVAR : DictPtr { where to stop looking up }
+    QU_LVAR : DictPtr; { where to stop looking up }
+    { extra data: }
+    QU_ACUT : Boolean; { query contains a cut }
   End;
-
-{ program and clock }
-Type 
-  ProgPtr = ^TObjProg;
-  HeadPtr = ^TObjHead;
 
   { program }
   TObjProg = Record
@@ -95,9 +96,9 @@ Type
       HH_RULE : RulePtr; { rule to apply }
       HH_FBCL : BTermPtr; { terms to clear }
       HH_REST : RestorePtr; { restoration stack }
+      HH_BACK : HeadPtr; { where to backtrack (cut) }
       { extra data: }
       HH_CLOC : LongInt; { clock time (unlikely to overflow)}
-      HH_ACUT : Boolean; { a cut has been cleared }
       HH_ISYS : Boolean; { term to clear is a system call? }
       HH_ICUT : Boolean { term to clear is a cut? }
   End;
@@ -113,12 +114,13 @@ Var
   B : BTermPtr;
   ptr : TPObjPtr Absolute B;
 Begin
-  ptr := NewPrologObject(BT,SizeOf(TObjBTerm),3,True,3);
+  ptr := NewRegisteredObject(BT,4,True,3);
   With B^ Do
   Begin
     BT_TERM := Nil;
     BT_NEXT := Nil;
-    BT_ACCE := Nil
+    BT_ACCE := Nil;
+    BT_HEAD := Nil
   End;
   NewBTerm := B
 End;
@@ -129,7 +131,7 @@ Var
   R : RulePtr;
   ptr : TPObjPtr Absolute R;
 Begin
-  ptr := NewPrologObject(RU,SizeOf(TObjRule),5,True,3);
+  ptr := NewRegisteredObject(RU,5,True,3);
   With R^ Do
   Begin
     RU_NEXT := Nil;
@@ -137,6 +139,7 @@ Begin
     RU_SYST := Nil;
     RU_FVAR := Nil;
     RU_LVAR := Nil;
+    RU_ACUT := False;
     RU_TYPE := RuleType
   End;
   NewRule := R
@@ -148,7 +151,7 @@ Var
   P : ProgPtr;
   ptr : TPObjPtr Absolute P;
 Begin
-  ptr := NewPrologObject(PR,SizeOf(TObjProg),11,True,4);
+  ptr := NewRegisteredObject(PR,11,True,4);
   With P^ Do
   Begin
     PP_FRUL := Nil;
@@ -172,15 +175,15 @@ Var
   H : HeadPtr;
   ptr : TPObjPtr Absolute H;
 Begin
-  ptr := NewPrologObject(HE,SizeOf(TObjHead),4,True,0);
+  ptr := NewRegisteredObject(HE,5,True,0);
   With H^ Do
   Begin
     HH_NEXT := Nil;
     HH_RULE := Nil;
     HH_FBCL := Nil;
     HH_REST := Nil;
+    HH_BACK := Nil;
     HH_CLOC := 0;
-    HH_ACUT := False;
     HH_ISYS := False;
     HH_ICUT := False
   End;
@@ -218,6 +221,12 @@ Begin
   LastRule := R
 End;
 
+{ next query }
+Function NextQuery( Q : QueryPtr ) : QueryPtr;
+Begin
+  NextQuery := Q^.QU_NEXT
+End;
+
 { last query in a list }
 Function LastQuery( Q : QueryPtr ) : QueryPtr;
 Begin
@@ -226,13 +235,25 @@ Begin
   LastQuery := Q
 End;
 
+{ last query in a program }
+Function LastProgramQuery( P : ProgPtr ) : QueryPtr;
+Begin
+  LastProgramQuery := P^.PP_LQRY
+End;
+
+{ update the rule scope of query Q with all the rules in P }
+Procedure UpdateQueryScope( P : ProgPtr; Q : QueryPtr );
+Begin
+  Q^.QU_FRUL := P^.PP_FRUL;
+  Q^.QU_LRUL := P^.PP_LRUL
+End;
 
 { append a clock header to a list }
-Procedure AppendClockHeader(Var list : HeadPtr; H : HeadPtr );
+Procedure AppendClockHeader( Var list : HeadPtr; H : HeadPtr );
 Begin
   H^.HH_NEXT := list;
   list := H;
-  If H^.HH_NEXT<>Nil Then
+  If H^.HH_NEXT <> Nil Then
     H^.HH_CLOC := H^.HH_NEXT^.HH_CLOC + 1
 End;
 
@@ -254,17 +275,28 @@ Begin
     HH_ICUT := isCut
   End
 End;
+
 { create and set a clock header on top of a list of headers }
-Procedure PushNewClockHeader(Var list : HeadPtr; Fbcl : BTermPtr; R : RulePtr; 
-    ACut : Boolean; isSys, isCut : Boolean );
-Var H : HeadPtr;
+Procedure PushNewClockHeader( Var list : HeadPtr; Fbcl : BTermPtr; R : RulePtr; 
+    isSys, isCut : Boolean );
+Var 
+  H : HeadPtr;
 Begin
   H := NewClockHeader;
   With H^ Do
   Begin
-    HH_FBCL := Fbcl;
-    HH_ACUT := ACut
+    HH_FBCL := Fbcl
   End;
   SetHeaderRule(H,R,isSys,isCut);
-  AppendClockHeader(list,H);
+  AppendClockHeader(list,H)
+End;
+
+{ make all terms in B point back to header H }
+Procedure SetTermsHeader( H : HeadPtr; B : BTermPtr );
+Begin
+  While B <> Nil Do
+  Begin
+    B^.BT_HEAD := H;
+    B := NextTerm(B)
+  End
 End;
