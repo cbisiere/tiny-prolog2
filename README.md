@@ -6,7 +6,7 @@ A simple Prolog II interpreter written in Pascal
 
 I wrote this program as a course assignment, back in 1988, when I was a student at the University of Aix-Marseille II, pursuing a MSc in Computer Science and Mathematics ("Diplôme d'Études Approfondies en Informatique et Mathématique"). The course, entitled "Prolog II", was taught by the late [Alain Colmerauer](https://en.wikipedia.org/wiki/Alain_Colmerauer), creator of the language.
 
-One of the courses I also took in this MSc was Henri Méloni's course on speech recognition. As the Prolog II interpreter gains additional features, executing the Prolog programs I wrote for this course might even become possible.
+One of the courses I also took in this MSc was Henri Méloni's course on speech recognition. As the Prolog II interpreter gains additional features, executing the Prolog programs I wrote for this course might even become possible. A more ambitious goal would be to run some of the demo programs written by Alain Colmeraurer (see [Alain Colmerauer's website](http://alain.colmerauer.free.fr/)).
 
 ## References
 Basically, the program implements two algorithms described in the following paper: 
@@ -290,6 +290,62 @@ When you are done, use `quit` or hit `Ctrl+C` to quit the interpreter.
 Bye!
 $
 ```
+
+## List of predefined predicates
+
+### Session
+
+Predicate | Meaning | Example
+--- | --- | ---
+`quit` | quit the interpreter | `>quit;`
+`list` | display the current rules | `>list;`
+`insert(f)` | insert a Prolog file | `>insert("examples/menu.pro");`
+
+### Input and output
+
+Predicate | Meaning | Example
+--- | --- | ---
+`input_is(f)`| return the current input | `> input_is(f);` `{ f = "console" }`
+`input(f)` | set the current input | `>input("infile.txt");`
+`close_input` | close the current input |
+`close_input(f)` | close input file `f` |
+`clear_input` | ignore all remaining characters in the current input line |
+`output_is(f)` | return the current output | `> output_is(f);` `{ f = "console" }`
+`output(f)` | set the current output | `> output("outfile.txt");`
+`close_output` | close the current output |
+`close_output(f)` | close output file `f` |
+`flush` | flush the output buffer |
+`in(t)` | input a term in `t` |
+`in_char(c)` | input a character in `c` |
+`out(t)` | display term `t` |
+`outm(s)` | display string `s` unquoted |
+`line ` | line break |
+`outl(t)` | display term `t` and then go to next line |
+`outml(s)` | display string `s` unquoted and then go to next line |
+`page` | go to the next page |
+`clear` | clear the screen |
+
+### Assignment and evaluation
+
+Predicate | Meaning | Example
+--- | --- | ---
+`assign(i,t)` | assign identifier `i` with term `t` |
+`val(t1,t2)` | evaluate expression `t1` and unify the rresult with term `t2` | 
+
+### Equations and inequations
+
+Predicate | Meaning | Example
+--- | --- | ---
+`eq(x,y)` | unify `x` and `y` |
+`dif(x,y)` | add the constraint that `x` is different from `y` |
+
+### Debug
+
+Predicate | Meaning | Example
+--- | --- | ---
+`bt` | display a backtrace of the current choice points |
+`dump` | display information about the state of the Prolog engine |
+
 
 ## BNF Syntax
 
