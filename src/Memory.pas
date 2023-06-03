@@ -65,6 +65,7 @@ End;
 Procedure UpdateMemoryStats( t : TypePrologObj; delta : LongInt; size : Integer );
 Begin
   PObjCount[t] := PObjCount[t] + delta;
+  CheckCondition(PObjCount[t] >= 0,'negative number of objects');
   mem := mem + delta*size;
 End;
 
@@ -311,21 +312,22 @@ Begin
   CWriteLn
 End;
 
-{ dump all the registered Prolog objects }
-Procedure DumpObjects( p : TPObjPtr; extra : Boolean );
-Begin
-  If p<>Nil Then
-  Begin
-    DumpObject(p,extra);
-    DumpObjects(ObjectNext(p),extra)
-  End
-End;
-
 { check a memory location has a chance to be a legit Prolog object }
 Procedure CheckIsPObj( p : TPObjPtr; prompt : AnyStr );
 Begin
   CheckCondition(IsObject(p),
     prompt + ': ' + PtrToName(p) + ' is not a Prolog object')
+End;
+
+{ dump all the registered Prolog objects }
+Procedure DumpObjects( p : TPObjPtr; extra : Boolean );
+Begin
+  If p<>Nil Then
+  Begin
+    CheckIsPObj(p,'DumpObjects');
+    DumpObject(p,extra);
+    DumpObjects(ObjectNext(p),extra)
+  End
 End;
 
 

@@ -496,7 +496,7 @@ End;
 
 { remove the queries typed by the user; FIXME: we cannot discard constants 
   and identifiers, since they have a global scope (plus, identifiers can be
-  assigned); as more queries are submitted, more memory is consumed }
+  assigned); FIXME: as more queries are submitted, more memory is consumed }
 Procedure RemoveCommandLineQueries( P : ProgPtr );
 Begin
   P^.PP_DVAR := P^.PP_UVAR { forget variables }
@@ -519,6 +519,7 @@ Begin
   { replace EndOfInput with EndOfLine }
   c := GetChar(c);
   UnGetChar(EndOfLine);
+  AppendQueries(P,Q); { append queries to the program to protect them from GC }
   CompileCommandLineQueries := Q
 End;
 

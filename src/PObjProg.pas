@@ -241,6 +241,24 @@ Begin
   LastProgramQuery := P^.PP_LQRY
 End;
 
+{ append queries Q to program P }
+Procedure AppendQueries( P : ProgPtr; Q : QueryPtr );
+Var
+  LastQ : QueryPtr;
+Begin
+  If Q <> Nil Then
+  Begin
+    CheckCondition((P^.PP_FQRY = Nil) And (P^.PP_LQRY = Nil) 
+        Or (P^.PP_FQRY <> Nil) And (P^.PP_LQRY <> Nil),'broken list of queries');
+    LastQ := P^.PP_LQRY;
+    P^.PP_LQRY := LastQuery(Q);
+    If LastQ = Nil Then
+      P^.PP_FQRY := Q
+    Else
+      LastQ^.QU_NEXT := Q
+  End
+End;
+
 { update the rule scope of query Q with all the rules in P }
 Procedure UpdateQueryScope( P : ProgPtr; Q : QueryPtr );
 Begin
