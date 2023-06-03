@@ -1,0 +1,344 @@
+Question 1 :
+Qui a obtenu le Prix Nobel de literature en 1901 ?
+Reponse :
+
+          Prudhomme
+
+Pressez <RETURN>
+
+Question 2 :
+Est-ce qu'un Francais a deja obtenu le Prix Nobel de literature ?
+Reponse :
+          Oui
+
+Pressez <RETURN>
+
+Question 3 :
+Un prix a-t-il deja été distribué en literature ?
+Reponse :
+          Oui
+
+Pressez <RETURN>
+
+Question 4 :
+Un Francais a-t-il obtenu un Prix Nobel entre 1900 et 1910 ?
+Reponse :
+          Oui
+
+Pressez <RETURN>
+
+Question 5 :
+Quels sont les francais Prix Nobel ?
+Reponse :
+
+          Prudhomme
+          Mistral
+          Rolland
+          France
+          Bergson
+          Gard
+          Gide
+          Mauriac
+          Camus
+          Perse
+          Sartre
+          Simon
+          Becquerel
+          Curie
+          Curie
+          Lippman
+          Guillome
+          Perrin
+          Broglie
+          Kastler
+          Néel
+          Moissan
+          Curie
+          Grignard
+          Sabatier
+          Joliot
+          Joliot-Curie
+          Lehn
+          Laveran
+          Carrel
+          Richet
+          Nicolle
+          Jacob
+          Lwoff
+          Monod
+          Dausset
+          Passy
+          Renault
+          Rebecque
+          Bourgeois
+          Briand
+          Buisson
+          Jouhaux
+          Schweitzer
+          Cassin
+
+Pressez <RETURN>
+
+Question 6 :
+Combien de francais ont été primés ?
+Reponse :
+
+          45
+
+Pressez <RETURN>
+
+Question 7 :
+A quel age est mort Romain Rolland ?
+Reponse :
+
+          78
+
+Pressez <RETURN>
+
+Question 8 :
+A quel age Romain Rolland a-t-il obtenu son Prix ?
+Reponse :
+
+          49
+
+Pressez <RETURN>
+
+Question 9 :
+Qui a obtenu son prix avant 35 ans ?
+Reponse :
+
+          Lawrence
+          Heisenberg
+          Dirac
+          Anderson
+          Lee
+          Glaser
+          Mössbauer
+          Josephson
+          Banting
+          Lederberg
+          Watson
+          Institut
+          Bureau
+          Office
+          Office
+          Fund
+          Corrigan
+          Williams
+          International
+          Office
+
+Pressez <RETURN>
+
+Question 10 :
+Quels ont-été les Prix Nobel en 1925 ?
+Reponse :
+
+          Shaw
+          Franck
+          Hertz
+          Zsigmondy
+          Chamberlain
+          Dawes
+
+Pressez <RETURN>
+
+Question 11 :
+Quels ont-été les Prix Nobel francais entre 1925 et 1950 ?
+Reponse :
+
+          Bergson
+          Gard
+          Gide
+          Perrin
+          Broglie
+          Joliot
+          Joliot-Curie
+          Nicolle
+          Briand
+          Buisson
+
+Pressez <RETURN>
+
+Question 12 :
+Quels Prix Nobel sont morts en 1980 ?
+Reponse :
+
+          Sartre
+          Vleck
+          Libby
+          Stein
+
+Pressez <RETURN>
+
+Question 13 :
+Qui a obtenu le Prix Nobel d'Economie avant 1950 ?
+Reponse :
+
+          Pas de réponse ...
+
+
+Pressez <RETURN>
+
+Question 14 :
+Quel Prix Nobel a vecu moins de 40 ans ?
+Reponse :
+
+          King
+
+Pressez <RETURN>
+
+Question 15 :
+Qui a obtenu le Prix Nobel l'année de sa mort ?
+Reponse :
+
+          Karlfeldt
+          Hammerskjöld
+
+Pressez <RETURN>
+
+Question 16 :
+Pourquoi les francais ont-ils été récompensé entre 1925 et 1950 ?
+Reponse :
+
+          li
+          li
+          li
+          phy
+          phy
+          che
+          che
+          med
+          pea
+          pea
+
+Pressez <RETURN>
+
+Question 17 :
+Combien de fois la France a-t-elle obtenue le Prix Nobel d'Economie ?
+Reponse :
+
+          0
+
+Pressez <RETURN>
+
+Question 18 :
+Quelle était la nationalité du Prix Nobel de literature en 1901 ?
+Reponse :
+
+          Fr
+
+Pressez <RETURN>
+
+Question 19 :
+De quelle nationalité est le Prix Nobel Romain Rolland ?
+Reponse :
+
+          Fr
+
+Pressez <RETURN>
+
+Question 20 :
+Quelle est l'année de naissance du Prix Nobel de la paix en 1982 ?
+Reponse :
+
+          1902
+          1911
+
+Pressez <RETURN>
+
+Question 21 :
+Quel était le nom, la nationalité et la spécialité des Prix Nobel de 1925 ?
+Reponse :
+
+          <Shaw,Bri,li>
+          <Franck,Ger,phy>
+          <Hertz,Ger,phy>
+          <Zsigmondy,Ger,che>
+          <Chamberlain,Bri,pea>
+          <Dawes,Am,pea>
+
+Pressez <RETURN>
+
+Question 22 :
+Combien d'années a vecu le Prix Nobel d'Economie de 1950 ?
+Reponse :
+
+          Pas de réponse ...
+
+
+Pressez <RETURN>
+
+Question 23 :
+Quel est l'age moyen des Prix Nobel en literature l'année de leur prix ?
+Reponse :
+
+          63
+
+Pressez <RETURN>
+
+Question 24 :
+Quel était l'age moyen des Prix Nobel de 1925 ?
+Reponse :
+
+          55
+
+Pressez <RETURN>
+
+Question 25 :
+Nom et date de naissance des Prix Nobel de literature de plus de 60 ans ?
+Reponse :
+
+          <Prudhomme,1839>
+          <Mistral,1830>
+          <Rolland,1866>
+          <France,1844>
+          <Bergson,1859>
+          <Gard,1881>
+          <Gide,1869>
+          <Mauriac,1885>
+          <Perse,1887>
+          <Sartre,1905>
+
+Pressez <RETURN>
+
+Question 26 :
+Age du plus jeune Prix Nobel de literature au moment de sa nomination ?
+Reponse :
+
+          42
+
+Pressez <RETURN>
+
+Question 27 :
+Nom, nationalité et la date de recompence du plus jeune nobel de la Paix ?
+Reponse :
+
+          <1954,Office,Int>
+
+Pressez <RETURN>
+
+Question 28 :
+A quelle date a été distribué le premier Prix Nobel de la paix ?
+Reponse :
+
+          1901
+
+Pressez <RETURN>
+
+Question 29 :
+Qui a obtenu le premier prix d'economie ?
+Reponse :
+
+          Tinbergen
+
+Pressez <RETURN>
+
+Question 30 :
+Est-ce-que le premier prix de literature était un francais ?
+Reponse :
+          Oui
+
+Pressez <RETURN>
+
+Bonsoir...
