@@ -15,8 +15,6 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-{ TODO: add the modified object itself to make sure it is not GC'ed }
-
 { list of (addr, value) elements, where addr is the address of a Prolog object pointer,
   and value is a Prolog object pointers }
 Type
@@ -25,6 +23,7 @@ Type
     PO_META : TObjMeta;
     { not deep copied: }
     RE_NEXT : RestorePtr;
+    RE_POBJ : TPObjPtr; { object whose property is modified }
     RE_PVAL : TPObjPtr; { backup of the pointer value }
     { extra data: }
     RE_ADDR : ^TPObjPtr; { address of the pointer value }
@@ -40,9 +39,10 @@ Var
   U : RestorePtr;
   ptr : TPObjPtr Absolute U;
 Begin
-  ptr := NewRegisteredObject(RE,2,False,0);
+  ptr := NewRegisteredObject(RE,3,False,0);
   With U^ Do
   Begin
+    RE_POBJ := Nil;
     RE_PVAL := Nil;
     RE_ADDR := Nil;
     RE_DONE := False;
@@ -55,12 +55,13 @@ End;
 { methods                                                               }
 {-----------------------------------------------------------------------}
 
-Procedure PushRestore( Var U : RestorePtr; Var p : TPObjPtr );
+Procedure PushRestore( Var U : RestorePtr; obj : TPObjPtr; Var p : TPObjPtr );
 Var NewU : RestorePtr;
 Begin
   NewU := NewRestore;
   With NewU^ Do
   Begin
+    RE_POBJ := obj;
     RE_ADDR := Addr(p);
     RE_PVAL := p;
     RE_NEXT := U
@@ -69,12 +70,13 @@ Begin
 End;
 
 
-Procedure SetMem( Var U : RestorePtr; Var p : TPObjPtr; V : TPObjPtr; Backtrackable : Boolean);
+Procedure SetMem( Var U : RestorePtr; obj : TPObjPtr; 
+    Var p : TPObjPtr; V : TPObjPtr; Backtrackable : Boolean);
 Begin
   If p <> V Then
   Begin
     If Backtrackable Then 
-      PushRestore(U,p);
+      PushRestore(U,obj,p);
     p := V
   End
 End;
@@ -86,6 +88,7 @@ Begin
     Begin
       Restore(RE_NEXT);
       CheckCondition(Not RE_DONE,'double restore');
+      CheckIsPObj(RE_POBJ,'Restore/obj');
       If RE_ADDR^ <> Nil Then 
         CheckIsPObj(RE_ADDR^,'Restore/addr');
       If RE_PVAL <> Nil Then 

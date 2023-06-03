@@ -182,12 +182,13 @@ Begin
 End;
 
 { assign an equation, possibly allowing for backtracking }
-Procedure SetMemEq( Var U : RestorePtr; Var E : EqPtr; V : EqPtr; Backtrackable : Boolean);
+Procedure SetMemEq( Var U : RestorePtr; obj : TPObjPtr;
+    Var E : EqPtr; V : EqPtr; Backtrackable : Boolean);
 Var 
   p : TPObjPtr Absolute E;
   pV : TPObjPtr Absolute V;
 Begin
-  SetMem(U,p,pV,Backtrackable)
+  SetMem(U,obj,p,pV,Backtrackable)
 End;
 
 { create a new system containing a single equation T1=T2 }

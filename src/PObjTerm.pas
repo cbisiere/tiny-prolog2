@@ -304,15 +304,18 @@ End;
 
 { add an inequation E to the watch list of variable V }
 Procedure AddWatch( V : VarPtr; E : EqPtr; Backtrackable : Boolean; Var L : RestorePtr );
-Var Ec : EqPtr;
+Var 
+  OV : TPObjPtr Absolute V;
+  Ec : EqPtr;
+  OEc : TPObjPtr Absolute Ec;
 Begin
   If WatchIneq(V) = Nil Then { first watch }
-    SetMemEq(L,V^.TV_FWAT,E,Backtrackable)
+    SetMemEq(L,OV,V^.TV_FWAT,E,Backtrackable)
   Else
   Begin { add a watch }
     Ec := WatchIneq(V);
     While (Ec^.EQ_NEXT <> Nil) Do Ec := Ec^.EQ_NEXT;
-    SetMemEq(L,Ec^.EQ_NEXT,E,Backtrackable)
+    SetMemEq(L,OEc,Ec^.EQ_NEXT,E,Backtrackable)
   End
 End;
 

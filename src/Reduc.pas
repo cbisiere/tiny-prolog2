@@ -84,6 +84,7 @@ Var
     Procedure Unify( Tg,Td : TermPtr );
     Var 
       T1,T2 : TermPtr;
+      OT1 : TPObjPtr Absolute T1;
       VT1 : VarPtr Absolute T1;
       FT1 : FuncPtr Absolute T1;
       FT2 : FuncPtr Absolute T2;
@@ -91,14 +92,16 @@ Var
 
       { add an equation V1 = T2 in the reduced system }
       Procedure CreateLiaison( V1 : VarPtr; T2 : TermPtr );
+      Var
+        OV1 : TPObjPtr Absolute V1;
       Begin
-        SetMem(L,V1^.TV_TRED,T2,Backtrackable);  { add v=t in the reduced system }
+        SetMem(L,OV1,V1^.TV_TRED,T2,Backtrackable);  { add v=t in the reduced system }
 
         { step 2 of system solving is handled here}
         If WatchIneq(V1) <> Nil Then { x already watched a liaison }
         Begin
           CopyAllEqInSys(S,WatchIneq(V1));
-          SetMemEq(L,V1^.TV_FWAT,Nil,Backtrackable)
+          SetMemEq(L,OV1,V1^.TV_FWAT,Nil,Backtrackable)
         End;
 
         { assigned identifier feature: keep track of var = ident unification }
@@ -137,7 +140,7 @@ Var
           Else
           Begin
             { add "f = f" to the reduced system }
-            SetMem(Uf,FT1^.TF_TRED,T2,Backtrackable);
+            SetMem(Uf,OT1,FT1^.TF_TRED,T2,Backtrackable);
             { insert in the unreduced system l1=l2 and r1=r2 }
             If (FRightArg(FT1) <> Nil) And (FRightArg(FT2) <> Nil) Then
             Begin
