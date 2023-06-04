@@ -33,12 +33,15 @@
 {                                                                       }
 {-----------------------------------------------------------------------}
 
-{ read a term, possibly accepting a cut as a valid term }
-Function ReadOneTerm( P : ProgPtr; Cut : Boolean) : TermPtr; Forward;
+{ read a term, possibly in a global context (that is, when parsing a
+  rule), possibly accepting a cut as a valid term }
+Function ReadOneTerm( P : ProgPtr; glob : Boolean; 
+    Cut : Boolean) : TermPtr; Forward;
 
 { read the argument of a predicate (EndChar=')') or a tuple (EndChar='>');
   return Nil if an error occurred }
-Function GetArgument( P : ProgPtr; EndChar : Char ) : FuncPtr;
+Function GetArgument( P : ProgPtr; glob : Boolean; 
+    EndChar : Char ) : FuncPtr;
 Var
   T : TermPtr;
   c : Char;
@@ -46,13 +49,13 @@ Var
   TF : TermPtr Absolute F;
 Begin
   F := Nil;
-  T := ReadOneTerm(P,False);
+  T := ReadOneTerm(P,glob,False);
   If Not Error Then
   Begin
     c := GetCharNb(c);
     If c =  ',' Then
     Begin
-      F := GetArgument(P,EndChar);
+      F := GetArgument(P,glob,EndChar);
       If Not Error Then
         F := NewSymbol(T,TF)
     End
@@ -106,7 +109,8 @@ Begin
 End;
 
 { read a term, possibly accepting a cut as a valid term }
-Function ReadOneTerm; (* ( P : ProgPtr; Cut : Boolean ) : TermPtr *)
+Function ReadOneTerm; (* ( P : ProgPtr; glob : Boolean; 
+    Cut : Boolean ) : TermPtr *)
 Var
   T : TermPtr;
   T2 : TermPtr;
@@ -139,14 +143,14 @@ Begin
       If c1='-' Then
         StrAppendChar(Ch,GetChar(c1));
       n := GetCharWhile(Ch,Digits);
-      C := InstallConst(P^.PP_DCON,Ch,CN);
+      C := InstallConst(P^.PP_DCON,Ch,CN,glob);
       T := TC
     End
     Else
     If c1 ='(' Then          { ( <term> ) }
     Begin
       c1 := GetChar(c1);
-      T := ReadOneTerm(P,False);
+      T := ReadOneTerm(P,glob,False);
       If Not Error Then
         Verify(')')
     End
@@ -161,7 +165,7 @@ Begin
         F := NewSymbol(Nil,Nil)
       End
       Else
-        F := GetArgument(P,'>');
+        F := GetArgument(P,glob,'>');
       If Not Error Then
         T := TF
     End
@@ -171,7 +175,7 @@ Begin
       Ch := ReadString;
       If Not Error Then
       Begin
-        C := InstallConst(P^.PP_DCON,Ch,CS);
+        C := InstallConst(P^.PP_DCON,Ch,CS,glob);
         T := TC
       End
     End
@@ -179,7 +183,7 @@ Begin
     If Cut and (c1 In ['!','/']) Then    { the "cut" }
     Begin
       c1 := GetChar(c1);
-      I := InstallIdentifier(P^.PP_DIDE,NewStringFrom('!'));
+      I := InstallIdentifier(P^.PP_DIDE,NewStringFrom('!'),glob);
       T := TI
     End
     Else
@@ -196,7 +200,7 @@ Begin
     { [<digits>]["'"]* }
     n := GetCharWhile(Ch,Digits);
     n := GetCharWhile(Ch,['''']);
-    V := InstallVariable(P^.PP_DVAR,P^.PP_LVAR,Ch);
+    V := InstallVariable(P^.PP_DVAR,P^.PP_LVAR,Ch,glob);
     T := TV;
   End
   Else { at least 2 letters: an identifier }
@@ -213,9 +217,9 @@ Begin
     If NextChar(c1) = '(' Then { a predicate }
     Begin
       c1 := GetChar(c1);
-      I := InstallIdentifier(P^.PP_DIDE,Ch);
+      I := InstallIdentifier(P^.PP_DIDE,Ch,glob);
       { predicate's argument }
-      F := GetArgument(P,')');
+      F := GetArgument(P,glob,')');
       If Not Error Then
       Begin
         F2 := NewSymbol(TI,TF);
@@ -224,7 +228,7 @@ Begin
     End
     Else
     Begin { an identifier that is not a predicate }
-      I := InstallIdentifier(P^.PP_DIDE,Ch);
+      I := InstallIdentifier(P^.PP_DIDE,Ch,glob);
       T := TI
     End
   End;
@@ -234,8 +238,8 @@ Begin
     If c1 = '.' Then    { a list element }
     Begin
       c1 := GetChar(c1);
-      I := InstallIdentifier(P^.PP_DIDE,NewStringFrom('.'));
-      T2 := ReadOneTerm(P,False);
+      I := InstallIdentifier(P^.PP_DIDE,NewStringFrom('.'),glob);
+      T2 := ReadOneTerm(P,glob,False);
       If Not Error Then
       Begin
         F := NewSymbol(T2,Nil); { q: new term }
@@ -249,7 +253,7 @@ Begin
 End;
 
 { read an equations or a inequation }
-Function ReadEquation( P : ProgPtr ) : EqPtr;
+Function ReadEquation( P : ProgPtr; glob : Boolean ) : EqPtr;
 Var
   E : EqPtr;
   T1, T2 : TermPtr;
@@ -257,7 +261,7 @@ Var
   c : Char;
 Begin
   E := Nil;
-  T1 := ReadOneTerm(P,False);
+  T1 := ReadOneTerm(P,glob,False);
   If Not Error Then
   Begin
     c := GetCharNb(c);
@@ -274,14 +278,14 @@ Begin
     End
   End;
   If Not Error Then
-    T2 := ReadOneTerm(P,False);  { right term }
+    T2 := ReadOneTerm(P,glob,False);  { right term }
   If Not Error Then
     E := NewEquation(Code,T1,T2);
   ReadEquation := E
 End;
 
 { read a system of equations or inequations }
-Function ReadSystem( P : ProgPtr ) : EqPtr;
+Function ReadSystem( P : ProgPtr; glob : Boolean ) : EqPtr;
 Var
   E, FirstE, PrevE : EqPtr;
   First : Boolean;
@@ -294,7 +298,7 @@ Begin
   Begin
     First := True;
     Repeat
-      E := ReadEquation(P);
+      E := ReadEquation(P,glob);
       If First Then
       Begin
         FirstE := E;
@@ -311,19 +315,19 @@ Begin
 End;
 
 { compile a system of equations and inequations }
-Function CompileSystem( P : ProgPtr ) : EqPtr;
+Function CompileSystem( P : ProgPtr; glob : Boolean ) : EqPtr;
 Begin
-  CompileSystem := ReadSystem(P)
+  CompileSystem := ReadSystem(P,glob)
 End;
 
 { compile a term }
-Function CompileOneTerm( P : ProgPtr; Cut : Boolean ) : BTermPtr;
+Function CompileOneTerm( P : ProgPtr; glob : Boolean; Cut : Boolean ) : BTermPtr;
 Var B : BTermPtr;
 Begin
   B := NewBTerm;
   With B^ Do
   Begin
-    BT_TERM := ReadOneTerm(P,Cut);
+    BT_TERM := ReadOneTerm(P,glob,Cut);
     BT_ACCE := AccessIdentifier(BT_TERM)
   End;
   CompileOneTerm := B
@@ -331,7 +335,7 @@ End;
 
 { compile a sequence of terms, stopping at a char in StopChars; set HasCut to
   true if the queue contains a cut, false otherwise }
-Function CompileTerms( P : ProgPtr; StopChars : CharSet; 
+Function CompileTerms( P : ProgPtr; glob : Boolean; StopChars : CharSet; 
   Var HasCut : Boolean ) : BTermPtr;
 
   Function DoCompileTerms : BTermPtr;
@@ -345,7 +349,7 @@ Function CompileTerms( P : ProgPtr; StopChars : CharSet;
       B := NewBTerm;
       With B^ Do
       Begin
-        BT_TERM := ReadOneTerm(P,True);
+        BT_TERM := ReadOneTerm(P,glob,True);
         If Not Error Then
         Begin
           HasCut := HasCut Or TermIsCut(BT_TERM);
@@ -391,18 +395,18 @@ Begin
   With R^ Do
   Begin
     RU_SYST := Nil;
-    B := CompileOneTerm(P,False); { head }
+    B := CompileOneTerm(P,True,False); { head }
     RU_FBTR := B;
     Verify('->');
     If Not Error Then
     Begin
-      B^.BT_NEXT := CompileTerms(P,['{',';'],HasCut);
+      B^.BT_NEXT := CompileTerms(P,True,['{',';'],HasCut);
       If Not Error Then
       Begin
         RU_ACUT := HasCut;
         c := NextCharNb(c);
         If c = '{' Then
-          RU_SYST := CompileSystem(P);
+          RU_SYST := CompileSystem(P,True);
         If Not Error Then
           Verify(';')
       End
@@ -450,13 +454,13 @@ Begin
   OpenLocalContextForQuery(P,Q);
   With Q^ Do
   Begin
-    QU_FBTR := CompileTerms(P,['{',';',EndOfInput],HasCut);
+    QU_FBTR := CompileTerms(P,False,['{',';',EndOfInput],HasCut);
     If Not Error Then
     Begin
       QU_ACUT := HasCut;
       c := NextCharNb(c);
       If c = '{' Then
-        QU_SYST := CompileSystem(P);
+        QU_SYST := CompileSystem(P,False);
       If Not Error Then
         Verify(';')
     End

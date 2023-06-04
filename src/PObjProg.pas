@@ -84,7 +84,7 @@ Type
     PP_FRUL : RulePtr; { first rule }
     PP_LRUL : RulePtr; { last rule }
     { not deep copied: }
-    PP_HEAD : HeadPtr; { current clock head (during execution or a query) }
+    PP_HEAD : HeadPtr; { current clock head (during execution of a query) }
     PP_DCON : DictPtr; { list of all constants }
     PP_UCON : DictPtr; { constant list head before processing user's command line; unused }
     PP_DIDE : DictPtr; { list of all identifiers (globals, can be assigned, must not backtrack) }
@@ -365,6 +365,7 @@ Begin
       Q^.QU_PREV := Nil { detach }
     End;
   End;
+  { TODO: discard non persistent identifiers and constants }
   { forget variables }
   P^.PP_DVAR := P^.PP_UVAR 
 End;

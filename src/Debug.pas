@@ -91,7 +91,8 @@ Begin
     End;
   DE:
     Begin
-      CWrite('"');
+      CWriteBool(Dp^.DE_GLOB);
+      CWrite(' "');
       OutString(Dp^.DE_STRI,False);
       CWrite('"')
     End;
@@ -212,7 +213,11 @@ Begin
   while (e<>Nil) And (e<>stop) Do
   Begin
     TV := e^.DE_TERM;
-    CWrite('  ');
+    CWrite(' ');
+    If DictIsGlobal(e) Then
+      CWrite('*')
+    Else
+      CWrite(' ');
     OutVarName(V,False);
     If VRed(V) <> Nil Then
     Begin
@@ -223,7 +228,7 @@ Begin
     Begin
       CWrite(', ');
       OutOneEquation(WatchIneq(V),False)
-    End;    
+    End;
     CWriteLn;
     e := e^.DE_NEXT
   End
@@ -236,6 +241,10 @@ Begin
   CWriteLn;
   while (e<>Nil) Do
   Begin
+    If DictIsGlobal(e) Then
+      CWrite('*')
+    Else
+      CWrite(' ');
     OutStringCR(e^.DE_STRI,False);
     e := e^.DE_NEXT
   End

@@ -551,17 +551,18 @@ End;
   dictionary entry as well), and everyone points to that term; consequently
   constant terms and dictionary entries are not copied when they are
   reached through a deep copy }
-Function InstallConst( Var list : DictPtr; str : StrPtr; ty : TypePrologObj ) : ConstPtr;
+Function InstallConst( Var list : DictPtr; str : StrPtr; 
+    ty : TypePrologObj; glob : Boolean ) : ConstPtr;
 Var 
   C : ConstPtr;
   TC : TermPtr Absolute C;
   e : DictPtr;
 Begin
-  e := DictLookup(list,Nil,str);
+  e := DictLookup(list,Nil,str,glob);
   If e = Nil Then
   Begin
     C := NewConst;
-    e := DictAppend(list,str,TC,ty);
+    e := DictAppend(list,str,TC,ty,glob);
     C^.TC_DCON := e
   End
   Else
@@ -572,18 +573,19 @@ End;
 { create an assignable object (variable or identifier) if it does not 
   exist in list (up to stop, excluded); return it }
 Function InstallAssignable( Var list : DictPtr; stop : DictPtr; 
-    str : StrPtr; ty : TypePrologObj; CanCopy : Boolean) : AssPtr;
+    str : StrPtr; ty : TypePrologObj; glob : Boolean; 
+    CanCopy : Boolean) : AssPtr;
 Var
   V : AssPtr;
   TV : TermPtr Absolute V;
   e : DictPtr;
 Begin
   CheckCondition((ty=VA) Or (ty=ID),'InstallAssignable: VA or ID expected');
-  e := DictLookup(list,stop,str);
+  e := DictLookup(list,stop,str,glob);
   If e = Nil Then
   Begin
     V := NewAssignable(ty,CanCopy);
-    e := DictAppend(list,str,TV,VA);
+    e := DictAppend(list,str,TV,VA,glob);
     V^.TV_DVAR := e
   End
   Else
@@ -593,14 +595,16 @@ End;
 
 { create a variable if it does not exist in list (up to stop, excluded);
   a variable is subject to deep copy }
-Function InstallVariable( Var list : DictPtr; stop : DictPtr; str : StrPtr ) : VarPtr;
+Function InstallVariable( Var list : DictPtr; stop : DictPtr; 
+    str : StrPtr; glob : Boolean ) : VarPtr;
 Begin
-  InstallVariable := InstallAssignable(list,stop,str,VA,True)
+  InstallVariable := InstallAssignable(list,stop,str,VA,glob,True)
 End;
 
 { create an identifier if it does not exist in list; an identifier is
   not deep-copyable }
-Function InstallIdentifier( Var list : DictPtr; str : StrPtr ) : IdPtr;
+Function InstallIdentifier( Var list : DictPtr; 
+    str : StrPtr; glob : Boolean  ) : IdPtr;
 Begin
-  InstallIdentifier := InstallAssignable(list,Nil,str,ID,False)
+  InstallIdentifier := InstallAssignable(list,Nil,str,ID,glob,False)
 End;

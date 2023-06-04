@@ -99,11 +99,11 @@ Begin
   LookupPred := Found
 End;
 
-{ install all predefined constants }
+{ install all predefined, persistent constants }
 Procedure RegisterPredefined( P : ProgPtr );
 Var I : IdPtr;
 Begin
-  I := InstallIdentifier(P^.PP_DCON,NewStringFrom('SYSCALL'))
+  I := InstallIdentifier(P^.PP_DCON,NewStringFrom('SYSCALL'),True)
 End;
 
 { evaluate a term T; The expression to be evaluated is constructed 
@@ -195,7 +195,7 @@ Begin
               Begin
                 rs := LongIntToStr(r);
                 s := NewStringFrom(rs);
-                Ce := InstallConst(P^.PP_DCON,s,CN)
+                Ce := InstallConst(P^.PP_DCON,s,CN,False)
               End
             End
           End
@@ -285,7 +285,10 @@ Begin
         T1 := GetPArg(1,FT);
         Case TypeOfTerm(T1) Of
         Identifier: { an identifier, thus unbound (first assignment) }
-          I := IT1;
+          Begin
+            DictSetGlobal(IT1^.TV_DVAR,True); { dict entry is now persistent }
+            I := IT1
+          End;
         Variable:
           Begin
             I := VT1^.TV_IRED;
@@ -366,7 +369,7 @@ Begin
       End;
     PP_INPUT_IS: { input_is(s) }
       Begin
-        C := InstallConst(P^.PP_DCON,NewStringFrom(InputIs),CS);
+        C := InstallConst(P^.PP_DCON,NewStringFrom(InputIs),CS,False);
         Ok := ReduceOneEq(GetPArg(1,FT),TC)
       End;
     PP_CLOSE_CURRENT_INPUT: { close_input }
@@ -399,7 +402,7 @@ Begin
       End;
     PP_OUTPUT_IS: { output_is(s) }
       Begin
-        C := InstallConst(P^.PP_DCON,NewStringFrom(OutputIs),CS);
+        C := InstallConst(P^.PP_DCON,NewStringFrom(OutputIs),CS,False);
         Ok := ReduceOneEq(GetPArg(1,FT),TC)
       End;
     PP_CLOSE_CURRENT_OUTPUT: { close_output }
@@ -448,7 +451,7 @@ Begin
     PP_IN_TERM:
       Begin
         CheckConsoleInput(True);
-        T1 := ReadOneTerm(P,False);
+        T1 := ReadOneTerm(P,False,False);
         If Not Error Then
           Ok := ReduceOneEq(GetPArg(1,FT),T1)
       End;
@@ -459,7 +462,7 @@ Begin
         Ok := Not Error;
         If Ok Then
         Begin
-          C := InstallConst(P^.PP_DCON,NewStringFrom(str),CS);
+          C := InstallConst(P^.PP_DCON,NewStringFrom(str),CS,False);
           Ok := ReduceOneEq(GetPArg(1,FT),TC)
         End
       End;
