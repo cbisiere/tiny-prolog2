@@ -259,6 +259,8 @@ End;
 { debug / dump                                                               }
 {----------------------------------------------------------------------------}
 
+Function FindObjectById( guid : LongInt ) : TPObjPtr; Forward;
+
 { global object ID to string }
 Function GuidToStr( guid : LongInt ) : AnyStr;
 Begin
@@ -269,6 +271,7 @@ End;
 Function PtrToName( p : TPObjPtr ) : AnyStr;
 Var
   s : AnyStr;
+  guid : LongInt;
 Begin
   If (p = Nil) Then
     s := '-'
@@ -277,7 +280,13 @@ Begin
   Else If ObjectIsFree(p) Then
     s := '<Free>' { Bug: Object than has been freed }
   Else
-    s := GuidToStr(ObjectGuid(p));
+  Begin
+    guid := ObjectGuid(p);
+    s := GuidToStr(guid);
+    { mark unregistered objects }
+    If FindObjectById(guid) = Nil Then { Warning: time consuming }
+      s := s + '(!)'
+  End;
   PtrToName := s
 End;
 
@@ -316,7 +325,7 @@ End;
 Procedure CheckIsPObj( p : TPObjPtr; prompt : AnyStr );
 Begin
   CheckCondition(IsObject(p),
-    prompt + ': ' + PtrToName(p) + ' is not a Prolog object')
+    prompt + ': not a Prolog object')
 End;
 
 { dump all the registered Prolog objects }
@@ -354,7 +363,7 @@ Begin
 End;
 
 { find the object with guid id in the object store, or Nil }
-Function FindObjectById( guid : LongInt ) : TPObjPtr;
+Function FindObjectById; (*( guid : LongInt ) : TPObjPtr;*)
 Var
   p : TPObjPtr;
   Found : Boolean;
@@ -649,11 +658,15 @@ End;
 { GC roots                                                                   }
 {----------------------------------------------------------------------------}
 
-Const MaxGCRoots = 255;
+Const 
+  MaxGCRoots = 255;
+
+Type
+  TNbRoots = 0..MaxGCRoots;
 
 Var 
-  NbRoots : Byte;
-  Roots : Array[1..MaxGCRoots] Of ^TPObjPtr;
+  NbRoots : TNbRoots;
+  Roots : Array[1..MaxGCRoots] Of TPObjPtr;
 
 Procedure InitGCRoots;
 Begin
@@ -662,22 +675,22 @@ End;
 
 Procedure DumpGCRoots;
 Var 
-  i : Byte;
+  i : TNbRoots;
 Begin
   CWrite('GC roots:');
   CWriteLn;
   For i := 1 To NbRoots Do
   Begin
-    CWrite(RAlign(IntToStr(i),3) + ' ' + RAlign(PtrToName(Roots[i]^),5));
+    CWrite(RAlign(IntToStr(i),3) + ' ' + RAlign(PtrToName(Roots[i]),5));
     CWriteLn
   End
 End;
 
-Procedure AddGCRoot (r : TPObjPtr );
+Procedure AddGCRoot( r : TPObjPtr );
 Begin
-  CheckCondition(NbRoots<MaxGCRoots,'GC root pool is full');
+  CheckCondition(NbRoots < MaxGCRoots,'GC root pool is full');
   NbRoots := NbRoots + 1;
-  Roots[NbRoots] := Addr(r)
+  Roots[NbRoots] := r
 End;
 
 {----------------------------------------------------------------------------}
@@ -693,12 +706,12 @@ End;
 
 Procedure GarbageCollector;
 Var 
-  i : Byte;
+  i : TNbRoots;
 Begin
   CheckCondition(Not OngoingGC, 'GC: not reentrant');
   OngoingGC := True;
   For i := 1 To NbRoots Do
-    Mark(Roots[i]^);
+    Mark(Roots[i]);
   Sweep;
   UnMark;
   OngoingGC := False

@@ -21,6 +21,9 @@
 {-----------------------------------------------------------------------}
 
 Type 
+  TILevel = Integer; { file insertion level (0 is command line) }
+
+Type 
   BTermPtr = ^TObjBTerm;
   RulePtr = ^TObjRule;
   QueryPtr = ^TObjQuery;
@@ -47,8 +50,8 @@ Type
     RU_FBTR : BTermPtr; { list of terms (the first is the rule head) }
     RU_SYST : EqPtr; { list of equation or inequation in the rule; Warning: not GC }
     { not deep copied: }
-    RU_FVAR : DictPtr; { where to start looking up }
-    RU_LVAR : DictPtr; { where to stop looking up }
+    RU_FVAR : DictPtr; { where to start looking up for local variables }
+    RU_LVAR : DictPtr; { where to stop looking up for local variables }
     { extra data: }
     RU_ACUT : Boolean; { rule queue contains a cut }
     RU_TYPE : RuType { type of rule: read from init file, or user }
@@ -58,15 +61,17 @@ Type
   TObjQuery = Record
     PO_META : TObjMeta;
     { deep copied: }
+    QU_PREV : QueryPtr; { previous query }
     QU_NEXT : QueryPtr; { next query }
     QU_FRUL : RulePtr; { first rule to try }
     QU_LRUL : RulePtr; { last rule to try }
     QU_FBTR : BTermPtr; { terms in the query }
     QU_SYST : EqPtr; { list of equation or inequation in the query }
     { not deep copied: }
-    QU_FVAR : DictPtr; { where to start looking up }
-    QU_LVAR : DictPtr; { where to stop looking up }
+    QU_FVAR : DictPtr; { where to start looking up for local variables }
+    QU_LVAR : DictPtr; { where to stop looking up for local variables }
     { extra data: }
+    QU_LEVL : TILevel; { 0: command-line; 1: first inserted file, etc. }
     QU_ACUT : Boolean; { query contains a cut }
   End;
 
@@ -85,7 +90,9 @@ Type
     PP_DIDE : DictPtr; { list of all identifiers (globals, can be assigned, must not backtrack) }
     PP_DVAR : DictPtr; { list of all variable identifiers }
     PP_UVAR : DictPtr; { variable identifier list head before processing user's command line }
-    PP_LVAR : DictPtr { last identifier to lookup when parsing (local variables)}
+    PP_LVAR : DictPtr; { last identifier to lookup when parsing (local variables)}
+    { extra data: }
+    PP_LEVL : TILevel { current file insertion level (0 is command-line) }
   End;
 
   { clock header }
@@ -123,6 +130,29 @@ Begin
     BT_HEAD := Nil
   End;
   NewBTerm := B
+End;
+
+{ new query w/ given file insertion level }
+Function NewQuery( level : TILevel ) : QueryPtr;
+Var 
+  Q : QueryPtr;
+  ptr : TPObjPtr Absolute Q;
+Begin
+  ptr := NewRegisteredObject(QU,8,True,6);
+  With Q^ Do
+  Begin
+    QU_PREV := Nil;
+    QU_NEXT := Nil;
+    QU_FRUL := Nil;
+    QU_LRUL := Nil;
+    QU_FBTR := Nil;
+    QU_SYST := Nil;
+    QU_FVAR := Nil;
+    QU_LVAR := Nil;
+    QU_LEVL := level;
+    QU_ACUT := False
+  End;
+  NewQuery := Q
 End;
 
 { new rule }
@@ -164,7 +194,8 @@ Begin
     PP_DIDE := Nil;
     PP_DVAR := Nil;
     PP_UVAR := Nil;
-    PP_LVAR := Nil
+    PP_LVAR := Nil;
+    PP_LEVL := 0
   End;
   NewProgram := P
 End;
@@ -221,18 +252,38 @@ Begin
   LastRule := R
 End;
 
+{ append rule R to program P }
+Procedure AppendOneRule( P : ProgPtr; R : RulePtr );
+Begin
+  If R <> Nil Then
+  Begin
+    CheckCondition((P^.PP_FRUL = Nil) And (P^.PP_LRUL = Nil) 
+        Or (P^.PP_FRUL <> Nil) And (P^.PP_LRUL <> Nil),
+        'broken list of rules');
+    R^.RU_NEXT := Nil;
+    if P^.PP_FRUL = Nil Then
+    Begin
+      P^.PP_FRUL := R;
+      P^.PP_LRUL := R
+    End
+    Else
+    Begin
+      P^.PP_LRUL^.RU_NEXT := R;
+      P^.PP_LRUL := R
+    End
+  End
+End;
+
 { next query }
 Function NextQuery( Q : QueryPtr ) : QueryPtr;
 Begin
   NextQuery := Q^.QU_NEXT
 End;
 
-{ last query in a list }
-Function LastQuery( Q : QueryPtr ) : QueryPtr;
+{ previous query }
+Function PrevQuery( Q : QueryPtr ) : QueryPtr;
 Begin
-  While (Q^.QU_NEXT <> Nil) Do
-    Q := Q^.QU_NEXT;
-  LastQuery := Q
+  PrevQuery := Q^.QU_PREV
 End;
 
 { last query in a program }
@@ -241,21 +292,27 @@ Begin
   LastProgramQuery := P^.PP_LQRY
 End;
 
-{ append queries Q to program P }
-Procedure AppendQueries( P : ProgPtr; Q : QueryPtr );
-Var
-  LastQ : QueryPtr;
+{ append query Q to program P }
+Procedure AppendOneQuery( P : ProgPtr; Q : QueryPtr );
 Begin
   If Q <> Nil Then
   Begin
     CheckCondition((P^.PP_FQRY = Nil) And (P^.PP_LQRY = Nil) 
-        Or (P^.PP_FQRY <> Nil) And (P^.PP_LQRY <> Nil),'broken list of queries');
-    LastQ := P^.PP_LQRY;
-    P^.PP_LQRY := LastQuery(Q);
-    If LastQ = Nil Then
-      P^.PP_FQRY := Q
+        Or (P^.PP_FQRY <> Nil) And (P^.PP_LQRY <> Nil),
+        'broken list of queries');
+    Q^.QU_NEXT := Nil;
+    Q^.QU_PREV := Nil;
+    if P^.PP_FQRY = Nil Then
+    Begin
+      P^.PP_FQRY := Q;
+      P^.PP_LQRY := Q
+    End
     Else
-      LastQ^.QU_NEXT := Q
+    Begin
+      P^.PP_LQRY^.QU_NEXT := Q;
+      Q^.QU_PREV := P^.PP_LQRY;
+      P^.PP_LQRY := Q
+    End
   End
 End;
 
@@ -264,6 +321,65 @@ Procedure UpdateQueryScope( P : ProgPtr; Q : QueryPtr );
 Begin
   Q^.QU_FRUL := P^.PP_FRUL;
   Q^.QU_LRUL := P^.PP_LRUL
+End;
+
+{ first query to execute, that is, first query having the same 
+  insertion level as the current one }
+Function FirstQueryToExecute( P : ProgPtr ) : QueryPtr;
+Var 
+  Q : QueryPtr;
+  Found : Boolean;
+Begin
+  Q := P^.PP_FQRY;
+  Found := False;
+  While (Q <> Nil) And (Not Found) Do
+  Begin
+    Found := Q^.QU_LEVL = P^.PP_LEVL;
+    If Not Found Then
+      Q := NextQuery(Q)
+  End;
+  FirstQueryToExecute := Q
+End;
+
+{ remove all queries from program P at current insertion level; 
+  FIXME: we cannot discard constants 
+  and identifiers, since they have a global scope (plus, identifiers can be
+  assigned); FIXME: as more queries are submitted, more memory is consumed }
+Procedure RemoveQueries( P : ProgPtr );
+Var 
+  Q : QueryPtr;
+Begin
+  { detach the queries }
+  Q := FirstQueryToExecute(P);
+  If Q <> Nil Then
+  Begin
+    If Q^.QU_PREV = Nil Then { was first in list }
+    Begin
+      P^.PP_FQRY := Nil;
+      P^.PP_LQRY := Nil
+    End
+    Else
+    Begin
+      Q^.QU_PREV^.QU_NEXT := Nil; { shorten the list }
+      P^.PP_LQRY := Q^.QU_PREV;
+      Q^.QU_PREV := Nil { detach }
+    End;
+  End;
+  { forget variables }
+  P^.PP_DVAR := P^.PP_UVAR 
+End;
+
+{ a file is about to be inserted }
+Procedure BeginInsertion( P : ProgPtr );
+Begin
+  P^.PP_LEVL := P^.PP_LEVL + 1
+End;
+
+{ we are done with the current insertion }
+Procedure EndInsertion( P : ProgPtr );
+Begin
+  CheckCondition(P^.PP_LEVL > 0,'negative insertion level');
+  P^.PP_LEVL := P^.PP_LEVL - 1
 End;
 
 { append a clock header to a list }

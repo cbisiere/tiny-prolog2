@@ -379,12 +379,14 @@ End;
 
 { compile a rule; note that the system cannot be reduced right away
   as the reduction may depends on global assignments }
-Procedure CompileOneRule( P : ProgPtr; R : RulePtr );
+Procedure CompileOneRule( P : ProgPtr; RuleType : RuType );
 Var 
+  R : RulePtr;
   B : BTermPtr;
   c : Char;
   HasCut : Boolean;
 Begin
+  R := NewRule(RuleType);
   OpenLocalContextForRule(P,R);
   With R^ Do
   Begin
@@ -406,25 +408,20 @@ Begin
       End
     End
   End;
-  CloseLocalContextForRule(P,R)
+  If Not Error Then
+  Begin
+    CloseLocalContextForRule(P,R);
+    AppendOneRule(P,R)
+  End
 End;
 
 { compile a sequence of rules, stopping at a char in StopChars  }
-Function CompileRules( P : ProgPtr; StopChars : CharSet; RuleType : RuType ) : RulePtr;
+Procedure CompileRules( P : ProgPtr; StopChars : CharSet; RuleType : RuType );
 Var
-  R : RulePtr;
   c : Char;
 Begin
-  c := NextCharNb(c);
-  If (Not (c In StopChars)) And (Not Error) Then
-  Begin
-    R := NewRule(RuleType);
-    CompileOneRule(P,R);
-    R^.RU_NEXT := CompileRules(P,StopChars,RuleType)
-  End
-  Else
-    R := Nil;
-  CompileRules := R
+  While (Not (NextCharNb(c) In StopChars)) And (Not Error) Do
+    CompileOneRule(P,RuleType);
 End;
 
 { set up local variable context to prepare compiling a new query }
@@ -443,21 +440,20 @@ End;
 { compile a query, including a system of equations and equations if any;
   note that this system cannot be reduced right away, as its 
   solvability may depend on global variables }
-Procedure CompileOneQuery( P : ProgPtr; Q : QueryPtr );
+Procedure CompileOneQuery( P : ProgPtr );
 Var
+  Q : QueryPtr;
   c : Char;
   HasCut : Boolean;
 Begin
+  Q := NewQuery(P^.PP_LEVL);
   OpenLocalContextForQuery(P,Q);
   With Q^ Do
   Begin
-    QU_FRUL := Nil;
-    QU_LRUL := Nil;
     QU_FBTR := CompileTerms(P,['{',';',EndOfInput],HasCut);
     If Not Error Then
     Begin
       QU_ACUT := HasCut;
-      QU_SYST := Nil;
       c := NextCharNb(c);
       If c = '{' Then
         QU_SYST := CompileSystem(P);
@@ -465,41 +461,33 @@ Begin
         Verify(';')
     End
   End;
-  CloseLocalContextForQuery(P,Q) 
+  CloseLocalContextForQuery(P,Q);
+  UpdateQueryScope(P,Q);
+  If Not Error Then
+    AppendOneQuery(P,Q)
 End;
 
 { compile a sequence of queries; if ContChar is not empty, each query 
   must start with a char in this set; the sequence ends with a char 
   in StopChars }
-Function CompileQueries( P : ProgPtr; WithArrow : Boolean;
-  ContChar, StopChars : CharSet ) : QueryPtr;
+Procedure CompileQueries( P : ProgPtr; WithArrow : Boolean;
+  ContChar, StopChars : CharSet );
 Var
-  Q : QueryPtr;
-  ptr : TPObjPtr Absolute Q;
+  More : Boolean;
   c : Char;
 Begin
-  Q := Nil;
-  c := NextCharNb(c);
-  If ((ContChar=[]) Or (c In ContChar))
-    And (Not (c In StopChars)) And (Not Error) Then
-  Begin
-    If WithArrow Then
-      Verify('->');
-    ptr := NewRegisteredObject(QU,7,True,5);
-    CompileOneQuery(P,Q);
-    UpdateQueryScope(P,Q);
-    If Not Error Then
-      Q^.QU_NEXT := CompileQueries(P,WithArrow,ContChar,StopChars)
-  End;
-  CompileQueries := Q
-End;
-
-{ remove the queries typed by the user; FIXME: we cannot discard constants 
-  and identifiers, since they have a global scope (plus, identifiers can be
-  assigned); FIXME: as more queries are submitted, more memory is consumed }
-Procedure RemoveCommandLineQueries( P : ProgPtr );
-Begin
-  P^.PP_DVAR := P^.PP_UVAR { forget variables }
+  Repeat
+    c := NextCharNb(c);
+    More := ((ContChar=[]) Or (c In ContChar))
+      And (Not (c In StopChars)) And (Not Error);
+    If More Then
+    Begin
+      If WithArrow Then
+        Verify('->');
+      If Not Error Then
+        CompileOneQuery(P)
+    End
+  Until Error Or Not More
 End;
 
 { compile queries typed by the user; note that we stop on EndOfInput
@@ -507,86 +495,40 @@ End;
   that EndOfInput is the last char in the input string, because The *Nb
   input primitives consider EndOfLine as one of the blank characters;
   thus, at the end, we replace EndOfInput with EndOfLine }  
-Function CompileCommandLineQueries( P : ProgPtr ) : QueryPtr;
+Procedure CompileCommandLineQueries( P : ProgPtr );
 Var
-  Q : QueryPtr;
   c : Char;
 Begin
-  Q := CompileQueries(P,False,[],[EndOfInput]);
+  CompileQueries(P,False,[],[EndOfInput]);
   c := NextCharNb(c);
   if c <> EndOfInput Then
     RaiseError('unexpected characters after the last query: "' + c + '"');
   { replace EndOfInput with EndOfLine }
   c := GetChar(c);
-  UnGetChar(EndOfLine);
-  AppendQueries(P,Q); { append queries to the program to protect them from GC }
-  CompileCommandLineQueries := Q
+  UnGetChar(EndOfLine)
 End;
 
-{ append rules and queries to a program; return the first query if any }
-Function CompileRulesAndQueries( P : ProgPtr; RuleType : RuType ) : QueryPtr;
+{ append rules and queries to a program }
+Procedure CompileRulesAndQueries( P : ProgPtr; RuleType : RuType );
 Var
-  FirstQ, HeadQ, Q : QueryPtr;
-  HeadR, R : RulePtr;
   c : Char;
   Comment : StrPtr;
   Stop : Boolean;
 Begin
   Stop := False;
   Error := False;
-  FirstQ := Nil;
-  HeadQ := P^.PP_FQRY;
-  If HeadQ <> Nil Then
-    HeadQ := LastQuery(HeadQ);
-  HeadR := P^.PP_FRUL;
-  If HeadR <> Nil Then
-    HeadR := LastRule(HeadR);
   Repeat
     c := NextCharNb(c);
     If (c=EndOfInput) Or (c=';') Then
       Stop := True
-    Else If c='"' Then { a comment, as a constant string }
-    Begin
+    Else If c='"' Then { comment }
       Comment := ReadString
-    End
-    Else If c='-' Then  { a query }
-    Begin
-      Q := CompileQueries(P,True,['-'],[EndOfInput,';']);
-      { note if Q is the first query read }
-      If FirstQ = Nil Then
-        FirstQ := Q;
-      { set program's first query if not set yet. }
-      If P^.PP_FQRY = Nil Then
-        P^.PP_FQRY := Q;
-      { attach this list to the previous one, if any }
-      If (HeadQ <> Nil) Then
-        HeadQ^.QU_NEXT := Q;
-      { the new head is the last query in this list }
-      Q := LastQuery(Q);
-      { set program's last query. }
-      If Q <> Nil Then
-        P^.PP_LQRY := Q;
-      HeadQ := Q
-    End
-    Else { a rule }
-    Begin
-      R := CompileRules(P,[EndOfInput,';','-','"'],RuleType);
-      { set program's first rule if not set yet }
-      If P^.PP_FRUL = Nil Then
-        P^.PP_FRUL := R;
-      { attach this list to the previous one, if any }
-      If (HeadR <> Nil) Then
-        HeadR^.RU_NEXT := R;
-      { the new head is the last rule in this list }
-      R := LastRule(R);
-      { set program's last rule. }
-      If R <> Nil Then
-        P^.PP_LRUL := R;
-      HeadR := R
-    End
+    Else If c='-' Then  { queries }
+      CompileQueries(P,True,['-'],[EndOfInput,';'])
+    Else { rules }
+      CompileRules(P,[EndOfInput,';','-','"'],RuleType)
   Until Stop Or Error;
   { machine state }
   P^.PP_UVAR := P^.PP_DVAR;
-  P^.PP_UCON := P^.PP_DCON;
-  CompileRulesAndQueries := FirstQ
+  P^.PP_UCON := P^.PP_DCON
 End;

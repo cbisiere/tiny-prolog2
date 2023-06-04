@@ -40,14 +40,18 @@ Begin
   ResetIO
 End;
 
-{ execute all queries starting with list head Q }
-Procedure AnswerQueries( P : ProgPtr; Q : QueryPtr; Echo : Boolean );
+{ execute queries starting at the current insertion level in P }
+Procedure AnswerQueries( P : ProgPtr; Echo : Boolean );
+Var
+  Q : QueryPtr;
 Begin
+  Q := FirstQueryToExecute(P);
   While Q <> Nil Do
   Begin
     AnswerQuery(P,Q,Echo);
     Q := NextQuery(Q)
-  End
+  End;
+  RemoveQueries(P)
 End;
 
 { load rules and queries from a file, and execute the queries it contains,
@@ -55,21 +59,22 @@ End;
 Procedure LoadProgram( P : ProgPtr; s : StrPtr; RuleType : RuType );
 Var 
   Filename : AnyStr;
-  Q : QueryPtr;
 Begin
   If StrLength(s)<=AnyStrMaxSize Then
   Begin
     FileName := StrGetString(s);
     If SetFileForInput(FileName) Then
     Begin
-      Q := CompileRulesAndQueries(P,RuleType);
+      BeginInsertion(P);
+      CompileRulesAndQueries(P,RuleType);
       If Not Error Then
         CloseCurrentInput;
       { clearing goals only after closing the input file is the right way to  
         do it, as calls to input_is, etc. must not consider the program file 
         as an input file }
-      If (Not Error) And (Q <> Nil) Then
-        AnswerQueries(P,Q,True);
+      If Not Error Then
+        AnswerQueries(P,True);
+      EndInsertion(P)
     End
     Else
       RaiseError('Cannot open file ')

@@ -27,6 +27,7 @@ Function ExecutionSysCallOk( T : TermPtr; P : ProgPtr; Q : QueryPtr ) : Boolean;
 Procedure Clock( P : ProgPtr; Q : QueryPtr );
 
 Var
+  Head        : HeadPtr;  { backup of the current program head }
   Solvable    : Boolean;  { system has a solution? }
   EndOfClock  : Boolean;
   R           : RulePtr;
@@ -38,7 +39,12 @@ Var
   { init the clock }
   Procedure InitClock;
   Begin
+    { backup the current head: needed because Clock must be reentrant to
+      support "insert/1"; not that using P^.PP_HEAD helps debug, but a
+      local head could be used instead }
+    Head := P^.PP_HEAD;
     P^.PP_HEAD := Nil;
+  
     EndOfClock := False;
     GCCount := 0
   End;
@@ -280,7 +286,7 @@ End;
     If (H <> Nil) And (isCut) Then
       H^.HH_BACK := ClearB^.BT_HEAD;
 
-    { backup current header }
+    { backup pointer to current header }
     Hc := H;
 
     { new header; the "cut" indicator propagates }
@@ -403,5 +409,5 @@ Begin
       GCCount := 0
     End
   Until EndOfClock;
-  P^.PP_HEAD := Nil { forget header with clock 0 }
+  P^.PP_HEAD := Head { restore current header }
 End;

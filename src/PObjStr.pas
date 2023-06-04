@@ -19,6 +19,7 @@ Type
 { type                                                                  }
 {-----------------------------------------------------------------------}
 
+{ TODO: allows for shorter storage string }
 Type
   TStrLength = 0..AnyStrMaxSize; { maximum number of characters in a chunk }
 

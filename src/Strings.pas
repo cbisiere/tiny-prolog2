@@ -31,9 +31,10 @@ Var
   i : TAnyStrSize;
   rs : AnyStr;
 Begin
-  rs := ' ';
-  For i := 1 to width - Length(s) Do
-    rs := rs + ' ';
+  rs := '';
+  If width > Length(s) Then
+    For i := 1 to width - Length(s) Do
+      rs := rs + ' ';
   RAlign := rs + s
 End;
 

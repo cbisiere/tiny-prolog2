@@ -20,6 +20,7 @@ Var
 { Write extra data in a Prolog object }
 Procedure WriteExtraData; (*( p : TPObjPtr );*)
 Var 
+  PRp : ProgPtr Absolute p;
   Tp : TermPtr Absolute p;
   Cp : ConstPtr Absolute p;
   Vp : VarPtr Absolute p;
@@ -37,6 +38,7 @@ Begin
   Case ObjectType(p) Of
   PR:
     Begin
+      CWriteInt(PRp^.PP_LEVL)
     End;
   RU:
     Begin

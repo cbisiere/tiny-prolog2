@@ -51,7 +51,8 @@ Procedure WriteToCurrentOutput( s : AnyStr ); Forward;
 
 { reset the Prolog engine }
 Function ResetMachine : ProgPtr;
-Var P : ProgPtr;
+Var 
+  P : ProgPtr;
 Begin
   Initialize;
   P := NewProgram;
@@ -65,7 +66,6 @@ Procedure Main;
 var
   P : ProgPtr;
   PP : TPObjPtr Absolute P;
-  Q : QueryPtr;
   FileName : StrPtr;
 Begin
   MMInit;
@@ -75,17 +75,16 @@ Begin
   If ParamCount = 1 Then
   Begin
     FileName := NewStringFrom(ParamStr(1));
-    LoadProgram(P,FileName,RTYPE_USER);
+    LoadProgram(P,FileName,RTYPE_USER)
   End;
   InitHistory;
   Repeat
     Error := False;
     CWrite('> ');
     ReadFromConsole;
-    Q := CompileCommandLineQueries(P);
+    CompileCommandLineQueries(P);
     If Not Error Then
-      AnswerQueries(P,Q,False);
-    RemoveCommandLineQueries(P);
+      AnswerQueries(P,False)
   Until False
 End;
 
