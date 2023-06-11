@@ -229,7 +229,7 @@ fpc.sh
 
 A Prolog program to execute is a (UTF8 or ISO/IEC 8859-1) text file containing both the program rules and the queries. When using the default syntax, rules must be written using the "Marseille syntax". Each query starts with a `->`and ends with a `;`. The end of the text file, or, alternatively, an additional `;`, ends the program. Lines in the input file can have any length.
 
-For instance, the file `examples/PrologII/permu.pro` contains four rules and two queries:
+For instance, the file `examples/ProII/permu.pro` contains four rules and two queries:
 
 ```
 permutation(nil,nil) ->;
@@ -249,16 +249,16 @@ To execute a program stored in a file `$file` use the command line `tprolog2 -$s
 
 Value of `$syntax` | Prolog flavour
 --- | ---
-`PrologII`  | old Marseille syntax with dashes in identifiers
-`PrologIIp` | Prolog II+
-`Edinburgh` | Edinburgh
-`PrologIIc` | Prolog II with equalities and inequalities (Tiny-Prolog specific; default syntax)
+`PII`  | old Marseille syntax with dashes in identifiers
+`PIIp` | Prolog II+
+`E` | Edinburgh
+`PIIc` | Prolog II with equalities and inequalities (Tiny-Prolog specific; default syntax)
 
 
-Since `PrologIIc` is the default, the syntax switch can be omitted when running `permu.pro`:
+Since `PIIc` is the default, the syntax switch can be omitted when running `permu.pro`:
 
 ```
-$ ./tprolog2 examples/PrologII/permu.pro
+$ ./tprolog2 examples/ProII/permu.pro
 -> permutation(1.2.3.nil,x);
 { x = 1.2.3.nil }
 { x = 2.1.3.nil }
