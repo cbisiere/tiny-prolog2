@@ -502,6 +502,19 @@ query = ":-", term {",", term}, "."
 
 A predefined predicate `true` is available in Edinburgh mode.
 
+## Screenshots
+
+_11 June 2023:_ [repet.pro](examples/ProIIc/repet.pro), one of the original demo Prolog programs written for the interpreter back in 1988, running in a FreeDOS box with the new interpreter compiled with Tuurbo Pascal 4: 
+
+![Tiny Prolog running the repetition progrram in a FreeDOS box](examples/ProIIc/repet.png)
+
+_11 June 2023:_ [phonemes.pro](examples/homework/phonemes/phonemes.pro), a homework Prolog II program written for Henri Méloni's course on speech recognition:
+
+![Tiny Prolog running the phoneme program on macOS](examples/homework/phonemes/out.png)
+
+_11 June 2023:_ [nobel.pro](examples/homework/nobel/nobel.pro), a homework Prolog II program. I do not remember the course, though:
+
+![Tiny Prolog running the Nobel program on macOS](examples/homework/nobel/out.png)
 
 ## Author
 
