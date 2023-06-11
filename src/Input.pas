@@ -17,7 +17,8 @@
 
 Const
   EndOfInput = #$1A;                       { Code for 'end of input': Ctrl-Z   }
-  Letters : CharSet = ['a'..'z','A'..'Z','_'];  { ASCII letters + underscore }
+  Letters : CharSet = ['a'..'z','A'..'Z']; { 7-bit ASCII letters }
+  Alpha : CharSet = ['a'..'z','A'..'Z','_','0'..'9']; { 7-bit ASCII alpha }
   Digits  : CharSet = ['0'..'9'];            { digits       }
   BlankSet : CharSet = [' ',#9,EndOfLine];   { space chars  }
   SizeBufIn = 10;                            { input buffer size      }
@@ -29,6 +30,7 @@ Const
 
 Type
   TIFileStackPtr = 0..MaxNbIFiles;
+  TBufInIndex = 1..SizeBufIn;
 
   TIFileState = Record
     FName : AnyStr;
@@ -40,7 +42,7 @@ Type
     PtrInp  : 0..AnyStrMaxSize;           { index of last char read       }
     WasEOL : Boolean;                     { last char was end of line     }
     LineNum : Integer;                    { current line number           }
-    BufIn : Array[1..SizeBufIn] Of Char;  { input buffer                  }
+    BufIn : Array[TBufInIndex] Of Char;   { input buffer                  }
     PtrIn : 0..SizeBufIn;                 { pointer to this buffer        }
   End;
   TIFileStack = Record
@@ -410,7 +412,8 @@ End;
 
 { ditto but two chars in advance }
 Function NextNextChar( Var c : Char ) : Char;
-Var c1 : Char;
+Var
+  c1 : Char;
 Begin
   c1 := GetChar(c1);
   c := NextChar(c);
@@ -456,49 +459,89 @@ Begin
   GetCharWhile := n
 End;
 
-{ returns True if c is a ISO-8859-1 letter or the first byte 
-  of a 2-byte UTF-8 letter }
-Function IsLetter( c : Char ) : Boolean;
+{ returns True if c is a ISO-8859-1 alpha or the first byte 
+  of a 2-byte UTF-8 alpha, where alpha is defined as letters,
+  digits and underscore }
+Function IsAlpha( c : Char ) : Boolean;
 Begin
   { reject ascii non-letters, and ISO-8859-1 non-letters,               }
   { see https://fr.wikipedia.org/wiki/ISO/CEI_8859-1                    }
   { this rejects UTF8 identifiers or variable names containing a 2-byte }
   { UTF8 letters starting with a byte sets in the second condition      }
-  IsLetter := Not (c In ([#$00..#$7F] - Letters))
+  IsAlpha := Not (c In ([#$00..#$7F] - Alpha))
     And Not (c In [#$A0..#$BF,#$D7,#$F7])
 End;
 
-{ append to a string any letter in the input stream; it is assumed that 
-  the input stream is either ISO-8859-1 or UTF-8 encoded; we rely on 
-  heuristics; the function returns the number of characters added to the
-  string }
+{ try to read one letter, as defined page R1-2 of the Prolog II+ manual:
+  "A"|...|"Z"|"a"|...|"z"|"À" ... "ß" - "x" | "à" ... "ÿ" - "÷"
+  where x is the multiplication sign;
+  it is assumed that, if the input is ISO-8859-1, there is no "Ã" (C3)
+  followed by a char that would make the 2-byte sequence an UTF8
+  letter; hopefully 80-9F are undefined in ISO-8859-1; A0-BF is possible
+  but none of those combinations (e.g. Ã¢) would be a valid part of an
+  identifier, so either the input is UTF8 and there is a syntax error,
+  or the the input is UTF8, which we therefore assume;
+  "big letters" are A-Z only, see PrologII+ manual, R 1-23  }
+Function GrabOneLetter( Var Ch : StrPtr; Var IsUpper : Boolean ) : Boolean;
+Var
+  c1,c2 : Char;
+  Found : Boolean;
+Begin
+  IsUpper := False;
+  Found := False;
+  c1 := NextChar(c1);
+  c2 := NextNextChar(c2);
+  { 2-byte UTF8: https://www.utf8-chartable.de/ }
+  If (c1 = #$C3) And (c2 In ([#$80..#$BF] - [#$97,#$B7])) Then
+  Begin
+    Found := True;
+    StrAppendChar(Ch,GetChar(c1));
+    StrAppendChar(Ch,GetChar(c2));
+    IsUpper := False
+  End
+  Else
+  { ISO-8859-1: https://fr.wikipedia.org/wiki/ISO/CEI_8859-1 }
+  If c1 In (Letters + [#$C0..#$FF] - [#$D7,#$F7]) Then
+  Begin
+    Found := True;
+    StrAppendChar(Ch,GetChar(c1));
+    IsUpper := c1 In ['A'..'Z']
+  End;
+  GrabOneLetter := Found
+End;
+
+{ grab letters; return the number of letters appended to Ch }
 Function GrabLetters( Var Ch : StrPtr ) : LongInt;
 Var
-  c,c2 : Char;
   n : LongInt;
-  Stop : Boolean;
+  IsUpper : Boolean;
 Begin
   n := 0;
-  Repeat
-    Stop := False;
-    { get next run of ASCII letters }
-    n := n + GetCharWhile(Ch,Letters);
-    { examine the char on which we stopped }
-    c := NextChar(c);
-    Stop := Not IsLetter(c);
-    If Not Stop Then
-    Begin
-      StrAppendChar(Ch,GetChar(c)); { glob it }
-      n := n + 1;
-      { could be a 2-byte UTF8 character? }
-      If c In [#$C0..#$DF] Then
-        { Heuristic 2: no identifiers or variable names in a UTF8 program }
-        {  contain a 2-byte UTF8 letter made of these two codes }
-        If (c = #$C3) and (NextChar(c2) in [#$80..#$BF]) Then
-          StrAppendChar(Ch,GetChar(c2)) { glob it without counting it }
-    End
-  Until Stop;
+  While GrabOneLetter(Ch,IsUpper) Do
+    n := n + 1;
   GrabLetters := n
+End;
+
+{ append to a string any alphanumeric characters (plus underscore)
+  in the input stream; it is assumed that the input stream is either 
+  ISO-8859-1 or UTF-8 encoded; the function returns the number of 
+  characters added to the string }
+Function GrabAlpha( Var Ch : StrPtr ) : LongInt;
+Var
+  n : LongInt;
+  More : Boolean;
+  IsUpper : Boolean;
+Begin
+  n := 0;
+  More := True;
+  While More Do
+  Begin
+    n := n + GetCharWhile(Ch,Alpha);
+    More := GrabOneLetter(Ch,IsUpper);
+    If More Then
+      n := n + 1
+  End;
+  GrabAlpha := n
 End;
 
 { append chars to string Ch until a char in E is read }
@@ -520,13 +563,12 @@ Begin
   Ok := True;
   I  := 1;
   c := NextCharNb(c);
-  While ( Ok ) And ( I <= Length(Ch) ) Do
+  While Ok And (I <= Length(Ch)) Do
   Begin
     Ok := GetChar(c) = Ch[I];
     I  := I + 1
   End;
-  If Not Ok Then
-    RaiseError('"' + Ch + '" expected')
+  RaiseErrorIf(Not Ok,'"' + Ch + '" expected')
 End;
 
 { read a line (from the keyboard) if no more characters are available

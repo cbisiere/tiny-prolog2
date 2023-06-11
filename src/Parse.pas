@@ -15,6 +15,23 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+{ per-syntax elements }
+Type
+  TSyntaxElement = Array[TSyntax] Of Record
+    RuleArrow: String[2];
+    RuleEnd: Char;
+    QueryArrow: String[2];
+    PromptEnd: Char;
+    AcceptSys: Boolean
+  End;
+Const
+  Syntax : TSyntaxElement = (
+    (RuleArrow:'->';RuleEnd:';';QueryArrow:'->';PromptEnd:';';AcceptSys:False),
+    (RuleArrow:'->';RuleEnd:';';QueryArrow:'->';PromptEnd:';';AcceptSys:True),
+    (RuleArrow:'->';RuleEnd:';';QueryArrow:'->';PromptEnd:';';AcceptSys:False),
+    (RuleArrow:':-';RuleEnd:'.';QueryArrow:':-';PromptEnd:'.';AcceptSys:False)
+  );
+
 {-----------------------------------------------------------------------}
 {                                                                       }
 {   The functional symbol F is used encode predicates as follows:       }
@@ -128,97 +145,124 @@ Var
   TF3 : TermPtr Absolute F3;
   Ch  : StrPtr;
   c1,c2 : Char;
-  n : LongInt;
+  IsVar,IsIdent : Boolean;
+  IsUpper : Boolean;
+  n,m : LongInt;
+  y : TSyntax; 
 Begin
   T := Nil;
+  y := GetSyntax(P);
+  IsVar := False;
+  IsIdent := False;
   Spaces;
   Ch := NewString;
-  n := GrabLetters(Ch);
-  If n=0 Then
+  c1 := NextChar(c1);
+  c2 := NextNextChar(c2);
+  If (c1 In Digits) Or 
+    (c1='-') And (c2 In Digits) Then  { an integer }
   Begin
-    c1 := NextChar(c1);
-    If (c1 In Digits) Or 
-      (c1='-') And (NextNextChar(c2) in Digits) Then  { an integer }
+    If c1='-' Then
+      StrAppendChar(Ch,GetChar(c1));
+    n := GetCharWhile(Ch,Digits);
+    C := InstallConst(P^.PP_DCON,Ch,CN,glob);
+    T := TC
+  End
+  Else
+  If c1 ='(' Then { ( <term> ) }
+  Begin
+    c1 := GetChar(c1);
+    T := ReadOneTerm(P,glob,False);
+    If Not Error Then
+      Verify(')')
+  End
+  Else
+  If c1 = '<' Then { a tuple }
+  Begin
+    c1 := GetChar(c1);
+    If NextChar(c1)='>' Then
     Begin
-      If c1='-' Then
-        StrAppendChar(Ch,GetChar(c1));
-      n := GetCharWhile(Ch,Digits);
-      C := InstallConst(P^.PP_DCON,Ch,CN,glob);
+      { empty tuple "<>" }
+      c1 := GetChar(c1);
+      F := NewSymbol(Nil,Nil)
+    End
+    Else
+      F := GetArgument(P,glob,'>');
+    If Not Error Then
+      T := TF
+  End
+  Else
+  If c1 = '"' Then { a string }
+  Begin
+    Ch := ReadString;
+    If Not Error Then
+    Begin
+      C := InstallConst(P^.PP_DCON,Ch,CS,glob);
       T := TC
     End
-    Else
-    If c1 ='(' Then          { ( <term> ) }
-    Begin
-      c1 := GetChar(c1);
-      T := ReadOneTerm(P,glob,False);
-      If Not Error Then
-        Verify(')')
-    End
-    Else
-    If c1 = '<' Then        { a tuple }
-    Begin
-      c1 := GetChar(c1);
-      If NextChar(c1)='>' Then
-      Begin
-        { empty tuple "<>" }
-        c1 := GetChar(c1);
-        F := NewSymbol(Nil,Nil)
-      End
-      Else
-        F := GetArgument(P,glob,'>');
-      If Not Error Then
-        T := TF
-    End
-    Else
-    If c1 = '"' Then        { a string }
-    Begin
-      Ch := ReadString;
-      If Not Error Then
-      Begin
-        C := InstallConst(P^.PP_DCON,Ch,CS,glob);
-        T := TC
-      End
-    End
-    Else
-    If Cut and (c1 In ['!','/']) Then    { the "cut" }
-    Begin
-      c1 := GetChar(c1);
-      I := InstallIdentifier(P^.PP_DIDE,NewStringFrom('!'),glob);
-      T := TI
-    End
-    Else
-      RaiseError('term expected')
   End
-  Else if n=1 Then
-  Begin                      { a variable }
-    { ["-"<letters>]* }
-    While (NextChar(c1)='-') And IsLetter(NextNextChar(c2)) Do
-    Begin
-      StrAppendChar(Ch,GetChar(c1)); { read the '-' }
-      n := GrabLetters(Ch);
-    End;
-    { [<digits>]["'"]* }
-    n := GetCharWhile(Ch,Digits);
-    n := GetCharWhile(Ch,['''']);
-    V := InstallVariable(P^.PP_DVAR,P^.PP_LVAR,Ch,glob);
-    T := TV;
-  End
-  Else { at least 2 letters: an identifier }
+  Else
+  If Cut And { the "cut" }
+    ((c1 = '/') And (y In [PrologII,PrologIIc]) Or
+     (c1 = '!') And (y In [PrologIIp,Edinburgh])) Then 
   Begin
-    n := GrabLetters(Ch);
-    { ["-"<letters>]* }
-    While (NextChar(c1)='-') And IsLetter(NextNextChar(c2)) Do
+    c1 := GetChar(c1);
+    I := InstallIdentifier(P^.PP_DIDE,NewStringFrom('!'),glob);
+    T := TI
+  End
+  Else
+  If (c1 = '_') And   { a variable: PrologII+ basic syntax }
+      (y In [PrologIIp,Edinburgh]) Then
+  Begin
+    n := GrabAlpha(Ch); { letters (inc. accented), digits, underscore }
+    IsVar := True
+  End
+  Else { TODO: Edinburgh: identifiers made of graphic_char }
+  If GrabOneLetter(Ch,IsUpper) Then { variable or identifiers }
+  Begin
+    { Edinburgh variables start with a "big letter"; Marseille variables 
+     start with a single letter }
+    If y = Edinburgh Then
+      IsVar := IsUpper
+    Else
+      IsVar := Not GrabOneLetter(Ch,IsUpper);
+    IsIdent := Not IsVar;
+
+    If y In [PrologII,PrologIIc] Then { old Prolog II syntax, w/ accented letters }
     Begin
-      StrAppendChar(Ch,GetChar(c1)); { read the '-' }
-      n := GrabLetters(Ch);
-    End;
-    { [<digits>] }
-    n := GetCharWhile(Ch,Digits);
-    If NextChar(c1) = '(' Then { a predicate }
+      Repeat
+        If NextChar(c1)='-' Then { "-"<word> continuation }
+          StrAppendChar(Ch,GetChar(c1));
+        n := GrabLetters(Ch);
+        m := GetCharWhile(Ch,Digits);
+        m := GetCharWhile(Ch,['''']);
+        RaiseErrorIf((c1 = '-') And (n = 0),'Dash must be followed by a letter')
+      Until Error Or (NextChar(c1)<>'-');
+    End
+    Else { PrologII+ and Edinburgh extended syntax }
     Begin
-      c1 := GetChar(c1);
-      I := InstallIdentifier(P^.PP_DIDE,Ch,glob);
-      { predicate's argument }
+      n := GrabAlpha(Ch);
+      If GetSyntax(P) <> Edinburgh Then
+        n := GetCharWhile(Ch,[''''])
+    End
+  End
+  Else
+    RaiseError('term expected');
+
+  { delayed installations: variable }
+  If IsVar Then
+  Begin
+    V := InstallVariable(P^.PP_DVAR,P^.PP_LVAR,Ch,glob);
+    T := TV
+  End;
+
+  { delayed installations: identifier, with possible arguments }
+  If IsIdent Then
+  Begin
+    I := InstallIdentifier(P^.PP_DIDE,Ch,glob);
+    T := TI;
+    If NextCharNb(c1) = '(' Then { predicate's arguments }
+    Begin
+      c1 := GetCharNb(c1);
       F := GetArgument(P,glob,')');
       If Not Error Then
       Begin
@@ -226,29 +270,24 @@ Begin
         T := TF2
       End
     End
-    Else
-    Begin { an identifier that is not a predicate }
-      I := InstallIdentifier(P^.PP_DIDE,Ch,glob);
-      T := TI
-    End
   End;
-  If Not Error Then
+
+  { dotted lists }
+  If (Not Error) And (y <> Edinburgh) And 
+      (NextCharNb(c1)='.') Then
   Begin
-    c1 := NextCharNb(c1);
-    If c1 = '.' Then    { a list element }
+    c1 := GetChar(c1);
+    I := InstallIdentifier(P^.PP_DIDE,NewStringFrom('.'),glob);
+    T2 := ReadOneTerm(P,glob,False);
+    If Not Error Then
     Begin
-      c1 := GetChar(c1);
-      I := InstallIdentifier(P^.PP_DIDE,NewStringFrom('.'),glob);
-      T2 := ReadOneTerm(P,glob,False);
-      If Not Error Then
-      Begin
-        F := NewSymbol(T2,Nil); { q: new term }
-        F2 := NewSymbol(T,TF); { t: term read above }
-        F3 := NewSymbol(TI,TF2); { t.q }
-        T := TF3
-      End
+      F := NewSymbol(T2,Nil); { q: new term }
+      F2 := NewSymbol(T,TF); { t: term read above }
+      F3 := NewSymbol(TI,TF2); { t.q }
+      T := TF3
     End
   End;
+
   ReadOneTerm := T
 End;
 
@@ -308,8 +347,7 @@ Begin
         PrevE^.EQ_NEXT := E;
       PrevE := E
     Until (Error) Or (GetCharNb(c) <> ',');
-    If (Not Error) And (c <> '}') Then 
-      RaiseError('Missing }')
+    RaiseErrorIf(c <> '}','Missing }')
   End;
   ReadSystem := FirstE
 End;
@@ -342,6 +380,7 @@ Function CompileTerms( P : ProgPtr; glob : Boolean; StopChars : CharSet;
   Var
     B : BTermPtr;
     c : Char;
+    Must : Boolean;
   Begin
     c := NextCharNb(c);
     If (Not (c In StopChars)) And (Not Error) Then
@@ -354,7 +393,11 @@ Function CompileTerms( P : ProgPtr; glob : Boolean; StopChars : CharSet;
         Begin
           HasCut := HasCut Or TermIsCut(BT_TERM);
           BT_ACCE := AccessIdentifier(BT_TERM);
-          BT_NEXT := DoCompileTerms
+          Must := (GetSyntax(P) = Edinburgh) And (NextCharNb(c) = ',');
+          If Must Then
+            c := GetCharNb(c);
+          BT_NEXT := DoCompileTerms;
+          RaiseErrorIf(Must And (BT_NEXT = Nil),'Term expected after the comma')
         End
       End
     End
@@ -389,7 +432,13 @@ Var
   B : BTermPtr;
   c : Char;
   HasCut : Boolean;
+  y : TSyntax;
+  StopChars : CharSet;
 Begin
+  y := GetSyntax(P);
+  StopChars := [Syntax[y].RuleEnd];
+  If Syntax[y].AcceptSys Then
+    StopChars := StopChars + ['{'];
   R := NewRule(RuleType);
   OpenLocalContextForRule(P,R);
   With R^ Do
@@ -397,19 +446,22 @@ Begin
     RU_SYST := Nil;
     B := CompileOneTerm(P,True,False); { head }
     RU_FBTR := B;
-    Verify('->');
-    If Not Error Then
+    If (y = Edinburgh) And (NextCharNb(c) = Syntax[y].RuleEnd) Then
+      Verify(Syntax[y].RuleEnd)
+    Else
     Begin
-      B^.BT_NEXT := CompileTerms(P,True,['{',';'],HasCut);
+      Verify(Syntax[y].RuleArrow);
       If Not Error Then
-      Begin
-        RU_ACUT := HasCut;
-        c := NextCharNb(c);
-        If c = '{' Then
+        B^.BT_NEXT := CompileTerms(P,True,StopChars,HasCut);
+      RU_ACUT := HasCut;
+      If Not Error Then
+        If y = Edinburgh Then 
+          RaiseErrorIf(B^.BT_NEXT = Nil,'Term expected after :-');
+      If Not Error Then
+        If (Syntax[y].AcceptSys) And (NextCharNb(c) = '{') Then
           RU_SYST := CompileSystem(P,True);
-        If Not Error Then
-          Verify(';')
-      End
+      If Not Error Then
+        Verify(Syntax[y].RuleEnd)
     End
   End;
   If Not Error Then
@@ -449,20 +501,25 @@ Var
   Q : QueryPtr;
   c : Char;
   HasCut : Boolean;
+  y : TSyntax;
+  StopChars : CharSet;
 Begin
   Q := NewQuery(P^.PP_LEVL);
   OpenLocalContextForQuery(P,Q);
+  y := GetSyntax(P);
+  StopChars := [Syntax[y].PromptEnd,EndOfInput];
+  If Syntax[y].AcceptSys Then
+    StopChars := StopChars + ['{'];
   With Q^ Do
   Begin
-    QU_FBTR := CompileTerms(P,False,['{',';',EndOfInput],HasCut);
+    QU_FBTR := CompileTerms(P,False,StopChars,HasCut);
     If Not Error Then
     Begin
       QU_ACUT := HasCut;
-      c := NextCharNb(c);
-      If c = '{' Then
+      If (Syntax[y].AcceptSys) And (NextCharNb(c) = '{') Then
         QU_SYST := CompileSystem(P,False);
       If Not Error Then
-        Verify(';')
+        Verify(Syntax[y].PromptEnd)
     End
   End;
   CloseLocalContextForQuery(P,Q);
@@ -487,7 +544,7 @@ Begin
     If More Then
     Begin
       If WithArrow Then
-        Verify('->');
+        Verify(Syntax[GetSyntax(P)].QueryArrow);
       If Not Error Then
         CompileOneQuery(P)
     End
@@ -505,8 +562,8 @@ Var
 Begin
   CompileQueries(P,False,[],[EndOfInput]);
   c := NextCharNb(c);
-  if c <> EndOfInput Then
-    RaiseError('unexpected characters after the last query: "' + c + '"');
+  RaiseErrorIf(c <> EndOfInput,
+      'unexpected characters after the last query: "' + c + '"');
   { replace EndOfInput with EndOfLine }
   c := GetChar(c);
   UnGetChar(EndOfLine)
@@ -516,21 +573,23 @@ End;
 Procedure CompileRulesAndQueries( P : ProgPtr; RuleType : RuType );
 Var
   c : Char;
+  qc : Char; { first char of the query prompt }
   Comment : StrPtr;
   Stop : Boolean;
 Begin
   Stop := False;
   Error := False;
+  qc := Syntax[GetSyntax(P)].QueryArrow[1];
   Repeat
     c := NextCharNb(c);
     If (c=EndOfInput) Or (c=';') Then
       Stop := True
-    Else If c='"' Then { comment }
+    Else If c = '"' Then { comment }
       Comment := ReadString
-    Else If c='-' Then  { queries }
-      CompileQueries(P,True,['-'],[EndOfInput,';'])
+    Else If c = qc Then  { queries }
+      CompileQueries(P,True,[qc],[EndOfInput,';'])
     Else { rules }
-      CompileRules(P,[EndOfInput,';','-','"'],RuleType)
+      CompileRules(P,[EndOfInput,';',qc,'"'],RuleType)
   Until Stop Or Error;
   { machine state }
   P^.PP_UVAR := P^.PP_DVAR;

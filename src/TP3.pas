@@ -95,3 +95,9 @@ Function MemSizeOf( p : Pointer; size : Integer ) : Integer;
 Begin
   MemSizeOf := size
 End;
+
+{ get the directory separator }
+Function GetDirectorySeparator : Char;
+Begin
+  GetDirectorySeparator := '\'
+End;

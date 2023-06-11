@@ -281,8 +281,8 @@ Begin
         Begin
           CWriteLn;
           ResetString(Inp);
-          PushStringToString(Inp, 'quit;');
           Stop := True;
+          Terminate(0)
         End;
       #00: { extended or function key }
         If Length(cc) > 1 Then

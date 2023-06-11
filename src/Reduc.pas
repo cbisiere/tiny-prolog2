@@ -320,12 +320,24 @@ Begin
   ReduceEquations := ReduceSystem(S,False,U)
 End;
 
-{ reduce a single equation; reduced equations may be already attached 
-  to elements in T1 or T2; non backtrackable }
-Function ReduceOneEq( T1,T2 : TermPtr ) : Boolean;
+{ reduce a single equation or inequation; reduced equations may be 
+  already attached to elements in T1 or T2; non backtrackable }
+Function ReduceOne( EType : EqType; T1,T2 : TermPtr ) : Boolean;
 Var   
   E : EqPtr;
 Begin
-  E := NewEquation(REL_EQUA,T1,T2);
-  ReduceOneEq := ReduceEquations(E)
+  E := NewEquation(EType,T1,T2);
+  ReduceOne := ReduceEquations(E)
+End;
+
+{ reduce a single equation }
+Function ReduceOneEq( T1,T2 : TermPtr ) : Boolean;
+Begin
+  ReduceOneEq := ReduceOne(REL_EQUA,T1,T2)
+End;
+
+{ reduce a single inequation }
+Function ReduceOneIneq( T1,T2 : TermPtr ) : Boolean;
+Begin
+  ReduceOneIneq := ReduceOne(REL_INEQ,T1,T2)
 End;

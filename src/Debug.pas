@@ -34,11 +34,22 @@ Var
   Hp : HeadPtr Absolute p;
   Bp : BTermPtr Absolute p;
   Rup : RulePtr Absolute p;
+  y : TSyntax;
 Begin
   Case ObjectType(p) Of
   PR:
     Begin
-      CWriteInt(PRp^.PP_LEVL)
+      CWriteInt(PRp^.PP_LEVL);
+      CWrite(' ');
+      y := GetSyntax(PRp);
+      If y = PrologII Then
+        CWrite('PrologII')
+      Else If y = PrologIIc Then
+        CWrite('PrologII w/ constraints')
+      Else If y = PrologIIp Then
+        CWrite('PrologII+')
+      Else If y = Edinburgh Then
+        CWrite('Edinburgh')
     End;
   RU:
     Begin

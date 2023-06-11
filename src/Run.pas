@@ -56,7 +56,7 @@ End;
 
 { load rules and queries from a file, and execute the queries it contains,
   if any }
-Procedure LoadProgram( P : ProgPtr; s : StrPtr; RuleType : RuType );
+Procedure LoadProgram( P : ProgPtr; s : StrPtr );
 Var 
   Filename : AnyStr;
 Begin
@@ -66,14 +66,14 @@ Begin
     If SetFileForInput(FileName) Then
     Begin
       BeginInsertion(P);
-      CompileRulesAndQueries(P,RuleType);
+      CompileRulesAndQueries(P,GetRuleType(P));
       If Not Error Then
         CloseCurrentInput;
       { clearing goals only after closing the input file is the right way to  
         do it, as calls to input_is, etc. must not consider the program file 
         as an input file }
       If Not Error Then
-        AnswerQueries(P,True);
+        AnswerQueries(P,GetRuleType(P)=RTYPE_USER);
       EndInsertion(P)
     End
     Else

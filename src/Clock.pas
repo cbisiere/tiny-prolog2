@@ -15,7 +15,9 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+{ from Sys: }
 Function ExecutionSysCallOk( T : TermPtr; P : ProgPtr; Q : QueryPtr ) : Boolean; Forward;
+Function IdentifierIsSyscall( I : IdPtr ) : Boolean; Forward;
 
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -100,7 +102,7 @@ Var
       I1 := AccessIdentifier(B^.BT_TERM); { handle dynamic assignment of identifiers }
       If I1 <> Nil Then
       Begin
-        If IdentifierEqualTo(I1,'SYSCALL') Then
+        If IdentifierIsSyscall(I1) Then
         Begin
           isSys := True;
           Stop := True

@@ -1,4 +1,4 @@
-"Prolog II Reference Manual, Section 2.1, page R2-2"
+"Prolog II+ Reference Manual, Section 2.1, page R2-2"
 "Available at: https://www.prolog-heritage.org/en/m2.html"
 
 "First Solution Only"

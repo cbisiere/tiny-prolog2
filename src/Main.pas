@@ -36,8 +36,8 @@ Procedure WriteToCurrentOutput( s : AnyStr ); Forward;
 {$I PObjTerm.pas  }  { Prolog objects: terms                       }
 {$I PObjProg.pas  }  { Prolog objects: program, rules, queries     }
 {$I PObjNew.pas   }  { Prolog objects: new / dispose               }
-{$I Keyboard.pas  }  { read from keyboard w/ history               }
 {$I Error.pas     }  { error handling, termination                 }
+{$I Keyboard.pas  }  { read from keyboard w/ history               }
 {$I Input.pas     }  { terminal and input file stack               }
 {$I Output.pas    }  { terminal and output file stack              }
 {$I Unparse.pas   }  { decode objects                              }
@@ -49,34 +49,15 @@ Procedure WriteToCurrentOutput( s : AnyStr ); Forward;
 {$I Debug.pas     }  { core dump                                   }
 {$I Init.pas      }  { initialization                              }
 
-{ reset the Prolog engine }
-Function ResetMachine : ProgPtr;
-Var 
-  P : ProgPtr;
-Begin
-  Initialize;
-  P := NewProgram;
-  CurrentProgram := P; 
-  RegisterPredefined(P);
-  ResetMachine := P
-End;
 
 { compile the user program and solve each query }
 Procedure Main;
 var
   P : ProgPtr;
-  PP : TPObjPtr Absolute P;
-  FileName : StrPtr;
 Begin
-  MMInit;
-  P := ResetMachine;
-  AddGCRoot(PP);
-  LoadProgram(P,NewStringFrom('start.pro'),RTYPE_AUTO);
-  If ParamCount = 1 Then
-  Begin
-    FileName := NewStringFrom(ParamStr(1));
-    LoadProgram(P,FileName,RTYPE_USER)
-  End;
+  Initialize;
+  P := CreateProgram;
+  ProcessParameters(P);
   InitHistory;
   Repeat
     Error := False;

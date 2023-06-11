@@ -22,6 +22,12 @@
 
 Type 
   TILevel = Integer; { file insertion level (0 is command line) }
+  TSyntax = (
+    PrologII,   { Prolog II: second Prolog developed by the GIA }
+    PrologIIc,  { Tiny Prolog II: Prolog II with constraints (my version) }
+    PrologIIp,  { Prolog II+ }
+    Edinburgh   { Edinburgh syntax as defined in Prolog II+ }
+  );
 
 Type 
   BTermPtr = ^TObjBTerm;
@@ -92,7 +98,9 @@ Type
     PP_UVAR : DictPtr; { variable identifier list head before processing user's command line }
     PP_LVAR : DictPtr; { last identifier to lookup when parsing (local variables)}
     { extra data: }
-    PP_LEVL : TILevel { current file insertion level (0 is command-line) }
+    PP_LEVL : TILevel; { current file insertion level (0 is command-line) }
+    PP_TYPE : RuType;  { type of rule the program is about to read }
+    PP_SYNT : TSyntax  { current active syntax }
   End;
 
   { clock header }
@@ -195,7 +203,9 @@ Begin
     PP_DVAR := Nil;
     PP_UVAR := Nil;
     PP_LVAR := Nil;
-    PP_LEVL := 0
+    PP_LEVL := 0;
+    PP_TYPE := RTYPE_USER;
+    PP_SYNT := PrologIIc
   End;
   NewProgram := P
 End;
@@ -381,6 +391,30 @@ Procedure EndInsertion( P : ProgPtr );
 Begin
   CheckCondition(P^.PP_LEVL > 0,'negative insertion level');
   P^.PP_LEVL := P^.PP_LEVL - 1
+End;
+
+{ get the current type of rules to read }
+Function GetRuleType( P : ProgPtr ) : RuType;
+Begin
+  GetRuleType := P^.PP_TYPE
+End;
+
+{ set the current type of rules to read }
+Procedure SetRuleType( P : ProgPtr; t : RuType );
+Begin
+  P^.PP_TYPE := t
+End;
+
+{ get the current syntax }
+Function GetSyntax( P : ProgPtr ) : TSyntax;
+Begin
+  GetSyntax := P^.PP_SYNT
+End;
+
+{ set the current syntax }
+Procedure SetSyntax( P : ProgPtr; y : TSyntax );
+Begin
+  P^.PP_SYNT := y
 End;
 
 { append a clock header to a list }

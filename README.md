@@ -1,12 +1,22 @@
 # A Simple Prolog II Interpreter 
 A simple Prolog II interpreter written in Pascal
 
+## What?
+
+This is a simple Prolog interpreter, for Linux, macOS, and Windows. It compiles under Turbo Pascal and Free Pascal.
+
+Regarding syntax, it (almost fully) handles the following flavours of the language: Prolog II and Prolog II+. It also supports a "Prolog II with equalities and inequalities" flavour, which was the primary purpose of this interpreter. Edinburgh support just started, and is largely incomplete. 
+
+This whole programme started as an academic exercice, without any consideration for efficiency. In particular, memory consumption is high. Nonetheless, the interpreter is able to solve the "send more money" classical exercice in a low-end computer.
+
 ## Why?
 2022 is [the 50th anniversary of Prolog](http://prologyear.logicprogramming.org/). As a modest tribute for this anniversary, I decided to dig up a Prolog interpreter I wrote almost 35 years ago, clean it a bit, add a few missing features (e.g., the "cut", garbage collection), and push it online. As this program remains a toy program, this serves no real purpose other than to celebrate this anniversary.
 
-I wrote this program as a course assignment, back in 1988, when I was a student at the University of Aix-Marseille II, pursuing a MSc in Computer Science and Mathematics ("Diplôme d'Études Approfondies en Informatique et Mathématique"). The course, entitled "Prolog II", was taught by the late [Alain Colmerauer](https://en.wikipedia.org/wiki/Alain_Colmerauer), creator of the language.
+I wrote this program as a course assignment, back in 1988, when I was a student at the University of Aix-Marseille II, pursuing a MSc in Computer Science and Mathematics ("Diplôme d'Études Approfondies en Informatique et Mathématique"). The course, entitled "Prolog II", was taught by the late [Alain Colmerauer](https://en.wikipedia.org/wiki/Alain_Colmerauer), creator of the Prolog language.
 
-One of the courses I also took in this MSc was Henri Méloni's course on speech recognition. As the Prolog II interpreter gains additional features, executing the Prolog programs I wrote for this course might even become possible. A more ambitious goal would be to run some of the demo programs written by Alain Colmeraurer (see [Alain Colmerauer's website](http://alain.colmerauer.free.fr/)).
+One of the courses I also took in this MSc was Henri Méloni's course on speech recognition. As my Prolog II interpreter gained additional features, executing the Prolog programs I wrote for this course is now possible.
+
+A more ambitious goal would be to run some of the demo programs written by Alain Colmeraurer (see [Alain Colmerauer's website](http://alain.colmerauer.free.fr/)). This requires the interpreter to support Edinburgh syntax, which is under way.
 
 ## References
 Basically, the program implements two algorithms described in the following paper: 
@@ -48,7 +58,9 @@ Inserting an element in a list of four items gives three different solutions:
 
 ### Constraints
 
-The interpreter also handles constraints on trees, expressed as equalities (`=`) or inequalities (`<>`). So, for instance, one can write a simple `dif` rule as:
+The interpreter also handles constraints on trees, expressed as equalities (`=`) or inequalities (`<>`). 
+
+For instance, one can write a simple `dif` rule as:
 
 ```
 dif(x,y) -> { x <> y };
@@ -70,7 +82,7 @@ while the following query displays the resulting constraints:
 
 ### Strings
 
-Strings are used as values or as comments. They must be double quoted. Inside a string, `"` must be doubled as `""`. Backslash `\`is a continuation character. Comments can appear anywhere outside of rules. String can have any length.
+Strings are used as values or as comments. They must be double quoted. Inside a string, a double-quote must be doubled as `""`. Backslash `\`is a continuation character. Comments can appear anywhere outside of rules. String can have any length.
 
 Querying the program
 
@@ -97,7 +109,7 @@ Prolog
 The primitive `outml(s)` display the string `s` without the surrounding quotes. 
 
 ### The "cut"
-As in standard Prolog, when a rule containing a cut (`!` or, equivalently, `/`) is used to execute a goal, the execution of this cut prunes the search tree, making the search engine forget the other ways of executing that goal.
+As in standard Prolog, when a rule containing a cut (`/`) is used to execute a goal, the execution of this cut prunes the search tree, making the search engine forget the other ways of executing that goal.
 
 To illustrate how the cut works, consider the following example, taken from the [Prolog II Reference Manual](https://www.prolog-heritage.org/en/m2.html), Section 2.1, page R2-2:
 
@@ -215,9 +227,9 @@ fpc.sh
 
 ## Execution
 
-A Prolog program to execute is a text file containing both the program rules and the queries. Rules are written using the old "Marseille syntax". Each query starts with a `->`and ends with a `;`. The end of the text file, or, alternatively, an additional `;`, ends the program. Lines in the input file can have any length. 
+A Prolog program to execute is a (UTF8 or ISO/IEC 8859-1) text file containing both the program rules and the queries. When using the default syntax, rules must be written using the "Marseille syntax". Each query starts with a `->`and ends with a `;`. The end of the text file, or, alternatively, an additional `;`, ends the program. Lines in the input file can have any length.
 
-For instance, the file `examples/permu.pro` contains four rules and two queries:
+For instance, the file `examples/PrologII/permu.pro` contains four rules and two queries:
 
 ```
 permutation(nil,nil) ->;
@@ -233,11 +245,20 @@ insertion(e,f.x,f.y) -> insertion(e,x,y);
 ```
 (Note the `nil` has no special meaning in the language. In this example, `nil` is just an identifier used as an end-of-list mark.)
 
-To execute this program, run `tprolog2 examples/permu.pro`: 
+To execute a program stored in a file `$file` use the command line `tprolog2 -$syntax $file` where `$syntax` is one of the four supported language flavours: 
 
+Value of `$syntax` | Prolog flavour
+--- | ---
+`PrologII`  | old Marseille syntax with dashes in identifiers
+`PrologIIp` | Prolog II+
+`Edinburgh` | Edinburgh
+`PrologIIc` | Prolog II with equalities and inequalities (Tiny-Prolog specific; default syntax)
+
+
+Since `PrologIIc` is the default, the syntax switch can be omitted when running `permu.pro`:
 
 ```
-$ ./tprolog2 examples/permu.pro
+$ ./tprolog2 examples/PrologII/permu.pro
 -> permutation(1.2.3.nil,x);
 { x = 1.2.3.nil }
 { x = 2.1.3.nil }
@@ -349,55 +370,136 @@ Predicate | Meaning | Example
 
 ## BNF Syntax
 
-```
-letter ::= "a" | ... | "z" | "A" | ... | "Z" | "_"
-digits ::= <digit>[<digit>]*
-letters := <letter>[<letter>]*
+We describe the different syntaxes handled by the interpreter using [Extended  Backus–Naur form](https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_form) notation.
 
-variable ::= <letter>["-"<letters>]*[<digits>]["'"]*
+### Base elements
 
-identifier ::= <ident-start>[<ident-middle>]*[<ident-end>]
-
-ident-start ::= <letter><letter>[<letters>]
-ident-middle ::= "-"<letters>
-ident-end ::= <digits>
-
-integer ::= ["-"]<digits>                            
-
-string ::= """ [<char-no-quotes> | """" | "\"<newline>]* """ 
-
-constant ::= <identifier> | <integer> | <string>                 
-
-term ::= <simple-term> ["."<term>]                          
-
-simple-term ::= <constant> |                               
-                <variable>  |                               
-                <identifier>"(" <term> ["," <term>]* ")" |  
-                "<" [<term> ["," <term>]*] ">" |                   
-                "(" <term> ")"                                 
-
-constraint ::= <term> "=" <term> |
-               <term> "<>" <term>          
-
-cut ::= "!" | "/"
-
-system ::= "{" <constraint> ["," <constraint>]* "}"                         
-
-rule ::= <term> "->" [<term>| <cut>]* [<system>] ";"
-
-query ::= -> [<term> | <cut>]* [system] ";"                                
-
-comment ::= <string>
-
-rules-and-queries ::= [<comment> | <rule> | <query>]*
-
-program ::= [<rules-and-queries>]* [";"]
+All the syntax flavours handled by the interpreter share the following definitions:
 
 ```
+letter = "A"|...|"Z"|"a"|...|"z"|"À" ... "ß" - "×" | "à" ... "ÿ" - "÷" ;
+digit = "0"|...|"9" ;
+q = """ ;
+
+digits = digit, {digit} ;
+letters = letter, {letter} ;
+
+integer = ["-"], digits ;
+
+string = q, { (character - q - newline) | (q, q) | ("\", newline) }, q ;
+
+constant = identifier | integer | string ;
+```
+
+### Marseille syntax
+
+Both Prolog II and Prolog II+ are based on the so-called "Marseille syntax", featuring the famous `->` symbol for rules, dotted lists, and tuples.
+
+```
+term = simple-term, { ".", term } ;
+
+simple-term = constant |
+              variable  |
+              ( identifier, "(", term, { ",", term }, ")" ) |
+              ( "<", [term, { ",", term }], ">" ) |
+              ( "(", term, ")" ) ;       
+
+cut = "/" ;
+
+rule = term, "->", { term | cut }, ";" ;
+
+query = "->", { term | cut }, ";" ;                                
+
+comment = string ;
+
+program = { comment | rule | query }, [";"] ;
+
+```
+
+### Prolog II
+
+The "old" Prolog II syntax uses Marseille syntax, allowing for dashes in identifiers. 
+
+Unsurprisingly, this possibility had to be reversed in a later version, called _Prolog II+_, to allows for arithmetic expressions. For instance, `x1-y2` is a valid name for a _single_ variable in Prolog II, which would create ambiguities if arithmetic expressions were to be allowed. 
+
+The Prolog II syntax is described in these two books (still on my bookshelf): 
+
+* Francis Giannesini, Henry Kanoui, Robert Pasero, and Michel Van Caneghem, _Prolog_, InterÉditions, 1985. 
+* Michel Van Caneghem, _L'Anatomie de Prolog_, InterÉditions, 1986. 
+
+During my graduation year, in 1987-1988, I guess I did all my Prolog programming homework using the MS-DOS implementation of Prolog II. IIRC we had access to SunOS workstations. A version of Prolog might have been available on these machines, but I just do not remember.
+
+To be able to run the Prolog programs I wrote during the academic year, the Tiny Prolog interpreter must fully support the Prolog II syntax.
+
+As mentioned, the most peculiar part of the Prolog II syntax concerns variable names and identifiers. Variables start with a single letter, while identifiers start with at least two letters. 
+
+It also must be noted that even if the two books listed above define letters as 7-bit ASCII lowercase and uppercase letters only, one of the homework exercices I had to do (i.e., Nobel Prizes) happens to use dash-in-identifiers syntax (so, typical Prolog II) while some identifiers do contain accented characters. So I guess I used a version of Prolog II (predating II+) accepting accented letters. I am assuming that the set of letters in this hypothetical Prolog II version is the same as in Prolog II+.
+
+```
+variable = short-word, { "-", word } ;
+
+identifier = long-word, { "-", word } ;
+
+word = short-word | long-word ;
+
+short-word = letter, { digit }, { "'" } ;
+
+long-word = letter, word ;
+```
+
+
+### Tiny Prolog
+
+This Prolog is based on the Prolog II syntax above, and adds optional contraints to rules and queries:
+
+```
+constraint = term, ("=" | "<>"), term ;          
+
+system = "{", constraint, { ",", constraint }, "}" ;                         
+
+rule = term, "->", { term | cut }, [system], ";" ;
+
+query = "->", { term | cut }, [system], ";" ;
+
+```
+
+### Prolog II+
+
+Prolog II+ does not allow for dashes in variable names or identifiers. Variables start with a `_` or with a single letter. The cut is `!` instead of `/`, the former being reserved for calls to external procedures (a.k.a. _parasites_, e.g. `/?20001`). 
+
+```
+alpha = letter | digit | "_" ;
+
+variable = ("_" , { alpha }) | extended_var ;
+
+extended_var = letter, [ (digit | "_"), { alpha } ] , { "'" } ;
+
+cut = "!" ;
+```
+
+### Edinburgh
+
+In Edinburgh mode, variable names start with a `_` or with an uppercase letter. Syntax for rules and queries also differ from Prolog II+.
+
+For now, the Edinburgh parser only supports the following part of the syntax:
+
+```
+big_letter = "A"|...|"Z" ;
+
+extended_var = big_letter, [ { alpha } ] ;
+
+rule = term, [ ":-", term {",", term} ], "." ;
+
+query = ":-", term {",", term}, "."
+
+```
+
+A predefined predicate `true` is available in Edinburgh mode.
+
 
 ## Author
 
-* [Christophe Bisiere](https://github.com/cbisiere)
+* [Christophe Bisière](https://github.com/cbisiere)
 
 ## License
 

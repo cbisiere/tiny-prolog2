@@ -17,12 +17,17 @@
 
 Procedure DumpBacktrace; Forward;
 
-{ predefined predicates and functions }
+{ predefined predicates and functions; use identifiers that are portable 
+ across all the supported syntaxes: lowercase letters with at least two
+ letters }
 
 Const
-  NBPred = 28;
-  MaxPredLength = 20; { max string length of a predefined predicate 
-   or evaluable function }
+  NBPred = 29;
+  { max string length of a predefined predicate or evaluable function }
+  MaxPredLength = 21;
+  { string representation of the syscall identifier }
+  SYSCALL_IDENT_AS_STRING = 'syscall'; 
+
 Type
   TPPType = (PPredicate,PFunction); { type: predicate or function }
   TPP = (
@@ -32,6 +37,7 @@ Type
     PP_QUIT,PP_INSERT,PP_LIST,
     PP_OUT,PP_OUTM,PP_LINE,
     PP_BACKTRACE,PP_CLRSRC,PP_EVAL,PP_ASSIGN,PP_DUMP,
+    PP_DIF,
     PF_ADD,PF_SUB,PF_MUL,PF_DIV,PF_INF);
   TPPred = Record
     T : TPPType;
@@ -43,29 +49,30 @@ Type
 
 Const 
   APPred : TAPPred = (
-    (T:PPredicate;I:PP_INPUT_IS;S:'INPUT_IS';N:1),
-    (T:PPredicate;I:PP_INPUT;S:'INPUT';N:1),
-    (T:PPredicate;I:PP_CLOSE_CURRENT_INPUT;S:'CLOSE_CURRENT_INPUT';N:0),
-    (T:PPredicate;I:PP_CLOSE_INPUT;S:'CLOSE_INPUT';N:1),
-    (T:PPredicate;I:PP_CLEAR_INPUT;S:'CLEAR_INPUT';N:0),
-    (T:PPredicate;I:PP_IN_TERM;S:'IN_TERM';N:1),
-    (T:PPredicate;I:PP_IN_CHAR;S:'IN_CHAR';N:1),
-    (T:PPredicate;I:PP_OUTPUT_IS;S:'OUTPUT_IS';N:1),
-    (T:PPredicate;I:PP_OUTPUT;S:'OUTPUT';N:1),
-    (T:PPredicate;I:PP_CLOSE_CURRENT_OUTPUT;S:'CLOSE_CURRENT_OUTPUT';N:0),
-    (T:PPredicate;I:PP_CLOSE_OUTPUT;S:'CLOSE_OUTPUT';N:1),
-    (T:PPredicate;I:PP_FLUSH;S:'FLUSH';N:0),
-    (T:PPredicate;I:PP_QUIT;S:'QUIT';N:0),
-    (T:PPredicate;I:PP_INSERT;S:'INSERT';N:1),
-    (T:PPredicate;I:PP_LIST;S:'LIST';N:0),
-    (T:PPredicate;I:PP_OUT;S:'OUT';N:1),
-    (T:PPredicate;I:PP_OUTM;S:'OUTM';N:1),
-    (T:PPredicate;I:PP_LINE;S:'LINE';N:0),
-    (T:PPredicate;I:PP_BACKTRACE;S:'BACKTRACE';N:0),
-    (T:PPredicate;I:PP_CLRSRC;S:'CLRSRC';N:0),
-    (T:PPredicate;I:PP_EVAL;S:'EVAL';N:2),
-    (T:PPredicate;I:PP_ASSIGN;S:'ASSIGN';N:2),
-    (T:PPredicate;I:PP_DUMP;S:'DUMP';N:0),
+    (T:PPredicate;I:PP_INPUT_IS;S:'sysinputis';N:1),
+    (T:PPredicate;I:PP_INPUT;S:'sysinput';N:1),
+    (T:PPredicate;I:PP_CLOSE_CURRENT_INPUT;S:'sysclosecurrentinput';N:0),
+    (T:PPredicate;I:PP_CLOSE_INPUT;S:'syscloseinput';N:1),
+    (T:PPredicate;I:PP_CLEAR_INPUT;S:'sysclearinput';N:0),
+    (T:PPredicate;I:PP_IN_TERM;S:'sysinterm';N:1),
+    (T:PPredicate;I:PP_IN_CHAR;S:'sysinchar';N:1),
+    (T:PPredicate;I:PP_OUTPUT_IS;S:'sysoutputis';N:1),
+    (T:PPredicate;I:PP_OUTPUT;S:'sysoutput';N:1),
+    (T:PPredicate;I:PP_CLOSE_CURRENT_OUTPUT;S:'sysclosecurrentoutput';N:0),
+    (T:PPredicate;I:PP_CLOSE_OUTPUT;S:'syscloseoutput';N:1),
+    (T:PPredicate;I:PP_FLUSH;S:'sysflush';N:0),
+    (T:PPredicate;I:PP_QUIT;S:'sysquit';N:0),
+    (T:PPredicate;I:PP_INSERT;S:'sysinsert';N:1),
+    (T:PPredicate;I:PP_LIST;S:'syslist';N:0),
+    (T:PPredicate;I:PP_OUT;S:'sysout';N:1),
+    (T:PPredicate;I:PP_OUTM;S:'sysoutm';N:1),
+    (T:PPredicate;I:PP_LINE;S:'sysline';N:0),
+    (T:PPredicate;I:PP_BACKTRACE;S:'sysbacktrace';N:0),
+    (T:PPredicate;I:PP_CLRSRC;S:'sysclrsrc';N:0),
+    (T:PPredicate;I:PP_EVAL;S:'syseval';N:2),
+    (T:PPredicate;I:PP_ASSIGN;S:'sysassign';N:2),
+    (T:PPredicate;I:PP_DUMP;S:'sysdump';N:0),
+    (T:PPredicate;I:PP_DIF;S:'sysdif';N:2),
     (T:PFunction;I:PF_ADD;S:'add';N:2),
     (T:PFunction;I:PF_SUB;S:'sub';N:2),
     (T:PFunction;I:PF_MUL;S:'mul';N:2),
@@ -99,11 +106,17 @@ Begin
   LookupPred := Found
 End;
 
+{ is an identifier a syscall? }
+Function IdentifierIsSyscall; (*( I : IdPtr ) : Boolean; *)
+Begin
+  IdentifierIsSyscall := IdentifierEqualTo(I,SYSCALL_IDENT_AS_STRING)
+End;
+
 { install all predefined, persistent constants }
 Procedure RegisterPredefined( P : ProgPtr );
 Var I : IdPtr;
 Begin
-  I := InstallIdentifier(P^.PP_DCON,NewStringFrom('SYSCALL'),True)
+  I := InstallIdentifier(P^.PP_DCON,NewStringFrom(SYSCALL_IDENT_AS_STRING),True)
 End;
 
 { evaluate a term T; The expression to be evaluated is constructed 
@@ -208,7 +221,7 @@ Begin
   EvaluateExpression := e
 End;
 
-{ execute a system call <SYSCALL,Code,Arg1,...ArgN>, meaning Code(Arg1,...,ArgN) }
+{ execute a system call syscall(Code,Arg1,...ArgN), meaning Code(Arg1,...,ArgN) }
 Function ExecutionSysCallOk; (* ( T : TermPtr; P : ProgPtr; Q : QueryPtr ) : Boolean; *)
 Var
   FT : FuncPtr Absolute T;
@@ -242,15 +255,15 @@ Var
 
 Begin
   { coded as a functional symbol }
-  CheckCondition(TypeOfTerm(T) = FuncSymbol,'SYSCALL: functional symbol expected');
+  CheckCondition(TypeOfTerm(T) = FuncSymbol,'syscall: functional symbol expected');
   
-  { first parameter is SYSCALL }
+  { first parameter is syscall }
   T1 := Argument(1,FT);
-  CheckCondition(TypeOfTerm(T1) = Identifier,'SYSCALL: constant expected');
+  CheckCondition(TypeOfTerm(T1) = Identifier,'syscall: constant expected');
   SysCallCode := IdentifierGetStr(IT1);
-  CheckCondition(StrEqualTo(SysCallCode,'SYSCALL'),'Not a SYSCALL');
+  CheckCondition(StrEqualTo(SysCallCode,SYSCALL_IDENT_AS_STRING),'Not a syscall');
 
-  { there are at least two arguments: <SYSCALL,identifier,..> }
+  { there are at least two arguments: 'syscall' and the identifier }
   NbArgs := NbArguments(FT);
   Ok := NbArgs >= 2;  
   If Ok Then
@@ -276,6 +289,12 @@ Begin
   If Ok Then
   Begin
     Case rec.I Of
+    PP_DIF:
+      Begin
+        T1 := GetPArg(1,FT);
+        T2 := GetPArg(2,FT);
+        Ok := ReduceOneIneq(T1,T2)
+      End;
     PP_ASSIGN: { assign(file_name, "myfile.txt") }
       Begin
         { note: re-assignments are tricky to handle, as the reduced system, after
@@ -338,7 +357,7 @@ Begin
         If Ok Then
         Begin
           QLast := LastProgramQuery(P);
-          LoadProgram(P,GetConstAsString(C,False),RTYPE_USER);
+          LoadProgram(P,GetConstAsString(C,False));
           Ok := Not Error;
           If Ok Then 
           Begin

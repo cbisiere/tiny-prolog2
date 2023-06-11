@@ -32,6 +32,13 @@ Begin
   End
 End;
 
+{ raise an error if a condition is met }
+Procedure RaiseErrorIf( cond : Boolean; msg : AnyStr );
+Begin
+  If Cond Then
+    RaiseError(msg)
+End;
+
 { terminate the programme with a return code }
 Procedure Terminate( code : Integer );
 Begin
