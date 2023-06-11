@@ -400,9 +400,13 @@ term = simple-term, { ".", term } ;
 
 simple-term = constant |
               variable  |
-              ( identifier, "(", term, { ",", term }, ")" ) |
-              ( "<", [term, { ",", term }], ">" ) |
-              ( "(", term, ")" ) ;       
+              identifier, "(", term-list, ")" |
+              tuple |
+              "(", term, ")" ;       
+
+term-list = term, { ",", term } ;
+
+tuple = "<", [term-list], ">" ;
 
 cut = "/" ;
 
@@ -465,7 +469,7 @@ query = "->", { term | cut }, [system], ";" ;
 
 ### Prolog II+
 
-Prolog II+ does not allow for dashes in variable names or identifiers. Variables start with a `_` or with a single letter. The cut is `!` instead of `/`, the former being reserved for calls to external procedures (a.k.a. _parasites_, e.g. `/?20001`). 
+Prolog II+ does not allow for dashes in variable names or identifiers. Variables start with a `_` or with a single letter. The cut is `!` instead of `/`, the former being reserved for calls to external procedures (a.k.a. _parasites_, e.g. `/?20001`). Tuples gain an alternative syntax: `<>(t1,...tn)`.
 
 ```
 alpha = letter | digit | "_" ;
@@ -475,6 +479,8 @@ variable = ("_" , { alpha }) | extended_var ;
 extended_var = letter, [ (digit | "_"), { alpha } ] , { "'" } ;
 
 cut = "!" ;
+
+tuple = "<", [term-list], ">" | "<", ">", "(", term-list, ")" ;
 ```
 
 ### Edinburgh

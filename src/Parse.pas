@@ -179,14 +179,24 @@ Begin
   If c1 = '<' Then { a tuple }
   Begin
     c1 := GetChar(c1);
-    If NextChar(c1)='>' Then
+    If NextCharNb(c1)='>' Then
     Begin
-      { empty tuple "<>" }
-      c1 := GetChar(c1);
-      F := NewSymbol(Nil,Nil)
+      { "<>" }
+      c1 := GetCharNb(c1);
+      If (y In [PrologIIp,Edinburgh]) And { "<>(t1,...tn)" }
+          (NextCharNb(c1) = '(') Then
+      Begin
+        c1 := GetCharNb(c1);
+        F := GetArgument(P,glob,')')
+      End
+      Else { "<>" only }
+        F := NewSymbol(Nil,Nil)
     End
-    Else
-      F := GetArgument(P,glob,'>');
+    Else 
+      If y <> Edinburgh Then 
+        F := GetArgument(P,glob,'>')
+      Else
+        RaiseError('this tuples syntax is not allowed in Edinburgh mode');
     If Not Error Then
       T := TF
   End
