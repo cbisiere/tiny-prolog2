@@ -20,6 +20,11 @@ close-output -> syscall(sysclosecurrentoutput);
 close-output(F) -> syscall(syscloseoutput,F);
 flush -> syscall(sysflush);
 
+"the following is needed to run the exercise on Nobel Prizes unmodified, \
+even if it does not fit the description in the 1985 Prolog book (p. 297), \
+which translates to: add a new file to the stack of buffer files"
+new-buffer(t) -> t;
+
 "in"
 
 in(T) -> syscall(sysinterm,T);

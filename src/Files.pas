@@ -23,10 +23,25 @@ Type
 Const
   CONSOLE_NAME = 'console';
 
+
+{ replace the internal representation '/' of the directory separator 
+  with the os-dependant one }
+Function OSFilename( Filename : AnyStr ) : AnyStr;
+Var
+  sep : Char;
+  i : TAnyStrSize;
+Begin
+  sep := GetDirectorySeparator;
+  For i := 1 to Length(Filename) Do
+    if FileName[i] = '/' Then
+      FileName[i] := sep;
+  OSFilename := FileName
+End;
+
 { open a text file: read mode }
 Function OpenForRead( Filename : AnyStr; Var TxtFile : TIFile ) : Boolean;
 Begin
-  Assign(TxtFile,Filename);
+  Assign(TxtFile,OSFilename(Filename));
   {$I-}
   Reset(TxtFile);
   {$I+}
@@ -36,7 +51,7 @@ End;
 { open a text file: write mode }
 Function OpenForWrite( Filename : AnyStr; Var TxtFile : TOFile ) : Boolean;
 Begin
-  Assign(TxtFile,Filename);
+  Assign(TxtFile,OSFilename(Filename));
   {$I-}
   Rewrite(TxtFile);
   {$I+}

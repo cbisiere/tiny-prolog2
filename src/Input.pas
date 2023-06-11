@@ -439,7 +439,7 @@ End;
 Procedure Spaces;
 Var c : Char;
 Begin
-  c := NextCharNb(c)
+  c := NextCharNb(c) { FIXME }
 End;
 
 { append to a string chars while they belong to a certain set; return

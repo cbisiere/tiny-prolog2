@@ -54,7 +54,7 @@ Begin
     End;
 
     { load the startup file }
-    s := NewStringFrom(StartFile[GetSyntax(P)]+'.pro');
+    s := NewStringFrom('start/' + StartFile[GetSyntax(P)]+'.pro');
     AddGCRoot(os);
     SetRuleType(P,RTYPE_AUTO);
     LoadProgram(P,s);

@@ -1,5 +1,5 @@
 "Prolog II predefined rules"
 
--> syscall(sysinsert,"P82.pro");
+-> syscall(sysinsert,"start/P82.pro");
 
 dif(X,Y) -> syscall(sysdif,X,Y);
