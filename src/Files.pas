@@ -15,9 +15,14 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+{ TODO: handle i/o errors }
+
+{ NOTE: using Text as input file type (instead of File Of Char) triggers a 
+ bug, where Read unexpectedly returns #00 with IOResult still equal to 0 }
+
 Type
-  TIODeviceType    = (TFile, TTerminal);   { input/output device type         }
-  TIFile = Text;
+  TIODeviceType    = (TFile, TTerminal);   { input/output device type }
+  TIFile = File Of Char;
   TOFile = Text;
 
 Const
@@ -26,10 +31,10 @@ Const
 
 { replace the internal representation '/' of the directory separator 
   with the os-dependant one }
-Function OSFilename( Filename : AnyStr ) : AnyStr;
+Function OSFilename( Filename : TString ) : TString;
 Var
   sep : Char;
-  i : TAnyStrSize;
+  i : TStringSize;
 Begin
   sep := GetDirectorySeparator;
   For i := 1 to Length(Filename) Do
@@ -39,7 +44,7 @@ Begin
 End;
 
 { open a text file: read mode }
-Function OpenForRead( Filename : AnyStr; Var TxtFile : TIFile ) : Boolean;
+Function OpenForRead( Filename : TString; Var TxtFile : TIFile ) : Boolean;
 Begin
   Assign(TxtFile,OSFilename(Filename));
   {$I-}
@@ -49,7 +54,7 @@ Begin
 End;
 
 { open a text file: write mode }
-Function OpenForWrite( Filename : AnyStr; Var TxtFile : TOFile ) : Boolean;
+Function OpenForWrite( Filename : TString; Var TxtFile : TOFile ) : Boolean;
 Begin
   Assign(TxtFile,OSFilename(Filename));
   {$I-}
@@ -59,7 +64,7 @@ Begin
 End;
 
 { flush a text file }
-Procedure FlushFile( Filename : AnyStr; Var TxtFile : TOFile );
+Procedure FlushFile( Filename : TString; Var TxtFile : TOFile );
 Begin
   {$I-}
   Flush(TxtFile)
@@ -67,7 +72,7 @@ Begin
 End;
 
 { close an input file }
-Procedure CloseIFile( Filename : AnyStr; Var TxtFile : TIFile );
+Procedure CloseIFile( Filename : TString; Var TxtFile : TIFile );
 Begin
   {$I-}
   Close(TxtFile)
@@ -75,7 +80,7 @@ Begin
 End;
 
 { close an output file }
-Procedure CloseOFile( Filename : AnyStr; Var TxtFile : TOFile );
+Procedure CloseOFile( Filename : TString; Var TxtFile : TOFile );
 Begin
   {$I-}
   Close(TxtFile)
@@ -83,7 +88,7 @@ Begin
 End;
 
 { write a string to a file }
-Procedure WriteToFile( Filename : AnyStr; Var TxtFile : TOFile; s : AnyStr );
+Procedure WriteToFile( Filename : TString; Var TxtFile : TOFile; s : TString );
 Begin
   {$I-}
   Write(TxtFile,s);
@@ -91,3 +96,11 @@ Begin
   {$I+}
 End;
 
+{ read a single char from a file }
+Function ReadFromFile( Filename : TString; Var TxtFile : TIFile; Var c : Char ) : Boolean;
+Begin
+  {$I-}
+  Read(TxtFile,c);
+  {$I+}
+  ReadFromFile := IOResult = 0
+End;

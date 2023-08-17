@@ -1,7 +1,7 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   File        : TP3.pas                                                    }
+{   File        : FPC.pas                                                    }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 2022-09-17                                                 }
 {   Updated     : 2023                                                       }
@@ -14,38 +14,37 @@
 
 { compatibility with Turbo Pascal 3.02 }
 Uses 
-  Crt,
-  Sysutils; { TrimLeft }
+  Crt, Sysutils; { TrimLeft }
 
-{ non dynamic short string }
+{ longest non dynamic string }
 Const
-  AnyStrMaxSize = 255;
+  StringMaxSize = 255;
 Type
-  AnyStr = String[AnyStrMaxSize];
-  TAnyStrSize = 0..AnyStrMaxSize;
+  TString = String[StringMaxSize];
+  TStringSize = 0..StringMaxSize;
 
 Type
   LongLongInt = Real; { simulate a very long integer }
 
 { format a LongInt for display }
-Function LongIntToStr( v : LongInt ) : AnyStr;
-Var s : AnyStr;
+Function LongIntToStr( v : LongInt ) : TString;
+Var s : TString;
 Begin
   Str(v,s);
   LongIntToStr := s
 End;
 
 { format a LongLongInt for display }
-Function LongLongIntToStr( v : LongLongInt ) : AnyStr;
-Var s : AnyStr;
+Function LongLongIntToStr( v : LongLongInt ) : TString;
+Var s : TString;
 Begin
-  Str(v:AnyStrMaxSize:0,s);
+  Str(v:StringMaxSize:0,s);
   LongLongIntToStr := TrimLeft(s)
 End;
 
 { convert a Pascal string to a LongInt; code is 0 if the operation succeeded,
   or the index of the character preventing the conversion }
-Function StrToLongInt( s : AnyStr; Var code : Integer ) : LongInt;
+Function StrToLongInt( s : TString; Var code : Integer ) : LongInt;
 Var v : LongInt;
 Begin
   Val(s,v,code);
@@ -76,3 +75,21 @@ Function GetDirectorySeparator : Char;
 Begin
   GetDirectorySeparator := DirectorySeparator
 End;
+
+{ screen width in number of 1-byte characters }
+Function GetScreenWidth : TCrtCoord;
+Begin
+  GetScreenWidth := ScreenWidth
+End;
+
+{ screen height in number of rows }
+Function GetScreenHeight : TCrtCoord;
+Begin
+  GetScreenHeight := ScreenHeight
+End;
+
+Const
+  { input buffer size }
+  BufSize = 1024;
+  { maximum number of bytes per char }
+  MaxBytesPerChar = 4;

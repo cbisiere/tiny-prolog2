@@ -239,7 +239,7 @@ End;
 Function NextTerm( B : BTermPtr ) : BTermPtr;
 Begin
   CheckCondition(B <> Nil,'Cannot compute the next term of Nil');
-  NextTerm := B^.BT_NEXT;
+  NextTerm := B^.BT_NEXT
 End;
 
 { access identifier of a block }

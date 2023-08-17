@@ -23,7 +23,8 @@ Begin
   InitOFileStack
 End;
 
-{ reset the input/output system, closing all open files }
+{ reset the input/output system, closing all open files, but preserving the
+ input console buffer }
 Procedure ResetIO;
 Begin
   ResetIFileStack;
@@ -35,7 +36,6 @@ Procedure AnswerQuery( P : ProgPtr; Q : QueryPtr; Echo : Boolean );
 Begin
   If Echo Then
     OutOneQuery(Q,False);
-  InitIO;
   Clock(P,Q);
   ResetIO
 End;
@@ -58,27 +58,27 @@ End;
   if any }
 Procedure LoadProgram( P : ProgPtr; s : StrPtr );
 Var 
-  Filename : AnyStr;
+  Filename : TString;
 Begin
-  If StrLength(s)<=AnyStrMaxSize Then
+  If StrLength(s) <= StringMaxSize Then
   Begin
     FileName := StrGetString(s);
     If SetFileForInput(FileName) Then
     Begin
       BeginInsertion(P);
-      CompileRulesAndQueries(P,GetRuleType(P));
-      If Not Error Then
-        CloseCurrentInput;
+      ParseRulesAndQueries(P,GetRuleType(P));
+      If Error Then Exit;
+      CloseCurrentInput;
+      If Error Then Exit;
       { clearing goals only after closing the input file is the right way to  
         do it, as calls to input_is, etc. must not consider the program file 
         as an input file }
-      If Not Error Then
-        AnswerQueries(P,GetRuleType(P)=RTYPE_USER);
+      AnswerQueries(P,GetRuleType(P)=RTYPE_USER);
       EndInsertion(P)
     End
     Else
-      RaiseError('Cannot open file ')
+      RuntimeError('Cannot open file ')
   End
   Else
-    RaiseError('filename is too long');
+    RuntimeError('filename is too long');
 End;

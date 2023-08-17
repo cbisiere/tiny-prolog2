@@ -85,7 +85,7 @@ Var
   PV : TPObjPtr Absolute V;
   s : StrPtr;
   k : Integer;
-  ks : AnyStr;
+  ks : TString;
 Begin
   CheckCondition(TypeOfTerm(TV)=Variable,
     'GetVarNameAsString(V): V is not a variable');
@@ -378,7 +378,7 @@ Begin
 End;
 
 { write a list of BTerms }
-Procedure WriteTerms( s : StrPtr; B : BTermPtr; sep : AnyStr );
+Procedure WriteTerms( s : StrPtr; B : BTermPtr; sep : TString );
 Var 
   First : Boolean;
   Procedure DoWriteTerms( B : BTermPtr );
@@ -401,7 +401,7 @@ End;
 Procedure WriteOneRule( s : StrPtr; R : RulePtr );
 Var 
   B : BTermPtr;
-  prefix : AnyStr;
+  prefix : TString;
 Begin
   prefix := CRLF + '        ';
   InitIneq;
@@ -578,7 +578,7 @@ Begin
   OutTermBis(T,False,True,UseIOStack)
 End;
 
-Procedure OutTerms( B : BTermPtr; sep : AnyStr; UseIOStack : Boolean );
+Procedure OutTerms( B : BTermPtr; sep : TString; UseIOStack : Boolean );
 Var s : StrPtr;
 Begin
   s := NewString;

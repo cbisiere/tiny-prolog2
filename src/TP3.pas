@@ -15,12 +15,12 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-{ non dynamic short string }
+{ longest non dynamic string }
 Const
-  AnyStrMaxSize = 255;
+  StringMaxSize = 255;
 Type
-  AnyStr = String[AnyStrMaxSize];
-  TAnyStrSize = 0..AnyStrMaxSize;
+  TString = String[StringMaxSize];
+  TStringSize = 0..StringMaxSize;
 
 Type 
   LongInt = Real; { simulate a LongInt }
@@ -28,7 +28,7 @@ Type
   Pointer = ^Integer; { generic pointer }
 
 { trim whitespace from the beginning of a string }
-Function TrimLeft( s : AnyStr ) : AnyStr;
+Function TrimLeft( s : TString ) : TString;
 Var 
   c,i : Byte;
 Label
@@ -46,22 +46,22 @@ Begin
 End;
 
 { format a LongInt for display }
-Function LongIntToStr( v : LongInt ) : AnyStr;
-Var s : AnyStr;
+Function LongIntToStr( v : LongInt ) : TString;
+Var s : TString;
 Begin
-  Str(v:AnyStrMaxSize:0,s);
+  Str(v:StringMaxSize:0,s);
   LongIntToStr := TrimLeft(s);
 End;
 
 { format a LongLongInt for display }
-Function LongLongIntToStr( v : LongLongInt ) : AnyStr;
+Function LongLongIntToStr( v : LongLongInt ) : TString;
 Begin
   LongLongIntToStr := LongIntToStr(v)
 End;
 
 { convert a Pascal string to a LongInt; code is 0 if the operation succeeded,
   or the index of the character preventing the conversion }
-Function StrToLongInt( s : AnyStr; Var code : Integer ) : LongInt;
+Function StrToLongInt( s : TString; Var code : Integer ) : LongInt;
 Var v : LongInt;
 Begin
   Val(s,v,code);
@@ -74,7 +74,10 @@ Begin
   LongIntDiv := Int(x/y)
 End;
 
-{ ReadKey, as in Free Pascal Compiler's Crt module }
+{ ReadKey, as in Free Pascal Compiler's Crt module;
+ see:
+ - Turbo Pascal 3 documentation, page 374 
+ - https://www.freepascal.org/docs-html/rtl/crt/readkey.html }
 Function ReadKey : Char;
 Var c : Char;
 Begin
@@ -101,3 +104,24 @@ Function GetDirectorySeparator : Char;
 Begin
   GetDirectorySeparator := '\'
 End;
+
+Type
+  TCrtCoord = 1..255;
+
+{ screen width in number of 1-byte characters }
+Function GetScreenWidth : TCrtCoord;
+Begin
+  GetScreenWidth := 80
+End;
+
+{ screen height in number of rows }
+Function GetScreenHeight : TCrtCoord;
+Begin
+  GetScreenHeight := 25
+End;
+
+Const
+  { input buffer size }
+  BufSize = 255;
+  { maximum number of bytes per char }
+  MaxBytesPerChar = 1;

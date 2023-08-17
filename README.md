@@ -31,14 +31,14 @@ Here are two additional interesting papers:
 
 
 ## Overview
-The interpreter handles classical Prolog rules, expressed in so-called "Marseille syntax". Being a simple implementation exercice, it offers only a few built-in functions and no advanced features. 
+Being a simple implementation exercice, the interpreter offers only a few built-in functions and no advanced features. 
 
-Nonetheless, the interpreter is fully garbage collected, and has almost no hard-coded limits.  
+Nonetheless, the interpreter is fully garbage collected, and has almost no hard-coded limits.
 
 The source code contains detailed comments (though mostly in French) about the implementation (parsing and execution).
 
 ### Lists
-A dot `.` is used to separate items in a list. For instance, the rules defining the insertion of an element before any item in a list could be written as:
+In Marseille syntax, a dot `.` is used to separate items in a list. For instance, the rules defining the insertion of an element before any item in a list could be written as:
 
 ```
 insertion(e,x,e.x) ->;
@@ -204,30 +204,25 @@ Evaluable functions `add(x,y)`,`sub(x,y)`,`mul(x,y)`,`div(x,y)`, and `inf(x,y)` 
 
 ## Compilation
 
-### Turbo Pascal 3
+### Turbo Pascal
 
 The program was initially developed in [Turbo Pascal 3](https://en.wikipedia.org/wiki/Turbo_Pascal#Version_3) (TP3). Turbo Pascal 3.02A is [provided](https://web.archive.org/web/20101124092418/http://edn.embarcadero.com/article/20792) to the Borland community free of charge, as a [zip file](https://web.archive.org/web/20110815014726/http://altd.embarcadero.com/download/museum/tp302.zip).
 
 I tried to maintain compatibility with TP3. So, no classes, and a few restrictions on the syntax. Workarounds had to be implemented for the most annoying limitations, namely 16-bit integers and 255-char strings. (For now, TP4 is needed as TP3 compilation triggers a memory overflow.)  
 
-You may use a FreeDOS box to install Turbo Pascal, compile `Main.pas` and run the Prolog interpreter.
+You may use a FreeDOS box to install Turbo Pascal 4, edit `src/tprolog2.pas` to replace the compiler directive `{$I FPC.pas}` with `{$I TP4.pas}`, then compile `tprolog2.pas` and run the Prolog interpreter.
 
 ### Free Pascal Compiler
 
-To compile the interpreter with the [Free Pascal Compiler](https://en.wikipedia.org/wiki/Free_Pascal) (FPC), edit `src/Main.pas`, changing the compiler directive `{$I TP3.pas}` (or `{$I TP4.pas}`) into `{$I FPC.pas}`. Then run FPC in Turbo Pascal mode: 
+To compile the interpreter with the [Free Pascal Compiler](https://en.wikipedia.org/wiki/Free_Pascal) (FPC), compile `src/tprolog2 ` in Turbo Pascal mode:
 
 ```bash
-fpc -Mtp -FE. -otprolog2 src/Main.pas
-```
-Alternatively, you may use the following script, which does that editing and then compiles the interpreter:
-
-```bash
-fpc.sh
+$ fpc -Mtp -FE. src/tprolog2.pas
 ```
 
 ## Execution
 
-A Prolog program to execute is a (UTF8 or ISO/IEC 8859-1) text file containing both the program rules and the queries. When using the default syntax, rules must be written using the "Marseille syntax". Each query starts with a `->`and ends with a `;`. The end of the text file, or, alternatively, an additional `;`, ends the program. Lines in the input file can have any length.
+A Prolog program to execute is a (UTF8 or ISO/IEC 8859-1) text file containing both the program rules and the queries. When using the default syntax, rules must be written using the Marseille syntax. Each query starts with a `->`and ends with a `;`. The end of the text file, or, alternatively, an additional `;`, ends the program. Lines in the input file can have any length.
 
 For instance, the file `examples/ProII/permu.pro` contains four rules and two queries:
 

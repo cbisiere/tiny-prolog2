@@ -25,17 +25,17 @@ Const
 Procedure ProcessParameters( P : ProgPtr );
 Var  
   i : 1..2;
-  par : AnyStr;
+  par : TString;
   y : TSyntax;
   Found : Boolean;
   s : StrPtr;
   os : TPObjPtr Absolute s;
 Begin
+  i := 1; { index of the parameter to process }
+
+  { syntax switch }
   If ParamCount >= 1 Then
   Begin
-    i := 1;
-
-    { syntax switch }
     par := ParamStr(1);
     If par[1] = '-' Then
     Begin
@@ -49,26 +49,31 @@ Begin
           Found := True
         End
       End;
-      RaiseErrorIf(Not Found,'Syntax switch: Unknown syntax identifier');
+      If Not Found Then
+        RaiseError('Syntax switch: Unknown syntax identifier');
       i := i + 1
-    End;
-
-    { load the startup file }
-    s := NewStringFrom('start/' + StartFile[GetSyntax(P)]+'.pro');
-    AddGCRoot(os);
-    SetRuleType(P,RTYPE_AUTO);
-    LoadProgram(P,s);
-
-    { user file }
-    If (Not Error) And (ParamCount = i) Then
-    Begin
-      s := NewStringFrom(ParamStr(i));
-      AddGCRoot(os);
-      SetRuleType(P,RTYPE_USER);
-      LoadProgram(P,s)
     End
   End;
-  SetRuleType(P,RTYPE_USER)
+
+  { load the startup file }
+  If Not Error Then
+  Begin
+    s := NewStringFrom('start/' + StartFile[GetSyntax(P)]+'.pro');
+    AddGCRoot(os); { protect this string from GC }
+    SetRuleType(P,RTYPE_AUTO);
+    LoadProgram(P,s)
+  End;
+
+  { from now on, all rules are user rules }
+  SetRuleType(P,RTYPE_USER);
+
+  { user file }
+  If (Not Error) And (ParamCount = i) Then
+  Begin
+    s := NewStringFrom(ParamStr(i));
+    AddGCRoot(os); { protect this string from GC }
+    LoadProgram(P,s)
+  End
 End;
 
 { initialize various subsystems }
@@ -76,7 +81,9 @@ Procedure Initialize;
 Begin
   MMInit;
   InitIO;
+  InitCrt;
   InitTrace;
+  InitReadline;
   OngoingCoreDump := False;
   Error := False
 End;

@@ -22,7 +22,8 @@
 
 { type of allocated objects; note that SY, EQ, HE, RE are not managed by GC }
 Type
-  TypePrologObj = (PR, RU, QU, SY, EQ, BT, CO, FU, VA, ID, CS, CN, DE, HE, ST, SD, RE);
+  TypePrologObj = (PR, RU, QU, SY, EQ, BT, CO, FU, VA, ID, CS, CN, DE, HE, ST, 
+      SD, RE, TK);
 
 { string representation of these types (TP3 cannot write enumerated types);
   must match TypePrologObj }
@@ -30,7 +31,7 @@ Type
   TypePrologObjStr = Array[TypePrologObj] Of String[2];
 Const
   ObjStr : TypePrologObjStr = ('PR', 'RU', 'QU', 'SY', 'EQ', 'BT', 
-    'CO', 'FU', 'VA', 'ID', 'CS', 'CN', 'DE', 'HE', 'ST', 'SD', 'RE');
+    'CO', 'FU', 'VA', 'ID', 'CS', 'CN', 'DE', 'HE', 'ST', 'SD', 'RE', 'TK');
 
 {----------------------------------------------------------------------------}
 { memory allocation stats                                                    }
@@ -45,7 +46,7 @@ Var
   t : TypePrologObj;
 Begin
   mem := 0;
-  For t := PR To RE Do
+  For t := PR To TK Do
     PObjCount[t] := 0
 End;
 
@@ -54,7 +55,7 @@ Var t : TypePrologObj;
 Begin
   CWrite('Bytes allocated: ' + LongLongIntToStr(mem));
   CWriteLn;
-  For t := PR To RE Do
+  For t := PR To TK Do
   Begin
     CWrite(' ' + ObjStr[t] + ': ' + RAlign(LongIntToStr(PObjCount[t]),5));
     CWriteLn
@@ -107,7 +108,7 @@ Begin
     m := Not IsMarked
 End;
 
-Function MarkToStr( m : TypeMark ) : AnyStr;
+Function MarkToStr( m : TypeMark ) : TString;
 Begin
   If IsMark(m) Then
     MarkToStr := '*'
@@ -262,15 +263,15 @@ End;
 Function FindObjectById( guid : LongInt ) : TPObjPtr; Forward;
 
 { global object ID to string }
-Function GuidToStr( guid : LongInt ) : AnyStr;
+Function GuidToStr( guid : LongInt ) : TString;
 Begin
   GuidToStr := '#' + LongIntToStr(guid)
 End;
 
 { object pointer to object name }
-Function PtrToName( p : TPObjPtr ) : AnyStr;
+Function PtrToName( p : TPObjPtr ) : TString;
 Var
-  s : AnyStr;
+  s : TString;
   guid : LongInt;
 Begin
   If (p = Nil) Then
@@ -322,7 +323,7 @@ Begin
 End;
 
 { check a memory location has a chance to be a legit Prolog object }
-Procedure CheckIsPObj( p : TPObjPtr; prompt : AnyStr );
+Procedure CheckIsPObj( p : TPObjPtr; prompt : TString );
 Begin
   CheckCondition(IsObject(p),
     prompt + ': not a Prolog object')

@@ -38,19 +38,32 @@ Begin
   CloseOFile(ECHO_FILE, EchoFile)
 End;
 
-{ console write, possibly with echo to the echo file }
-Procedure CWrite( s : AnyStr );
+{ write to the echo file if trace is on }
+Procedure WriteToEchoFile; (* ( s : TString ); *)
 Begin
   If Echo Then
-    WriteToFile(ECHO_FILE,EchoFile,s);
-  Write(s)
+    WriteToFile(ECHO_FILE,EchoFile,s)
 End;
 
+{ write a char to the terminal }
+Procedure CWriteChar( cc : TChar );
+Begin
+  WriteToEchoFile(cc);
+  CrtWriteChar(cc)
+End;
+
+{ write a string of 1-byte chars to the terminal }
+Procedure CWrite( s : TString );
+Begin
+  WriteToEchoFile(s);
+  CrtWriteString(s)
+End;
+
+{ write a new line to the terminal }
 Procedure CWriteLn;
 Begin
-  If Echo Then
-    WriteToFile(ECHO_FILE,EchoFile,CRLF);
-  WriteLn
+  WriteToEchoFile(CRLF);
+  CrtWriteLn
 End;
 
 { write a byte or an integer }
@@ -66,9 +79,9 @@ Begin
 End;
 
 { display a string content as an array of char codes }
-Procedure CWriteStrCharCodes( s : AnyStr );
+Procedure CWriteStrCharCodes( s : TString );
 Var 
-  i : 1..AnyStrMaxSize;
+  i : 1..StringMaxSize;
   First : Boolean;
 Begin
   First := True;

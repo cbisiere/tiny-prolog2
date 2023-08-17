@@ -1,14 +1,14 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   File        : Output.pas                                                 }
+{   File        : OStack.pas                                                 }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
-{                               O U T P U T                                  }
+{                           O U T P U T   S T A C K                          }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
@@ -17,31 +17,39 @@
 
 { output stack }
 
+{
+  ASSUMPTIONS AND LIMITS:
+  -----------------------
+  1) OFilesMax: 20
+    maximum number of stacked output files, including the predefined 
+    output 'console'.
+}
+
 Const
-  MaxNbOFiles = 20;
+  OFilesMax = 20;
 
 Type
-  TOFileStackPtr = 0..MaxNbOFiles;
+  TOFileStackIndex = 0..OFilesMax;
 
-  TOFileState = Record
-    FName : AnyStr;
-    CurrentFile : TOFile;
-    FileIsOpen : Boolean;
+  TOFileStream = Record
+    FName : TString;
+    OFile : TOFile;
+    IsOpen : Boolean;
     DeviceType  : TIODeviceType
   End;
   TOFileStack = Record
-    Top : TOFileStackPtr;
-    Stack : Array[1..MaxNbOFiles] Of TOFileState
+    Top : TOFileStackIndex;
+    Stack : Array[1..OFilesMax] Of TOFileStream
   End;
 
 Var
   OFileStack : TOFileStack;
 
 { append a file to the output stack }
-Function PushOFile( FileName : AnyStr ) : TOFileStackPtr;
-Var K : TOFileStackPtr;
+Function PushOFile( FileName : TString ) : TOFileStackIndex;
+Var K : TOFileStackIndex;
 Begin
-  CheckCondition(OFileStack.Top < MaxNbOFiles,'Output Stack is full');
+  CheckCondition(OFileStack.Top < OFilesMax,'Output Stack is full');
   OFileStack.Top := OFileStack.Top + 1;
   With OFileStack.Stack[OFileStack.Top] Do
   Begin
@@ -49,14 +57,14 @@ Begin
     If FName = CONSOLE_NAME Then
     Begin
       DeviceType := TTerminal;
-      FileIsOpen := True
+      IsOpen := True
     End
     Else
     Begin
       DeviceType := TFile;
-      FileIsOpen := OpenForWrite(FName,CurrentFile)
+      IsOpen := OpenForWrite(FName,OFile)
     End;
-    If FileIsOpen Then 
+    If IsOpen Then 
     Begin
       K := OFileStack.Top
     End
@@ -72,7 +80,7 @@ End;
 { initialize the output system, setting up the console as the default 
   output device }
 Procedure InitOFileStack;
-Var K : TOFileStackPtr;
+Var K : TOFileStackIndex;
 Begin
   OFileStack.Top := 0;
   K := PushOFile(CONSOLE_NAME);
@@ -80,10 +88,10 @@ Begin
 End;
 
 { lookup; return zero if the entry is not in the stack }
-Function OFileIndex( FileName : AnyStr ) : TOFileStackPtr;
+Function OFileIndex( FileName : TString ) : TOFileStackIndex;
 Var
   Found : Boolean;
-  K : TOFileStackPtr;
+  K : TOFileStackIndex;
 Begin
   Found := False;
   K := OFileStack.Top;
@@ -97,10 +105,10 @@ Begin
 End;
 
 { set a file as the current output file }
-Function SetFileForOutput( FileName : AnyStr ) : Boolean;
+Function SetFileForOutput( FileName : TString ) : Boolean;
 Var
-  K,I : TOFileStackPtr;
-  tmp : TOFileState;
+  K,I : TOFileStackIndex;
+  tmp : TOFileStream;
 Begin
   K := OFileIndex(FileName);
   If K = 0 Then
@@ -116,22 +124,22 @@ Begin
 End;
 
 { close the output file at index K in the stack }
-Procedure CloseOFileAtIndex( K : TOFileStackPtr );
+Procedure CloseOFileAtIndex( K : TOFileStackIndex );
 Begin
   CheckCondition((K>0) And (K<=OFileStack.Top),
     'out of range output stack index');
   With OFileStack.Stack[K] Do
-    If FileIsOpen And (DeviceType = TFile) Then
+    If IsOpen And (DeviceType = TFile) Then
     Begin
-      CloseOFile(FName,CurrentFile);
-      FileIsOpen := False
+      CloseOFile(FName,OFile);
+      IsOpen := False
     End
 End;
 
 { close all the opened files and reset the output stack }
 Procedure ResetOFileStack;
 Var
-  I : TOFileStackPtr;
+  I : TOFileStackIndex;
 Begin
   For I := 1 To OFileStack.Top Do
     CloseOFileAtIndex(I);
@@ -140,10 +148,10 @@ End;
 
 { close an output file; if it is the console, move it back to 
   position 1; TODO: what PII+ does in that case? }
-Procedure CloseOutput( FileName : AnyStr );
+Procedure CloseOutput( FileName : TString );
 Var
-  K,I : TOFileStackPtr;
-  tmp : TOFileState;
+  K,I : TOFileStackIndex;
+  tmp : TOFileStream;
 Begin
   K := OFileIndex(FileName);
   If K > 0 Then { delete }
@@ -179,12 +187,12 @@ End;
 Procedure FlushCurrentOutput;
 Begin
   With OFileStack.Stack[OFileStack.Top] Do
-    If FileIsOpen And (DeviceType = TFile) Then
-      FlushFile(FName,CurrentFile)
+    If IsOpen And (DeviceType = TFile) Then
+      FlushFile(FName,OFile)
 End;
 
 { return the name of the current output file }
-Function OutputIs : AnyStr;
+Function OutputIs : TString;
 Begin
   With OFileStack.Stack[OFileStack.Top] Do
     OutputIs := FName
@@ -198,13 +206,13 @@ Begin
 End;
 
 { write a Pascal string to the current output }
-Procedure WriteToCurrentOutput; (* ( s : AnyStr ); *)
+Procedure WriteToCurrentOutput; (* ( s : TString ); *)
 Begin
   With OFileStack.Stack[OFileStack.Top] Do
     Case DeviceType Of
       TTerminal:
         CWrite(s);
       TFile:
-        WriteToFile(FName,CurrentFile,s)
+        WriteToFile(FName,OFile,s)
     End
 End;

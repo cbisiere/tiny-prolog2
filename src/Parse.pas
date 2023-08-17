@@ -18,18 +18,16 @@
 { per-syntax elements }
 Type
   TSyntaxElement = Array[TSyntax] Of Record
-    RuleArrow: String[2];
-    RuleEnd: Char;
-    QueryArrow: String[2];
-    PromptEnd: Char;
+    RuleEnd: TTokenType;
+    PromptEnd: TTokenType;
     AcceptSys: Boolean
   End;
 Const
   Syntax : TSyntaxElement = (
-    (RuleArrow:'->';RuleEnd:';';QueryArrow:'->';PromptEnd:';';AcceptSys:False),
-    (RuleArrow:'->';RuleEnd:';';QueryArrow:'->';PromptEnd:';';AcceptSys:True),
-    (RuleArrow:'->';RuleEnd:';';QueryArrow:'->';PromptEnd:';';AcceptSys:False),
-    (RuleArrow:':-';RuleEnd:'.';QueryArrow:':-';PromptEnd:'.';AcceptSys:False)
+    (RuleEnd:TOKEN_SEMICOLON;PromptEnd:TOKEN_SEMICOLON;AcceptSys:False),
+    (RuleEnd:TOKEN_SEMICOLON;PromptEnd:TOKEN_SEMICOLON;AcceptSys:True),
+    (RuleEnd:TOKEN_SEMICOLON;PromptEnd:TOKEN_SEMICOLON;AcceptSys:False),
+    (RuleEnd:TOKEN_DOT;PromptEnd:TOKEN_DOT;AcceptSys:False)
   );
 
 {-----------------------------------------------------------------------}
@@ -50,85 +48,60 @@ Const
 {                                                                       }
 {-----------------------------------------------------------------------}
 
+{ raise an error if a token is not of a certain type; read the token 
+ following the token to verify }
+Procedure VerifyToken( P : ProgPtr; Var K : TokenPtr; typ : TTokenType );
+Var
+  y : TSyntax;
+Begin
+  y := GetSyntax(P);
+  If TokenType(K) = typ Then
+    K := ReadToken(y)
+  Else
+    SyntaxError(TokenStr[typ] + ' expected')
+End;
+
 { read a term, possibly in a global context (that is, when parsing a
   rule), possibly accepting a cut as a valid term }
-Function ReadOneTerm( P : ProgPtr; glob : Boolean; 
+Function ReadOneTerm( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
     Cut : Boolean) : TermPtr; Forward;
 
-{ read the argument of a predicate (EndChar=')') or a tuple (EndChar='>');
+{ read the argument of a predicate (EndToken=')') or a tuple (EndToken='>');
   return Nil if an error occurred }
-Function GetArgument( P : ProgPtr; glob : Boolean; 
-    EndChar : Char ) : FuncPtr;
+Function GetArgument( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
+    EndToken : TTokenType ) : FuncPtr;
 Var
+  y : TSyntax;
   T : TermPtr;
-  c : Char;
   F : FuncPtr;
   TF : TermPtr Absolute F;
 Begin
+  GetArgument := Nil;
+  y := GetSyntax(P);
   F := Nil;
-  T := ReadOneTerm(P,glob,False);
-  If Not Error Then
+  T := ReadOneTerm(P,K,glob,False);
+  If Error Then Exit;
+  If TokenType(K) = TOKEN_COMMA Then
   Begin
-    c := GetCharNb(c);
-    If c =  ',' Then
-    Begin
-      F := GetArgument(P,glob,EndChar);
-      If Not Error Then
-        F := NewSymbol(T,TF)
-    End
-    Else
-    If c = EndChar  Then
-      F := NewSymbol(T,Nil)
-    Else
-    Begin
-      RaiseError('"' + EndChar + '" expected');
-      F := Nil
-    End
+    K := ReadToken(y);
+    F := GetArgument(P,K,glob,EndToken);
+    If Error Then Exit;
+    F := NewSymbol(T,TF)
+  End
+  Else 
+  Begin
+    VerifyToken(P,K,EndToken);
+    If Error Then Exit;
+    F := NewSymbol(T,Nil)
   End;
   GetArgument := F
 End;
 
-{ read and return a constant string, not including the double quotes }
-Function ReadString : StrPtr;
-Var
-  c : Char;
-  Ch : StrPtr;
-  Done : Boolean;
-Begin
-  CheckCondition(NextChar(c) = '"', 'string expected');
-  c := GetChar(c); { discard it, since double quotes are not part of the string }
-  Ch := NewString;
-  Repeat
-    Done := False;
-    GetCharUntil(Ch,['"',EndOfLine,EndOfInput]);
-    Case NextChar(c) Of
-    '"':
-      Begin
-        c := GetChar(c); { discard it }
-        If NextChar(c) = '"' Then { doubled: keep only one }
-          StrAppendChar(Ch,GetChar(c))
-        Else
-          Done := True
-      End;
-    EndOfLine:
-      If StrEndsWith(Ch,['\']) Then { string continuation on next line }
-      Begin
-        c := GetChar(c);
-        StrDeleteLastChar(Ch)
-      End
-      Else
-        RaiseError('End of line while reading a constant string');
-    EndOfInput:
-      RaiseError('End of input while reading a constant string')
-    End
-  Until Error or Done;
-  ReadString := Ch
-End;
-
 { read a term, possibly accepting a cut as a valid term }
-Function ReadOneTerm; (* ( P : ProgPtr; glob : Boolean; 
+Function ReadOneTerm; (* ( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
     Cut : Boolean ) : TermPtr *)
 Var
+  y : TSyntax;
   T : TermPtr;
   T2 : TermPtr;
   C : ConstPtr;
@@ -143,272 +116,227 @@ Var
   TF2 : TermPtr Absolute F2;
   F3 : FuncPtr;
   TF3 : TermPtr Absolute F3;
-  Ch  : StrPtr;
-  c1,c2 : Char;
-  IsVar,IsIdent : Boolean;
-  IsUpper : Boolean;
-  n,m : LongInt;
-  y : TSyntax; 
 Begin
-  T := Nil;
+  ReadOneTerm := Nil;
   y := GetSyntax(P);
-  IsVar := False;
-  IsIdent := False;
-  Spaces;
-  Ch := NewString;
-  c1 := NextChar(c1);
-  c2 := NextNextChar(c2);
-  If (c1 In Digits) Or 
-    (c1='-') And (c2 In Digits) Then  { an integer }
-  Begin
-    If c1='-' Then
-      StrAppendChar(Ch,GetChar(c1));
-    n := GetCharWhile(Ch,Digits);
-    C := InstallConst(P^.PP_DCON,Ch,CN,glob);
-    T := TC
-  End
-  Else
-  If c1 ='(' Then { ( <term> ) }
-  Begin
-    c1 := GetChar(c1);
-    T := ReadOneTerm(P,glob,False);
-    If Not Error Then
-      Verify(')')
-  End
-  Else
-  If c1 = '<' Then { a tuple }
-  Begin
-    c1 := GetChar(c1);
-    If NextCharNb(c1)='>' Then
+  T := Nil;
+  Case TokenType(K) Of
+  TOKEN_NUMBER:
     Begin
-      { "<>" }
-      c1 := GetCharNb(c1);
-      If (y In [PrologIIp,Edinburgh]) And { "<>(t1,...tn)" }
-          (NextCharNb(c1) = '(') Then
+      C := InstallConst(P^.PP_DCON,K^.TK_STRI,CN,glob);
+      T := TC;
+      K := ReadToken(y)
+    End;
+  TOKEN_STRING:
+    Begin
+      C := InstallConst(P^.PP_DCON,K^.TK_STRI,CS,glob);
+      T := TC;
+      K := ReadToken(y)
+    End;
+  TOKEN_VARIABLE:
+    Begin
+      V := InstallVariable(P^.PP_DVAR,P^.PP_LVAR,K^.TK_STRI,glob);
+      T := TV;
+      K := ReadToken(y)
+    End;
+  TOKEN_IDENT:
+    Begin
+      I := InstallIdentifier(P^.PP_DIDE,K^.TK_STRI,glob);
+      T := TI;
+      K := ReadToken(y);
+      If TokenType(K) = TOKEN_LEFT_PAR Then { predicate's arguments }
       Begin
-        c1 := GetCharNb(c1);
-        F := GetArgument(P,glob,')')
-      End
-      Else { "<>" only }
-        F := NewSymbol(Nil,Nil)
-    End
-    Else 
-      If y <> Edinburgh Then 
-        F := GetArgument(P,glob,'>')
-      Else
-        RaiseError('this tuples syntax is not allowed in Edinburgh mode');
-    If Not Error Then
-      T := TF
-  End
-  Else
-  If c1 = '"' Then { a string }
-  Begin
-    Ch := ReadString;
-    If Not Error Then
-    Begin
-      C := InstallConst(P^.PP_DCON,Ch,CS,glob);
-      T := TC
-    End
-  End
-  Else
-  If Cut And { the "cut" }
-    ((c1 = '/') And (y In [PrologII,PrologIIc]) Or
-     (c1 = '!') And (y In [PrologIIp,Edinburgh])) Then 
-  Begin
-    c1 := GetChar(c1);
-    I := InstallIdentifier(P^.PP_DIDE,NewStringFrom('!'),glob);
-    T := TI
-  End
-  Else
-  If (c1 = '_') And   { a variable: PrologII+ basic syntax }
-      (y In [PrologIIp,Edinburgh]) Then
-  Begin
-    n := GrabAlpha(Ch); { letters (inc. accented), digits, underscore }
-    IsVar := True
-  End
-  Else { TODO: Edinburgh: identifiers made of graphic_char }
-  If GrabOneLetter(Ch,IsUpper) Then { variable or identifiers }
-  Begin
-    { Edinburgh variables start with a "big letter"; Marseille variables 
-     start with a single letter }
-    If y = Edinburgh Then
-      IsVar := IsUpper
-    Else
-      IsVar := Not GrabOneLetter(Ch,IsUpper);
-    IsIdent := Not IsVar;
-
-    If y In [PrologII,PrologIIc] Then { old Prolog II syntax, w/ accented letters }
-    Begin
-      Repeat
-        If NextChar(c1)='-' Then { "-"<word> continuation }
-          StrAppendChar(Ch,GetChar(c1));
-        n := GrabLetters(Ch);
-        m := GetCharWhile(Ch,Digits);
-        m := GetCharWhile(Ch,['''']);
-        RaiseErrorIf((c1 = '-') And (n = 0),'Dash must be followed by a letter')
-      Until Error Or (NextChar(c1)<>'-');
-    End
-    Else { PrologII+ and Edinburgh extended syntax }
-    Begin
-      n := GrabAlpha(Ch);
-      If GetSyntax(P) <> Edinburgh Then
-        n := GetCharWhile(Ch,[''''])
-    End
-  End
-  Else
-    RaiseError('term expected');
-
-  { delayed installations: variable }
-  If IsVar Then
-  Begin
-    V := InstallVariable(P^.PP_DVAR,P^.PP_LVAR,Ch,glob);
-    T := TV
-  End;
-
-  { delayed installations: identifier, with possible arguments }
-  If IsIdent Then
-  Begin
-    I := InstallIdentifier(P^.PP_DIDE,Ch,glob);
-    T := TI;
-    If NextCharNb(c1) = '(' Then { predicate's arguments }
-    Begin
-      c1 := GetCharNb(c1);
-      F := GetArgument(P,glob,')');
-      If Not Error Then
-      Begin
+        K := ReadToken(y);
+        F := GetArgument(P,K,glob,TOKEN_RIGHT_PAR);
+        If Error Then Exit;
         F2 := NewSymbol(TI,TF);
         T := TF2
       End
-    End
-  End;
-
-  { dotted lists }
-  If (Not Error) And (y <> Edinburgh) And 
-      (NextCharNb(c1)='.') Then
-  Begin
-    c1 := GetChar(c1);
-    I := InstallIdentifier(P^.PP_DIDE,NewStringFrom('.'),glob);
-    T2 := ReadOneTerm(P,glob,False);
-    If Not Error Then
+    End;
+  TOKEN_CUT:
     Begin
-      F := NewSymbol(T2,Nil); { q: new term }
-      F2 := NewSymbol(T,TF); { t: term read above }
-      F3 := NewSymbol(TI,TF2); { t.q }
-      T := TF3
-    End
+      If Cut Then 
+      Begin
+        I := InstallIdentifier(P^.PP_DIDE,NewStringFrom('!'),glob);
+        T := TI;
+        K := ReadToken(y)
+      End
+      Else
+        SyntaxError(TokenStr[TOKEN_CUT] + ' not allowed here')
+    End;
+  TOKEN_LEFT_PAR: { parenthesized term }
+    Begin
+      K := ReadToken(y);
+      T := ReadOneTerm(P,K,glob,False);
+      If Error Then Exit;
+      VerifyToken(P,K,TOKEN_RIGHT_PAR);
+      If Error Then Exit
+    End;
+  TOKEN_LEFT_CHE: { tuple }
+    Begin
+      K := ReadToken(y);
+      If TokenType(K) = TOKEN_RIGHT_CHE Then
+      Begin
+        { "<>" }
+        K := ReadToken(y);
+        If (y In [PrologIIp,Edinburgh]) And { "<>(t1,...tn)" }
+            (TokenType(K) = TOKEN_LEFT_PAR) Then
+        Begin
+          K := ReadToken(y);
+          F := GetArgument(P,K,glob,TOKEN_RIGHT_PAR)
+        End
+        Else { "<>" only }
+          F := NewSymbol(Nil,Nil)
+      End
+      Else 
+        If y <> Edinburgh Then 
+          F := GetArgument(P,K,glob,TOKEN_RIGHT_CHE)
+        Else
+          SyntaxError('this tuples syntax is not allowed in Edinburgh mode');
+      If Error Then Exit;
+      T := TF
+    End;
+  Else
+    SyntaxError(TokenTypeAsString(K) + ' not allowed here')
+  End;
+  If Error Then Exit;
+  
+  { dotted lists of terms }
+  { TODO: exclude CUT? }
+  If (Not Error) And (y <> Edinburgh) And 
+      (TokenType(K) = TOKEN_DOT) Then
+  Begin
+    K := ReadToken(y);
+    I := InstallIdentifier(P^.PP_DIDE,NewStringFrom('.'),glob);
+    T2 := ReadOneTerm(P,K,glob,False);
+    If Error Then Exit;
+    F := NewSymbol(T2,Nil); { q: new term }
+    F2 := NewSymbol(T,TF); { t: term read above }
+    F3 := NewSymbol(TI,TF2); { t.q }
+    T := TF3
   End;
 
   ReadOneTerm := T
 End;
 
 { read an equations or a inequation }
-Function ReadEquation( P : ProgPtr; glob : Boolean ) : EqPtr;
+Function ReadEquation( P : ProgPtr; Var K : TokenPtr; glob : Boolean ) : EqPtr;
 Var
+  y : TSyntax;
   E : EqPtr;
   T1, T2 : TermPtr;
   Code : EqType;
-  c : Char;
 Begin
+  ReadEquation := Nil;
+  y := GetSyntax(P);
   E := Nil;
-  T1 := ReadOneTerm(P,glob,False);
-  If Not Error Then
-  Begin
-    c := GetCharNb(c);
-    Case c Of
-    '=' :
+  T1 := ReadOneTerm(P,K,glob,False);
+  If Error Then Exit;
+  Case TokenType(K) Of
+  TOKEN_EQUAL:
+    Begin
       Code := REL_EQUA;
-    '<' :
-      Begin
-        Verify('>');
-        Code := REL_INEQ
-      End;
-    Else
-      RaiseError('= or <> expected')
-    End
+      K := ReadToken(y)
+    End;
+  TOKEN_LEFT_CHE:
+    Begin
+      K := ReadToken(y);
+      VerifyToken(P,K,TOKEN_RIGHT_CHE);
+      If Error Then Exit;
+      Code := REL_INEQ
+    End;
+  Else
+    SyntaxError('comparison symbol expected')
   End;
-  If Not Error Then
-    T2 := ReadOneTerm(P,glob,False);  { right term }
-  If Not Error Then
-    E := NewEquation(Code,T1,T2);
+  If Error Then Exit;
+  T2 := ReadOneTerm(P,K,glob,False);  { right term }
+  If Error Then Exit;
+  E := NewEquation(Code,T1,T2);
   ReadEquation := E
 End;
 
 { read a system of equations or inequations }
-Function ReadSystem( P : ProgPtr; glob : Boolean ) : EqPtr;
+Function ReadSystem( P : ProgPtr; Var K : TokenPtr; glob : Boolean ) : EqPtr;
 Var
   E, FirstE, PrevE : EqPtr;
   First : Boolean;
-  c     : Char;
 Begin
+  ReadSystem := Nil;
   FirstE := Nil;
   PrevE := Nil;
-  Verify('{');
-  If Not Error Then
-  Begin
-    First := True;
-    Repeat
-      E := ReadEquation(P,glob);
-      If First Then
-      Begin
-        FirstE := E;
-        First := False
-      End
-      Else
-        PrevE^.EQ_NEXT := E;
-      PrevE := E
-    Until (Error) Or (GetCharNb(c) <> ',');
-    RaiseErrorIf(c <> '}','Missing }')
-  End;
+  VerifyToken(P,K,TOKEN_LEFT_CUR);
+  If Error Then Exit;
+  First := True;
+  Repeat
+    If Not First Then
+      VerifyToken(P,K,TOKEN_COMMA);
+    If Error Then Exit;
+    E := ReadEquation(P,K,glob);
+    If Error Then Exit;
+    If First Then
+    Begin
+      FirstE := E;
+      First := False
+    End
+    Else
+      PrevE^.EQ_NEXT := E;
+    PrevE := E
+  Until (TokenType(K) <> TOKEN_COMMA) Or Error;
+  If Error Then Exit;
+  VerifyToken(P,K,TOKEN_RIGHT_CUR);
+  If Error Then Exit;
   ReadSystem := FirstE
 End;
 
 { compile a system of equations and inequations }
-Function CompileSystem( P : ProgPtr; glob : Boolean ) : EqPtr;
+Function CompileSystem( P : ProgPtr; Var K : TokenPtr; glob : Boolean ) : EqPtr;
 Begin
-  CompileSystem := ReadSystem(P,glob)
+  CompileSystem := ReadSystem(P,K,glob)
 End;
 
 { compile a term }
-Function CompileOneTerm( P : ProgPtr; glob : Boolean; Cut : Boolean ) : BTermPtr;
-Var B : BTermPtr;
+Function CompileOneTerm( P : ProgPtr; Var K : TokenPtr; 
+  glob : Boolean; Cut : Boolean ) : BTermPtr;
+Var 
+  B : BTermPtr;
 Begin
   B := NewBTerm;
   With B^ Do
   Begin
-    BT_TERM := ReadOneTerm(P,glob,Cut);
+    BT_TERM := ReadOneTerm(P,K,glob,Cut);
     BT_ACCE := AccessIdentifier(BT_TERM)
   End;
   CompileOneTerm := B
 End;
 
-{ compile a sequence of terms, stopping at a char in StopChars; set HasCut to
-  true if the queue contains a cut, false otherwise }
-Function CompileTerms( P : ProgPtr; glob : Boolean; StopChars : CharSet; 
-  Var HasCut : Boolean ) : BTermPtr;
+{ compile a (possibly empty) sequence of terms, stopping at a token in 
+ StopTokens; set HasCut to true if the queue contains a cut, false otherwise }
+Function CompileTerms( P : ProgPtr; Var K : TokenPtr; 
+    glob : Boolean; StopTokens : TTokenSet; Var HasCut : Boolean ) : BTermPtr;
+Var
+  y : TSyntax;
 
   Function DoCompileTerms : BTermPtr;
   Var
     B : BTermPtr;
-    c : Char;
     Must : Boolean;
   Begin
-    c := NextCharNb(c);
-    If (Not (c In StopChars)) And (Not Error) Then
+    DoCompileTerms := Nil;
+    If (Not (TokenType(K) In StopTokens)) And (Not Error) Then
     Begin
       B := NewBTerm;
       With B^ Do
       Begin
-        BT_TERM := ReadOneTerm(P,glob,True);
-        If Not Error Then
-        Begin
-          HasCut := HasCut Or TermIsCut(BT_TERM);
-          BT_ACCE := AccessIdentifier(BT_TERM);
-          Must := (GetSyntax(P) = Edinburgh) And (NextCharNb(c) = ',');
-          If Must Then
-            c := GetCharNb(c);
-          BT_NEXT := DoCompileTerms;
-          RaiseErrorIf(Must And (BT_NEXT = Nil),'Term expected after the comma')
-        End
+        BT_TERM := ReadOneTerm(P,K,glob,True);
+        If Error Then Exit;
+        HasCut := HasCut Or TermIsCut(BT_TERM);
+        BT_ACCE := AccessIdentifier(BT_TERM);
+        Must := (GetSyntax(P) = Edinburgh) And (TokenType(K) = TOKEN_COMMA);
+        If Must Then
+          K := ReadToken(y);
+        BT_NEXT := DoCompileTerms;
+        If Must And (BT_NEXT = Nil) Then
+          SyntaxError('term expected after ' + TokenStr[TOKEN_COMMA])
       End
     End
     Else
@@ -417,6 +345,8 @@ Function CompileTerms( P : ProgPtr; glob : Boolean; StopChars : CharSet;
   End;
 
 Begin
+  y := GetSyntax(P);
+  CompileTerms := Nil;
   HasCut := False;
   CompileTerms := DoCompileTerms
 End;
@@ -436,58 +366,55 @@ End;
 
 { compile a rule; note that the system cannot be reduced right away
   as the reduction may depends on global assignments }
-Procedure CompileOneRule( P : ProgPtr; RuleType : RuType );
+Procedure CompileOneRule( P : ProgPtr; Var K : TokenPtr; RuleType : RuType );
 Var 
+  y : TSyntax;
   R : RulePtr;
   B : BTermPtr;
-  c : Char;
   HasCut : Boolean;
-  y : TSyntax;
-  StopChars : CharSet;
+  StopTokens : TTokenSet;
 Begin
   y := GetSyntax(P);
-  StopChars := [Syntax[y].RuleEnd];
+  StopTokens := [Syntax[y].RuleEnd];
   If Syntax[y].AcceptSys Then
-    StopChars := StopChars + ['{'];
+    StopTokens := StopTokens + [TOKEN_LEFT_CUR];
   R := NewRule(RuleType);
   OpenLocalContextForRule(P,R);
   With R^ Do
   Begin
     RU_SYST := Nil;
-    B := CompileOneTerm(P,True,False); { head }
+    B := CompileOneTerm(P,K,True,False); { head }
+    If Error Then Exit;
     RU_FBTR := B;
-    If (y = Edinburgh) And (NextCharNb(c) = Syntax[y].RuleEnd) Then
-      Verify(Syntax[y].RuleEnd)
+    If (y = Edinburgh) And (TokenType(K) = Syntax[y].RuleEnd) Then
+      K := ReadToken(y)
     Else
     Begin
-      Verify(Syntax[y].RuleArrow);
-      If Not Error Then
-        B^.BT_NEXT := CompileTerms(P,True,StopChars,HasCut);
+      VerifyToken(P,K,TOKEN_ARROW);
+      If Error Then Exit;
+      B^.BT_NEXT := CompileTerms(P,K,True,StopTokens,HasCut); {FIXME: can return Nil without Error?}
       RU_ACUT := HasCut;
-      If Not Error Then
-        If y = Edinburgh Then 
-          RaiseErrorIf(B^.BT_NEXT = Nil,'Term expected after :-');
-      If Not Error Then
-        If (Syntax[y].AcceptSys) And (NextCharNb(c) = '{') Then
-          RU_SYST := CompileSystem(P,True);
-      If Not Error Then
-        Verify(Syntax[y].RuleEnd)
+      If y = Edinburgh Then 
+        If B^.BT_NEXT = Nil Then
+          SyntaxError('term expected after ' + TokenStr[TOKEN_ARROW]);
+      If Error Then Exit;
+      If (Syntax[y].AcceptSys) And (TokenType(K) = TOKEN_LEFT_CUR) Then
+        RU_SYST := CompileSystem(P,K,True);
+      If Error Then Exit;
+      VerifyToken(P,K,Syntax[y].RuleEnd)
     End
   End;
-  If Not Error Then
-  Begin
-    CloseLocalContextForRule(P,R);
-    AppendOneRule(P,R)
-  End
+  If Error Then Exit;
+  CloseLocalContextForRule(P,R);
+  AppendOneRule(P,R)
 End;
 
-{ compile a sequence of rules, stopping at a char in StopChars  }
-Procedure CompileRules( P : ProgPtr; StopChars : CharSet; RuleType : RuType );
-Var
-  c : Char;
+{ compile a sequence of rules, stopping at a token in StopTokens  }
+Procedure CompileRules( P : ProgPtr; Var K : TokenPtr; 
+    StopTokens : TTokenSet; RuleType : RuType );
 Begin
-  While (Not (NextCharNb(c) In StopChars)) And (Not Error) Do
-    CompileOneRule(P,RuleType);
+  While (Not (TokenType(K) In StopTokens)) And (Not Error) Do
+    CompileOneRule(P,K,RuleType);
 End;
 
 { set up local variable context to prepare compiling a new query }
@@ -504,103 +431,153 @@ Begin
 End;
 
 { compile a query, including a system of equations and equations if any;
-  note that this system cannot be reduced right away, as its 
-  solvability may depend on global variables }
-Procedure CompileOneQuery( P : ProgPtr );
+ - note that this system cannot be reduced right away, as its 
+   solution (or lack thereof) may depend on global variables;
+ - read the token after the end-of-query mark only if ReadNextToken is true;
+   setting this parameter to false is useful when reading a goal typed at
+   the prompt, as the char following the end-of-query mark is supposed to be 
+   returned when the goal is in_char(c) }
+Procedure CompileOneQuery( P : ProgPtr; Var K : TokenPtr; 
+    ReadNextToken : Boolean );
 Var
   Q : QueryPtr;
-  c : Char;
   HasCut : Boolean;
   y : TSyntax;
-  StopChars : CharSet;
+  StopTokens : TTokenSet;
 Begin
   Q := NewQuery(P^.PP_LEVL);
   OpenLocalContextForQuery(P,Q);
   y := GetSyntax(P);
-  StopChars := [Syntax[y].PromptEnd,EndOfInput];
+  StopTokens := [Syntax[y].PromptEnd,TOKEN_END_OF_INPUT];
   If Syntax[y].AcceptSys Then
-    StopChars := StopChars + ['{'];
+    StopTokens := StopTokens + [TOKEN_LEFT_CUR];
   With Q^ Do
   Begin
-    QU_FBTR := CompileTerms(P,False,StopChars,HasCut);
-    If Not Error Then
-    Begin
-      QU_ACUT := HasCut;
-      If (Syntax[y].AcceptSys) And (NextCharNb(c) = '{') Then
-        QU_SYST := CompileSystem(P,False);
-      If Not Error Then
-        Verify(Syntax[y].PromptEnd)
-    End
+    QU_FBTR := CompileTerms(P,K,False,StopTokens,HasCut);
+    If Error Then Exit;
+    QU_ACUT := HasCut;
+    If (Syntax[y].AcceptSys) And (TokenType(K) = TOKEN_LEFT_CUR) Then
+      QU_SYST := CompileSystem(P,K,False);
+    If Error Then Exit;
+    { verify end-of-query mark }
+    If TokenType(K) <> Syntax[y].PromptEnd Then
+      SyntaxError(TokenStr[Syntax[y].PromptEnd] + ' expected');
+    { read the next token only when requested; beware of infinite loops :) }
+    If ReadNextToken Then
+      K := ReadToken(y);
+    If Error Then Exit
   End;
   CloseLocalContextForQuery(P,Q);
   UpdateQueryScope(P,Q);
-  If Not Error Then
-    AppendOneQuery(P,Q)
+  AppendOneQuery(P,Q)
 End;
 
-{ compile a sequence of queries; if ContChar is not empty, each query 
-  must start with a char in this set; the sequence ends with a char 
-  in StopChars }
-Procedure CompileQueries( P : ProgPtr; WithArrow : Boolean;
-  ContChar, StopChars : CharSet );
+{ compile a sequence of queries; if ContTokens is not empty, each query 
+  must start with a token in this set; the sequence ends with a token 
+  in StopTokens;  }
+Procedure CompileQueries( P : ProgPtr; Var K : TokenPtr; WithArrow : Boolean;
+  ContTokens, StopTokens : TTokenSet );
 Var
   More : Boolean;
-  c : Char;
 Begin
   Repeat
-    c := NextCharNb(c);
-    More := ((ContChar=[]) Or (c In ContChar))
-      And (Not (c In StopChars)) And (Not Error);
+    More := ((ContTokens=[]) Or (TokenType(K) In ContTokens))
+      And (Not (TokenType(K) In StopTokens)) And (Not Error);
     If More Then
     Begin
       If WithArrow Then
-        Verify(Syntax[GetSyntax(P)].QueryArrow);
-      If Not Error Then
-        CompileOneQuery(P)
+        VerifyToken(P,K,TOKEN_ARROW);
+      If Error Then Exit;
+      CompileOneQuery(P,K,True);
+      If Error Then Exit
     End
-  Until Error Or Not More
+  Until Not More Or Error
 End;
 
-{ compile queries typed by the user; note that we stop on EndOfInput
-  (instead of EndOfLine), even if the keyboard system ensures 
-  that EndOfInput is the last char in the input string, because The *Nb
-  input primitives consider EndOfLine as one of the blank characters;
-  thus, at the end, we replace EndOfInput with EndOfLine }  
-Procedure CompileCommandLineQueries( P : ProgPtr );
+{----------------------------------------------------------------------------}
+{ public procedures and functions                                            }
+{----------------------------------------------------------------------------}
+
+{ these high-level entry points must start with reading one token }
+
+{ parse a term from the current input stream; stop token chars stay in the 
+ input buffer }
+Function ParseOneTerm( P : ProgPtr ) : TermPtr;
 Var
-  c : Char;
+  y : TSyntax;
+  K : TokenPtr;
+  line : TLineNum;
+  col : TCharPos;
 Begin
-  CompileQueries(P,False,[],[EndOfInput]);
-  c := NextCharNb(c);
-  RaiseErrorIf(c <> EndOfInput,
-      'unexpected characters after the last query: "' + c + '"');
-  { replace EndOfInput with EndOfLine }
-  c := GetChar(c);
-  UnGetChar(EndOfLine)
+  ParseOneTerm := Nil;
+  y := GetSyntax(P);
+  K := ReadToken(y);
+  If Error Then Exit;
+  ParseOneTerm := ReadOneTerm(P,K,False,False);
+  { since K is now the token *following* the compiled term, we must unread it 
+   (and all the spaces before) so that in_char will read the first char after 
+   the term }
+  GetTokenLocation(K,line,col);
+  UngetChars(line,col)
 End;
 
-{ append rules and queries to a program }
-Procedure CompileRulesAndQueries( P : ProgPtr; RuleType : RuType );
+{ compile a query typed by the user; return false if there was no query to
+ compile, that is, the user just hit the return key; chars after the 
+ end-of-query mark stay in the input buffer }  
+Function ParseCommandLineQuery( P : ProgPtr ) : Boolean;
 Var
-  c : Char;
-  qc : Char; { first char of the query prompt }
-  Comment : StrPtr;
+  y : TSyntax;
+  K : TokenPtr;
+Begin
+  ParseCommandLineQuery := False;
+  y := GetSyntax(P);
+  K := ReadToken(y);
+  If Error Then Exit;
+  If TokenType(K) <> TOKEN_END_OF_INPUT Then
+  Begin
+    CompileOneQuery(P,K,False);
+    If Error Then Exit;
+    ParseCommandLineQuery := True
+  End
+End;
+
+{ parse and append rules and queries to a program; top-level strings (that is, 
+ when a rule is expected) are taken to have the value of a comment in all the 
+ supported Prolog syntaxes }
+Procedure ParseRulesAndQueries( P : ProgPtr; RuleType : RuType );
+Var
   Stop : Boolean;
+  y : TSyntax;
+  K : TokenPtr;
+  StopTokens : TTokenSet;
 Begin
+  y := GetSyntax(P);
+  K := ReadToken(y);
+  If Error Then Exit;
   Stop := False;
   Error := False;
-  qc := Syntax[GetSyntax(P)].QueryArrow[1];
+  { common tokens ending a series of queries or rules }
+  StopTokens := [TOKEN_END_OF_INPUT,TOKEN_STRING];
+  If GetSyntax(P) = PrologII Then
+    StopTokens := StopTokens + [TOKEN_SEMICOLON]; 
   Repeat
-    c := NextCharNb(c);
-    If (c=EndOfInput) Or (c=';') Then
-      Stop := True
-    Else If c = '"' Then { comment }
-      Comment := ReadString
-    Else If c = qc Then  { queries }
-      CompileQueries(P,True,[qc],[EndOfInput,';'])
+    Case TokenType(K) Of
+    TOKEN_END_OF_INPUT:
+      Stop := True;
+    TOKEN_SEMICOLON:
+      If GetSyntax(P) = PrologII Then { old Prolog II termination }
+        Stop := True
+      Else
+        SyntaxError(TokenStr[TOKEN_SEMICOLON] + ' not expected here');
+    TOKEN_STRING:
+      K := ReadToken(y);
+    TOKEN_ARROW:
+      CompileQueries(P,K,True,[TOKEN_ARROW],StopTokens);
     Else { rules }
-      CompileRules(P,[EndOfInput,';',qc,'"'],RuleType)
+      CompileRules(P,K,StopTokens + [TOKEN_ARROW],RuleType)
+    End
   Until Stop Or Error;
+  If Error Then Exit;
   { machine state }
   P^.PP_UVAR := P^.PP_DVAR;
   P^.PP_UCON := P^.PP_DCON

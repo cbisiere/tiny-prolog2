@@ -34,6 +34,7 @@ Var
   Hp : HeadPtr Absolute p;
   Bp : BTermPtr Absolute p;
   Rup : RulePtr Absolute p;
+  Kp : TokenPtr Absolute p;
   y : TSyntax;
 Begin
   Case ObjectType(p) Of
@@ -129,6 +130,20 @@ Begin
     Begin
       CWrite(PtrToName(Rp^.RE_ADDR^) + ' ');
       CWriteBool(Rp^.RE_DONE)
+    End;
+  TK:
+    Begin
+      CWrite('(');
+      CWriteInt(Kp^.TK_LINE);
+      CWrite(',');
+      CWriteInt(Kp^.TK_CHAR);
+      CWrite(') ');
+      CWrite(TokenTypeAsString(Kp));
+      If Kp^.TK_STRI <> Nil Then
+      Begin
+        CWrite(': ');
+        OutString(Kp^.TK_STRI,False)
+      End
     End
   End
 End;
@@ -246,7 +261,7 @@ Begin
 End;
 
 { display the dictionary of constants }
-Procedure DumpDictConst( e : DictPtr; title : AnyStr );
+Procedure DumpDictConst( e : DictPtr; title : TString );
 Begin
   CWrite(title);
   CWriteLn;
@@ -262,7 +277,7 @@ Begin
 End;
 
 { core dump a Prolog program }
-Procedure CoreDumpProg( P : ProgPtr; Message : AnyStr; Trace : Boolean );
+Procedure CoreDumpProg( P : ProgPtr; Message : TString; Trace : Boolean );
 Var
   reg : Boolean;
 Begin
@@ -294,18 +309,7 @@ Begin
 End;
 
 { core dump the current Prolog program }
-Procedure CoreDump; (* ( Message : AnyStr; Trace : Boolean ); *)
+Procedure CoreDump; (* ( Message : TString; Trace : Boolean ); *)
 Begin
   CoreDumpProg(CurrentProgram,Message,Trace);
-End;
-
-{ assert }
-Procedure CheckCondition; (* ( Cond : Boolean; Message : AnyStr) *)
-Begin
-  If Not Cond Then
-  Begin
-    RaiseError('Internal error: ' + Message);
-    CoreDump('Runtime error',True);
-    Terminate(1)
-  End
 End;

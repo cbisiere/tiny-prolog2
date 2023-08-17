@@ -126,7 +126,7 @@ Begin
 End;
 
 { is the string in a dictionary entry equal to a Pascal string? }
-Function DictStrEqualTo( D : DictPtr; ps : AnyStr ) : Boolean;
+Function DictStrEqualTo( D : DictPtr; ps : TString ) : Boolean;
 Begin
   DictStrEqualTo := StrEqualTo(D^.DE_STRI,ps)
 End;

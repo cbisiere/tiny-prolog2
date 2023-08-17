@@ -87,7 +87,7 @@ Type
 
 { lookup for a predefined predicate or function; set the found record; 
   return True if found  }
-Function LookupPred( typ : TPPType; str : AnyStr; Var rec : TPPred) : Boolean;
+Function LookupPred( typ : TPPType; str : TString; Var rec : TPPred) : Boolean;
 Var 
   i : 0..NBPred;
   Found : Boolean;
@@ -135,11 +135,11 @@ Var
   CT2 : ConstPtr Absolute T2;
   r : LongInt;
   code : Integer;
-  rs : AnyStr;
+  rs : TString;
   s : StrPtr;
   Ok : Boolean;
   rec : TPPred;
-  str : AnyStr;
+  str : TString;
   ParVal : TParArray;
   i : Byte;
 Begin
@@ -239,13 +239,13 @@ Var
   C : ConstPtr;
   TC : TPObjPtr Absolute C;
   rec : TPPred;
-  str : AnyStr;
-  ch : Char;
+  str : TString;
+  ch : TChar;
   I : IdPtr;
   TI : TermPtr Absolute I;
   Qi, QLast : QueryPtr;
   Stop : Boolean;
-  FileName : AnyStr;
+  FileName : TString;
 
   { get n-th argument of the predicate represented by tuple F }
   Function GetPArg( n : Byte; F : FuncPtr ) : TermPtr;
@@ -401,7 +401,7 @@ Begin
         C := EvaluateToString(GetPArg(1,FT));
         Ok := C <> Nil;
         If Ok Then
-          CloseInput(ConstGetPStr(C)) { TODO: warn when length > 255 }
+          CloseInputByName(ConstGetPStr(C)) { TODO: warn when length > 255 }
       End;
     PP_CLEAR_INPUT: { clear_input }
       Begin
@@ -415,7 +415,7 @@ Begin
         If Ok Then
         Begin
           FileName := ConstGetPStr(C);
-          CloseInput(FileName); { close the file if it was already open for input }
+          CloseInputByName(FileName); { close the file if it was already open for input }
           Ok := SetFileForOutput(FileName) { TODO: warn when length > 255 }
         End;
       End;
@@ -465,19 +465,20 @@ Begin
       Begin
         Ok := True;
         If OutputIsTerminal Then
-          ClrScr
+          CrtClrSrc
       End;
     PP_IN_TERM:
       Begin
         CheckConsoleInput(True);
-        T1 := ReadOneTerm(P,False,False);
-        If Not Error Then
+        T1 := ParseOneTerm(P);
+        Ok := Not Error;
+        If Ok Then
           Ok := ReduceOneEq(GetPArg(1,FT),T1)
       End;
     PP_IN_CHAR:
       Begin
         CheckConsoleInput(False);
-        str := GetChar(ch); { FIXME: UFT8 }
+        str := GetChar(ch);
         Ok := Not Error;
         If Ok Then
         Begin

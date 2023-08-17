@@ -176,7 +176,7 @@ End;
 
 { return the Pascal string value of a constant, shortening the
   result if the string object is longer than 255 characters }
-Function ConstGetPStr( C : ConstPtr ) : AnyStr;
+Function ConstGetPStr( C : ConstPtr ) : TString;
 Var s : StrPtr;
 Begin
   s := ConstGetStr(C);
@@ -184,7 +184,7 @@ Begin
 End;
 
 { is a constant equal to a given Pascal string? }
-Function ConstEqualTo( C : ConstPtr; ps : AnyStr ) : Boolean;
+Function ConstEqualTo( C : ConstPtr; ps : TString ) : Boolean;
 Begin
   ConstEqualTo := DictStrEqualTo(C^.TC_DCON,ps)
 End;
@@ -207,7 +207,7 @@ End;
 
 { return the Pascal string value of an identifier, shortening the
   result if the string object is longer than 255 characters }
-Function IdentifierGetPStr( I : IdPtr ) : AnyStr;
+Function IdentifierGetPStr( I : IdPtr ) : TString;
 Var s : StrPtr;
 Begin
   s := IdentifierGetStr(I);
@@ -215,7 +215,7 @@ Begin
 End;
 
 { is an identifier equal to a given Pascal string? }
-Function IdentifierEqualTo( I : IdPtr; ps : AnyStr ) : Boolean;
+Function IdentifierEqualTo( I : IdPtr; ps : TString ) : Boolean;
 Begin
   IdentifierEqualTo := DictStrEqualTo(I^.TV_DVAR,ps)
 End;

@@ -34,6 +34,7 @@ Var
   ST_p : StrPtr Absolute p; 
   SD_p : StrDataPtr Absolute p; 
   RE_p : RestorePtr Absolute p;
+  TK_p : TokenPtr Absolute p;
 Begin
   CheckCondition((t<>CS) And (t<>CN),'type not meant for direct allocation');
   Case t Of
@@ -51,7 +52,10 @@ Begin
     HE: New(HE_p);
     ST: New(ST_p);
     SD: New(SD_p);
-    RE: New(RE_p)
+    RE: New(RE_p);
+    TK: New(TK_p);
+  Else
+    Bug('PObjNew: missing case',True)
   End;
   PObjNew := p
 End;
@@ -74,6 +78,7 @@ Var
   ST_p : StrPtr Absolute p; 
   SD_p : StrDataPtr Absolute p; 
   RE_p : RestorePtr Absolute p;
+  TK_p : TokenPtr Absolute p;
 Begin
   CheckCondition((t<>CS) And (t<>CN),'type not meant for direct disposal');
   Case t Of
@@ -91,7 +96,10 @@ Begin
     HE: Dispose(HE_p);
     ST: Dispose(ST_p);
     SD: Dispose(SD_p);
-    RE: Dispose(RE_p)
+    RE: Dispose(RE_p);
+    TK: Dispose(TK_p);
+  Else
+    Bug('PObjDispose: missing case',True)
   End
 End;
 
@@ -113,6 +121,7 @@ Var
   ST_p : StrPtr Absolute p; 
   SD_p : StrDataPtr Absolute p; 
   RE_p : RestorePtr Absolute p;
+  TK_p : TokenPtr Absolute p;
 Begin
   CheckCondition((t<>CS) And (t<>CN),'type not meant for size of');
   Case t Of
@@ -130,6 +139,9 @@ Begin
     HE: PObjSizeOf := SizeOf(HE_p^);
     ST: PObjSizeOf := SizeOf(ST_p^);
     SD: PObjSizeOf := SizeOf(SD_p^);
-    RE: PObjSizeOf := SizeOf(RE_p^)
+    RE: PObjSizeOf := SizeOf(RE_p^);
+    TK: PObjSizeOf := SizeOf(TK_p^);
+  Else
+    Bug('PObjSizeOf: missing case',True)
   End
 End;

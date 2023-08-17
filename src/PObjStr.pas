@@ -12,16 +12,13 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-Type
-  CharSet   = Set Of Char;
-
 {-----------------------------------------------------------------------}
 { type                                                                  }
 {-----------------------------------------------------------------------}
 
 { TODO: allows for shorter storage string }
 Type
-  TStrLength = 0..AnyStrMaxSize; { maximum number of characters in a chunk }
+  TStrLength = 0..StringMaxSize; { maximum number of characters in a chunk }
 
 { GC-managed string that can grow; 
   invariants: 1) all chunks but the last are full; 2) no chunks are empty, 
@@ -46,7 +43,7 @@ Type
     SD_PREV : StrDataPtr; { previous chunk or Nil }
     SD_NEXT : StrDataPtr; { next chunk or Nil }
     { extra data: }
-    SD_DATA : AnyStr { storage: Pascal string }
+    SD_DATA : TString { storage: Pascal string }
   End;
 
 {-----------------------------------------------------------------------}
@@ -54,7 +51,7 @@ Type
 {-----------------------------------------------------------------------}
 
 { new string data }
-Function NewStringData( ps : AnyStr ) : StrDataPtr;
+Function NewStringData( ps : TString ) : StrDataPtr;
 Var 
   sda : StrDataPtr;
   ptr : TPObjPtr Absolute sda;
@@ -98,15 +95,15 @@ Begin
 End;
 
 { return the value of the first Pascal string in a string }
-Function StrGetFirstData( s : StrPtr ) : AnyStr;
+Function StrGetFirstData( s : StrPtr ) : TString;
 Begin
   StrGetFirstData := s^.ST_FDAT^.SD_DATA
 End;
 
 { return the value of a string as a Pascal string }
-Function StrGetString( s : StrPtr ) : AnyStr;
+Function StrGetString( s : StrPtr ) : TString;
 Begin
-  CheckCondition(StrLength(s)<=AnyStrMaxSize,
+  CheckCondition(StrLength(s)<=StringMaxSize,
       'string is too long to fit in a Pascal string');
   StrGetString := StrGetFirstData(s)
 End;
@@ -125,11 +122,11 @@ Begin
 End;
 
 { append a Pascal string to a string }
-Procedure StrAppend( s : StrPtr; c : AnyStr );
+Procedure StrAppend( s : StrPtr; c : TString );
 Var 
   n : TStrLength; { number of free chars in the current chunk }
   sd : StrDataPtr; { additional chunk when necessary }
-  c1 : AnyStr; { part of c that can be stored in the current chunk }
+  c1 : TString; { part of c that can be stored in the current chunk }
 Begin
   CheckCondition(s<>Nil,'Cannot append to a Nil string');
   If Length(c)>0 Then
@@ -137,14 +134,14 @@ Begin
     With s^.ST_LDAT^ Do
     Begin
       { fill the last chunk as much as possible }
-      n := AnyStrMaxSize-Length(SD_DATA);
+      n := StringMaxSize-Length(SD_DATA);
       c1 := Copy(c,1,n);
       SD_DATA := SD_DATA + c1;
       s^.ST_TLEN := s^.ST_TLEN + Length(c1);
       { append a new chunk with the remaining part if any }
       If Length(c) > n Then
       Begin
-        sd := NewStringData(Copy(c,n+1,AnyStrMaxSize));
+        sd := NewStringData(Copy(c,n+1,StringMaxSize));
         StrAppendData(s,sd)
       End
     End
@@ -152,7 +149,7 @@ Begin
 End;
 
 { new string with a Pascal string as an initial value }
-Function NewStringFrom( ps : AnyStr ) : StrPtr;
+Function NewStringFrom( ps : TString ) : StrPtr;
 Var s : StrPtr;
 Begin
   s := NewString;
@@ -237,7 +234,7 @@ Begin
 End;
 
 { is a string equal to a Pascal string? }
-Function StrEqualTo( s : StrPtr; c : AnyStr ) : Boolean;
+Function StrEqualTo( s : StrPtr; c : TString ) : Boolean;
 Begin
   StrEqualTo := (StrGetFirstData(s)=c) And (s^.ST_NDAT=1)
 End;
@@ -246,7 +243,7 @@ End;
 Function StrStartsWith( s : StrPtr; E : CharSet ) : Boolean;
 Var 
   b : Boolean;
-  c : AnyStr;
+  c : TString;
 Begin
   c := StrGetFirstData(s);
   b := Length(c)>0;
