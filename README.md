@@ -56,6 +56,23 @@ Inserting an element in a list of four items gives three different solutions:
 { x = 1.2.0.nil }
 ```
 
+Edinburgh-style lists are also supported. In PrologII+ mode, both syntaxes  can be mixed, and satisfy the four equivalences listed on page 45 of the Prolog II+ documentation:
+
+```
+$ tprolog2 -PIIp
+> eq([a|b],a.b);
+{  }
+> eq([a,b],a.b.nil);
+{  }
+> eq([a,b,c,d],a.b.c.d.nil);
+{  }
+> eq([a,b,c|d],a.b.c.d);
+{  }
+> eq([a,b|c.d.nil],a.[b,c,d]);
+{  }
+>
+```
+
 ### Constraints
 
 The interpreter also handles constraints on trees, expressed as equalities (`=`) or inequalities (`<>`). 
@@ -464,7 +481,7 @@ query = "->", { term | cut }, [system], ";" ;
 
 ### Prolog II+
 
-Prolog II+ does not allow for dashes in variable names or identifiers. Variables start with a `_` or with a single letter. The cut is `!` instead of `/`, the former being reserved for calls to external procedures (a.k.a. _parasites_, e.g. `/?20001`). Tuples gain an alternative syntax: `<>(t1,...tn)`.
+Prolog II+ does not allow for dashes in variable names or identifiers. Variables start with a `_` or with a single letter. The cut is `!` instead of `/`, the former being reserved for calls to external procedures (a.k.a. _parasites_, e.g. `/?20001`). Tuples gain an alternative syntax: `<>(t1,...tn)`. Finally, both dot and Edinburgh-style lists are supported in Prolog II+ mode, and can be mixed.
 
 ```
 alpha = letter | digit | "_" ;
@@ -476,7 +493,14 @@ extended_var = letter, [ (digit | "_"), { alpha } ] , { "'" } ;
 cut = "!" ;
 
 tuple = "<", [term-list], ">" | "<", ">", "(", term-list, ")" ;
+
+list-expr = term, ["," , list-expr] | 
+            term, "|", term ;
+
+list = "[", list-expr, "]" | "[]"
+
 ```
+where `list` is an additional `simple-term` (see subsection "Marseille Syntax" above).
 
 ### Edinburgh
 
@@ -485,21 +509,26 @@ In Edinburgh mode, variable names start with a `_` or with an uppercase letter. 
 For now, the Edinburgh parser only supports the following part of the syntax:
 
 ```
-big_letter = "A"|...|"Z" ;
+big-letter = "A"|...|"Z" ;
 
-extended_var = big_letter, [ { alpha } ] ;
+extended-var = big-letter, [ { alpha } ] ;
+
+sq = "'" ;
+
+quoted-identifier = sq, { (character - sq - newline) | (sq, sq) | ("\", newline) }, sq ;
 
 rule = term, [ ":-", term {",", term} ], "." ;
 
 query = ":-", term {",", term}, "."
 
 ```
+where `quoted-identifier` is an additional form of `identifier`.
 
 A predefined predicate `true` is available in Edinburgh mode.
 
 ## Screenshots
 
-_11 June 2023:_ [repet.pro](examples/ProIIc/repet.pro), one of the original demo Prolog programs written for the interpreter back in 1988, running in a FreeDOS box with the new interpreter compiled with Tuurbo Pascal 4: 
+_11 June 2023:_ [repet.pro](examples/ProIIc/repet.pro), one of the original demo Prolog programs written for the interpreter back in 1988, running in a FreeDOS box with the new interpreter compiled with Turbo Pascal 4: 
 
 ![Tiny Prolog running the repetition progrram in a FreeDOS box](examples/ProIIc/repet.png)
 

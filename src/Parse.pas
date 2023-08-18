@@ -30,23 +30,84 @@ Const
     (RuleEnd:TOKEN_DOT;PromptEnd:TOKEN_DOT;AcceptSys:False)
   );
 
+{ Note: in the following procedures, the K parameter is the *current* token 
+ to analyze; the procedures themselves must make sure that, upon return, K 
+ is the next token to analyze (since it will be passed to another parsing 
+ procedure) }
+
+{ read a term, possibly in a global context (that is, when parsing a
+  rule), possibly accepting a cut as a valid term }
+Function ReadOneTerm( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
+    Cut : Boolean) : TermPtr; Forward;
+
+
+{----------------------------------------------------------------------------}
+{ helpers for emitting                                                       }
+{----------------------------------------------------------------------------}
+
 {-----------------------------------------------------------------------}
 {                                                                       }
-{   The functional symbol F is used encode predicates as follows:       }
+{   The functional symbol F is used to encode predicates as follows:    }
 {                                                                       }
 {           F                                                           }
 {          / \               (1) tuple: the name of the predicate is    }
-{       name  F                  the first argument                     }
+{       name  F                  the first argument: <name,arg1,...>    }
 {            / \                                                        }
-{         Arg1  F            (2) of course Arg1 .. ArgN can also be     }
+{         arg1  F            (2) of course arg1 .. argN can also be     }
 {              / \               predicates.                            }
-{           Arg2   ...                                                  }
-{                   \        (3) A '.' (Prolog list) is considered as   }
+{           arg2   ...                                                  }
+{                   \        (3) a '.' (Prolog list) is considered as   }
 {                    F           a regular predicate.                   }
 {                  /  \                                                 }
-{               ArgN    Nil                                             }
+{               argN    Nil                                             }
 {                                                                       }
 {-----------------------------------------------------------------------}
+
+{ return a new identifier as a term, from a string }
+Function EmitIdent( P : ProgPtr; ident : TString; glob : Boolean ) : TermPtr;
+Var
+  I : IdPtr;
+  TI : TermPtr Absolute I;
+Begin
+  EmitIdent := Nil;
+  I := InstallIdentifier(P^.PP_DIDE,NewStringFrom(ident),glob);
+  EmitIdent := TI
+End;
+
+{ return a new term "ident(T1,T2)"; following the comment above, "a(b,c)" is 
+ implemented as "F(a,F(b,F(c,Nil)))" }
+Function EmitFunc( P : ProgPtr; ident : TString; T1,T2 : TermPtr; 
+    glob : Boolean ) : TermPtr;
+Var
+  I,F1,F2,F3 : TermPtr;
+Begin
+  EmitFunc := Nil;
+  CheckCondition((T1 <> Nil) And (T2 <> Nil),'EmitFunc: Nil argument');
+  I := EmitIdent(P,ident,glob);
+  F3 := NewF(T2,Nil); { F(b,Nil) }
+  F2 := NewF(T1,F3); { F(a,F(b,Nil)) }
+  F1 := NewF(I,F2); { F(ident,F(a,F(b,Nil))) }
+  EmitFunc := F1
+End;
+
+{ return a term "a.b", viewed as '.'(a,b)" and thus implemented as 
+ "F('.',F(a,F(b,Nil)))"; if b is Nil, replace it with "F('nil',Nil)", that is,
+ add ".nil" at the end of the dotted list; this helps implementing the 
+ following equivalences:
+  [a|b] <=> a.b
+  [a,b] <=> a.b.nil
+ (see PII+ syntax (cf. pdf doc p.45) }
+Function EmitDot( P : ProgPtr; T1,T2 : TermPtr ) : TermPtr;
+Begin
+  EmitDot := Nil;
+  If T2 = Nil Then
+    T2 := EmitIdent(P,'nil',True);
+  EmitDot := EmitFunc(P,'.',T1,T2,True)
+End;
+
+{----------------------------------------------------------------------------}
+{ parser                                                                     }
+{----------------------------------------------------------------------------}
 
 { raise an error if a token is not of a certain type; read the token 
  following the token to verify }
@@ -61,40 +122,108 @@ Begin
     SyntaxError(TokenStr[typ] + ' expected')
 End;
 
-{ read a term, possibly in a global context (that is, when parsing a
-  rule), possibly accepting a cut as a valid term }
-Function ReadOneTerm( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
-    Cut : Boolean) : TermPtr; Forward;
-
-{ read the argument of a predicate (EndToken=')') or a tuple (EndToken='>');
-  return Nil if an error occurred }
+{ read the comma-separated list of arguments of:
+ - a predicate: "a(b,c,d)" EndToken = ')' 
+ - a tuple: "<a,b,c,d>", EndToken = '>'
+ return Nil if an error occurs; set K to the token *after* EndToken;
+}
 Function GetArgument( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
-    EndToken : TTokenType ) : FuncPtr;
+    EndToken : TTokenType ) : TermPtr;
 Var
   y : TSyntax;
-  T : TermPtr;
-  F : FuncPtr;
-  TF : TermPtr Absolute F;
+  T,T2 : TermPtr;
 Begin
   GetArgument := Nil;
   y := GetSyntax(P);
-  F := Nil;
   T := ReadOneTerm(P,K,glob,False);
   If Error Then Exit;
   If TokenType(K) = TOKEN_COMMA Then
   Begin
     K := ReadToken(y);
-    F := GetArgument(P,K,glob,EndToken);
+    T2 := GetArgument(P,K,glob,EndToken);
     If Error Then Exit;
-    F := NewSymbol(T,TF)
+    T := NewF(T,T2)
   End
   Else 
   Begin
     VerifyToken(P,K,EndToken);
     If Error Then Exit;
-    F := NewSymbol(T,Nil)
+    T := NewF(T,Nil)
   End;
-  GetArgument := F
+  GetArgument := T
+End;
+
+
+{ read the "remaining part" (that is, anything but the head) part of a list; 
+ T1 is the (already read) list head }
+Function ReadListQueue( P : ProgPtr; Var K : TokenPtr; T1 : TermPtr; 
+    glob : Boolean ) : TermPtr;
+Var
+  T2 : TermPtr;
+Begin
+  ReadListQueue := Nil;
+  T2 := ReadOneTerm(P,K,glob,False);
+  If Error Then Exit;
+  ReadListQueue := EmitDot(P,T1,T2)
+End;
+
+{ read a []-style list expression:
+ listexpr = "expr" or "expr, list_expr" or "expr | expr" 
+ if comma is true, the listexpr follows a comma, that is, is the remaining part 
+ of a comma-separated list as in [a,b,c] }
+Function ReadListExpr( P : ProgPtr; Var K : TokenPtr; comma, glob, Cut : Boolean ) : TermPtr;
+Var
+  y : TSyntax;
+  T,T2 : TermPtr;
+Begin
+  ReadListExpr := Nil;
+  y := GetSyntax(P);
+  T := ReadOneTerm(P,K,glob,Cut); { TODO: cut allowed here?? }
+  If Error Then Exit;
+  If TokenType(K) = TOKEN_COMMA Then  { "a,b" <=> a.b.nil }
+  Begin
+    K := ReadToken(y);
+    If Error Then Exit;
+    T2 := ReadListExpr(P,K,True,glob,Cut); { remaining list }
+    If Error Then Exit;
+    T := EmitDot(P,T,T2)
+  End
+  Else If TokenType(K) = TOKEN_PIPE Then  { "a|b" <=> a.b }
+  Begin
+    K := ReadToken(y);
+    If Error Then Exit;
+    T2 := ReadOneTerm(P,K,glob,Cut);
+    If Error Then Exit;
+    T := EmitDot(P,T,T2)
+  End
+  Else If comma Then { "b" as the end of "a,b" generates a.b.nil }
+  Begin
+    T := EmitDot(P,T,Nil)
+  End;
+  ReadListExpr := T
+End;
+
+{ read a []-style list }
+Function ReadList( P : ProgPtr; Var K : TokenPtr; glob,Cut : Boolean ) : TermPtr;
+Var
+  y : TSyntax;
+  T : TermPtr;
+Begin
+  ReadList := Nil;
+  y := GetSyntax(P);
+  VerifyToken(P,K,TOKEN_LEFT_BRA);
+  If TokenType(K) = TOKEN_RIGHT_BRA Then { "[]": atom }
+  Begin
+    T := EmitIdent(P,'[]',True);
+    K := ReadToken(y)
+  End
+  Else
+  Begin
+    T := ReadListExpr(P,K,False,glob,Cut); { TODO: cut allowed here?? }
+    If Error Then Exit;
+    VerifyToken(P,K,TOKEN_RIGHT_BRA)
+  End;
+  ReadList := T
 End;
 
 { read a term, possibly accepting a cut as a valid term }
@@ -103,19 +232,13 @@ Function ReadOneTerm; (* ( P : ProgPtr; Var K : TokenPtr; glob : Boolean;
 Var
   y : TSyntax;
   T : TermPtr;
-  T2 : TermPtr;
   C : ConstPtr;
   TC : TermPtr Absolute C;
-  F : FuncPtr;
-  TF : TermPtr Absolute F;
+  F : TermPtr;
   V : VarPtr;
   TV : TermPtr Absolute V;
   I : IdPtr;
   TI : TermPtr Absolute I;
-  F2 : FuncPtr;
-  TF2 : TermPtr Absolute F2;
-  F3 : FuncPtr;
-  TF3 : TermPtr Absolute F3;
 Begin
   ReadOneTerm := Nil;
   y := GetSyntax(P);
@@ -139,7 +262,7 @@ Begin
       T := TV;
       K := ReadToken(y)
     End;
-  TOKEN_IDENT:
+  TOKEN_IDENT: { "a" or "a(b,c)" }
     Begin
       I := InstallIdentifier(P^.PP_DIDE,K^.TK_STRI,glob);
       T := TI;
@@ -149,16 +272,14 @@ Begin
         K := ReadToken(y);
         F := GetArgument(P,K,glob,TOKEN_RIGHT_PAR);
         If Error Then Exit;
-        F2 := NewSymbol(TI,TF);
-        T := TF2
+        T := NewF(TI,F)
       End
     End;
   TOKEN_CUT:
     Begin
       If Cut Then 
       Begin
-        I := InstallIdentifier(P^.PP_DIDE,NewStringFrom('!'),glob);
-        T := TI;
+        T := EmitIdent(P,'!',True);
         K := ReadToken(y)
       End
       Else
@@ -186,34 +307,36 @@ Begin
           F := GetArgument(P,K,glob,TOKEN_RIGHT_PAR)
         End
         Else { "<>" only }
-          F := NewSymbol(Nil,Nil)
+          F := NewF(Nil,Nil)
       End
       Else 
         If y <> Edinburgh Then 
           F := GetArgument(P,K,glob,TOKEN_RIGHT_CHE)
         Else
-          SyntaxError('this tuples syntax is not allowed in Edinburgh mode');
+          SyntaxError('such tuples syntax is not allowed in Edinburgh mode');
       If Error Then Exit;
-      T := TF
+      T := F
+    End;
+  TOKEN_LEFT_BRA: { PII+ []-style list }
+    Begin
+      If (y In [PrologIIp,Edinburgh]) Then
+        T := ReadList(P,K,glob,Cut)
+      Else
+        SyntaxError('[]-style list not allowed in the current syntax');
     End;
   Else
     SyntaxError(TokenTypeAsString(K) + ' not allowed here')
   End;
   If Error Then Exit;
   
-  { dotted lists of terms }
+  { dotted lists of terms; this seems to be allowed in PII+ Edinburgh, see 
+   PII+ doc, pdf p. 45; we do not allowed it for now, as it is tricky to 
+   distinguish this dot from an end-of-rule dot }
   { TODO: exclude CUT? }
-  If (Not Error) And (y <> Edinburgh) And 
-      (TokenType(K) = TOKEN_DOT) Then
+  If (Not Error) And (y <> Edinburgh) And (TokenType(K) = TOKEN_DOT) Then
   Begin
     K := ReadToken(y);
-    I := InstallIdentifier(P^.PP_DIDE,NewStringFrom('.'),glob);
-    T2 := ReadOneTerm(P,K,glob,False);
-    If Error Then Exit;
-    F := NewSymbol(T2,Nil); { q: new term }
-    F2 := NewSymbol(T,TF); { t: term read above }
-    F3 := NewSymbol(TI,TF2); { t.q }
-    T := TF3
+    T := ReadListQueue(P,K,T,glob)
   End;
 
   ReadOneTerm := T

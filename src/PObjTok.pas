@@ -22,7 +22,7 @@ Type
     TOKEN_UNKNOWN,
     TOKEN_STRING,
     TOKEN_NUMBER,
-    TOKEN_IDENT,
+    TOKEN_IDENT,       { atom }
     TOKEN_VARIABLE,
     TOKEN_ARROW,       { :- or -> }
     TOKEN_CUT,         { cut ! or / }
@@ -60,8 +60,8 @@ Const TokenStr : TypeTokenStr = (
     'right curly brace',
     'left chevron',
     'right chevron',
-    'left square brackets',
-    'right square brackets',
+    'left square bracket',
+    'right square bracket',
     'dot',
     'comma',
     'semicolon',

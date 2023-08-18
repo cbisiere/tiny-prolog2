@@ -47,5 +47,8 @@ dump -> syscall(sysdump);
 
 "helpers"
 
-eq(X,X)->;
+eq(X,X) ->;
 dif(X,Y) -> syscall(sysdif,X,Y);
+
+P.Q -> P Q;
+nil ->;

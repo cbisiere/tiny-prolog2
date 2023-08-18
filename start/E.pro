@@ -50,3 +50,6 @@ dump :- syscall(sysdump).
 true.
 eq(X,X).
 dif(X,Y) :- syscall(sysdif,X,Y).
+
+[P|Q] :- P, Q.
+nil.

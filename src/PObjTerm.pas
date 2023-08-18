@@ -113,6 +113,16 @@ Begin
   NewSymbol := F
 End;
 
+{ return a new "F(a,b)" construct as a term, for convenience }
+Function NewF( T1,T2 : TermPtr ) : TermPtr;
+Var
+  F : FuncPtr;
+  TF : TermPtr Absolute F;
+Begin
+  F := NewSymbol(T1,T2);
+  NewF := TF
+End;
+
 
 {-----------------------------------------------------------------------}
 { methods: terms                                                        }

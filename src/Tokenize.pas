@@ -248,34 +248,38 @@ End;
 { tokens                                                                     }
 {----------------------------------------------------------------------------}
 
-{ read a double-quoted constant string }
+{ read a run of chars delimited by a given 1-byte quote char; when the quote  
+ char appears within the run, it must be doubled; long lines can be broken up
+ using \<NEWLINE>; the result is a token of type tt; this definition is broad 
+ enough to encompass double-quoted constant string and Edinburgh single-quoted 
+ atoms }
 { TODO: escaped chars }
-Function ReadString : TokenPtr;
+Function ReadQuotedRunOfChars( quote : Char; tt : TTokenType ) : TokenPtr;
 Var
   K : TokenPtr;
   c : TChar;
   Done : Boolean;
 Begin
-  ReadString := Nil;
+  ReadQuotedRunOfChars := Nil;
   c := GetChar(c);
   If Error Then Exit;
-  CheckCondition(c = '"',  TokenStr[TOKEN_STRING] + ' expected');
-  K := NewToken(TOKEN_STRING);
+  CheckCondition(c = quote, TokenStr[tt] + ' expected');
+  K := NewToken(tt);
   With K^ Do
   Begin
     TK_STRI := NewString;
     Repeat
       Done := False;
       { look for the next char with special meaning inside a string }
-      c := GetCharUntil(TK_STRI, ['"','\',NewLine,EndOfInput]);
+      c := GetCharUntil(TK_STRI, [quote,'\',NewLine,EndOfInput]);
       If Error Then Exit;
-      If c = '"' Then { doubled double quote or end of string }
+      If c = quote Then { doubled double quote or end of string }
       Begin
         c := GetChar(c); { discard it }
         If Error Then Exit;
         c := NextChar(c);
         If Error Then Exit;
-        If c = '"' Then { doubled: keep only one }
+        If c = quote Then { doubled: keep only one }
         Begin
           c := GetChar(c);
           If Error Then Exit;
@@ -302,13 +306,13 @@ Begin
         End
       End
       Else If c = NewLine Then
-        SyntaxError('end of line while reading ' + TokenStr[TOKEN_STRING])
+        SyntaxError('end of line while reading ' + TokenStr[tt])
       Else If c = EndOfInput Then
-        SyntaxError('end of input while reading ' + TokenStr[TOKEN_STRING])
+        SyntaxError('end of input while reading ' + TokenStr[tt])
     Until Error or Done;
     If Error Then Exit
   End;
-  ReadString := K
+  ReadQuotedRunOfChars := K
 End;
 
 { skip a *-style comment, with symbol '/' or '|'; *-style comments can be 
@@ -475,7 +479,10 @@ Begin
       End
     End;
   '"':
-    K := ReadString;
+    K := ReadQuotedRunOfChars('"',TOKEN_STRING);
+  '''':
+    If y = Edinburgh Then
+      K := ReadQuotedRunOfChars('''',TOKEN_IDENT); { quoted atom }
   '!':
     If y In [PrologIIp,Edinburgh] Then
       K := GrabToken(TOKEN_CUT,c);
