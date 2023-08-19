@@ -21,7 +21,8 @@ Type
   TTokenType = (
     TOKEN_UNKNOWN,
     TOKEN_STRING,
-    TOKEN_NUMBER,
+    TOKEN_INTEGER,
+    TOKEN_REAL,
     TOKEN_IDENT,       { atom }
     TOKEN_VARIABLE,
     TOKEN_ARROW,       { :- or -> }
@@ -38,6 +39,10 @@ Type
     TOKEN_COMMA,
     TOKEN_SEMICOLON,
     TOKEN_EQUAL,
+    TOKEN_PLUS,
+    TOKEN_MINUS,
+    TOKEN_TIMES,
+    TOKEN_DIVIDE,
     TOKEN_PIPE,
     TOKEN_END_OF_INPUT
   );
@@ -49,7 +54,8 @@ Type
 Const TokenStr : TypeTokenStr = (
     'unknown',
     'string',
-    'number',
+    'integer number',
+    'real number',
     'identifier',
     'variable',
     'arrow',
@@ -66,6 +72,10 @@ Const TokenStr : TypeTokenStr = (
     'comma',
     'semicolon',
     'equal sign',
+    'plus sign',
+    'minus sign',
+    'multiply sign',
+    'divide sign',
     'pipe',
     'end of input'
   );

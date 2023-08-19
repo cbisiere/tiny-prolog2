@@ -221,7 +221,7 @@ Begin
     Found := False;
     While Not Found And Not Error Do
     Begin
-      If BufNbUnread(IBuf) = 0 Then
+      If BufNbRead(IBuf) = 0 Then
         RuntimeError('parsing limit reached: lookup too ahead to handle');
       If Error Then Exit;
       BufGetRead(e,IBuf,0);

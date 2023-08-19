@@ -4,7 +4,7 @@ move(1,x,y,_) ->
 	outm("Move top disk from ")
 	out(x) 
 	outm(" to ") 
-	outl(y) /;
+	outl(y) !;
 
 move(n,x,y,z) ->
 	inc(m,n)
@@ -25,5 +25,4 @@ inc(8,9) ->;
 hanoi(n) ->
 	move(n,source, target, auxiliary);
 
--> outml("*** Solving the Tower of Hanoi with 4 disks:")
-	hanoi(4);
+-> outml("*** Solving the Tower of Hanoi with 4 disks:") hanoi(4);

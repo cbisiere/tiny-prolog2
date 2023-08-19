@@ -36,7 +36,8 @@ Var
   RE_p : RestorePtr Absolute p;
   TK_p : TokenPtr Absolute p;
 Begin
-  CheckCondition((t<>CS) And (t<>CN),'type not meant for direct allocation');
+  CheckCondition((t <> CS) And (t <> CI) And (t <> CR),
+      'type not meant for direct allocation');
   Case t Of
     PR: New(PR_p);
     RU: New(RU_p);
@@ -80,7 +81,8 @@ Var
   RE_p : RestorePtr Absolute p;
   TK_p : TokenPtr Absolute p;
 Begin
-  CheckCondition((t<>CS) And (t<>CN),'type not meant for direct disposal');
+  CheckCondition((t <> CS) And (t <> CI) And (t <> CR),
+      'type not meant for direct disposal');
   Case t Of
     PR: Dispose(PR_p);
     RU: Dispose(RU_p);
@@ -123,7 +125,8 @@ Var
   RE_p : RestorePtr Absolute p;
   TK_p : TokenPtr Absolute p;
 Begin
-  CheckCondition((t<>CS) And (t<>CN),'type not meant for size of');
+  CheckCondition((t <> CS) And (t <> CI) And (t <> CR),
+      'type not meant for size of');
   Case t Of
     PR: PObjSizeOf := SizeOf(PR_p^);
     RU: PObjSizeOf := SizeOf(RU_p^);

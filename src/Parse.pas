@@ -239,14 +239,37 @@ Var
   TV : TermPtr Absolute V;
   I : IdPtr;
   TI : TermPtr Absolute I;
+  s : StrPtr;
+  cot : TypePrologObj;
 Begin
   ReadOneTerm := Nil;
   y := GetSyntax(P);
   T := Nil;
   Case TokenType(K) Of
-  TOKEN_NUMBER:
+  TOKEN_MINUS, TOKEN_PLUS, { [+|-] number}
+  TOKEN_INTEGER,TOKEN_REAL:
     Begin
-      C := InstallConst(P^.PP_DCON,K^.TK_STRI,CN,glob);
+      s := NewString;
+      If TokenType(K) In [TOKEN_INTEGER,TOKEN_REAL] Then
+        StrConcat(s,K^.TK_STRI)
+      Else If TokenType(K) = TOKEN_MINUS Then
+        StrAppend(s,'-');
+      If Not (TokenType(K) In [TOKEN_INTEGER,TOKEN_REAL]) Then
+      Begin
+        K := ReadToken(y);
+        If Not (TokenType(K) In [TOKEN_INTEGER,TOKEN_REAL]) Then
+          SyntaxError('number expected after unary sign');
+        If Error Then Exit;
+        StrConcat(s,K^.TK_STRI)
+      End;
+      If TokenType(K) = TOKEN_INTEGER Then
+        cot := CI
+      Else
+        cot := CR;
+      If Not NormalizeConstant(s,ObjectTypeToConstType(cot)) Then
+        SyntaxError('invalid constant');
+      If Error Then Exit;
+      C := InstallConst(P^.PP_DCON,s,cot,glob);
       T := TC;
       K := ReadToken(y)
     End;

@@ -391,30 +391,79 @@ Begin
   Until Stop Or Error
 End;
 
-{ read a number }
-{ TODO: floating point numbers }
+{ read a number and return its canonical string representation; 
+ note that real number must include an explicit exponent (see 
+ PII+ doc p28); indeed, without this rule, "1.2" would be ambiguous, as it 
+ could also a list as well as a real number; note that expressions like 
+ "10e+3" remain ambiguous, because the syntax states that the possibly signed
+ integer number after "E" is optional; in that case we assume the "+3" is part
+ of the real number, and not an addition; note that input like "1.2e+3.4e" 
+ remain difficult to parse, as "+3" should be attributed to the second real
+ number, realizing very late that the second dot cannot be a dot list 
+ operator; FIXME: issue to be sorted out when handling arithmetic expressions }
 Function ReadNumber : TokenPtr;
 Var
   K : TokenPtr;
+  e1,e2 : TIChar; { undo points }
   c : TChar;
   n : LongInt;
+  s,s2 : StrPtr;
+  Stop : Boolean; { not a real number, we must unread a bunch of chars }
 Begin
   ReadNumber := Nil;
-  K := NewToken(TOKEN_NUMBER);
+  K := NewToken(TOKEN_INTEGER); { assume integer for now }
   With K^ Do
   Begin
     TK_STRI := NewString;
-    c := NextChar(c);
-    If Error Then Exit;
-    If c = '-' Then
-    Begin
-      c := GetChar(c);
-      If Error Then Exit;
-      StrAppend(TK_STRI,c)
-    End;
+    { integer part }
     n := GetCharWhile(TK_STRI,Digits);
     If Error Then Exit;
-    CheckCondition(n > 0,'Number expected')
+    CheckCondition(n > 0,'Number expected');
+    { optional real part }
+    s := NewString;
+    c := NextChar(c);
+    If c = '.' Then
+    Begin
+      e1 := GetIChar(e1); { undo point }
+      StrAppend(s,'.');
+      n := GetCharWhile(s,Digits);
+      Stop := n = 0;
+      If Not Stop Then
+      Begin
+        c := GetChar(c);
+        Stop := (c <> 'E') And (c <> 'e') And (c <> 'D') And (c <> 'd');
+        If Not Stop Then
+          StrAppend(s,'E')
+      End;
+      If Not Stop Then
+      Begin
+        { optional exponent part }
+        c := NextChar(c);
+        If (c = '-') Or (c = '+') Then
+        Begin
+          e2 := GetIChar(e2); { another undo point }
+          s2 := NewStringFrom(c);
+          n := GetCharWhile(s2,Digits);
+          If n > 0 Then
+            StrConcat(s,s2)
+          Else
+            UngetChars(e2.Lnb,e2.Pos) { sign may be binary op? }
+        End
+        Else
+        Begin
+          n := GetCharWhile(s,Digits);
+          If n = 0 Then
+            StrAppend(s,'0') { as Pascal's Val/2 cannot convert "1.2e" }
+        End
+      End;
+      If Not Stop Then 
+      Begin
+        TK_TYPE := TOKEN_REAL;
+        StrConcat(TK_STRI,s)
+      End
+      Else
+        UngetChars(e1.Lnb,e1.Pos) { no real part: undo }
+    End
   End;
   ReadNumber := K
 End;
@@ -446,9 +495,11 @@ Begin
   ReadToken := Nil;
   K := Nil;
   { save the next char for undo purpose; this is the char of the token but
-   including blank spaces; this is needed to "unread" tokens, which is required
-   to handle in_char(c) goals }
+   *including leading blank spaces*; this is needed to "unread" tokens, which 
+   is required to correctly handle in_char(c) goals }
   e := NextIChar(e);
+  { from PII+doc p28: "spaces can be inserted anywhere except inside constants 
+   and variables"}
   ReadSpaces(y);
   If Error Then Exit;
   c := NextChar(c);
@@ -460,11 +511,16 @@ Begin
     K := NewToken(TOKEN_END_OF_INPUT);
   '0'..'9':
     K := ReadNumber;
+  '*': 
+    If y In [PrologIIp,Edinburgh] Then
+      K := GrabToken(TOKEN_TIMES,'*');
+  '+': 
+    K := GrabToken(TOKEN_PLUS,'+');
   '-': 
-    If c2[1] In Digits Then
-      K := ReadNumber
-    Else If (c2 = '>') And (y <> Edinburgh) Then { '->' }
-      K := GrabToken(TOKEN_ARROW,'->');
+    If (c2 = '>') And (y <> Edinburgh) Then { '->' }
+      K := GrabToken(TOKEN_ARROW,'->')
+    Else
+      K := GrabToken(TOKEN_MINUS,'-');
   ':':
     If (c2 = '-') And (y = Edinburgh) Then { ':-' }
       K := GrabToken(TOKEN_ARROW,':-');
@@ -488,7 +544,9 @@ Begin
       K := GrabToken(TOKEN_CUT,c);
   '/':
     If y In [PrologII,PrologIIc] Then
-      K := GrabToken(TOKEN_CUT,c);
+      K := GrabToken(TOKEN_CUT,c)
+    Else
+      K := GrabToken(TOKEN_DIVIDE,c);
   ';':
     K := GrabToken(TOKEN_SEMICOLON,c);
   '(':

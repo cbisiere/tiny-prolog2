@@ -25,6 +25,13 @@ Type
 
 Type
   LongLongInt = Real; { simulate a very long integer }
+  LongReal = Extended; { highest precision real }
+
+{ round a long real to a long integer value }
+Function LongRealToLongInt( v : LongReal ) : LongInt;
+Begin
+  LongRealToLongInt := Round(v)
+End;
 
 { format a LongInt for display }
 Function LongIntToStr( v : LongInt ) : TString;
@@ -42,13 +49,30 @@ Begin
   LongLongIntToStr := TrimLeft(s)
 End;
 
-{ convert a Pascal string to a LongInt; code is 0 if the operation succeeded,
+{ format a LongReal for display }
+Function LongRealToStr( v : LongReal ) : TString;
+Var s : TString;
+Begin
+  Str(v,s);
+  LongRealToStr := TrimLeft(s)
+End;
+
+{ convert a Pascal string to a LongInt; code is 0 if the operation succeeds,
   or the index of the character preventing the conversion }
 Function StrToLongInt( s : TString; Var code : Integer ) : LongInt;
 Var v : LongInt;
 Begin
   Val(s,v,code);
   StrToLongInt := v
+End;
+
+{ convert a Pascal string to a high precision Real; code is 0 if the operation 
+ succeeds, or the index of the character preventing the conversion }
+Function StrToLongReal( s : TString; Var code : Integer ) : LongReal;
+Var v : LongReal;
+Begin
+  Val(s,v,code);
+  StrToLongReal := v
 End;
 
 { integer division of two LongInt values }

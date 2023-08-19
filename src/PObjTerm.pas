@@ -21,7 +21,7 @@
 
 { constant: identifier, number or quoted string; list of constants  }
 Type
-  TConst = (Number,QString);
+  TConst = (IntegerNumber,RealNumber,QString);
 
   ConstPtr = ^TObjConst; { term: constant }
   TObjConst = Record
@@ -167,15 +167,23 @@ End;
 { methods: constants                                                    }
 {-----------------------------------------------------------------------}
 
+{ object type to constant type }
+Function ObjectTypeToConstType( typ : TypePrologObj ) : TConst;
+Var 
+  t : TConst;
+Begin
+  Case typ  Of
+  CS: t := QString;
+  CI: t := IntegerNumber;
+  CR: t := RealNumber;
+  End;
+  ObjectTypeToConstType := t
+End;
+
 { return the type of a constant }
 Function ConstType( C : ConstPtr ) : TConst;
-Var t : TConst;
 Begin
-  Case C^.TC_DCON^.DE_TYPE Of
-  CS: t := QString;
-  CN: t := Number;
-  End;
-  ConstType := t
+  ConstType := ObjectTypeToConstType(C^.TC_DCON^.DE_TYPE)
 End;
 
 { return the string value of a constant; not cloning }
@@ -553,6 +561,41 @@ End;
 { methods: install                                                      }
 {-----------------------------------------------------------------------}
 
+{ replace a constant string with ist canonical form, depending on its type;
+ return false if the canonical form cannot be computed }
+Function NormalizeConstant( Var s : StrPtr; typ : TConst ) : Boolean;
+Var
+  i : LongInt;
+  r : LongReal;
+  code : Integer;
+Begin
+  NormalizeConstant := False;
+  CheckCondition(s <> Nil,'cannot normalize a nul string');
+  Case typ Of
+  IntegerNumber,
+  RealNumber:
+    Begin
+      If StrLength(s) > StringMaxSize Then
+        Exit;
+      Case typ Of
+      IntegerNumber:
+        i := StrToLongInt(StrGetString(s), code);
+      RealNumber:
+        r := StrToLongReal(StrGetString(s), code);
+      End;
+      If code <> 0 Then
+        Exit;
+      Case typ Of
+      IntegerNumber:
+        s := NewStringFrom(LongIntToStr(i));
+      RealNumber: 
+        s := NewStringFrom(LongRealToStr(r));
+      End;
+    End
+  End;
+  NormalizeConstant := True
+End;
+
 { create a new constant if it does not exist in a list; 
   invariant: 
   - there is a 1:1 relationship between constant terms and constant values, 
@@ -560,7 +603,9 @@ End;
   of queries only exist through a single constant term (and a single
   dictionary entry as well), and everyone points to that term; consequently
   constant terms and dictionary entries are not copied when they are
-  reached through a deep copy }
+  reached through a deep copy;
+  - this requires constants to be stored in canonical representation  
+  FIXME: use canonical representation for real numbers }
 Function InstallConst( Var list : DictPtr; str : StrPtr; 
     ty : TypePrologObj; glob : Boolean ) : ConstPtr;
 Var 

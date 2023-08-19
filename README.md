@@ -386,7 +386,7 @@ We describe the different syntaxes handled by the interpreter using [Extended  B
 
 ### Base elements
 
-All the syntax flavours handled by the interpreter share the following definitions:
+All the syntax flavours accepted by the interpreter share the following definitions:
 
 ```
 letter = "A"|...|"Z"|"a"|...|"z"|"À" ... "ß" - "×" | "à" ... "ÿ" - "÷" ;
@@ -396,12 +396,15 @@ q = """ ;
 digits = digit, {digit} ;
 letters = letter, {letter} ;
 
-integer = ["-"], digits ;
+integer = ["+" | "-"], digits ;
+
+real-number = digits, ".", digits, ("E"|"e"|"D"|"d"), [ ["+"|"-"], digits ];
 
 string = q, { (character - q - newline) | (q, q) | ("\", newline) }, q ;
 
-constant = identifier | integer | string ;
+constant = identifier | integer | real-number | string ;
 ```
+Note that using an explicit exponent when writing real numbers is mandatory, to avoid ambiguities with dotted lists.
 
 ### Marseille syntax
 

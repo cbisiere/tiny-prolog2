@@ -80,10 +80,15 @@ Const
     (T:PFunction;I:PF_INF;S:'inf';N:2)
   );
 
+{ data structure for high precision arithmetic }
 Const
   MaxFuncNbParams = 2; { maximum number of parameter for a predefined function }
 Type
-  TParArray = Array[1..MaxFuncNbParams] Of LongInt; { parameter value }
+  TParVal = Record
+    IsReal : Boolean;
+    Val : LongReal
+  End;
+  TParArray = Array[1..MaxFuncNbParams] Of TParVal; { parameter value }
 
 { lookup for a predefined predicate or function; set the found record; 
   return True if found  }
@@ -133,7 +138,6 @@ Var
   T1,T2 : TermPtr;
   CT1 : ConstPtr Absolute T1;
   CT2 : ConstPtr Absolute T2;
-  r : LongInt;
   code : Integer;
   rs : TString;
   s : StrPtr;
@@ -142,6 +146,9 @@ Var
   str : TString;
   ParVal : TParArray;
   i : Byte;
+  r : LongReal; { result of numerical evaluation }
+  isInt : Boolean; { should this result be converted to an integer value? }
+  cot : TypePrologObj;
 Begin
   e := Nil;
   T := RepresentativeOf(T);
@@ -179,36 +186,67 @@ Begin
                 If Ok Then
                   Ok := TypeOfTerm(T1) = Constant;
                 If Ok Then
-                  Ok := ConstType(CT1) = Number;
+                  Ok := ConstType(CT1) In [IntegerNumber,RealNumber];
                 If Ok Then
                 Begin
-                  ParVal[i] := StrToLongInt(ConstGetPStr(CT1),code);
+                  With ParVal[i] Do
+                  Begin
+                    If ConstType(CT1) = IntegerNumber Then
+                    Begin
+                      IsReal := False;
+                      Val := StrToLongInt(ConstGetPStr(CT1),code)
+                    End
+                    Else
+                    Begin
+                      IsReal := True;
+                      Val := StrToLongReal(ConstGetPStr(CT1),code)
+                    End
+                  End;
                   Ok := code = 0
                 End
               End;
             If Ok Then
             Begin
+              { by default, ops on integers give integer results }
+              IsInt := Not ParVal[1].IsReal And Not ParVal[2].IsReal;
               Case rec.I Of { TODO: absolute precision }
                 PF_ADD:
-                  r := ParVal[1] + ParVal[2];
+                  r := ParVal[1].Val + ParVal[2].Val;
                 PF_SUB:
-                  r := ParVal[1] - ParVal[2];
+                  r := ParVal[1].Val - ParVal[2].Val;
                 PF_MUL:
-                  r := ParVal[1] * ParVal[2];
+                  r := ParVal[1].Val * ParVal[2].Val;
                 PF_DIV:
                   Begin
-                    Ok := ParVal[2] <> 0;
+                    Ok := ParVal[2].Val <> 0;
                     If Ok Then
-                      r := LongIntDiv(ParVal[1],ParVal[2])
+                      If IsInt Then { integer division }
+                        r := LongIntDiv(LongRealToLongInt(ParVal[1].Val),
+                            LongRealToLongInt(ParVal[2].Val))
+                      Else
+                        r := ParVal[1].Val / ParVal[2].Val
                   End;
                 PF_INF:
-                  r := Ord(ParVal[1] < ParVal[2])
+                  Begin
+                    r := Ord(ParVal[1].Val < ParVal[2].Val);
+                    IsInt := True
+                  End
               End;
               If Ok Then
               Begin
-                rs := LongIntToStr(r);
+                { generate canonical numeric constants }
+                If IsInt Then
+                Begin
+                  rs := LongIntToStr(LongRealToLongInt(r));
+                  cot := CI
+                End
+                Else
+                Begin
+                  rs := LongRealToStr(r);
+                  cot := CR
+                End;
                 s := NewStringFrom(rs);
-                Ce := InstallConst(P^.PP_DCON,s,CN,False)
+                Ce := InstallConst(P^.PP_DCON,s,cot,False) { FIXME: not glob? }
               End
             End
           End
