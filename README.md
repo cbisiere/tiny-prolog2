@@ -257,20 +257,19 @@ insertion(e,f.x,f.y) -> insertion(e,x,y);
 ```
 (Note the `nil` has no special meaning in the language. In this example, `nil` is just an identifier used as an end-of-list mark.)
 
-To execute a program stored in a file `$file` use the command line `tprolog2 -$syntax $file` where `$syntax` is one of the four supported language flavours: 
+To execute a program stored in a file `$file` use the command line `tprolog2 -$syntax $file` where `$syntax` is one of the four supported language flavours. When the `$syntax` parameter is omitted, the syntax is inferred from the file extension.  
 
-Value of `$syntax` | Prolog flavour
---- | ---
-`PII`  | old Marseille syntax with dashes in identifiers
-`PIIp` | Prolog II+
-`E` | Edinburgh
-`PIIc` | Prolog II with equalities and inequalities (Tiny-Prolog specific; default syntax)
+Value of `$syntax` | File extension | Prolog flavour
+--- | --- | ---
+`PII`  | `.pro` | old Marseille syntax (with dashes in identifiers)
+`PIIc` | `.p2c` | Prolog II with equalities and inequalities (Tiny-Prolog specific; default syntax)
+`PIIp` | `.p2` | Prolog II+
+`E` | `.p2E` or `.pl` | Prolog II+ Edinburgh
 
-
-Since `PIIc` is the default, the syntax switch can be omitted when running `permu.pro`:
+For instance, to run the tiny-prolog programme `permu.p2c`, just do:
 
 ```
-$ ./tprolog2 examples/ProII/permu.pro
+$ ./tprolog2 examples/ProII/permu.p2c
 -> permutation(1.2.3.nil,x);
 { x = 1.2.3.nil }
 { x = 2.1.3.nil }
@@ -404,36 +403,36 @@ string = q, { (character - q - newline) | (q, q) | ("\", newline) }, q ;
 
 constant = identifier | integer | real-number | string ;
 ```
-Note that using an explicit exponent when writing real numbers is mandatory, to avoid ambiguities with dotted lists.
+Note that using an explicit exponent for real numbers is mandatory, to avoid ambiguities with dotted lists.
 
 ### Marseille syntax
 
-Both Prolog II and Prolog II+ are based on the so-called "Marseille syntax", featuring the famous `->` symbol for rules, dotted lists, and tuples.
+Both Prolog II and Prolog II+ are based on the so-called "Marseille syntax", featuring the famous `->` symbol for rules, `/` for cut, dotted lists, and tuples.
 
 ```
-term = simple-term, { ".", term } ;
-
-simple-term = constant |
-              variable  |
-              identifier, "(", term-list, ")" |
-              tuple |
-              "(", term, ")" ;       
-
-term-list = term, { ",", term } ;
-
-tuple = "<", [term-list], ">" ;
-
 cut = "/" ;
 
-rule = term, "->", { term | cut }, ";" ;
+term = pterm, [".", term] ;
 
-query = "->", { term | cut }, ";" ;                                
+term-list = term, [",", term-list] ;
+
+pterm = constant |
+        variable  |
+        identifier, ["(", term-list, ")"] |
+        "<", [term-list], ">" |
+        "(", term, ")" ;       
+
+rule = pterm, "->", { pterm | cut }, ";" ;
+
+query = "->", { pterm | cut }, ";" ;                                
 
 comment = string ;
 
 program = { comment | rule | query }, [";"] ;
 
 ```
+A `pterm` is a term that can appear at the highest level, that is, as a goal in a rule or query's body. Dotted lists cannot appear at this highest level.
+
 
 ### Prolog II
 
@@ -484,32 +483,40 @@ query = "->", { term | cut }, [system], ";" ;
 
 ### Prolog II+
 
-Prolog II+ does not allow for dashes in variable names or identifiers. Variables start with a `_` or with a single letter. The cut is `!` instead of `/`, the former being reserved for calls to external procedures (a.k.a. _parasites_, e.g. `/?20001`). Tuples gain an alternative syntax: `<>(t1,...tn)`. Finally, both dot and Edinburgh-style lists are supported in Prolog II+ mode, and can be mixed.
+Prolog II+ does not allow for dashes in variable names or identifiers. Variables start with a `_` or with a single letter. The cut becomes `!` instead of `/`, the former being reserved for calls to external procedures (a.k.a. _parasites_, e.g. `/?20001`). Tuples gain an alternative syntax: `<>(t1,...tn)`. Expressions are allowed, but cannot appear at the highest level. Finally, both dot and Edinburgh-style lists are supported in Prolog II+ mode, and can be mixed.
 
 ```
+cut = "!" ;
+
 alpha = letter | digit | "_" ;
 
 variable = ("_" , { alpha }) | extended_var ;
 
 extended_var = letter, [ (digit | "_"), { alpha } ] , { "'" } ;
 
-cut = "!" ;
+expr = [unary-op], term [binary-op, expr] ;
 
-tuple = "<", [term-list], ">" | "<", ">", "(", term-list, ")" ;
+expr-list = expr, ["," , expr-list] | 
 
-list-expr = term, ["," , list-expr] | 
-            term, "|", term ;
+pterm = constant |
+        variable  |
+        identifier, ["(", expr-list, ")"] |
+        "<", [expr-list], ">" |
+        "<", ">", "(", expr-list, ")" |
+        "[", [list-expr], "]" |
+        "(", term, ")" ;       
 
-list = "[", list-expr, "]" | "[]"
+list-expr = expr, ["," , list-expr] | 
+            expr, "|", expr ;
 
 ```
-where `list` is an additional `simple-term` (see subsection "Marseille Syntax" above).
+
 
 ### Edinburgh
 
-In Edinburgh mode, variable names start with a `_` or with an uppercase letter. Syntax for rules and queries also differ from Prolog II+.
+In Edinburgh mode, variable names start with a `_` or with an uppercase letter. Tuples must be written following the `<>(...)` syntax. Syntax for rules and queries also differ from Prolog II+. Expressions are allowed at the highest level, that is, as goal in rules or queries. The goal `X is Y` is equivalent to `val(Y,X)`.
 
-For now, the Edinburgh parser only supports the following part of the syntax:
+For now, the Edinburgh parser supports the following part of the syntax:
 
 ```
 big-letter = "A"|...|"Z" ;
@@ -520,9 +527,9 @@ sq = "'" ;
 
 quoted-identifier = sq, { (character - sq - newline) | (sq, sq) | ("\", newline) }, sq ;
 
-rule = term, [ ":-", term {",", term} ], "." ;
+rule = pterm, [ ":-", expr {",", expr} ], "." ;
 
-query = ":-", term {",", term}, "."
+query = ":-", expr {",", expr}, "."
 
 ```
 where `quoted-identifier` is an additional form of `identifier`.

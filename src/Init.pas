@@ -21,26 +21,32 @@ Type
 Const 
   StartFile : TStartFile = ('PII','PIIc','PIIp','E');
 
+{ file suffix: for PII+ and Edinburgh, see PII+ doc p297 }
+Type 
+  TFileExt = Array[TSyntax] Of String[3];
+Const 
+  FileExt : TFileExt = ('pro','p2c','p2','p2E');
+
 { parse and process command line parameters }
 Procedure ProcessParameters( P : ProgPtr );
 Var  
-  i : 1..2;
-  par : TString;
+  i : Byte;
+  par,filename : TString;
   y : TSyntax;
-  Found : Boolean;
+  Found, HasFile : Boolean;
   s : StrPtr;
   os : TPObjPtr Absolute s;
 Begin
   i := 1; { index of the parameter to process }
 
-  { syntax switch }
+  { syntax parameter }
+  Found := False;
   If ParamCount >= 1 Then
   Begin
     par := ParamStr(1);
     If par[1] = '-' Then
     Begin
       Delete(par,1,1);
-      Found := False;
       For y := PrologII To Edinburgh Do
       Begin
         If StartFile[y] = par Then
@@ -50,15 +56,32 @@ Begin
         End
       End;
       If Not Found Then
-        RaiseError('Syntax switch: Unknown syntax identifier');
+        RaiseError('Syntax parameter: Unknown syntax identifier');
       i := i + 1
     End
+  End;
+
+  { user file }
+  HasFile := False;
+  If (Not Error) And (ParamCount = i) Then
+  Begin
+    HasFile := True;
+    filename := ParamStr(i);
+    { detect format from file ext if no syntax parameter }
+    If Not Found Then
+      If EndsWith(par,'.pl') Then
+        SetSyntax(P,Edinburgh)
+      Else
+      For y := PrologII To Edinburgh Do
+        If EndsWith(par,'.' + FileExt[y]) Then
+          SetSyntax(P,y)
   End;
 
   { load the startup file }
   If Not Error Then
   Begin
-    s := NewStringFrom('start/' + StartFile[GetSyntax(P)]+'.pro');
+    y := GetSyntax(P);
+    s := NewStringFrom('start/' + StartFile[y] + '.' + FileExt[y]);
     AddGCRoot(os); { protect this string from GC }
     SetRuleType(P,RTYPE_AUTO);
     LoadProgram(P,s)
@@ -67,10 +90,10 @@ Begin
   { from now on, all rules are user rules }
   SetRuleType(P,RTYPE_USER);
 
-  { user file }
-  If (Not Error) And (ParamCount = i) Then
+  { load the user file }
+  If (Not Error) And (HasFile) Then
   Begin
-    s := NewStringFrom(ParamStr(i));
+    s := NewStringFrom(filename);
     AddGCRoot(os); { protect this string from GC }
     LoadProgram(P,s)
   End

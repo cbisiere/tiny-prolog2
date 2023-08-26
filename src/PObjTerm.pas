@@ -260,47 +260,22 @@ End;
 { left term of a functional symbol }
 Function FLeftArg( F : FuncPtr ) : TermPtr;
 Begin
+  CheckCondition(F <> Nil,'FLeftArg of Nil');
   FLeftArg := F^.TF_LTER
 End;
 
 { right term of a functional symbol }
 Function FRightArg( F : FuncPtr ) : TermPtr;
 Begin
+  CheckCondition(F <> Nil,'FRightArg of Nil');
   FRightArg := F^.TF_RTER
 End;
 
-{ return the number of arguments of a f(a,b,c) or <a,b,c> construct;
-  in the former case, the number of argument is 4 }
-Function NbArguments( F : FuncPtr ) : Integer;
-Var 
-  T : TermPtr;
-  FT : FuncPtr Absolute T;
+{ set the right term of a functional symbol }
+Procedure FSetRightArg( F : FuncPtr; T : TermPtr );
 Begin
-  CheckCondition(F <> Nil,'NbArguments of Nil does not make sense');
-  If FRightArg(F) = Nil  Then
-    NbArguments := 1
-  Else
-  Begin
-    T := FRightArg(F);
-    NbArguments := NbArguments(FT) + 1
-  End
-End;
-
-{ return the N-th argument of a f(a,b,c) or <a,b,c> construct;
-  in the former case, the 1st argument is f }
-Function Argument( N : Integer; F : FuncPtr ) : TermPtr;
-Var 
-  T : TermPtr;
-  FT : FuncPtr Absolute T;
-Begin
-  CheckCondition(F <> Nil,'Argument of Nil does not make sense');
-  If N = 1 Then
-    Argument := FLeftArg(F)
-  Else
-  Begin
-    T := FRightArg(F);
-    Argument := Argument(N-1,FT)
-  End
+  CheckCondition(F <> Nil,'FSetRightArg of Nil');
+  F^.TF_RTER := T
 End;
 
 {-----------------------------------------------------------------------}

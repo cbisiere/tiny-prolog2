@@ -50,5 +50,4 @@ dump -> syscall(sysdump);
 eq(X,X) ->;
 dif(X,Y) -> syscall(sysdif,X,Y);
 
-P.Q -> P Q;
 nil ->;

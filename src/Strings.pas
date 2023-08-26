@@ -74,6 +74,15 @@ Begin
   StartsWith := Copy(s,1,Length(b)) = b
 End;
 
+{ return True if s ends with b }
+Function EndsWith( s,b : TString ) : Boolean;
+Begin
+  If Length(s) < Length(b) Then
+    EndsWith := False
+  Else
+    EndsWith := Copy(s,Length(s)-Length(b)+1,Length(b)) = b
+End;
+
 { return the number of chars in E s starts with  }
 Function StartsCount( s : TString; E : CharSet ) : TStringSize;
 Var

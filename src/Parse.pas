@@ -37,76 +37,14 @@ Const
 
 { read a term, possibly in a global context (that is, when parsing a
   rule), possibly accepting a cut as a valid term }
-Function ReadOneTerm( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
+Function ReadTerm( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
     Cut : Boolean) : TermPtr; Forward;
 
+Function ReadPTerm( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
+    Cut : Boolean) : TermPtr; Forward;
 
 {----------------------------------------------------------------------------}
-{ helpers for emitting                                                       }
-{----------------------------------------------------------------------------}
-
-{-----------------------------------------------------------------------}
-{                                                                       }
-{   The functional symbol F is used to encode predicates as follows:    }
-{                                                                       }
-{           F                                                           }
-{          / \               (1) tuple: the name of the predicate is    }
-{       name  F                  the first argument: <name,arg1,...>    }
-{            / \                                                        }
-{         arg1  F            (2) of course arg1 .. argN can also be     }
-{              / \               predicates.                            }
-{           arg2   ...                                                  }
-{                   \        (3) a '.' (Prolog list) is considered as   }
-{                    F           a regular predicate.                   }
-{                  /  \                                                 }
-{               argN    Nil                                             }
-{                                                                       }
-{-----------------------------------------------------------------------}
-
-{ return a new identifier as a term, from a string }
-Function EmitIdent( P : ProgPtr; ident : TString; glob : Boolean ) : TermPtr;
-Var
-  I : IdPtr;
-  TI : TermPtr Absolute I;
-Begin
-  EmitIdent := Nil;
-  I := InstallIdentifier(P^.PP_DIDE,NewStringFrom(ident),glob);
-  EmitIdent := TI
-End;
-
-{ return a new term "ident(T1,T2)"; following the comment above, "a(b,c)" is 
- implemented as "F(a,F(b,F(c,Nil)))" }
-Function EmitFunc( P : ProgPtr; ident : TString; T1,T2 : TermPtr; 
-    glob : Boolean ) : TermPtr;
-Var
-  I,F1,F2,F3 : TermPtr;
-Begin
-  EmitFunc := Nil;
-  CheckCondition((T1 <> Nil) And (T2 <> Nil),'EmitFunc: Nil argument');
-  I := EmitIdent(P,ident,glob);
-  F3 := NewF(T2,Nil); { F(b,Nil) }
-  F2 := NewF(T1,F3); { F(a,F(b,Nil)) }
-  F1 := NewF(I,F2); { F(ident,F(a,F(b,Nil))) }
-  EmitFunc := F1
-End;
-
-{ return a term "a.b", viewed as '.'(a,b)" and thus implemented as 
- "F('.',F(a,F(b,Nil)))"; if b is Nil, replace it with "F('nil',Nil)", that is,
- add ".nil" at the end of the dotted list; this helps implementing the 
- following equivalences:
-  [a|b] <=> a.b
-  [a,b] <=> a.b.nil
- (see PII+ syntax (cf. pdf doc p.45) }
-Function EmitDot( P : ProgPtr; T1,T2 : TermPtr ) : TermPtr;
-Begin
-  EmitDot := Nil;
-  If T2 = Nil Then
-    T2 := EmitIdent(P,'nil',True);
-  EmitDot := EmitFunc(P,'.',T1,T2,True)
-End;
-
-{----------------------------------------------------------------------------}
-{ parser                                                                     }
+{ verify                                                                     }
 {----------------------------------------------------------------------------}
 
 { raise an error if a token is not of a certain type; read the token 
@@ -122,49 +60,274 @@ Begin
     SyntaxError(TokenStr[typ] + ' expected')
 End;
 
-{ read the comma-separated list of arguments of:
- - a predicate: "a(b,c,d)" EndToken = ')' 
- - a tuple: "<a,b,c,d>", EndToken = '>'
- return Nil if an error occurs; set K to the token *after* EndToken;
-}
-Function GetArgument( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
-    EndToken : TTokenType ) : TermPtr;
+{----------------------------------------------------------------------------}
+{ expression parser                                                          }
+{----------------------------------------------------------------------------}
+
+Const
+  MAX_EXPR_DEEP = 50;
+Type
+  TStackLen = 0..MAX_EXPR_DEEP;
+Var 
+  TStack : Array[1..MAX_EXPR_DEEP] Of TermPtr;
+  OStack : Array[1..MAX_EXPR_DEEP] Of TPFRec;
+  TStackTop : TStackLen;
+  OStackTop : TStackLen;
+
+{ reset the expression stack; must be called before any parsing phase (command
+ line, file, in/1) ); if the previous parsing phase ended with an error, some
+ garbage might have been left in this stack }
+Procedure PrepareExprParsing;
+Begin
+  TStackTop := 0;
+  OStackTop := 0
+End;
+
+{ check the stack is empty }
+Procedure TerminateExprParsing;
+Begin
+  CheckCondition(OStackTop = 0,'op stack not empty')
+End;
+
+{ push an op }
+Procedure PushExprOp( Op : TPFRec );
+Begin
+  If OStackTop > MAX_EXPR_DEEP - 1 Then
+    SyntaxError('expression too complex');
+  If Error Then Exit;
+  OStackTop := OStackTop + 1;
+  OStack[OStackTop] := Op
+End;
+
+{ pop an op }
+Procedure PopExprOp( Var Op : TPFRec );
+Begin
+  CheckCondition(OStackTop > 0,'PopExprOp: op stack is empty');
+  Op := OStack[OStackTop];
+  OStackTop := OStackTop - 1
+End;
+
+{ push a term }
+Procedure PushExprTerm( T : TermPtr );
+Begin
+  If TStackTop > MAX_EXPR_DEEP - 1 Then
+    SyntaxError('expression too complex');
+  If Error Then Exit;
+  TStackTop := TStackTop + 1;
+  TStack[TStackTop] := T
+End;
+
+{ pop a term }
+Procedure PopExprTerm( Var T : TermPtr );
+Begin
+  CheckCondition(TStackTop > 0,'PopExprTerm: term stack is empty');
+  T := TStack[TStackTop];
+  TStackTop := TStackTop - 1
+End;
+
+{ replace the top operator and associated operands terms with a term }
+Procedure ReduceTopExpr( P : ProgPtr );
+Var
+  Op : TPFRec;
+  T,T1,T2 : TermPtr;
+Begin
+  PopExprOp(Op);
+  CheckCondition(Op.N in [1,2],'ReduceTopExpr: unexpected arity');
+  Case Op.N Of
+  1:
+    Begin
+      PopExprTerm(T1);
+      T2 := Nil
+    End;
+  2:
+    Begin
+      PopExprTerm(T2);
+      PopExprTerm(T1)
+    End;
+  End;
+  T := NewFunc(P,Op.S,T1,T2,True);
+  PushExprTerm(T)
+End;
+
+{ reduce all the expressions remaining in the stack and return the remaining 
+ term }
+Function ReduceAllExpr( P : ProgPtr; Bottom : TStackLen ) : TermPtr;
+Var
+  T : TermPtr;
+Begin
+  ReduceAllExpr := Nil;
+  While OStackTop > Bottom Do
+    ReduceTopExpr(P);
+  PopExprTerm(T); { final term }
+  ReduceAllExpr := T
+End;
+
+{ push an expr: binary ("op right-term") or unary ("op Nil"); reduce the top
+ expression when possible }
+Procedure PushExpr( P : ProgPtr; Bottom : TStackLen; Op : TPFRec; T : TermPtr );
+Begin
+  If OStackTop > Bottom Then
+    If Op.P >= OStack[OStackTop].P Then { new op has lower or equal priority }
+      ReduceTopExpr(P);
+  PushExprOp(Op);
+  If T <> Nil Then
+    PushExprTerm(T)
+End;
+
+{ read an expression: [uop] term [bop term]*
+ TODO: "The trees corresponding to the unary operators + and - are evaluated 
+ when analyzed if their argument is an integer constant." (PII+ p48) 
+ TODO: handle xfx; in PII+ eq(x,1 '<' 2 '<' 3) raises a syntax error
+ To better understand this xfx vs yfx, see the comments there:
+ https://www.swi-prolog.org/pldoc/doc_for?object=op/3 }
+Procedure ReadExpr( P : ProgPtr; Var K : TokenPtr; Bottom : TStackLen; 
+    glob : Boolean; Cut : Boolean);
+Var
+  y : TSyntax;
+  T : TermPtr;
+  f : TString;
+  Op : TPFRec;
+  HasUnaryOp : Boolean;
+  Ok, Stop : Boolean;
+Begin
+  y := GetSyntax(P);
+  { optional unitary-op }
+  HasUnaryOp := TokenType(K) In [TOKEN_MINUS, TOKEN_PLUS];
+  If HasUnaryOp Then { fx }
+  Begin
+    Case TokenType(K) Of
+    TOKEN_MINUS:
+      f := 'minus';
+    TOKEN_PLUS:
+      f := 'plus';
+    End;
+    Ok := LookupPF(f,Op);
+    CheckCondition(Ok, 'ReadOneExpr: unary op not found');
+    CheckCondition(Op.N=1, 'ReadOneExpr: not unary');
+    K := ReadToken(y)
+  End;
+  { first pterm }
+  T := ReadTerm(P,K,glob,Cut);
+  If Error Then Exit;
+  PushExprTerm(T);
+  { push the unary op if any, offering a chance to reduce the op stack; must
+   be done after pushing the term }
+  If HasUnaryOp Then
+    PushExpr(P,Bottom,Op,Nil);
+  Stop := False;
+  { optional series of "binary-op pterm" }
+  While Not Stop Do
+  Begin
+    Case TokenType(K) Of
+    TOKEN_IDENT:
+      Begin
+        f := StrGetFirstData(K^.TK_STRI);
+        Case y Of
+        PrologIIp:
+          If f = '''<''' Then
+            f := 'inf'
+          Else
+            Stop := True;
+        Edinburgh:
+          If f <> 'is' Then
+            Stop := True;
+        Else
+          Stop := True
+        End
+      End;
+    TOKEN_LEFT_CHE:
+      If y = Edinburgh Then
+        f := 'inf'
+      Else
+        Stop := True;
+    TOKEN_MINUS:
+      f := 'sub';
+    TOKEN_PLUS:
+      f := 'add';
+    TOKEN_TIMES:
+      f := 'mul';
+    TOKEN_DIVIDE:
+      f := 'div';
+    Else
+      Stop := True
+    End;
+    If Not Stop Then
+    Begin
+      Ok := LookupPF(f,Op);
+      CheckCondition(Ok,'ReadOneExpr: binary op not found');
+      CheckCondition(Op.N=2, 'ReadOneExpr: not binary');
+      K := ReadToken(y);
+      T := ReadTerm(P,K,glob,Cut);
+      If Error Then Exit;
+      PushExpr(P,Bottom,Op,T)
+    End
+  End
+End;
+
+{ read one expression }
+Function ReadOneExpr( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
+    Cut : Boolean) : TermPtr;
+Var
+  Bottom : TStackLen;
+Begin
+  ReadOneExpr := Nil;
+  Bottom := OStackTop;
+  ReadExpr(P,K,Bottom,glob,Cut);
+  If Error Then Exit;
+  ReadOneExpr := ReduceAllExpr(P,Bottom)
+End;
+
+{----------------------------------------------------------------------------}
+{ parser                                                                     }
+{----------------------------------------------------------------------------}
+
+{ read a term: pterm [. term]*; is right-associative
+ Note: dotted lists seem to be allowed in PII+ Edinburgh, see 
+ PII+ doc, pdf p. 45; we do not allowed it for now, as it is tricky to 
+ distinguish this dot from an end-of-rule dot }
+{ TODO: exclude CUT? }
+Function ReadTerm; (*( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
+    Cut : Boolean) : TermPtr; *)
+Var
+  y : TSyntax;
+  T : TermPtr;
+  T2 : TermPtr;
+Begin
+  ReadTerm := Nil;
+  y := GetSyntax(P);
+  T := ReadPTerm(P,K,glob,Cut);
+  If Error Then Exit;
+  If (y <> Edinburgh) And (TokenType(K) = TOKEN_DOT) Then
+  Begin
+    K := ReadToken(y);
+    T2 := ReadTerm(P,K,glob,Cut);
+    If Error Then Exit;
+    T := EncodeDot(P,T,T2)
+  End;
+  If Error Then Exit;
+  ReadTerm := T
+End;
+
+{ read the comma-separated list of expressions "a,b,c..."; return Nil if an 
+ error occurs }
+Function ReadExprList( P : ProgPtr; Var K : TokenPtr; 
+    glob : Boolean ) : TermPtr;
 Var
   y : TSyntax;
   T,T2 : TermPtr;
 Begin
-  GetArgument := Nil;
+  ReadExprList := Nil;
   y := GetSyntax(P);
-  T := ReadOneTerm(P,K,glob,False);
+  T := ReadOneExpr(P,K,glob,False);
   If Error Then Exit;
+  T2 := Nil;
   If TokenType(K) = TOKEN_COMMA Then
   Begin
     K := ReadToken(y);
-    T2 := GetArgument(P,K,glob,EndToken);
-    If Error Then Exit;
-    T := NewF(T,T2)
-  End
-  Else 
-  Begin
-    VerifyToken(P,K,EndToken);
-    If Error Then Exit;
-    T := NewF(T,Nil)
+    T2 := ReadExprList(P,K,glob);
+    If Error Then Exit
   End;
-  GetArgument := T
-End;
-
-
-{ read the "remaining part" (that is, anything but the head) part of a list; 
- T1 is the (already read) list head }
-Function ReadListQueue( P : ProgPtr; Var K : TokenPtr; T1 : TermPtr; 
-    glob : Boolean ) : TermPtr;
-Var
-  T2 : TermPtr;
-Begin
-  ReadListQueue := Nil;
-  T2 := ReadOneTerm(P,K,glob,False);
-  If Error Then Exit;
-  ReadListQueue := EmitDot(P,T1,T2)
+  ReadExprList := NewTuple(T,T2)
 End;
 
 { read a []-style list expression:
@@ -178,7 +341,7 @@ Var
 Begin
   ReadListExpr := Nil;
   y := GetSyntax(P);
-  T := ReadOneTerm(P,K,glob,Cut); { TODO: cut allowed here?? }
+  T := ReadOneExpr(P,K,glob,Cut); { TODO: cut allowed here?? }
   If Error Then Exit;
   If TokenType(K) = TOKEN_COMMA Then  { "a,b" <=> a.b.nil }
   Begin
@@ -186,19 +349,19 @@ Begin
     If Error Then Exit;
     T2 := ReadListExpr(P,K,True,glob,Cut); { remaining list }
     If Error Then Exit;
-    T := EmitDot(P,T,T2)
+    T := EncodeDot(P,T,T2)
   End
   Else If TokenType(K) = TOKEN_PIPE Then  { "a|b" <=> a.b }
   Begin
     K := ReadToken(y);
     If Error Then Exit;
-    T2 := ReadOneTerm(P,K,glob,Cut);
+    T2 := ReadOneExpr(P,K,glob,Cut);
     If Error Then Exit;
-    T := EmitDot(P,T,T2)
+    T := EncodeDot(P,T,T2)
   End
   Else If comma Then { "b" as the end of "a,b" generates a.b.nil }
   Begin
-    T := EmitDot(P,T,Nil)
+    T := EncodeDot(P,T,Nil)
   End;
   ReadListExpr := T
 End;
@@ -226,58 +389,53 @@ Begin
   ReadList := T
 End;
 
-{ read a term, possibly accepting a cut as a valid term }
-Function ReadOneTerm; (* ( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
+{ read a pterm, possibly accepting a cut as a valid pterm; pterms are terms 
+ authorized at the first level of terms in the rule body }
+Function ReadPTerm; (* ( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
     Cut : Boolean ) : TermPtr *)
 Var
   y : TSyntax;
   T : TermPtr;
-  C : ConstPtr;
-  TC : TermPtr Absolute C;
   F : TermPtr;
   V : VarPtr;
   TV : TermPtr Absolute V;
   I : IdPtr;
   TI : TermPtr Absolute I;
-  s : StrPtr;
-  cot : TypePrologObj;
 Begin
-  ReadOneTerm := Nil;
+  ReadPTerm := Nil;
   y := GetSyntax(P);
   T := Nil;
   Case TokenType(K) Of
-  TOKEN_MINUS, TOKEN_PLUS, { [+|-] number}
-  TOKEN_INTEGER,TOKEN_REAL:
+  TOKEN_INTEGER:
     Begin
-      s := NewString;
-      If TokenType(K) In [TOKEN_INTEGER,TOKEN_REAL] Then
-        StrConcat(s,K^.TK_STRI)
-      Else If TokenType(K) = TOKEN_MINUS Then
-        StrAppend(s,'-');
-      If Not (TokenType(K) In [TOKEN_INTEGER,TOKEN_REAL]) Then
-      Begin
-        K := ReadToken(y);
-        If Not (TokenType(K) In [TOKEN_INTEGER,TOKEN_REAL]) Then
-          SyntaxError('number expected after unary sign');
-        If Error Then Exit;
-        StrConcat(s,K^.TK_STRI)
-      End;
-      If TokenType(K) = TOKEN_INTEGER Then
-        cot := CI
-      Else
-        cot := CR;
-      If Not NormalizeConstant(s,ObjectTypeToConstType(cot)) Then
-        SyntaxError('invalid constant');
+      If Not NormalizeConstant(K^.TK_STRI,ObjectTypeToConstType(CI)) Then
+        SyntaxError('invalid integer constant');
       If Error Then Exit;
-      C := InstallConst(P^.PP_DCON,s,cot,glob);
-      T := TC;
+      T := EmitConst(P,K^.TK_STRI,CI,glob);
+      K := ReadToken(y)
+    End;
+  TOKEN_REAL:
+    Begin
+      If Not NormalizeConstant(K^.TK_STRI,ObjectTypeToConstType(CR)) Then
+        SyntaxError('invalid real constant');
+      If Error Then Exit;
+      T := EmitConst(P,K^.TK_STRI,CR,glob);
       K := ReadToken(y)
     End;
   TOKEN_STRING:
     Begin
-      C := InstallConst(P^.PP_DCON,K^.TK_STRI,CS,glob);
-      T := TC;
+      T := EmitConst(P,K^.TK_STRI,CS,glob);
       K := ReadToken(y)
+    End;
+  TOKEN_CUT:
+    Begin
+      If Cut Then 
+      Begin
+        T := EmitIdent(P,'!',True);
+        K := ReadToken(y)
+      End
+      Else
+        SyntaxError(TokenStr[TOKEN_CUT] + ' not allowed here')
     End;
   TOKEN_VARIABLE:
     Begin
@@ -293,25 +451,17 @@ Begin
       If TokenType(K) = TOKEN_LEFT_PAR Then { predicate's arguments }
       Begin
         K := ReadToken(y);
-        F := GetArgument(P,K,glob,TOKEN_RIGHT_PAR);
+        F := ReadExprList(P,K,glob);
         If Error Then Exit;
-        T := NewF(TI,F)
+        VerifyToken(P,K,TOKEN_RIGHT_PAR);
+        If Error Then Exit;
+        T := NewTuple(TI,F)
       End
     End;
-  TOKEN_CUT:
-    Begin
-      If Cut Then 
-      Begin
-        T := EmitIdent(P,'!',True);
-        K := ReadToken(y)
-      End
-      Else
-        SyntaxError(TokenStr[TOKEN_CUT] + ' not allowed here')
-    End;
-  TOKEN_LEFT_PAR: { parenthesized term }
+  TOKEN_LEFT_PAR: { parenthesized expression }
     Begin
       K := ReadToken(y);
-      T := ReadOneTerm(P,K,glob,False);
+      T := ReadOneExpr(P,K,glob,False);
       If Error Then Exit;
       VerifyToken(P,K,TOKEN_RIGHT_PAR);
       If Error Then Exit
@@ -327,14 +477,20 @@ Begin
             (TokenType(K) = TOKEN_LEFT_PAR) Then
         Begin
           K := ReadToken(y);
-          F := GetArgument(P,K,glob,TOKEN_RIGHT_PAR)
+          F := ReadExprList(P,K,glob);
+          If Error Then Exit;
+          VerifyToken(P,K,TOKEN_RIGHT_PAR)
         End
         Else { "<>" only }
-          F := NewF(Nil,Nil)
+          F := NewEmptyTuple
       End
       Else 
         If y <> Edinburgh Then 
-          F := GetArgument(P,K,glob,TOKEN_RIGHT_CHE)
+        Begin
+          F := ReadExprList(P,K,glob);
+          If Error Then Exit;
+          VerifyToken(P,K,TOKEN_RIGHT_CHE)
+        End
         Else
           SyntaxError('such tuples syntax is not allowed in Edinburgh mode');
       If Error Then Exit;
@@ -351,21 +507,10 @@ Begin
     SyntaxError(TokenTypeAsString(K) + ' not allowed here')
   End;
   If Error Then Exit;
-  
-  { dotted lists of terms; this seems to be allowed in PII+ Edinburgh, see 
-   PII+ doc, pdf p. 45; we do not allowed it for now, as it is tricky to 
-   distinguish this dot from an end-of-rule dot }
-  { TODO: exclude CUT? }
-  If (Not Error) And (y <> Edinburgh) And (TokenType(K) = TOKEN_DOT) Then
-  Begin
-    K := ReadToken(y);
-    T := ReadListQueue(P,K,T,glob)
-  End;
-
-  ReadOneTerm := T
+  ReadPTerm := T
 End;
 
-{ read an equations or a inequation }
+{ read an equations or inequation }
 Function ReadEquation( P : ProgPtr; Var K : TokenPtr; glob : Boolean ) : EqPtr;
 Var
   y : TSyntax;
@@ -376,7 +521,7 @@ Begin
   ReadEquation := Nil;
   y := GetSyntax(P);
   E := Nil;
-  T1 := ReadOneTerm(P,K,glob,False);
+  T1 := ReadTerm(P,K,glob,False);
   If Error Then Exit;
   Case TokenType(K) Of
   TOKEN_EQUAL:
@@ -395,7 +540,7 @@ Begin
     SyntaxError('comparison symbol expected')
   End;
   If Error Then Exit;
-  T2 := ReadOneTerm(P,K,glob,False);  { right term }
+  T2 := ReadTerm(P,K,glob,False);  { right term }
   If Error Then Exit;
   E := NewEquation(Code,T1,T2);
   ReadEquation := E
@@ -434,67 +579,121 @@ Begin
   ReadSystem := FirstE
 End;
 
+{----------------------------------------------------------------------------}
+{ highest-level (rules and query) procedures and functions                   }
+{----------------------------------------------------------------------------}
+
 { compile a system of equations and inequations }
 Function CompileSystem( P : ProgPtr; Var K : TokenPtr; glob : Boolean ) : EqPtr;
 Begin
-  CompileSystem := ReadSystem(P,K,glob)
+  PrepareExprParsing;
+  CompileSystem := ReadSystem(P,K,glob);
+  TerminateExprParsing
 End;
 
-{ compile a term }
-Function CompileOneTerm( P : ProgPtr; Var K : TokenPtr; 
+{ compile a goal at rule or query level }
+Function CompileRuleHead( P : ProgPtr; Var K : TokenPtr; 
   glob : Boolean; Cut : Boolean ) : BTermPtr;
 Var 
   B : BTermPtr;
 Begin
+  CompileRuleHead := Nil;
   B := NewBTerm;
   With B^ Do
   Begin
-    BT_TERM := ReadOneTerm(P,K,glob,Cut);
+    PrepareExprParsing;
+    BT_TERM := ReadPTerm(P,K,glob,Cut);
+    If Error Then Exit;
+    TerminateExprParsing;
     BT_ACCE := AccessIdentifier(BT_TERM)
   End;
-  CompileOneTerm := B
+  CompileRuleHead := B
 End;
 
-{ compile a (possibly empty) sequence of terms, stopping at a token in 
+{ compile a goal at rule or query level }
+Function CompileOneGoal( P : ProgPtr; Var K : TokenPtr; 
+  glob : Boolean; Cut : Boolean ) : BTermPtr;
+Var 
+  y : TSyntax;
+  B : BTermPtr;
+  T : TermPtr;
+  Th : TermPtr;
+  ITh : IdPtr Absolute Th;
+  f : TString;
+  One : TermPtr;
+Begin
+  CompileOneGoal := Nil;
+  y := GetSyntax(P);
+  B := NewBTerm;
+  With B^ Do
+  Begin
+    PrepareExprParsing;
+    If y = Edinburgh Then { expr are allowed at top level }
+    Begin
+      T := ReadOneExpr(P,K,glob,Cut);
+      If IsTuple(T) Then
+      Begin
+        Th := TupleHead(T);
+        If TypeOfTerm(Th) = Identifier Then
+        Begin
+          f := IdentifierGetPStr(ITh);
+          If f = 'is' Then { "X is Y" =>  "val(Y,X)", cf PIII+ doc p221 }
+            T := NewFunc(P,'val',TupleArgN(3,T),TupleArgN(2,T),True)
+          Else If f = 'inf' Then
+          Begin
+            One := EmitConst(P,NewStringFrom('1'),CI,True);
+            T := NewFunc(P,'val',T,One,True)
+          End
+        End
+      End
+    End
+    Else
+      T := ReadPTerm(P,K,glob,Cut);
+    If Error Then Exit;
+    TerminateExprParsing;
+    BT_TERM := T;
+    BT_ACCE := AccessIdentifier(BT_TERM)
+  End;
+  CompileOneGoal := B
+End;
+
+{ compile a (possibly empty) sequence of goals, stopping at a token in 
  StopTokens; set HasCut to true if the queue contains a cut, false otherwise }
-Function CompileTerms( P : ProgPtr; Var K : TokenPtr; 
+Function CompileGoals( P : ProgPtr; Var K : TokenPtr; 
     glob : Boolean; StopTokens : TTokenSet; Var HasCut : Boolean ) : BTermPtr;
 Var
   y : TSyntax;
 
-  Function DoCompileTerms : BTermPtr;
+  Function DoCompileGoals : BTermPtr;
   Var
     B : BTermPtr;
     Must : Boolean;
   Begin
-    DoCompileTerms := Nil;
+    DoCompileGoals := Nil;
+    B := Nil;
     If (Not (TokenType(K) In StopTokens)) And (Not Error) Then
     Begin
-      B := NewBTerm;
+      B := CompileOneGoal(P,K,glob,True);
+      If Error Then Exit;
       With B^ Do
       Begin
-        BT_TERM := ReadOneTerm(P,K,glob,True);
-        If Error Then Exit;
         HasCut := HasCut Or TermIsCut(BT_TERM);
-        BT_ACCE := AccessIdentifier(BT_TERM);
         Must := (GetSyntax(P) = Edinburgh) And (TokenType(K) = TOKEN_COMMA);
         If Must Then
           K := ReadToken(y);
-        BT_NEXT := DoCompileTerms;
+        BT_NEXT := DoCompileGoals;
         If Must And (BT_NEXT = Nil) Then
           SyntaxError('term expected after ' + TokenStr[TOKEN_COMMA])
       End
-    End
-    Else
-      B := Nil;
-    DoCompileTerms := B
+    End;
+    DoCompileGoals := B
   End;
 
 Begin
   y := GetSyntax(P);
-  CompileTerms := Nil;
+  CompileGoals := Nil;
   HasCut := False;
-  CompileTerms := DoCompileTerms
+  CompileGoals := DoCompileGoals
 End;
 
 { set up local variable context to prepare compiling a new rule }
@@ -510,8 +709,16 @@ Begin
   R^.RU_FVAR := P^.PP_DVAR
 End;
 
-{ compile a rule; note that the system cannot be reduced right away
-  as the reduction may depends on global assignments }
+{ compile a rule; 
+ Note: the system cannot be reduced right away as the reduction may depends 
+ on global assignments;
+ Note: P-rule 3.1 on PII+ doc p44 implies that the rule head can be a term 
+ (instead of a pterm), thus also a dotted list; this contradicts a statement 
+ on p40: 
+   "The term which is the first member of a rule (rule head) must be: - either 
+   an identifier or - a tuple whose first argument is an identifier"
+ actual tests on PII+ confirm that a rule head cannot be a list  
+  }
 Procedure CompileOneRule( P : ProgPtr; Var K : TokenPtr; RuleType : RuType );
 Var 
   y : TSyntax;
@@ -529,7 +736,7 @@ Begin
   With R^ Do
   Begin
     RU_SYST := Nil;
-    B := CompileOneTerm(P,K,True,False); { head }
+    B := CompileRuleHead(P,K,True,False);
     If Error Then Exit;
     RU_FBTR := B;
     If (y = Edinburgh) And (TokenType(K) = Syntax[y].RuleEnd) Then
@@ -538,7 +745,7 @@ Begin
     Begin
       VerifyToken(P,K,TOKEN_ARROW);
       If Error Then Exit;
-      B^.BT_NEXT := CompileTerms(P,K,True,StopTokens,HasCut); {FIXME: can return Nil without Error?}
+      B^.BT_NEXT := CompileGoals(P,K,True,StopTokens,HasCut);
       RU_ACUT := HasCut;
       If y = Edinburgh Then 
         If B^.BT_NEXT = Nil Then
@@ -599,7 +806,7 @@ Begin
     StopTokens := StopTokens + [TOKEN_LEFT_CUR];
   With Q^ Do
   Begin
-    QU_FBTR := CompileTerms(P,K,False,StopTokens,HasCut);
+    QU_FBTR := CompileGoals(P,K,False,StopTokens,HasCut);
     If Error Then Exit;
     QU_ACUT := HasCut;
     If (Syntax[y].AcceptSys) And (TokenType(K) = TOKEN_LEFT_CUR) Then
@@ -658,8 +865,10 @@ Begin
   ParseOneTerm := Nil;
   y := GetSyntax(P);
   K := ReadToken(y);
+  PrepareExprParsing;
+  ParseOneTerm := ReadTerm(P,K,False,False);
   If Error Then Exit;
-  ParseOneTerm := ReadOneTerm(P,K,False,False);
+  TerminateExprParsing;
   { since K is now the token *following* the compiled term, we must unread it 
    (and all the spaces before) so that in_char will read the first char after 
    the term }
@@ -678,7 +887,6 @@ Begin
   ParseCommandLineQuery := False;
   y := GetSyntax(P);
   K := ReadToken(y);
-  If Error Then Exit;
   If TokenType(K) <> TOKEN_END_OF_INPUT Then
   Begin
     CompileOneQuery(P,K,False);
@@ -699,9 +907,7 @@ Var
 Begin
   y := GetSyntax(P);
   K := ReadToken(y);
-  If Error Then Exit;
   Stop := False;
-  Error := False;
   { common tokens ending a series of queries or rules }
   StopTokens := [TOKEN_END_OF_INPUT,TOKEN_STRING];
   If GetSyntax(P) = PrologII Then

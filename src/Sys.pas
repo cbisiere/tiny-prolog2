@@ -17,19 +17,19 @@
 
 Procedure DumpBacktrace; Forward;
 
-{ predefined predicates and functions; use identifiers that are portable 
+{ predefined predicates; use identifiers that are portable 
  across all the supported syntaxes: lowercase letters with at least two
  letters }
 
-Const
-  NBPred = 29;
-  { max string length of a predefined predicate or evaluable function }
-  MaxPredLength = 21;
-  { string representation of the syscall identifier }
-  SYSCALL_IDENT_AS_STRING = 'syscall'; 
+{----------------------------------------------------------------------------}
+{ predefined predicates                                                      }
+{----------------------------------------------------------------------------}
 
+Const
+  NB_PP = 24;
+  MAX_PP_LENGHT = 21; { max string length }
+  SYSCALL_IDENT_AS_STRING = 'syscall'; 
 Type
-  TPPType = (PPredicate,PFunction); { type: predicate or function }
   TPP = (
     PP_INPUT_IS,PP_INPUT,PP_CLOSE_CURRENT_INPUT,PP_CLOSE_INPUT,PP_CLEAR_INPUT,
     PP_IN_TERM,PP_IN_CHAR,
@@ -37,79 +37,63 @@ Type
     PP_QUIT,PP_INSERT,PP_LIST,
     PP_OUT,PP_OUTM,PP_LINE,
     PP_BACKTRACE,PP_CLRSRC,PP_EVAL,PP_ASSIGN,PP_DUMP,
-    PP_DIF,
-    PF_ADD,PF_SUB,PF_MUL,PF_DIV,PF_INF);
-  TPPred = Record
-    T : TPPType;
+    PP_DIF);
+  TPPRec = Record
     I : TPP; { identifier }
-    S : String[MaxPredLength]; { identifier as string }
-    N : Byte { number of arguments }
+    S : String[MAX_PP_LENGHT]; { identifier as string }
+    N : Byte; { number of arguments }
   End;
-  TAPPred = Array[1..NBPred] Of TPPred;
+  TPPArray = Array[1..NB_PP] Of TPPRec;
 
 Const 
-  APPred : TAPPred = (
-    (T:PPredicate;I:PP_INPUT_IS;S:'sysinputis';N:1),
-    (T:PPredicate;I:PP_INPUT;S:'sysinput';N:1),
-    (T:PPredicate;I:PP_CLOSE_CURRENT_INPUT;S:'sysclosecurrentinput';N:0),
-    (T:PPredicate;I:PP_CLOSE_INPUT;S:'syscloseinput';N:1),
-    (T:PPredicate;I:PP_CLEAR_INPUT;S:'sysclearinput';N:0),
-    (T:PPredicate;I:PP_IN_TERM;S:'sysinterm';N:1),
-    (T:PPredicate;I:PP_IN_CHAR;S:'sysinchar';N:1),
-    (T:PPredicate;I:PP_OUTPUT_IS;S:'sysoutputis';N:1),
-    (T:PPredicate;I:PP_OUTPUT;S:'sysoutput';N:1),
-    (T:PPredicate;I:PP_CLOSE_CURRENT_OUTPUT;S:'sysclosecurrentoutput';N:0),
-    (T:PPredicate;I:PP_CLOSE_OUTPUT;S:'syscloseoutput';N:1),
-    (T:PPredicate;I:PP_FLUSH;S:'sysflush';N:0),
-    (T:PPredicate;I:PP_QUIT;S:'sysquit';N:0),
-    (T:PPredicate;I:PP_INSERT;S:'sysinsert';N:1),
-    (T:PPredicate;I:PP_LIST;S:'syslist';N:0),
-    (T:PPredicate;I:PP_OUT;S:'sysout';N:1),
-    (T:PPredicate;I:PP_OUTM;S:'sysoutm';N:1),
-    (T:PPredicate;I:PP_LINE;S:'sysline';N:0),
-    (T:PPredicate;I:PP_BACKTRACE;S:'sysbacktrace';N:0),
-    (T:PPredicate;I:PP_CLRSRC;S:'sysclrsrc';N:0),
-    (T:PPredicate;I:PP_EVAL;S:'syseval';N:2),
-    (T:PPredicate;I:PP_ASSIGN;S:'sysassign';N:2),
-    (T:PPredicate;I:PP_DUMP;S:'sysdump';N:0),
-    (T:PPredicate;I:PP_DIF;S:'sysdif';N:2),
-    (T:PFunction;I:PF_ADD;S:'add';N:2),
-    (T:PFunction;I:PF_SUB;S:'sub';N:2),
-    (T:PFunction;I:PF_MUL;S:'mul';N:2),
-    (T:PFunction;I:PF_DIV;S:'div';N:2),
-    (T:PFunction;I:PF_INF;S:'inf';N:2)
+  PPArray : TPPArray = (
+    (I:PP_INPUT_IS;S:'sysinputis';N:1),
+    (I:PP_INPUT;S:'sysinput';N:1),
+    (I:PP_CLOSE_CURRENT_INPUT;S:'sysclosecurrentinput';N:0),
+    (I:PP_CLOSE_INPUT;S:'syscloseinput';N:1),
+    (I:PP_CLEAR_INPUT;S:'sysclearinput';N:0),
+    (I:PP_IN_TERM;S:'sysinterm';N:1),
+    (I:PP_IN_CHAR;S:'sysinchar';N:1),
+    (I:PP_OUTPUT_IS;S:'sysoutputis';N:1),
+    (I:PP_OUTPUT;S:'sysoutput';N:1),
+    (I:PP_CLOSE_CURRENT_OUTPUT;S:'sysclosecurrentoutput';N:0),
+    (I:PP_CLOSE_OUTPUT;S:'syscloseoutput';N:1),
+    (I:PP_FLUSH;S:'sysflush';N:0),
+    (I:PP_QUIT;S:'sysquit';N:0),
+    (I:PP_INSERT;S:'sysinsert';N:1),
+    (I:PP_LIST;S:'syslist';N:0),
+    (I:PP_OUT;S:'sysout';N:1),
+    (I:PP_OUTM;S:'sysoutm';N:1),
+    (I:PP_LINE;S:'sysline';N:0),
+    (I:PP_BACKTRACE;S:'sysbacktrace';N:0),
+    (I:PP_CLRSRC;S:'sysclrsrc';N:0),
+    (I:PP_EVAL;S:'syseval';N:2),
+    (I:PP_ASSIGN;S:'sysassign';N:2),
+    (I:PP_DUMP;S:'sysdump';N:0),
+    (I:PP_DIF;S:'sysdif';N:2)
   );
 
-{ data structure for high precision arithmetic }
-Const
-  MaxFuncNbParams = 2; { maximum number of parameter for a predefined function }
-Type
-  TParVal = Record
-    IsReal : Boolean;
-    Val : LongReal
-  End;
-  TParArray = Array[1..MaxFuncNbParams] Of TParVal; { parameter value }
-
-{ lookup for a predefined predicate or function; set the found record; 
+{ lookup for a predefined predicates; set the found record; 
   return True if found  }
-Function LookupPred( typ : TPPType; str : TString; Var rec : TPPred) : Boolean;
+Function LookupPP( str : TString; Var rec : TPPRec) : Boolean;
 Var 
-  i : 0..NBPred;
+  i : 0..NB_PP;
   Found : Boolean;
 Begin
   i := 0;
   Found := False;
-  While (Not Found) And (i<NBPred) Do
+  While (Not Found) And (i < NB_PP) Do
   Begin
     i := i + 1;
-    If (APPred[i].T = typ) And (APPred[i].S = str) Then
+    If PPArray[i].S = str Then
     Begin
       Found := True;
-      rec := APPred[i]
+      rec := PPArray[i]
     End
   End;
-  LookupPred := Found
+  LookupPP := Found
 End;
+
 
 { is an identifier a syscall? }
 Function IdentifierIsSyscall; (*( I : IdPtr ) : Boolean; *)
@@ -124,145 +108,14 @@ Begin
   I := InstallIdentifier(P^.PP_DCON,NewStringFrom(SYSCALL_IDENT_AS_STRING),True)
 End;
 
-{ evaluate a term T; The expression to be evaluated is constructed 
-  recursively from constants, identifiers and evaluable functions;
-  return Nil if the expression cannot be evaluated }
-Function EvaluateExpression( T : TermPtr; P : ProgPtr ) : TermPtr;
-Var
-  FT : FuncPtr Absolute T;
-  IT : IdPtr Absolute T;
-  e : TermPtr;
-  Ce : ConstPtr Absolute e;
-  Ident : TermPtr;
-  IIdent : IdPtr Absolute Ident;
-  T1,T2 : TermPtr;
-  CT1 : ConstPtr Absolute T1;
-  CT2 : ConstPtr Absolute T2;
-  code : Integer;
-  rs : TString;
-  s : StrPtr;
-  Ok : Boolean;
-  rec : TPPred;
-  str : TString;
-  ParVal : TParArray;
-  i : Byte;
-  r : LongReal; { result of numerical evaluation }
-  isInt : Boolean; { should this result be converted to an integer value? }
-  cot : TypePrologObj;
-Begin
-  e := Nil;
-  T := RepresentativeOf(T);
-  If T <> Nil Then
-  Begin
-    Case TypeOfTerm(T) Of
-    Identifier, Constant:
-      e := T;
-    Variable:
-      e := T; { unbounded variable evaluates to itself (different from standard behavior) ) }
-    FuncSymbol:
-      Begin
-        { try to get an evaluate an evaluable function }
-        Ident := EvaluateExpression(Argument(1,FT),P);
-        If Ident <> Nil Then
-        Begin
-          If TypeOfTerm(Ident) = Identifier Then
-          Begin
-            { function is known and has the correct number of parameters }
-            str := IdentifierGetPStr(IIdent);
-            Ok := LookupPred(PFunction,str,rec);
-            If Ok Then
-              Ok := NbArguments(FT) = rec.N + 1
-            Else
-              e := T; { not a known function: return the term }
-            { evaluate the function's parameters }
-            If Ok Then
-              For i := 1 to rec.N Do
-              Begin
-                If Ok Then
-                Begin
-                  T1 := EvaluateExpression(Argument(1+i,FT),P);
-                  Ok := T1 <> Nil;
-                End;
-                If Ok Then
-                  Ok := TypeOfTerm(T1) = Constant;
-                If Ok Then
-                  Ok := ConstType(CT1) In [IntegerNumber,RealNumber];
-                If Ok Then
-                Begin
-                  With ParVal[i] Do
-                  Begin
-                    If ConstType(CT1) = IntegerNumber Then
-                    Begin
-                      IsReal := False;
-                      Val := StrToLongInt(ConstGetPStr(CT1),code)
-                    End
-                    Else
-                    Begin
-                      IsReal := True;
-                      Val := StrToLongReal(ConstGetPStr(CT1),code)
-                    End
-                  End;
-                  Ok := code = 0
-                End
-              End;
-            If Ok Then
-            Begin
-              { by default, ops on integers give integer results }
-              IsInt := Not ParVal[1].IsReal And Not ParVal[2].IsReal;
-              Case rec.I Of { TODO: absolute precision }
-                PF_ADD:
-                  r := ParVal[1].Val + ParVal[2].Val;
-                PF_SUB:
-                  r := ParVal[1].Val - ParVal[2].Val;
-                PF_MUL:
-                  r := ParVal[1].Val * ParVal[2].Val;
-                PF_DIV:
-                  Begin
-                    Ok := ParVal[2].Val <> 0;
-                    If Ok Then
-                      If IsInt Then { integer division }
-                        r := LongIntDiv(LongRealToLongInt(ParVal[1].Val),
-                            LongRealToLongInt(ParVal[2].Val))
-                      Else
-                        r := ParVal[1].Val / ParVal[2].Val
-                  End;
-                PF_INF:
-                  Begin
-                    r := Ord(ParVal[1].Val < ParVal[2].Val);
-                    IsInt := True
-                  End
-              End;
-              If Ok Then
-              Begin
-                { generate canonical numeric constants }
-                If IsInt Then
-                Begin
-                  rs := LongIntToStr(LongRealToLongInt(r));
-                  cot := CI
-                End
-                Else
-                Begin
-                  rs := LongRealToStr(r);
-                  cot := CR
-                End;
-                s := NewStringFrom(rs);
-                Ce := InstallConst(P^.PP_DCON,s,cot,False) { FIXME: not glob? }
-              End
-            End
-          End
-          Else
-            e := T { not an identifier (e.g. <100>), return the term }
-        End
-      End
-    End
-  End;
-  EvaluateExpression := e
-End;
+
+{----------------------------------------------------------------------------}
+{ syscall                                                                    }
+{----------------------------------------------------------------------------}
 
 { execute a system call syscall(Code,Arg1,...ArgN), meaning Code(Arg1,...,ArgN) }
 Function ExecutionSysCallOk; (* ( T : TermPtr; P : ProgPtr; Q : QueryPtr ) : Boolean; *)
 Var
-  FT : FuncPtr Absolute T;
   Ok : Boolean;
   Ident : StrPtr;
   NbArgs : Integer;
@@ -275,8 +128,7 @@ Var
   IT2 : IdPtr Absolute T2;
   VT2 : VarPtr Absolute T2;
   C : ConstPtr;
-  TC : TPObjPtr Absolute C;
-  rec : TPPred;
+  rec : TPPRec;
   str : TString;
   ch : TChar;
   I : IdPtr;
@@ -285,10 +137,10 @@ Var
   Stop : Boolean;
   FileName : TString;
 
-  { get n-th argument of the predicate represented by tuple F }
-  Function GetPArg( n : Byte; F : FuncPtr ) : TermPtr;
+  { get n-th argument of the predicate represented by tuple U }
+  Function GetPArg( n : Byte; U : TermPtr ) : TermPtr;
   Begin
-    GetPArg := Argument(2+n,F)
+    GetPArg := TupleArgN(2+n,U)
   End;
 
 Begin
@@ -296,26 +148,26 @@ Begin
   CheckCondition(TypeOfTerm(T) = FuncSymbol,'syscall: functional symbol expected');
   
   { first parameter is syscall }
-  T1 := Argument(1,FT);
+  T1 := TupleArgN(1,T);
   CheckCondition(TypeOfTerm(T1) = Identifier,'syscall: constant expected');
   SysCallCode := IdentifierGetStr(IT1);
   CheckCondition(StrEqualTo(SysCallCode,SYSCALL_IDENT_AS_STRING),'Not a syscall');
 
   { there are at least two arguments: 'syscall' and the identifier }
-  NbArgs := NbArguments(FT);
+  NbArgs := TupleArgCount(T);
   Ok := NbArgs >= 2;  
   If Ok Then
   Begin
-    T2 := Argument(2,FT);
+    T2 := TupleArgN(2,T);
     Ident := IdentifierGetStr(IT2);
-    Ok := StrLength(Ident) <= MaxPredLength
+    Ok := StrLength(Ident) <= MAX_PP_LENGHT
   End;
 
   { predicate is known and has the correct number of parameters }
   If Ok Then
   Begin
     str := StrGetString(Ident);
-    Ok := LookupPred(PPredicate,str,rec);
+    Ok := LookupPP(str,rec);
     If Ok Then
     Begin
       NbPar := NbArgs - 2;
@@ -329,8 +181,8 @@ Begin
     Case rec.I Of
     PP_DIF:
       Begin
-        T1 := GetPArg(1,FT);
-        T2 := GetPArg(2,FT);
+        T1 := GetPArg(1,T);
+        T2 := GetPArg(2,T);
         Ok := ReduceOneIneq(T1,T2)
       End;
     PP_ASSIGN: { assign(file_name, "myfile.txt") }
@@ -339,7 +191,7 @@ Begin
           e.g. "assign(test,1)", contains i=1 (w/o any remaining reference to the 
           identifier) }
         { get the identifier }
-        T1 := GetPArg(1,FT);
+        T1 := GetPArg(1,T);
         Case TypeOfTerm(T1) Of
         Identifier: { an identifier, thus unbound (first assignment) }
           Begin
@@ -350,7 +202,7 @@ Begin
           Begin
             I := VT1^.TV_IRED;
             If I = Nil Then { variable has never been bound to an identifier }
-              I := EvaluateToIdentifier(GetPArg(1,FT));
+              I := EvaluateToIdentifier(GetPArg(1,T));
             Ok := I <> Nil;
             If Ok Then
             Begin
@@ -368,7 +220,7 @@ Begin
           UnbindVar(I);
           I^.TV_ASSI := True;
           { second parameter }
-          T2 := GetPArg(2,FT);
+          T2 := GetPArg(2,T);
           { assign }
           Ok := ReduceOneEq(TI,T2) { "ident = term" }
         End
@@ -378,19 +230,19 @@ Begin
         { evaluate the term; it may includes variables and constraints;
           thus, our assign is similar to "cassign(i,t)";
           see p113 of the PrologII+ documentation }
-        T1 := EvaluateExpression(GetPArg(1,FT),P); { FIXME: do a copy and unbound variables? }
+        T1 := EvaluateExpression(GetPArg(1,T),P); { FIXME: do a copy and unbound variables? }
         Ok := T1 <> Nil;
         If Ok Then
         Begin
-          T2 := GetPArg(2,FT);
+          T2 := GetPArg(2,T);
           Ok := ReduceOneEq(T2,T1) { FIXME: shouldn't it be backtrackable? }
         End
       End;
     PP_QUIT:
       Terminate(0);
-    PP_INSERT: { insert("file.pro") }
+    PP_INSERT: { insert("file") }
       Begin
-        C := EvaluateToString(GetPArg(1,FT));
+        C := EvaluateToString(GetPArg(1,T));
         Ok := C <> Nil;
         If Ok Then
         Begin
@@ -415,7 +267,7 @@ Begin
       End;
     PP_INPUT: { input("buffer") }
       Begin
-        C := EvaluateToString(GetPArg(1,FT));
+        C := EvaluateToString(GetPArg(1,T));
         Ok := C <> Nil;
         If Ok Then
         Begin
@@ -426,8 +278,8 @@ Begin
       End;
     PP_INPUT_IS: { input_is(s) }
       Begin
-        C := InstallConst(P^.PP_DCON,NewStringFrom(InputIs),CS,False);
-        Ok := ReduceOneEq(GetPArg(1,FT),TC)
+        T1 := EmitConst(P,NewStringFrom(InputIs),CS,False);
+        Ok := ReduceOneEq(GetPArg(1,T),T1)
       End;
     PP_CLOSE_CURRENT_INPUT: { close_input }
       Begin
@@ -436,7 +288,7 @@ Begin
       End;
     PP_CLOSE_INPUT: { close_input("buffer") }
       Begin
-        C := EvaluateToString(GetPArg(1,FT));
+        C := EvaluateToString(GetPArg(1,T));
         Ok := C <> Nil;
         If Ok Then
           CloseInputByName(ConstGetPStr(C)) { TODO: warn when length > 255 }
@@ -448,7 +300,7 @@ Begin
       End;
     PP_OUTPUT: { output("buffer") }
       Begin
-        C := EvaluateToString(GetPArg(1,FT));
+        C := EvaluateToString(GetPArg(1,T));
         Ok := C <> Nil;
         If Ok Then
         Begin
@@ -459,8 +311,8 @@ Begin
       End;
     PP_OUTPUT_IS: { output_is(s) }
       Begin
-        C := InstallConst(P^.PP_DCON,NewStringFrom(OutputIs),CS,False);
-        Ok := ReduceOneEq(GetPArg(1,FT),TC)
+        T1 := EmitConst(P,NewStringFrom(OutputIs),CS,False);
+        Ok := ReduceOneEq(GetPArg(1,T),T1)
       End;
     PP_CLOSE_CURRENT_OUTPUT: { close_output }
       Begin
@@ -469,7 +321,7 @@ Begin
       End;
     PP_CLOSE_OUTPUT: { close_output("buffer") }
       Begin
-        C := EvaluateToString(GetPArg(1,FT));
+        C := EvaluateToString(GetPArg(1,T));
         Ok := C <> Nil;
         If Ok Then
           CloseOutput(ConstGetPStr(C)) { TODO: warn when length > 255 }
@@ -487,12 +339,12 @@ Begin
     PP_OUT:
       Begin
         Ok := True;
-        OutTerm(GetPArg(1,FT),True)
+        OutTerm(GetPArg(1,T),True)
       End;
     PP_OUTM:
       Begin
         Ok := True;
-        OutTermBis(GetPArg(1,FT),False,False,True)
+        OutTermBis(GetPArg(1,T),False,False,True)
       End;
     PP_LINE:
       Begin
@@ -511,7 +363,7 @@ Begin
         T1 := ParseOneTerm(P);
         Ok := Not Error;
         If Ok Then
-          Ok := ReduceOneEq(GetPArg(1,FT),T1)
+          Ok := ReduceOneEq(GetPArg(1,T),T1)
       End;
     PP_IN_CHAR:
       Begin
@@ -520,8 +372,8 @@ Begin
         Ok := Not Error;
         If Ok Then
         Begin
-          C := InstallConst(P^.PP_DCON,NewStringFrom(str),CS,False);
-          Ok := ReduceOneEq(GetPArg(1,FT),TC)
+          T1 := EmitConst(P,NewStringFrom(str),CS,False);
+          Ok := ReduceOneEq(GetPArg(1,T),T1)
         End
       End;
     PP_BACKTRACE:

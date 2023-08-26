@@ -232,6 +232,33 @@ Begin
 End;
 
 {-----------------------------------------------------------------------}
+{ methods: misc. convenient emit functions                              }
+{-----------------------------------------------------------------------}
+
+{ return a new constant as a term }
+Function EmitConst( P : ProgPtr; s : StrPtr; ty : TypePrologObj; 
+    glob : Boolean ) : TermPtr;
+Var
+  C : ConstPtr;
+  TC : TermPtr Absolute C;
+Begin
+  EmitConst := Nil;
+  C := InstallConst(P^.PP_DCON,s,ty,glob);
+  EmitConst := TC
+End;
+
+{ return a new identifier as a term, from a Pascal string }
+Function EmitIdent( P : ProgPtr; ident : TString; glob : Boolean ) : TermPtr;
+Var
+  I : IdPtr;
+  TI : TermPtr Absolute I;
+Begin
+  EmitIdent := Nil;
+  I := InstallIdentifier(P^.PP_DIDE,NewStringFrom(ident),glob);
+  EmitIdent := TI
+End;
+
+{-----------------------------------------------------------------------}
 { methods                                                               }
 {-----------------------------------------------------------------------}
 

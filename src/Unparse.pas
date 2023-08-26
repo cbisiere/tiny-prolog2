@@ -102,20 +102,14 @@ End;
 
 Procedure WriteTermBis( s : StrPtr; T : TermPtr; ArgList,Quotes,Solution : Boolean); Forward;
 
-{ write a comma-separated list of arguments, coded as F(arg1,F(arg2,Nil)) }
-Procedure WriteArgument( s : StrPtr; F : FuncPtr; Solution : Boolean );
-Var 
-  T : TermPtr;
-  FT : FuncPtr Absolute T;
+{ write a comma-separated list of arguments in tuple U }
+Procedure WriteArgument( s : StrPtr; U : TermPtr; Solution : Boolean );
 Begin
-  WriteTermBis(s,FLeftArg(F),False,True,Solution);
-  If FRightArg(F) <> Nil Then
+  WriteTermBis(s,TupleHead(U),False,True,Solution);
+  If TupleQueue(U) <> Nil Then
   Begin
     StrAppend(s,',');
-    CheckCondition((FRightArg(F)=Nil) Or (TypeOfTerm(FRightArg(F))=FuncSymbol),
-      'broken argument list');
-    T := FRightArg(F);
-    WriteArgument(s,FT,Solution)
+    WriteArgument(s,TupleQueue(U),Solution)
   End
 End;
 
@@ -139,10 +133,10 @@ End;
 
 
 { write a tuple }
-Procedure WriteTuple( s : StrPtr; F : FuncPtr; Solution : Boolean );
+Procedure WriteTuple( s : StrPtr; U : TermPtr; Solution : Boolean );
 Begin
   StrAppend(s,'<');
-  WriteArgument(s,F,Solution);
+  WriteArgument(s,U,Solution);
   StrAppend(s,'>')
 End;
 
@@ -155,15 +149,11 @@ Var
   CT : ConstPtr Absolute T;
   VT : VarPtr Absolute T;
   IT : IdPtr Absolute T;
-  FT : FuncPtr Absolute T;
   PT : TPObjPtr Absolute T;
   { others: }
-  F : FuncPtr;
-  LeftT : TermPtr;
-  ILeftT : IdPtr Absolute LeftT;
+  Th : TermPtr;
+  ITh : IdPtr Absolute Th;
   T1,T2 : TermPtr;
-  FT1 : FuncPtr Absolute T1;
-  FT2 : FuncPtr Absolute T2;
 Begin
   Case TypeOfTerm(T) Of
   Constant:
@@ -197,37 +187,40 @@ Begin
     End;
   FuncSymbol:
     Begin
-      F := FT;
-      LeftT := FLeftArg(F);
-      If (TypeOfTerm(LeftT) = Identifier) Then
-      Begin
-        If IdentifierEqualTo(ILeftT,'.') Then { F(.,F(a,F(b,Nil))) => a.b }
+      If IsEmptyTuple(T) Then
+        StrAppend(s,'<>')
+      Else
+      Begin 
+        Th := TupleHead(T);
+        If (TypeOfTerm(Th) = Identifier) Then
         Begin
-          If ArgList Then 
-            StrAppend(s,'(');
-          T1 := FRightArg(F);
-          WriteTermBis(s,FLeftArg(FT1),True,True,Solution);
-          StrAppend(s,'.');
-          T2 := FRightArg(FT1); { TODO: check type }
-          WriteTermBis(s,FLeftArg(FT2),False,True,Solution);
-          If ArgList Then 
-            StrAppend(s,')')
-        End
-        Else
-        Begin 
-          WriteIdentifier(s,ILeftT);
-          If FRightArg(F)<>Nil Then { F(name,F(a,F(b,Nil) => name(a,b) }
+          If IdentifierEqualTo(ITh,'.') Then { a.b }
           Begin
-            T1 := FRightArg(F);
-            StrAppend(s,'(');
-            WriteArgument(s,FT1,Solution); { TODO: check type }
-            StrAppend(s, ')')
+            If ArgList Then 
+              StrAppend(s,'(');
+            T1 := TupleQueue(T);
+            WriteTermBis(s,TupleHead(T1),True,True,Solution);
+            StrAppend(s,'.');
+            T2 := TupleQueue(T1);
+            WriteTermBis(s,TupleHead(T2),False,True,Solution);
+            If ArgList Then 
+              StrAppend(s,')')
+          End
+          Else
+          Begin 
+            WriteIdentifier(s,ITh);
+            If TupleQueue(T)<>Nil Then { <ident,a,b> is eq. to ident(a,b) }
+            Begin
+              StrAppend(s,'(');
+              WriteArgument(s,TupleQueue(T),Solution);
+              StrAppend(s, ')')
+            End
           End
         End
-      End
-      Else { F(a,F(b,Nil) => <a,b> where a not an identifier }
-      Begin
-        WriteTuple(s,F,Solution)
+        Else { <a,b> where a not an identifier }
+        Begin
+          WriteTuple(s,T,Solution)
+        End
       End
     End
   End

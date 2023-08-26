@@ -46,9 +46,11 @@ Procedure WriteToEchoFile( s : TString ); Forward;
 {$I IStream.pas   }  { read from file                              }
 {$I IStack.pas    }  { terminal and input file stack               }
 {$I OStack.pas    }  { terminal and output file stack              }
-{$I Unparse.pas   }  { decode objects                              }
+{$I Encoding.pas  }  { encode and decode terms                     }
+{$I Unparse.pas   }  { print objects                               }
 {$I Reduc.pas     }  { system reduction                            }
 {$I Tokenize.pas  }  { Tokenize an input stream                    }
+{$I Expr.pas      }  { expressions                                 }
 {$I Parse.pas     }  { encode objects                              }
 {$I Clock.pas     }  { Prolog clock                                }
 {$I Run.pas       }  { load rules and execute queries              }
@@ -59,15 +61,26 @@ Procedure WriteToEchoFile( s : TString ); Forward;
 
 { compile the user program and solve each query }
 Procedure Main;
-var
+Var
   P : ProgPtr;
+  Prompt : TString;
 Begin
   Initialize;
   P := CreateProgram;
   ProcessParameters(P);
   Repeat
     Error := False;
-    CWrite('> ');
+    Case GetSyntax(P) Of
+    PrologII:
+      Prompt := '> ';
+    PrologIIc:
+      Prompt := 'c> ';
+    PrologIIp:
+      Prompt := '+> ';
+    Edinburgh:
+      Prompt := '?- ';
+    End;
+    CWrite(Prompt);
     ReadFromConsole;
     While ParseCommandLineQuery(P) And Not Error Do
       AnswerQueries(P,False)

@@ -47,9 +47,17 @@ dump :- syscall(sysdump).
 
 "helpers"
 
-true.
 eq(X,X).
 dif(X,Y) :- syscall(sysdif,X,Y).
 
 [P|Q] :- P, Q.
 nil.
+
+"Edinburgh-specific rules"
+
+true.
+
+is(X,Y) :- val(Y,X).
+
+consult(F) :- insert(F).
+

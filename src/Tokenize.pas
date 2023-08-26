@@ -574,7 +574,7 @@ Begin
   '|':
     K := GrabToken(TOKEN_PIPE,c);
   Else
-    Begin { should be a variable or an identifiers }
+    Begin { should be a variable or an identifier }
       K := NewToken(TOKEN_UNKNOWN);
       With K^ Do
       Begin
