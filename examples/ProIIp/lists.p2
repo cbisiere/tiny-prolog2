@@ -1,0 +1,8 @@
+/* Edinburgh-style lists are supported in PrologII+ mode, where both syntaxes can be mixed, and satisfy the five equivalences listed on page 45 of the Prolog II+ documentation. Surprisingly, the French documentation adds a sixth (p48). */
+
+-> eq([a|b],a.b);
+-> eq([a,b],a.b.nil);
+-> eq([a,b,c,d],a.b.c.d.nil);
+-> eq([a,b,c|d],a.b.c.d);
+-> eq([a,b|c.d.nil],a.[b,c,d]);
+-> eq([],nil);

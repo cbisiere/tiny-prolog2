@@ -56,21 +56,23 @@ Inserting an element in a list of four items gives three different solutions:
 { x = 1.2.0.nil }
 ```
 
-Edinburgh-style lists are also supported. In PrologII+ mode, both syntaxes  can be mixed, and satisfy the four equivalences listed on page 45 of the Prolog II+ documentation:
+Edinburgh-style lists are also supported. In PrologII+ mode, both syntaxes  can be mixed, and satisfy the five equivalences listed on page 45 of the Prolog II+ documentation, and the sixth listed in the French documentation on page 48:
 
 ```
-$ tprolog2 -PIIp
-> eq([a|b],a.b);
+$ ./tprolog2 -PIIp
++> eq([aa|bb],aa.bb);
 {  }
-> eq([a,b],a.b.nil);
++> eq([aa,bb],aa.bb.nil);
 {  }
-> eq([a,b,c,d],a.b.c.d.nil);
++> eq([aa,bb,cc,dd],aa.bb.cc.dd.nil);
 {  }
-> eq([a,b,c|d],a.b.c.d);
++> eq([aa,bb,cc|dd],aa.bb.cc.dd);
 {  }
-> eq([a,b|c.d.nil],a.[b,c,d]);
++> eq([aa,bb|cc.dd.nil],aa.[bb,cc,dd]);
 {  }
->
++> eq([],nil);
+{  }
++>
 ```
 
 ### Constraints
@@ -259,12 +261,12 @@ insertion(e,f.x,f.y) -> insertion(e,x,y);
 
 To execute a program stored in a file `$file` use the command line `tprolog2 -$syntax $file` where `$syntax` is one of the four supported language flavours. When the `$syntax` parameter is omitted, the syntax is inferred from the file extension.  
 
-Value of `$syntax` | File extension | Prolog flavour
---- | --- | ---
-`PII`  | `.pro` | old Marseille syntax (with dashes in identifiers)
-`PIIc` | `.p2c` | Prolog II with equalities and inequalities (Tiny-Prolog specific; default syntax)
-`PIIp` | `.p2` | Prolog II+
-`E` | `.p2E` or `.pl` | Prolog II+ Edinburgh
+Value of `$syntax` | File extension | Prompt | Prolog flavour
+--- | --- | --- | ---
+`PII`  | `.pro` | `>` | old Marseille syntax (with dashes in identifiers)
+`PIIc` | `.p2c` | `c>` | Prolog II with equalities and inequalities (Tiny-Prolog specific; default syntax)
+`PIIp` | `.p2` | `+>` | Prolog II+
+`E` | `.p2E` or `.pl` | `?-` | Prolog II+ Edinburgh
 
 For instance, to run the tiny-prolog programme `permu.p2c`, just do:
 
@@ -282,23 +284,23 @@ $ ./tprolog2 examples/ProII/permu.p2c
 { a = 2, b = 4, c = 1, d = 3 }
 { a = 4, b = 2, c = 3, d = 1 }
 { a = 4, b = 2, c = 1, d = 3 }
->
+c>
 ```
 
 The final `>`is a prompt, inviting you to type in other queries to execute, e.g.:
 
 ```
-> permutation(1.2.3.nil,3.x.y.nil);
+c> permutation(1.2.3.nil,3.x.y.nil);
 -> permutation(1.2.3.nil,3.x.y.nil);
 { x = 1, y = 2 }
 { x = 2, y = 1 }
->
+c>
 ```
 
 Predefined commands include `list` to list the current user rules:
 
 ```
-> list fail;
+c> list fail;
 -> list fail ;
 permutation(nil,nil) ->;
 permutation(e.x,z) ->
@@ -307,7 +309,7 @@ permutation(e.x,z) ->
 insertion(e,x,e.x) ->;
 insertion(e,f.x,f.y) ->
         insertion(e,x,y);
->
+c>
 ```
 
 and `insert(f)` to insert rules and queries from a file with file path `f`. 
@@ -317,7 +319,7 @@ You can navigate into the history of previous queries using the up and down arro
 When you are done, use `quit` or hit `Ctrl+C` to quit the interpreter.
 
 ```
-> quit;
+c> quit;
 -> quit;
 Bye!
 $

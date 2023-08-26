@@ -53,11 +53,16 @@ dif(X,Y) :- syscall(sysdif,X,Y).
 [P|Q] :- P, Q.
 nil.
 
+
 "Edinburgh-specific rules"
 
 true.
 
+once(X) :- X, !.
+
 is(X,Y) :- val(Y,X).
+
+inf(X,Y) :- val(inf(X,Y),1).
 
 consult(F) :- insert(F).
 

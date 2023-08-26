@@ -375,9 +375,9 @@ Begin
   ReadList := Nil;
   y := GetSyntax(P);
   VerifyToken(P,K,TOKEN_LEFT_BRA);
-  If TokenType(K) = TOKEN_RIGHT_BRA Then { "[]": atom }
+  If TokenType(K) = TOKEN_RIGHT_BRA Then { "[]": empty list }
   Begin
-    T := EmitIdent(P,'[]',True);
+    T := EmitIdent(P,'nil',True);
     K := ReadToken(y)
   End
   Else
@@ -617,10 +617,6 @@ Var
   y : TSyntax;
   B : BTermPtr;
   T : TermPtr;
-  Th : TermPtr;
-  ITh : IdPtr Absolute Th;
-  f : TString;
-  One : TermPtr;
 Begin
   CompileOneGoal := Nil;
   y := GetSyntax(P);
@@ -629,24 +625,7 @@ Begin
   Begin
     PrepareExprParsing;
     If y = Edinburgh Then { expr are allowed at top level }
-    Begin
-      T := ReadOneExpr(P,K,glob,Cut);
-      If IsTuple(T) Then
-      Begin
-        Th := TupleHead(T);
-        If TypeOfTerm(Th) = Identifier Then
-        Begin
-          f := IdentifierGetPStr(ITh);
-          If f = 'is' Then { "X is Y" =>  "val(Y,X)", cf PIII+ doc p221 }
-            T := NewFunc(P,'val',TupleArgN(3,T),TupleArgN(2,T),True)
-          Else If f = 'inf' Then
-          Begin
-            One := EmitConst(P,NewStringFrom('1'),CI,True);
-            T := NewFunc(P,'val',T,One,True)
-          End
-        End
-      End
-    End
+      T := ReadOneExpr(P,K,glob,Cut)
     Else
       T := ReadPTerm(P,K,glob,Cut);
     If Error Then Exit;
