@@ -139,8 +139,8 @@ Var
               Abnormal := True
           Else
           Begin
-            { add "f = f" to the reduced system }
-            SetMem(Uf,OT1,FT1^.TF_TRED,T2,Backtrackable);
+            { add "f = f" to the reduced system; must always be undone }
+            SetMem(Uf,OT1,FT1^.TF_TRED,T2,True);
             { insert in the unreduced system l1=l2 and r1=r2 }
             If (FRightArg(FT1) <> Nil) And (FRightArg(FT2) <> Nil) Then
             Begin
