@@ -33,52 +33,67 @@ Var
   i : Byte;
   par,filename : TString;
   y : TSyntax;
-  Found, HasFile : Boolean;
   s : StrPtr;
   os : TPObjPtr Absolute s;
+  KnownPar, HasFilePar, HasSyntaxPar, SkipStartFile : Boolean;
 Begin
-  i := 1; { index of the parameter to process }
 
-  { syntax parameter }
-  Found := False;
-  If ParamCount >= 1 Then
+  HasSyntaxPar := False;
+  SkipStartFile := False;
+  HasFilePar := False;
+
+  For i := 1 To ParamCount Do
   Begin
-    par := ParamStr(1);
+    par := ParamStr(i);
     If par[1] = '-' Then
     Begin
+      KnownPar := False;
       Delete(par,1,1);
+      { syntax parameter }
       For y := PrologII To Edinburgh Do
       Begin
         If StartFile[y] = par Then
         Begin
+          If HasSyntaxPar Then
+            RaiseError('Syntax parameter cannot be used more than once');
           SetSyntax(P,y);
-          Found := True
+          HasSyntaxPar := True;
+          KnownPar := True
         End
       End;
-      If Not Found Then
-        RaiseError('Syntax parameter: Unknown syntax identifier');
-      i := i + 1
+      { other parameters }
+      If Not KnownPar Then
+        If par = 'D' Then
+        Begin
+          SkipStartFile := True;
+          KnownPar := True
+        End;
+      If Not KnownPar Then
+        RaiseError('Parameter: Unknown option')
+    End
+    Else
+    Begin
+      { user file }
+      If HasFilePar Then
+        RaiseError('Parameter: file already set');
+      HasFilePar := True;
+      filename := par;
     End
   End;
 
-  { user file }
-  HasFile := False;
-  If (Not Error) And (ParamCount = i) Then
+  { detect syntax from file ext if no syntax parameter is set }
+  If Not Error And HasFilePar And Not HasSyntaxPar Then
   Begin
-    HasFile := True;
-    filename := ParamStr(i);
-    { detect format from file ext if no syntax parameter }
-    If Not Found Then
-      If EndsWith(par,'.pl') Then
-        SetSyntax(P,Edinburgh)
-      Else
-      For y := PrologII To Edinburgh Do
-        If EndsWith(par,'.' + FileExt[y]) Then
-          SetSyntax(P,y)
+    If EndsWith(filename,'.pl') Then
+      SetSyntax(P,Edinburgh)
+    Else
+    For y := PrologII To Edinburgh Do
+      If EndsWith(filename,'.' + FileExt[y]) Then
+        SetSyntax(P,y)
   End;
 
   { load the startup file }
-  If Not Error Then
+  If Not Error And Not SkipStartFile Then
   Begin
     y := GetSyntax(P);
     s := NewStringFrom('start/' + StartFile[y] + '.' + FileExt[y]);
@@ -91,7 +106,7 @@ Begin
   SetRuleType(P,RTYPE_USER);
 
   { load the user file }
-  If (Not Error) And (HasFile) Then
+  If Not Error And HasFilePar Then
   Begin
     s := NewStringFrom(filename);
     AddGCRoot(os); { protect this string from GC }
