@@ -18,6 +18,7 @@
 { longest non dynamic string }
 Const
   StringMaxSize = 255;
+  MaxLongInt = 1e+38;
 Type
   TString = String[StringMaxSize];
   TStringSize = 0..StringMaxSize;

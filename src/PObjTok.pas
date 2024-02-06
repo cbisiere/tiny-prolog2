@@ -38,11 +38,7 @@ Type
     TOKEN_DOT,
     TOKEN_COMMA,
     TOKEN_SEMICOLON,
-    TOKEN_EQUAL,
-    TOKEN_PLUS,
-    TOKEN_MINUS,
-    TOKEN_TIMES,
-    TOKEN_DIVIDE,
+    TOKEN_EQUAL,       { equal sign in pIIc constraints }
     TOKEN_PIPE,
     TOKEN_END_OF_INPUT
   );
@@ -72,10 +68,6 @@ Const TokenStr : TypeTokenStr = (
     'comma',
     'semicolon',
     'equal sign',
-    'plus sign',
-    'minus sign',
-    'multiply sign',
-    'divide sign',
     'pipe',
     'end of input'
   );

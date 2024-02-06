@@ -26,7 +26,7 @@ Procedure DumpBacktrace; Forward;
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 24;
+  NB_PP = 25;
   MAX_PP_LENGHT = 21; { max string length }
   SYSCALL_IDENT_AS_STRING = 'syscall'; 
 Type
@@ -36,7 +36,7 @@ Type
     PP_OUTPUT_IS,PP_OUTPUT,PP_CLOSE_CURRENT_OUTPUT,PP_CLOSE_OUTPUT,PP_FLUSH,
     PP_QUIT,PP_INSERT,PP_LIST,
     PP_OUT,PP_OUTM,PP_LINE,
-    PP_BACKTRACE,PP_CLRSRC,PP_EVAL,PP_ASSIGN,PP_DUMP,
+    PP_BACKTRACE,PP_CLRSRC,PP_EVAL,PP_OP,PP_ASSIGN,PP_DUMP,
     PP_DIF);
   TPPRec = Record
     I : TPP; { identifier }
@@ -68,6 +68,7 @@ Const
     (I:PP_BACKTRACE;S:'sysbacktrace';N:0),
     (I:PP_CLRSRC;S:'sysclrsrc';N:0),
     (I:PP_EVAL;S:'syseval';N:2),
+    (I:PP_OP;S:'sysop';N:4), { TODO: 3-arg version }
     (I:PP_ASSIGN;S:'sysassign';N:2),
     (I:PP_DUMP;S:'sysdump';N:0),
     (I:PP_DIF;S:'sysdif';N:2)
@@ -127,15 +128,19 @@ Var
   T2 : TermPtr;
   IT2 : IdPtr Absolute T2;
   VT2 : VarPtr Absolute T2;
-  C : ConstPtr;
+  C,C1,C3 : ConstPtr;
   rec : TPPRec;
   str : TString;
   ch : TChar;
-  I : IdPtr;
+  I,I2,I3,I4 : IdPtr;
   TI : TermPtr Absolute I;
+  v,code : Integer;
+  Id2,Id3,Id4 : TString;
   Qi, QLast : QueryPtr;
   Stop : Boolean;
   FileName : TString;
+  o : OpPtr;
+  ot : TOpType;
 
   { get n-th argument of the predicate represented by tuple U }
   Function GetPArg( n : Byte; U : TermPtr ) : TermPtr;
@@ -144,6 +149,8 @@ Var
   End;
 
 Begin
+  ExecutionSysCallOk := False; { default is to fail }
+
   { coded as a functional symbol }
   CheckCondition(TypeOfTerm(T) = FuncSymbol,'syscall: functional symbol expected');
   
@@ -237,6 +244,52 @@ Begin
           T2 := GetPArg(2,T);
           Ok := ReduceOneEq(T2,T1) { FIXME: shouldn't it be backtrackable? }
         End
+      End;
+    PP_OP: { op(700,xfx,"<",inf) } { TODO: implement full specs PII+ p137}
+      Begin
+        { 1: precedence (integer value between 1 and 1200) }
+        C1 := EvaluateToInteger(GetPArg(1,T));
+        If C1 = Nil Then
+          Exit;
+        str := ConstGetPStr(C1);
+        If Length(str) > 4 Then
+          Exit;
+        Val(str,v,code);
+        If code <> 0 Then
+          Exit;
+        If (v < 0) Or (v > 1200) Then
+          Exit;
+        { 2: type of operator (identifier in a list) }
+        I2 := EvaluateToIdentifier(GetPArg(2,T));
+        If I2 = Nil Then
+          Exit;
+        Id2 := IdentifierGetPStr(I2);
+        If Not IsOpTypeString(Id2) Then
+          Exit;
+        ot := PStrToOpType(Id2);
+        { 3: operator (string or identifier) }
+        I3 := EvaluateToIdentifier(GetPArg(3,T));
+        If I3 <> Nil Then
+          Id3 := IdentifierGetPStr(I3)
+        Else
+        Begin
+          C3 := EvaluateToString(GetPArg(3,T));
+          If C3 = Nil Then
+            Exit;
+          Id3 := ConstGetPStr(C3) { limits to StringMaxSize chars }
+        End;
+        { 4: functional symbol (identifier) }
+        I4 := EvaluateToIdentifier(GetPArg(4,T));
+        If I4 = Nil Then
+          Exit;
+        Id4 := IdentifierGetPStr(I4);
+        { not allowed: existing function with same number of parameters }
+        o := OpLookup(P^.PP_OPER,'',Id4,[],TOpTypeToArity(ot),1200);
+        If o <> Nil Then { TODO: do not fail when both declarations match }
+          Exit;
+        { register the new operator }
+        o := OpAppend(P^.PP_OPER,Id3,Id4,ot,v);
+        Ok := True
       End;
     PP_QUIT:
       Terminate(0);

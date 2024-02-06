@@ -27,7 +27,7 @@ Type
   LongLongInt = Real; { simulate a very long integer }
   LongReal = Extended; { highest precision real }
 
-{ round a long real to a long integer value }
+{ round a long real to a long integer value; may crash }
 Function LongRealToLongInt( v : LongReal ) : LongInt;
 Begin
   LongRealToLongInt := Round(v)

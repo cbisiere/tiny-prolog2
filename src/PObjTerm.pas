@@ -391,6 +391,18 @@ Begin
   EvaluateToConstant := CT
 End;
 
+{ return the integer the term T is equal to, Nil otherwise }
+Function EvaluateToInteger( T : TermPtr ) : ConstPtr;
+Var 
+  C : ConstPtr;
+Begin
+  C := EvaluateToConstant(T);
+  If C <> Nil Then
+    If ConstType(C) <> IntegerNumber Then
+      C := Nil;
+  EvaluateToInteger := C
+End;
+
 { return the string the term T is equal to, Nil otherwise }
 Function EvaluateToString( T : TermPtr ) : ConstPtr;
 Var 

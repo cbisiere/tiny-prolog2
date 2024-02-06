@@ -36,6 +36,7 @@ Procedure WriteToEchoFile( s : TString ); Forward;
 {$I Memory.pas    }  { memory management: GC, cloning...           }
 {$I PObjRest.pas  }  { restore stack                               }
 {$I PObj.pas      }  { Prolog objects: common definitions          }
+{$I PObjOp.pas    }  { Prolog objects: operator                    }
 {$I PObjStr.pas   }  { Prolog objects: long string                 }
 {$I PObjTok.pas   }  { Prolog objects: token                       }
 {$I PObjDict.pas  }  { Prolog objects: dictionary entry            }

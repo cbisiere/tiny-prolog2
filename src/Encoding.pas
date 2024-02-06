@@ -42,17 +42,16 @@
 { tuples                                                                     }
 {----------------------------------------------------------------------------}
 
-{ create a new tuple with two elements T1 and T2; if T2 is Nil, T1 is the sole 
- element in the tuple }
-Function NewTuple( T1,T2 : TermPtr ) : TermPtr;
+{ create a new tuple containing a single term T: <a> }
+Function NewTuple( T : TermPtr ) : TermPtr;
 Begin
-  NewTuple := NewF(T1,T2)
+  NewTuple := NewF(T,Nil)
 End;
 
-{ create the empty tuple <> }
+{ create the empty tuple: <> }
 Function NewEmptyTuple : TermPtr;
 Begin
-  NewEmptyTuple := NewTuple(Nil,Nil)
+  NewEmptyTuple := NewTuple(Nil)
 End;
 
 { return true if U is a tuple }
@@ -61,7 +60,7 @@ Begin
   IsTuple := TypeOfTerm(U) = FuncSymbol
 End;
 
-{ return the first element of a tuple: <a,b,c> => a, <> => Nil }
+{ return the first element of a tuple: <a,b,c> => a; <> => Nil }
 Function TupleHead( U : TermPtr ) : TermPtr;
 Var 
   FU : FuncPtr Absolute U;
@@ -76,6 +75,21 @@ Var
   FU : FuncPtr Absolute U;
 Begin
   TupleQueue := FRightArg(FU)
+End;
+
+{ replace the queue of tuple U1 with tuple U2: <a,b,c> + <d,e,f> => <a,d,e,f>; 
+ mostly used to add an single element to a tuple: <a> + <b> => <a,b> }
+Procedure SetTupleQueue( U1,U2 : TermPtr );
+Var 
+  FU : FuncPtr Absolute U1;
+Begin
+  FSetRightArg(FU,U2)
+End;
+
+{ replace the queue of tuple U with term T }
+Procedure SetTupleQueueTerm( U,T : TermPtr );
+Begin
+  SetTupleQueue(U,NewTuple(T))
 End;
 
 { return true if U is the empty tuple }
@@ -116,14 +130,17 @@ End;
 
 { return a new 1 or 2-argument predicate with identifier given as a Pascal 
  string: "ident: "ident(T1)" or "ident(T1,T2)" }
-Function NewFunc( P : ProgPtr; ident : TString; T1,T2 : TermPtr; 
+Function NewFunc2( P : ProgPtr; ident : TString; T1,T2 : TermPtr; 
     glob : Boolean ) : TermPtr;
+Var
+  U : TermPtr;
 Begin
-  NewFunc := Nil;
-  CheckCondition(T1 <> Nil,'NewFunc: first argument is Nil');
+  CheckCondition(T1 <> Nil,'NewFunc2: first argument is Nil');
+  U := NewTuple(EmitIdent(P,ident,glob));
+  SetTupleQueueTerm(U,T1);
   If T2 <> Nil Then
-    T2 := NewTuple(T2,Nil);
-  NewFunc := NewTuple(EmitIdent(P,ident,glob),NewTuple(T1,T2))
+    SetTupleQueueTerm(TupleQueue(U),T2);
+  NewFunc2 := U
 End;
 
 { return a term "a.b", viewed as '.'(a,b)" and thus implemented as 
@@ -138,6 +155,6 @@ Begin
   EncodeDot := Nil;
   If T2 = Nil Then
     T2 := EmitIdent(P,'nil',True);
-  EncodeDot := NewFunc(P,'.',T1,T2,True)
+  EncodeDot := NewFunc2(P,'.',T1,T2,True)
 End;
 

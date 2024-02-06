@@ -4,7 +4,7 @@
 {   File        : Memory.pas                                                 }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 2023-01-02                                                 }
-{   Updated     : 2023                                                       }
+{   Updated     : 2022,2023,2024                                             }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -23,7 +23,7 @@
 { type of allocated objects; note that SY, EQ, HE, RE are not managed by GC }
 Type
   TypePrologObj = (PR, RU, QU, SY, EQ, BT, CO, FU, VA, ID, CS, CI, CR, DE, HE, 
-      ST, SD, RE, TK);
+      ST, SD, RE, OP, TK);
 
 { string representation of these types (TP3 cannot write enumerated types);
   must match TypePrologObj }
@@ -31,7 +31,7 @@ Type
   TypePrologObjStr = Array[TypePrologObj] Of String[2];
 Const
   ObjStr : TypePrologObjStr = ('PR', 'RU', 'QU', 'SY', 'EQ', 'BT', 'CO', 'FU', 
-      'VA', 'ID', 'CS', 'CI', 'CR', 'DE', 'HE', 'ST', 'SD', 'RE', 'TK');
+      'VA', 'ID', 'CS', 'CI', 'CR', 'DE', 'HE', 'ST', 'SD', 'RE', 'OP', 'TK');
 
 {----------------------------------------------------------------------------}
 { memory allocation stats                                                    }

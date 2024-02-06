@@ -1,4 +1,4 @@
-"Prolog II+ predefined rules"
+"Prolog II+ predefined operators and rules"
 
 "session"
 
@@ -35,10 +35,12 @@ outml(S) -> outm(S) line;
 page -> syscall(sysclrsrc);
 clear -> page fail;
 
-"assign and eval"
+"assign, eval, operators"
 
 assign(I,T) -> syscall(sysassign,I,T);
 val(T1,T2) -> syscall(syseval,T1,T2);
+op(N,I1,S,I2) -> syscall(sysop,N,I1,S,I2);
+op(N,I,S) -> syscall(sysop,N,I,S,S);
 
 "debug"
 
@@ -51,3 +53,19 @@ eq(X,X) ->;
 dif(X,Y) -> syscall(sysdif,X,Y);
 
 nil ->;
+
+not(X) -> X ! fail;
+not(X) ->;
+
+"operators"
+
+->
+    op(700,xfx,'<',inf)
+    op(500,yfx,"+",add)
+    op(500,yfx,"-",sub)
+    op(400,yfx,"*",mul)
+    op(400,yfx,"/",div)
+    op(200,fx,"+",add)
+    op(200,fx,"-",sub)
+    op(200,xfy,"^",'^');
+

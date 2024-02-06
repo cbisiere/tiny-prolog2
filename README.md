@@ -364,7 +364,8 @@ Predicate | Meaning | Example
 Predicate | Meaning | Example
 --- | --- | ---
 `assign(i,t)` | assign identifier `i` with term `t` |
-`val(t1,t2)` | evaluate expression `t1` and unify the rresult with term `t2` | 
+`val(t1,t2)` | evaluate expression `t1` and unify the result with term `t2` | 
+`op(n,ib,i1,i2)` | declare an operator `i1` (identifier or string) with precedence `n`, bracketing type `ib`, and functional symbol `i2` | `> op(700,xfx,"=",eq);`
 
 ### Equations and inequations
 
@@ -419,8 +420,7 @@ term = pterm, [".", term] ;
 term-list = term, [",", term-list] ;
 
 pterm = constant |
-        variable  |
-        identifier, ["(", term-list, ")"] |
+        (variable | identifier), ["(", term-list, ")"] |
         "<", [term-list], ">" |
         "(", term, ")" ;       
 
@@ -485,16 +485,26 @@ query = "->", { term | cut }, [system], ";" ;
 
 ### Prolog II+
 
-Prolog II+ does not allow for dashes in variable names or identifiers. Variables start with a `_` or with a single letter. The cut becomes `!` instead of `/`, the former being reserved for calls to external procedures (a.k.a. _parasites_, e.g. `/?20001`). Tuples gain an alternative syntax: `<>(t1,...tn)`. Expressions are allowed, but cannot appear at the highest level. Finally, both dot and Edinburgh-style lists are supported in Prolog II+ mode, and can be mixed.
+Prolog II+ does not allow for dashes in variable names or (unquoted) identifiers. A single-quoted string (in which single quotes must be doubled) is an identifier. This allows for identifiers containing any characters, and is commonly used to define operators, e.g., `'>>'`. Additionally, identifiers can be made of graphic chars.
+Variables start with a `_` or with a single letter. The cut becomes `!` instead of `/`, the former being reserved for calls to external procedures (a.k.a. _parasites_, e.g. `/?20001`). Tuples gain an alternative syntax: `<>(t1,...tn)`. Expressions are allowed, but cannot appear at the highest level. Finally, both dot and Edinburgh-style lists are supported in Prolog II+ mode, and can be mixed.
 
 ```
 cut = "!" ;
 
 alpha = letter | digit | "_" ;
 
+graphic-char = "#" | "$" | "&" | "*" | "+" | "-" | "/" | ":" | "=" | 
+    "?" | "\" | "@" | "^" | "~"| NBSP ... "¿" | "" | "÷" ;
+
+graphic-identifier = graphic-char, { graphic-char }
+
 variable = ("_" , { alpha }) | extended_var ;
 
 extended_var = letter, [ (digit | "_"), { alpha } ] , { "'" } ;
+
+sq = "'" ;
+
+quoted-identifier = sq, { (character - sq - newline) | (sq, sq) | ("\", newline) }, sq ;
 
 expr = [unary-op], term [binary-op, expr] ;
 
@@ -512,11 +522,11 @@ list-expr = expr, ["," , list-expr] |
             expr, "|", expr ;
 
 ```
-
+where `graphic-identifier` and `quoted-identifier` are two additional forms of `identifier`.
 
 ### Edinburgh
 
-In Edinburgh mode, variable names start with a `_` or with an uppercase letter. Tuples must be written following the `<>(...)` syntax. Syntax for rules and queries also differ from Prolog II+. Expressions are allowed at the highest level, that is, as goal in rules or queries. The goal `X is Y` is equivalent to `val(Y,X)`.
+In Edinburgh mode, variable names start with a `_` or with an uppercase letter. Compared to PrologII+, three additional graphic chars are allowed in unquoted identifiers made of graphic chars. Tuples must be written following the `<>(...)` syntax. Syntax for rules and queries also differ from Prolog II+. Expressions are allowed at the highest level, that is, as goal in rules or queries. The goal `X is Y` is equivalent to `val(Y,X)`.
 
 For now, the Edinburgh parser supports the following part of the syntax:
 
@@ -525,16 +535,14 @@ big-letter = "A"|...|"Z" ;
 
 extended-var = big-letter, [ { alpha } ] ;
 
-sq = "'" ;
-
-quoted-identifier = sq, { (character - sq - newline) | (sq, sq) | ("\", newline) }, sq ;
+additional-graphic-char = ";" |"<" | ">" ;
 
 rule = pterm, [ ":-", expr {",", expr} ], "." ;
 
 query = ":-", expr {",", expr}, "."
 
 ```
-where `quoted-identifier` is an additional form of `identifier`.
+where `additional-graphic-char` is an additional form of `graphic-char`.
 
 A predefined predicate `true` is available in Edinburgh mode.
 

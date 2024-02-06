@@ -125,6 +125,12 @@ Const
   CP850_Letters : CharSet = [#$80..#$9B,#$9D,#$A0..#$A5,#$B5..#$B7,
     #$C6,#$C7,#$D0..#$D4,#$D6..#$D8,#$DE,#$E0..#$E5,#$E7..#$ED];
   CP437_Letters : CharSet = [#$80..#$99,#$A0..#$A5,#$E1];
+  { identifiers can be unquoted graphic chars; PII+ p48-49 }
+  PROLOG_Graphic = ['#','$','&','*','+','-','/',':','=','?','\','@','^','~',
+    #$A0..#$BF,#$D7,#$F7];
+  EDINBURGH_Graphic = [';','<','>',
+    '#','$','&','*','+','-','/',':','=','?', '\','@','^','~',
+    #$A0..#$BF,#$D7,#$F7];
 
 
 { try to read one letter, as defined page R1-2 of the Prolog II+ manual:
@@ -251,10 +257,11 @@ End;
 { read a run of chars delimited by a given 1-byte quote char; when the quote  
  char appears within the run, it must be doubled; long lines can be broken up
  using \<NEWLINE>; the result is a token of type tt; this definition is broad 
- enough to encompass double-quoted constant string and Edinburgh single-quoted 
- atoms }
+ enough to encompass double-quoted constant string and single-quoted 
+ identifiers }
 { TODO: escaped chars }
-Function ReadQuotedRunOfChars( quote : Char; tt : TTokenType ) : TokenPtr;
+Function ReadQuotedRunOfChars( quote : Char; tt : TTokenType; 
+    keep : Boolean ) : TokenPtr;
 Var
   K : TokenPtr;
   c : TChar;
@@ -268,6 +275,8 @@ Begin
   With K^ Do
   Begin
     TK_STRI := NewString;
+    If keep Then
+      StrAppend(TK_STRI,quote);
     Repeat
       Done := False;
       { look for the next char with special meaning inside a string }
@@ -279,14 +288,20 @@ Begin
         If Error Then Exit;
         c := NextChar(c);
         If Error Then Exit;
-        If c = quote Then { doubled: keep only one }
+        If c = quote Then { doubled quotes }
         Begin
           c := GetChar(c);
           If Error Then Exit;
-          StrAppend(TK_STRI,c)
+          StrAppend(TK_STRI,c);
+          If keep Then
+            StrAppend(TK_STRI,quote) { keep both only if no enclosing quotes }
         End
         Else
-          Done := True
+        Begin
+          Done := True;
+          If keep Then
+            StrAppend(TK_STRI,quote)
+        End
       End
       Else If c = '\' Then { backslash or line continuation }
       Begin
@@ -491,6 +506,7 @@ Var
   c,c2 : TChar;
   IsUpper : Boolean;
   n,m : LongInt;
+  GraphicChars : CharSet;
 Begin
   ReadToken := Nil;
   K := Nil;
@@ -506,24 +522,31 @@ Begin
   If Error Then Exit;
   c2 := NextNextChar(c2);
   If Error Then Exit;
-  Case c[1] Of
+  { arrow must be checked before identifiers made of graphic chars }
+  If (c = '-') And (c2 = '>') And (y <> Edinburgh) Then { '->' }
+    K := GrabToken(TOKEN_ARROW,'->')
+  Else If (c = ':') And (c2 = '-') And (y = Edinburgh) Then { ':-' }
+    K := GrabToken(TOKEN_ARROW,':-')
+  { identifiers made of graphic chars }
+  Else If (c[1] In PROLOG_Graphic) And (y = PrologIIp) Or 
+      (c[1] In EDINBURGH_Graphic) And (y = Edinburgh) Then
+  Begin
+    If y = PrologIIp Then
+      GraphicChars := PROLOG_Graphic
+    Else
+      GraphicChars := EDINBURGH_Graphic;
+    K := NewToken(TOKEN_IDENT);
+    With K^ Do
+    Begin
+      TK_STRI := NewString;
+      n := GetCharWhile(TK_STRI,GraphicChars)
+    End
+  End
+  Else Case c[1] Of
   EndOfInput:
     K := NewToken(TOKEN_END_OF_INPUT);
   '0'..'9':
     K := ReadNumber;
-  '*': 
-    If y In [PrologIIp,Edinburgh] Then
-      K := GrabToken(TOKEN_TIMES,'*');
-  '+': 
-    K := GrabToken(TOKEN_PLUS,'+');
-  '-': 
-    If (c2 = '>') And (y <> Edinburgh) Then { '->' }
-      K := GrabToken(TOKEN_ARROW,'->')
-    Else
-      K := GrabToken(TOKEN_MINUS,'-');
-  ':':
-    If (c2 = '-') And (y = Edinburgh) Then { ':-' }
-      K := GrabToken(TOKEN_ARROW,':-');
   '_':
     If y In [PrologIIp,Edinburgh] Then  { a variable: PrologII+ basic syntax }
     Begin
@@ -535,18 +558,15 @@ Begin
       End
     End;
   '"':
-    K := ReadQuotedRunOfChars('"',TOKEN_STRING);
+    K := ReadQuotedRunOfChars('"',TOKEN_STRING,False);
   '''':
-    If y = Edinburgh Then
-      K := ReadQuotedRunOfChars('''',TOKEN_IDENT); { quoted atom }
+    K := ReadQuotedRunOfChars('''',TOKEN_IDENT,True); { quoted identifier }
   '!':
     If y In [PrologIIp,Edinburgh] Then
       K := GrabToken(TOKEN_CUT,c);
   '/':
     If y In [PrologII,PrologIIc] Then
-      K := GrabToken(TOKEN_CUT,c)
-    Else
-      K := GrabToken(TOKEN_DIVIDE,c);
+      K := GrabToken(TOKEN_CUT,c);
   ';':
     K := GrabToken(TOKEN_SEMICOLON,c);
   '(':
@@ -570,7 +590,8 @@ Begin
   ',':
     K := GrabToken(TOKEN_COMMA,c);
   '=':
-    K := GrabToken(TOKEN_EQUAL,c);
+    If y = PrologIIc Then
+      K := GrabToken(TOKEN_EQUAL,c);
   '|':
     K := GrabToken(TOKEN_PIPE,c);
   Else
@@ -632,6 +653,7 @@ Begin
       End
     End
   End;
+
   If Error Then Exit;
   If K = Nil Then
   Begin

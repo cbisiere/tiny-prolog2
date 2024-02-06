@@ -70,7 +70,7 @@ Type
   TStackLen = 0..MAX_EXPR_DEEP;
 Var 
   TStack : Array[1..MAX_EXPR_DEEP] Of TermPtr;
-  OStack : Array[1..MAX_EXPR_DEEP] Of TPFRec;
+  OStack : Array[1..MAX_EXPR_DEEP] Of OpPtr;
   TStackTop : TStackLen;
   OStackTop : TStackLen;
 
@@ -89,21 +89,57 @@ Begin
   CheckCondition(OStackTop = 0,'op stack not empty')
 End;
 
+{ return the (possibly Nil) term at the top of the stack, above TBottom, 
+ or Nil }
+Function TopTerm( TBottom : TStackLen ) : TermPtr;
+Begin
+  If TStackTop > TBottom Then
+    TopTerm := TStack[TStackTop]
+  Else
+    TopTerm := Nil
+End;
+
+{ is a non-null term available in the term stack, above TBottom? }
+Function HasTerm( TBottom : TStackLen ) : Boolean;
+Begin
+  HasTerm := TopTerm(TBottom) <> Nil
+End;
+
+{ return the operator at the top of the stack, above OBottom, or Nil }
+Function TopOp( OBottom : TStackLen ) : OpPtr;
+Begin
+  If OStackTop > OBottom Then
+    TopOp := OStack[OStackTop]
+  Else
+    TopOp := Nil
+End;
+
+{ is there a placeholder at the top of the term stack, indicating that a term  
+ is required to complete an expression (e.g. the second operand of a binary 
+ operator) }
+Function HasPlaceholder( TBottom : TStackLen ) : Boolean;
+Begin
+  HasPlaceholder := False;
+  If TStackTop > TBottom Then
+    If TStack[TStackTop] = Nil Then
+      HasPlaceholder := True
+End;
+
 { push an op }
-Procedure PushExprOp( Op : TPFRec );
+Procedure PushExprOp( o : OpPtr );
 Begin
   If OStackTop > MAX_EXPR_DEEP - 1 Then
     SyntaxError('expression too complex');
   If Error Then Exit;
   OStackTop := OStackTop + 1;
-  OStack[OStackTop] := Op
+  OStack[OStackTop] := o
 End;
 
 { pop an op }
-Procedure PopExprOp( Var Op : TPFRec );
+Procedure PopExprOp( Var o : OpPtr; OBottom : TStackLen );
 Begin
-  CheckCondition(OStackTop > 0,'PopExprOp: op stack is empty');
-  Op := OStack[OStackTop];
+  CheckCondition(OStackTop > OBottom,'PopExprOp: op stack is empty');
+  o := OStack[OStackTop];
   OStackTop := OStackTop - 1
 End;
 
@@ -117,164 +153,235 @@ Begin
   TStack[TStackTop] := T
 End;
 
-{ pop a term }
-Procedure PopExprTerm( Var T : TermPtr );
+{ push a placeholder in the term stack, indicating that a term is required  
+ to complete an expression (e.g. the second operand of a binary operator) }
+Procedure PushPlaceholder;
 Begin
-  CheckCondition(TStackTop > 0,'PopExprTerm: term stack is empty');
+  PushExprTerm(Nil)
+End;
+
+{ pop a term }
+Procedure PopExprTerm( Var T : TermPtr; TBottom : TStackLen  );
+Begin
+  CheckCondition(TStackTop > TBottom,'PopExprTerm: term stack is empty');
   T := TStack[TStackTop];
   TStackTop := TStackTop - 1
 End;
 
-{ replace the top operator and associated operands terms with a term }
-Procedure ReduceTopExpr( P : ProgPtr );
+{ replace the top operator and associated operand(s) with a term }
+Procedure ReduceTopExpr( P : ProgPtr; TBottom, OBottom : TStackLen );
 Var
-  Op : TPFRec;
+  o : OpPtr;
   T,T1,T2 : TermPtr;
 Begin
-  PopExprOp(Op);
-  CheckCondition(Op.N in [1,2],'ReduceTopExpr: unexpected arity');
-  Case Op.N Of
+  PopExprOp(o,OBottom);
+  CheckCondition(o^.OP_NPAR In [1,2],'ReduceTopExpr: unexpected arity');
+  Case o^.OP_NPAR Of
   1:
     Begin
-      PopExprTerm(T1);
+      PopExprTerm(T1,TBottom);
+      CheckCondition(T1 <> Nil,'ReduceTopExpr: unexpected Nil term');
       T2 := Nil
     End;
   2:
     Begin
-      PopExprTerm(T2);
-      PopExprTerm(T1)
-    End;
+      PopExprTerm(T2,TBottom);
+      PopExprTerm(T1,TBottom);
+      CheckCondition((T1<>Nil) And (T2<>Nil),
+          'ReduceTopExpr: unexpected Nil terms');
+      
+    End
   End;
-  T := NewFunc(P,Op.S,T1,T2,True);
+  T := NewFunc2(P,o^.OP_FUNC,T1,T2,True);
   PushExprTerm(T)
 End;
 
+{ reduce as much as possible the expression stack, e.g
+ 1*2+3 => mul(1,2)+3 }
+Procedure ReduceExprStack( P : ProgPtr; TBottom, OBottom : TStackLen );
+Var
+  T : TermPtr;
+  o : OpPtr;
+  Stop : Boolean; { no more reduction }
+  pre1,pre2 : TPrecedence;
+  typ1 : TOpType;
+Begin
+  Repeat
+    Stop := True;
+    If (OStackTop - OBottom) >= 2 Then { at least two operators }
+    Begin
+      If (OStack[OStackTop] <> Nil) Then { no pending term }
+      Begin
+        CheckCondition(OStack[OStackTop-1] <> Nil,
+            'ReduceExprStack: unexpected Nil term');
+        pre1 := OStack[OStackTop]^.OP_PRED;
+        typ1 := OStack[OStackTop]^.OP_TYPE;
+        pre2 := OStack[OStackTop-1]^.OP_PRED;
+        { priorities allow reduction? }
+        If (pre1 > pre2) Or (pre1 = pre2) And (typ1 In [fy,yf,yfx]) Then
+        Begin
+          PopExprOp(o,OBottom);
+          Case o^.OP_NPAR Of
+          1:
+            Begin
+              ReduceTopExpr(P,TBottom,OBottom)
+            End;
+          2:
+            Begin
+              PopExprTerm(T,TBottom);
+              ReduceTopExpr(P,TBottom,OBottom);
+              PushExprTerm(T)
+            End
+          End;
+          PushExprOp(o);
+          Stop := False
+        End
+      End
+    End
+  Until Stop
+End;
+
+
 { reduce all the expressions remaining in the stack and return the remaining 
  term }
-Function ReduceAllExpr( P : ProgPtr; Bottom : TStackLen ) : TermPtr;
+Function ReduceAllExpr( P : ProgPtr; TBottom, OBottom : TStackLen ) : TermPtr;
 Var
   T : TermPtr;
 Begin
   ReduceAllExpr := Nil;
-  While OStackTop > Bottom Do
-    ReduceTopExpr(P);
-  PopExprTerm(T); { final term }
+  While OStackTop > OBottom Do
+    ReduceTopExpr(P,TBottom,OBottom);
+  PopExprTerm(T,TBottom); { final term }
+  CheckCondition(TStackTop=TBottom,'ReduceAllExpr: terms left in the stack');
   ReduceAllExpr := T
 End;
 
-{ push an expr: binary ("op right-term") or unary ("op Nil"); reduce the top
- expression when possible }
-Procedure PushExpr( P : ProgPtr; Bottom : TStackLen; Op : TPFRec; T : TermPtr );
+{ if the next token is an operator whose type is in a given set and has a 
+ max precedence of MaxPred, return it; otherwise return Nil;
+ do not consume the token }
+Function NextOp( P : ProgPtr; Var K : TokenPtr; OpTypes : TOpTypes;
+    MaxPred : TPrecedence ) : OpPtr;
+Var
+  y : TSyntax;
+  o : OpPtr;
+  oper : TString;
 Begin
-  If OStackTop > Bottom Then
-    If Op.P >= OStack[OStackTop].P Then { new op has lower or equal priority }
-      ReduceTopExpr(P);
-  PushExprOp(Op);
-  If T <> Nil Then
-    PushExprTerm(T)
+  y := GetSyntax(P);
+  o := Nil;
+  If TokenType(K) = TOKEN_IDENT Then
+  Begin
+    oper := StrGetFirstData(K^.TK_STRI);
+    o := OpLookup(P^.PP_OPER,oper,'',OpTypes,0,MaxPred)
+  End;
+  NextOp := o
 End;
 
-{ read an expression: [uop] term [bop term]*
- TODO: "The trees corresponding to the unary operators + and - are evaluated 
- when analyzed if their argument is an integer constant." (PII+ p48) 
- TODO: handle xfx; in PII+ eq(x,1 '<' 2 '<' 3) raises a syntax error
- To better understand this xfx vs yfx, see the comments there:
+{ read an expression of max precedence MaxPred, reducing the expression using 
+ the term and operator stacks above Bottom only.
+ (see pII+ p.44, "1.9.1 The syntactic level", rules 6.* "expr") 
+ TODO: in PII+ eq(x,1 '<' 2 '<' 3) raises a syntax error
  https://www.swi-prolog.org/pldoc/doc_for?object=op/3 }
-Procedure ReadExpr( P : ProgPtr; Var K : TokenPtr; Bottom : TStackLen; 
-    glob : Boolean; Cut : Boolean);
+Function ReadExpr( P : ProgPtr; Var K : TokenPtr; 
+    TBottom, OBottom : TStackLen; MaxPred : TPrecedence; 
+    glob : Boolean; Cut : Boolean) : TermPtr;
 Var
   y : TSyntax;
   T : TermPtr;
-  f : TString;
-  Op : TPFRec;
-  HasUnaryOp : Boolean;
-  Ok, Stop : Boolean;
+  o : OpPtr;
+  Found : Boolean; { case identified and treated }
+  Done : Boolean; { are we done parsing the expression? }
+  CT : ConstPtr Absolute T;
+  s : StrPtr;
 Begin
   y := GetSyntax(P);
-  { optional unitary-op }
-  HasUnaryOp := TokenType(K) In [TOKEN_MINUS, TOKEN_PLUS];
-  If HasUnaryOp Then { fx }
-  Begin
-    Case TokenType(K) Of
-    TOKEN_MINUS:
-      f := 'minus';
-    TOKEN_PLUS:
-      f := 'plus';
-    End;
-    Ok := LookupPF(f,Op);
-    CheckCondition(Ok, 'ReadOneExpr: unary op not found');
-    CheckCondition(Op.N=1, 'ReadOneExpr: not unary');
-    K := ReadToken(y)
-  End;
-  { first pterm }
-  T := ReadTerm(P,K,glob,Cut);
-  If Error Then Exit;
-  PushExprTerm(T);
-  { push the unary op if any, offering a chance to reduce the op stack; must
-   be done after pushing the term }
-  If HasUnaryOp Then
-    PushExpr(P,Bottom,Op,Nil);
-  Stop := False;
-  { optional series of "binary-op pterm" }
-  While Not Stop Do
-  Begin
-    Case TokenType(K) Of
-    TOKEN_IDENT:
-      Begin
-        f := StrGetFirstData(K^.TK_STRI);
-        Case y Of
-        PrologIIp:
-          If f = '''<''' Then
-            f := 'inf'
-          Else
-            Stop := True;
-        Edinburgh:
-          If f <> 'is' Then
-            Stop := True;
-        Else
-          Stop := True
-        End
-      End;
-    TOKEN_LEFT_CHE:
-      If y = Edinburgh Then
-        f := 'inf'
-      Else
-        Stop := True;
-    TOKEN_MINUS:
-      f := 'sub';
-    TOKEN_PLUS:
-      f := 'add';
-    TOKEN_TIMES:
-      f := 'mul';
-    TOKEN_DIVIDE:
-      f := 'div';
-    Else
-      Stop := True
-    End;
-    If Not Stop Then
+
+  Done := False;
+
+  Repeat
+    Found := False;
+
+    { rule 6.1: prefixed (unary) operator }
+    o := NextOp(P,K,[fx,fy],MaxPred);
+    If (o <> Nil) And (Not HasTerm(TBottom)) Then 
     Begin
-      Ok := LookupPF(f,Op);
-      CheckCondition(Ok,'ReadOneExpr: binary op not found');
-      CheckCondition(Op.N=2, 'ReadOneExpr: not binary');
       K := ReadToken(y);
-      T := ReadTerm(P,K,glob,Cut);
+      { simplify +/- integer:
+       PII+ p.48: "The trees corresponding to the unary operators + and - are  
+       evaluated when analyzed if their argument is an integer constant." }
+      If (o^.OP_TYPE = fx) And ((o^.OP_OPER = '+') Or (o^.OP_OPER = '-')) 
+          And (TokenType(K) = TOKEN_INTEGER) Then
+      Begin
+        T := ReadPTerm(P,K,glob,Cut); { read the integer constant }
+        If o^.OP_OPER = '-' Then
+        Begin
+          s := NewStringFrom('-');
+          StrConcat(s,ConstGetStr(CT));
+          T := EmitConst(P,s,CI,True)
+        End;
+        PushExprTerm(T)
+      End
+      Else
+      Begin  
+        PushExprOp(o);
+        PushPlaceholder
+      End;
+      Found := True
+    End;
+
+    { rule 6.3: infixed (binary) operator }
+    If Not Found Then 
+    Begin
+      o := NextOp(P,K,[xfx,xfy,yfx],MaxPred);
+      If (o <> Nil) And (HasTerm(TBottom)) Then
+      Begin
+        K := ReadToken(y);
+        PushExprOp(o);
+        PushPlaceholder;
+        Found := True
+      End
+    End;
+
+    { rule 6.2: postfixed (unary) operator (rare case, user defined) }
+    If Not Found Then 
+    Begin
+      o := NextOp(P,K,[xf,yf],MaxPred);
+      If (o <> Nil) And (HasTerm(TBottom)) Then
+      Begin
+        K := ReadToken(y);
+        PushExprOp(o);
+        Found := True
+      End
+    End;
+
+    Done := Not Found And HasTerm(TBottom);
+
+    { rules 6.5: pterm }
+    If Not HasTerm(TBottom) Or HasPlaceholder(TBottom) Then
+    Begin
+      If HasPlaceholder(TBottom) Then
+        PopExprTerm(T,TBottom);
+      T := ReadPTerm(P,K,glob,Cut);
       If Error Then Exit;
-      PushExpr(P,Bottom,Op,T)
-    End
-  End
+      PushExprTerm(T);
+      Found := True
+    End;
+
+    { reduce the stack as much as possible }
+    ReduceExprStack(P,TBottom,OBottom)
+
+  Until Done;
+
+  { finally reduce the stack to a single term: 
+   1+2*3^4 => add(1,mul(2,^(3,4))) }
+  ReadExpr := ReduceAllExpr(P,TBottom,OBottom) 
 End;
 
-{ read one expression }
-Function ReadOneExpr( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
-    Cut : Boolean) : TermPtr;
-Var
-  Bottom : TStackLen;
+{ read an expression of max precedence MaxPred, returning the tree of
+ functions and arguments as a result }
+Function ReadOneExpr( P : ProgPtr; Var K : TokenPtr; MaxPred : TPrecedence; 
+    glob : Boolean; Cut : Boolean) : TermPtr;
 Begin
-  ReadOneExpr := Nil;
-  Bottom := OStackTop;
-  ReadExpr(P,K,Bottom,glob,Cut);
-  If Error Then Exit;
-  ReadOneExpr := ReduceAllExpr(P,Bottom)
+  ReadOneExpr := ReadExpr(P,K,TStackTop,OStackTop,MaxPred,glob,Cut)
 End;
 
 {----------------------------------------------------------------------------}
@@ -282,9 +389,9 @@ End;
 {----------------------------------------------------------------------------}
 
 { read a term: pterm [. term]*; is right-associative
- Note: dotted lists seem to be allowed in PII+ Edinburgh, see 
- PII+ doc, pdf p. 45; we do not allowed it for now, as it is tricky to 
- distinguish this dot from an end-of-rule dot }
+ (see pII+ p.44, "1.9.1 The syntactic level", rules 4.1 and 4.2 "term") 
+ Note: dotted lists seem to be allowed in PII+ Edinburgh; we do not allowed it 
+ for now, as it is tricky to distinguish this dot from an end-of-rule dot }
 { TODO: exclude CUT? }
 Function ReadTerm; (*( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
     Cut : Boolean) : TermPtr; *)
@@ -292,12 +399,22 @@ Var
   y : TSyntax;
   T : TermPtr;
   T2 : TermPtr;
+  MaxPred : TPrecedence;
 Begin
   ReadTerm := Nil;
   y := GetSyntax(P);
-  T := ReadPTerm(P,K,glob,Cut);
+  If y In [PrologII,PrologIIc] Then { syntaxes w/o expressions }
+    T := ReadPTerm(P,K,glob,Cut)
+  Else
+  Begin
+    If y = Edinburgh Then
+      MaxPred := 1200
+    Else
+      MaxPred := 1000;
+    T := ReadOneExpr(P,K,MaxPred,glob,Cut)
+  End;
   If Error Then Exit;
-  If (y <> Edinburgh) And (TokenType(K) = TOKEN_DOT) Then
+  If (y <> Edinburgh) And (TokenType(K) = TOKEN_DOT) Then { rule 4.1 }
   Begin
     K := ReadToken(y);
     T2 := ReadTerm(P,K,glob,Cut);
@@ -308,42 +425,45 @@ Begin
   ReadTerm := T
 End;
 
-{ read the comma-separated list of expressions "a,b,c..."; return Nil if an 
- error occurs }
-Function ReadExprList( P : ProgPtr; Var K : TokenPtr; 
+{ read the comma-separated list of expressions "a,b,c..." 
+ (see pII+ p.44, "1.9.1 The syntactic level", rule 5 "termlist")
+ return Nil if an error occurs }
+Function ReadTermList( P : ProgPtr; Var K : TokenPtr; 
     glob : Boolean ) : TermPtr;
 Var
   y : TSyntax;
   T,T2 : TermPtr;
 Begin
-  ReadExprList := Nil;
+  ReadTermList := Nil;
   y := GetSyntax(P);
-  T := ReadOneExpr(P,K,glob,False);
+  T := ReadOneExpr(P,K,999,glob,False);
   If Error Then Exit;
   T2 := Nil;
   If TokenType(K) = TOKEN_COMMA Then
   Begin
     K := ReadToken(y);
-    T2 := ReadExprList(P,K,glob);
+    T2 := ReadTermList(P,K,glob);
     If Error Then Exit
   End;
-  ReadExprList := NewTuple(T,T2)
+  ReadTermList := NewF(T,T2)
 End;
 
-{ read a []-style list expression:
+{ read a []-style list expression
+ (see pII+ p.44, "1.9.1 The syntactic level", rule 8.1 and 8.1 "listexpr")
  listexpr = "expr" or "expr, list_expr" or "expr | expr" 
  if comma is true, the listexpr follows a comma, that is, is the remaining part 
  of a comma-separated list as in [a,b,c] }
-Function ReadListExpr( P : ProgPtr; Var K : TokenPtr; comma, glob, Cut : Boolean ) : TermPtr;
+Function ReadListExpr( P : ProgPtr; Var K : TokenPtr; 
+    comma, glob, Cut : Boolean ) : TermPtr;
 Var
   y : TSyntax;
   T,T2 : TermPtr;
 Begin
   ReadListExpr := Nil;
   y := GetSyntax(P);
-  T := ReadOneExpr(P,K,glob,Cut); { TODO: cut allowed here?? }
+  T := ReadOneExpr(P,K,999,glob,Cut); { TODO: cut allowed here?? }
   If Error Then Exit;
-  If TokenType(K) = TOKEN_COMMA Then  { "a,b" <=> a.b.nil }
+  If TokenType(K) = TOKEN_COMMA Then  { rule 8.1: "a,b" <=> a.b.nil }
   Begin
     K := ReadToken(y);
     If Error Then Exit;
@@ -351,23 +471,26 @@ Begin
     If Error Then Exit;
     T := EncodeDot(P,T,T2)
   End
-  Else If TokenType(K) = TOKEN_PIPE Then  { "a|b" <=> a.b }
+  Else If TokenType(K) = TOKEN_PIPE Then  { rule 8.2: "a|b" <=> a.b }
   Begin
     K := ReadToken(y);
     If Error Then Exit;
-    T2 := ReadOneExpr(P,K,glob,Cut);
+    T2 := ReadOneExpr(P,K,999,glob,Cut);
     If Error Then Exit;
     T := EncodeDot(P,T,T2)
   End
-  Else If comma Then { "b" as the end of "a,b" generates a.b.nil }
+  Else If comma Then { "b" as the end of "a,b" generates a.b.nil, see 6 p.45 }
   Begin
     T := EncodeDot(P,T,Nil)
   End;
   ReadListExpr := T
 End;
 
-{ read a []-style list }
-Function ReadList( P : ProgPtr; Var K : TokenPtr; glob,Cut : Boolean ) : TermPtr;
+{ read a []-style list 
+ (see pII+ p.44, "1.9.1 The syntactic level", rule 7.6 "pterm")
+}
+Function ReadList( P : ProgPtr; Var K : TokenPtr; 
+    glob,Cut : Boolean ) : TermPtr;
 Var
   y : TSyntax;
   T : TermPtr;
@@ -389,8 +512,9 @@ Begin
   ReadList := T
 End;
 
-{ read a pterm, possibly accepting a cut as a valid pterm; pterms are terms 
- authorized at the first level of terms in the rule body }
+{ read a pterm, possibly accepting a cut as a valid pterm; 
+ (see pII+ p.44, "1.9.1 The syntactic level", rules 8.* "pterm")
+ pterms are terms authorized at the first level of terms in the rule body }
 Function ReadPTerm; (* ( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
     Cut : Boolean ) : TermPtr *)
 Var
@@ -406,7 +530,7 @@ Begin
   y := GetSyntax(P);
   T := Nil;
   Case TokenType(K) Of
-  TOKEN_INTEGER:
+  TOKEN_INTEGER: { rule 7.7 }
     Begin
       If Not NormalizeConstant(K^.TK_STRI,ObjectTypeToConstType(CI)) Then
         SyntaxError('invalid integer constant');
@@ -414,7 +538,7 @@ Begin
       T := EmitConst(P,K^.TK_STRI,CI,glob);
       K := ReadToken(y)
     End;
-  TOKEN_REAL:
+  TOKEN_REAL: { rule 7.7 }
     Begin
       If Not NormalizeConstant(K^.TK_STRI,ObjectTypeToConstType(CR)) Then
         SyntaxError('invalid real constant');
@@ -422,12 +546,12 @@ Begin
       T := EmitConst(P,K^.TK_STRI,CR,glob);
       K := ReadToken(y)
     End;
-  TOKEN_STRING:
+  TOKEN_STRING: { rule 7.7 }
     Begin
       T := EmitConst(P,K^.TK_STRI,CS,glob);
       K := ReadToken(y)
     End;
-  TOKEN_CUT:
+  TOKEN_CUT: { rule 7.7 }
     Begin
       If Cut Then 
       Begin
@@ -437,36 +561,38 @@ Begin
       Else
         SyntaxError(TokenStr[TOKEN_CUT] + ' not allowed here')
     End;
-  TOKEN_VARIABLE:
+  TOKEN_VARIABLE, TOKEN_IDENT: { rule 7.1: "a" or "a(b,c)" }
     Begin
-      V := InstallVariable(P^.PP_DVAR,P^.PP_LVAR,K^.TK_STRI,glob);
-      T := TV;
-      K := ReadToken(y)
-    End;
-  TOKEN_IDENT: { "a" or "a(b,c)" }
-    Begin
-      I := InstallIdentifier(P^.PP_DIDE,K^.TK_STRI,glob);
-      T := TI;
+      If TokenType(K) = TOKEN_VARIABLE Then
+      Begin
+        V := InstallVariable(P^.PP_DVAR,P^.PP_LVAR,K^.TK_STRI,glob);
+        T := TV
+      End
+      Else
+      Begin
+        I := InstallIdentifier(P^.PP_DIDE,K^.TK_STRI,glob);
+        T := TI
+      End;
       K := ReadToken(y);
       If TokenType(K) = TOKEN_LEFT_PAR Then { predicate's arguments }
       Begin
         K := ReadToken(y);
-        F := ReadExprList(P,K,glob);
+        F := ReadTermList(P,K,glob);
         If Error Then Exit;
         VerifyToken(P,K,TOKEN_RIGHT_PAR);
         If Error Then Exit;
-        T := NewTuple(TI,F)
+        T := NewF(T,F)
       End
     End;
-  TOKEN_LEFT_PAR: { parenthesized expression }
+  TOKEN_LEFT_PAR: { rule 7.8: parenthesized term }
     Begin
       K := ReadToken(y);
-      T := ReadOneExpr(P,K,glob,False);
+      T := ReadTerm(P,K,glob,False);
       If Error Then Exit;
       VerifyToken(P,K,TOKEN_RIGHT_PAR);
       If Error Then Exit
     End;
-  TOKEN_LEFT_CHE: { tuple }
+  TOKEN_LEFT_CHE: { rules 7.3 and 7.4: tuple }
     Begin
       K := ReadToken(y);
       If TokenType(K) = TOKEN_RIGHT_CHE Then
@@ -477,7 +603,7 @@ Begin
             (TokenType(K) = TOKEN_LEFT_PAR) Then
         Begin
           K := ReadToken(y);
-          F := ReadExprList(P,K,glob);
+          F := ReadTermList(P,K,glob);
           If Error Then Exit;
           VerifyToken(P,K,TOKEN_RIGHT_PAR)
         End
@@ -487,7 +613,7 @@ Begin
       Else 
         If y <> Edinburgh Then 
         Begin
-          F := ReadExprList(P,K,glob);
+          F := ReadTermList(P,K,glob);
           If Error Then Exit;
           VerifyToken(P,K,TOKEN_RIGHT_CHE)
         End
@@ -496,7 +622,7 @@ Begin
       If Error Then Exit;
       T := F
     End;
-  TOKEN_LEFT_BRA: { PII+ []-style list }
+  TOKEN_LEFT_BRA: { rule 7.6: PII+ []-style list }
     Begin
       If (y In [PrologIIp,Edinburgh]) Then
         T := ReadList(P,K,glob,Cut)
@@ -510,7 +636,7 @@ Begin
   ReadPTerm := T
 End;
 
-{ read an equations or inequation }
+{ read an equations or inequation (PrologIIc only) }
 Function ReadEquation( P : ProgPtr; Var K : TokenPtr; glob : Boolean ) : EqPtr;
 Var
   y : TSyntax;
@@ -546,7 +672,7 @@ Begin
   ReadEquation := E
 End;
 
-{ read a system of equations or inequations }
+{ read a system of equations or inequations (PrologIIc only) }
 Function ReadSystem( P : ProgPtr; Var K : TokenPtr; glob : Boolean ) : EqPtr;
 Var
   E, FirstE, PrevE : EqPtr;
@@ -583,7 +709,7 @@ End;
 { highest-level (rules and query) procedures and functions                   }
 {----------------------------------------------------------------------------}
 
-{ compile a system of equations and inequations }
+{ compile a system of equations and inequations (PrologIIc only) }
 Function CompileSystem( P : ProgPtr; Var K : TokenPtr; glob : Boolean ) : EqPtr;
 Begin
   PrepareExprParsing;
@@ -624,8 +750,8 @@ Begin
   With B^ Do
   Begin
     PrepareExprParsing;
-    If y = Edinburgh Then { expr are allowed at top level }
-      T := ReadOneExpr(P,K,glob,Cut)
+    If y = Edinburgh Then { see rule 2.2: expr are allowed at top level }
+      T := ReadOneExpr(P,K,1199,glob,Cut)
     Else
       T := ReadPTerm(P,K,glob,Cut);
     If Error Then Exit;

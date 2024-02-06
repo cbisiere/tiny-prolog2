@@ -4,7 +4,7 @@
 {   File        : init.pas                                                   }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2023                                                       }
+{   Updated     : 2022,2023,2024                                             }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -35,6 +35,7 @@ Var
   Bp : BTermPtr Absolute p;
   Rup : RulePtr Absolute p;
   Kp : TokenPtr Absolute p;
+  Opp : OpPtr Absolute p;
   y : TSyntax;
 Begin
   Case ObjectType(p) Of
@@ -130,6 +131,12 @@ Begin
     Begin
       CWrite(PtrToName(Rp^.RE_ADDR^) + ' ');
       CWriteBool(Rp^.RE_DONE)
+    End;
+  OP:
+    Begin
+      CWrite('"' + Opp^.OP_OPER + '"');
+      CWrite(' ');
+      CWrite('"' + Opp^.OP_FUNC + '"')
     End;
   TK:
     Begin

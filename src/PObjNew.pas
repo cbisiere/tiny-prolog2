@@ -4,7 +4,7 @@
 {   File        : POjbNew.pas                                                }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2023                                                       }
+{   Updated     : 2022,2023,2024                                             }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -34,6 +34,7 @@ Var
   ST_p : StrPtr Absolute p; 
   SD_p : StrDataPtr Absolute p; 
   RE_p : RestorePtr Absolute p;
+  OP_p : OpPtr Absolute p;
   TK_p : TokenPtr Absolute p;
 Begin
   CheckCondition((t <> CS) And (t <> CI) And (t <> CR),
@@ -54,6 +55,7 @@ Begin
     ST: New(ST_p);
     SD: New(SD_p);
     RE: New(RE_p);
+    OP: New(OP_p);
     TK: New(TK_p);
   Else
     Bug('PObjNew: missing case',True)
@@ -79,6 +81,7 @@ Var
   ST_p : StrPtr Absolute p; 
   SD_p : StrDataPtr Absolute p; 
   RE_p : RestorePtr Absolute p;
+  OP_p : OpPtr Absolute p;
   TK_p : TokenPtr Absolute p;
 Begin
   CheckCondition((t <> CS) And (t <> CI) And (t <> CR),
@@ -99,6 +102,7 @@ Begin
     ST: Dispose(ST_p);
     SD: Dispose(SD_p);
     RE: Dispose(RE_p);
+    OP: Dispose(OP_p);
     TK: Dispose(TK_p);
   Else
     Bug('PObjDispose: missing case',True)
@@ -123,6 +127,7 @@ Var
   ST_p : StrPtr Absolute p; 
   SD_p : StrDataPtr Absolute p; 
   RE_p : RestorePtr Absolute p;
+  OP_p : OpPtr Absolute p;
   TK_p : TokenPtr Absolute p;
 Begin
   CheckCondition((t <> CS) And (t <> CI) And (t <> CR),
@@ -143,6 +148,7 @@ Begin
     ST: PObjSizeOf := SizeOf(ST_p^);
     SD: PObjSizeOf := SizeOf(SD_p^);
     RE: PObjSizeOf := SizeOf(RE_p^);
+    OP: PObjSizeOf := SizeOf(OP_p^);
     TK: PObjSizeOf := SizeOf(TK_p^);
   Else
     Bug('PObjSizeOf: missing case',True)

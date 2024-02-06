@@ -4,7 +4,7 @@
 {   File        : PObjProg.pas                                               }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2023                                                       }
+{   Updated     : 2022,2023,2024                                             }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -97,6 +97,7 @@ Type
     PP_DVAR : DictPtr; { list of all variable identifiers }
     PP_UVAR : DictPtr; { variable identifier list head before processing user's command line }
     PP_LVAR : DictPtr; { last identifier to lookup when parsing (local variables)}
+    PP_OPER : OpPtr;   { list of operators }
     { extra data: }
     PP_LEVL : TILevel; { current file insertion level (0 is command-line) }
     PP_TYPE : RuType;  { type of rule the program is about to read }
@@ -189,7 +190,7 @@ Var
   P : ProgPtr;
   ptr : TPObjPtr Absolute P;
 Begin
-  ptr := NewRegisteredObject(PR,11,True,4);
+  ptr := NewRegisteredObject(PR,12,True,4);
   With P^ Do
   Begin
     PP_FRUL := Nil;
@@ -203,6 +204,7 @@ Begin
     PP_DVAR := Nil;
     PP_UVAR := Nil;
     PP_LVAR := Nil;
+    PP_OPER := Nil;
     PP_LEVL := 0;
     PP_TYPE := RTYPE_USER;
     PP_SYNT := PrologIIc
