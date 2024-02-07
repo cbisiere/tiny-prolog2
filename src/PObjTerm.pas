@@ -213,6 +213,22 @@ Begin
   ConstStartWith := DictStrStartWith(C^.TC_DCON,E)
 End;
 
+{ return a constant as a string, with or without double quotes }
+Function GetConstAsString( C : ConstPtr; Quotes : Boolean ) : StrPtr;
+Var 
+  quoted : Boolean; { does the constant need to be quoted? }
+  s : StrPtr;
+Begin
+  quoted := Quotes And (ConstType(C)=QString);
+  s := NewString;
+  If quoted Then
+    StrAppend(s,'"');
+  StrConcat(s,ConstGetStr(C));
+  If quoted Then
+    StrAppend(s,'"');
+  GetConstAsString := s
+End;
+
 {-----------------------------------------------------------------------}
 { methods: identifiers                                                  }
 {-----------------------------------------------------------------------}
@@ -251,6 +267,23 @@ Begin
   TermIsCut := False;
   If TypeOfTerm(T) = Identifier Then 
     TermIsCut := IdentifierIsCut(IT)
+End;
+
+{ return an identifier as a (new) string; if Quotes is False, quoted 
+ identifiers are returned unquoted }
+Function GetIdentAsString( I : IdPtr; Quotes : Boolean ) : StrPtr;
+Var 
+  unquote : Boolean; { does the identifier need to be unquoted? }
+  s : StrPtr;
+Begin
+  s := StrClone(IdentifierGetStr(I));
+  unquote := Not Quotes And StrStartsWith(s,['''']) And StrEndsWith(s,['''']);
+  If unquote Then
+  Begin
+    StrDeleteLastChar(s);
+    StrDeleteFirstChar(s)
+  End;
+  GetIdentAsString := s
 End;
 
 {-----------------------------------------------------------------------}

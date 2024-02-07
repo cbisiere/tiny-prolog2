@@ -15,6 +15,12 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+{ file suffix: for PII+ and Edinburgh, see PII+ doc p297 }
+Type 
+  TFileExt = Array[TSyntax] Of String[3];
+Const 
+  FileExt : TFileExt = ('pro','p2c','p2','p2E'); { TODO: rewrite to handle .pl }
+
 
 { initialize the input/output system }
 Procedure InitIO;
@@ -54,8 +60,30 @@ Begin
   RemoveQueries(P)
 End;
 
-{ load rules and queries from a file, and execute the queries it contains,
-  if any }
+{ return True if filename fn can be set to be an input file, using
+ default program extensions for syntax y;
+ NOTE: probably less TOCTOU-prone than looking for the file and then setting it  
+ as input
+ FIXME: where to convert through OSFilename/1 and which name to store in the IO
+ stream objects is a question that need to be solved; maybe two members? 
+ (the user provided name, without alteration, and the actual path to the file)}
+Function SetPrologFileForInput( y : TSyntax; fn : TString ) : Boolean;
+Var
+  Found : Boolean;
+Begin
+  Found := SetFileForInput(fn);
+  If Not Found Then
+  Begin
+    If y = Edinburgh Then
+      Found := SetFileForInput(fn + '.pl');
+    If Not Found Then
+      Found := SetFileForInput(fn + '.' + FileExt[y])
+  End;
+  SetPrologFileForInput := Found
+End;
+
+{ load rules and queries from a Prolog file, and execute the queries it 
+ contains, if any }
 Procedure LoadProgram( P : ProgPtr; s : StrPtr );
 Var 
   Filename : TString;
@@ -63,7 +91,7 @@ Begin
   If StrLength(s) <= StringMaxSize Then
   Begin
     FileName := StrGetString(s);
-    If SetFileForInput(FileName) Then
+    If SetPrologFileForInput(GetSyntax(P),FileName) Then
     Begin
       BeginInsertion(P);
       ParseRulesAndQueries(P,GetRuleType(P));

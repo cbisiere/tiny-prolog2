@@ -60,24 +60,6 @@ Begin
   End
 End;
 
-
-{ return a constant as a string, with or without quotes }
-Function GetConstAsString( C : ConstPtr; Quotes : Boolean ) : StrPtr;
-Var 
-  quoted : Boolean; { does the constant need to be quoted? }
-  s : StrPtr;
-Begin
-  quoted := Quotes And (ConstType(C)=QString);
-  s := NewString;
-  If quoted Then
-    StrAppend(s,'"');
-  StrConcat(s,ConstGetStr(C));
-  If quoted Then
-    StrAppend(s,'"');
-  GetConstAsString := s
-End;
-
-
 { return the name of a user or temporary variable }
 Function GetVarNameAsString( V : VarPtr ) : StrPtr;
 Var 

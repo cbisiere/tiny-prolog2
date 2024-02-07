@@ -29,13 +29,22 @@ Const
   CONSOLE_NAME = 'console';
 
 
-{ replace the internal representation '/' of the directory separator 
-  with the os-dependant one }
+{ return a full pathname to a file, usable in Assign, by 1) expanding "~/" 
+ to the home dir when present, and 2) replacing the internal representation 
+ '/' of the directory separator with the os-dependant one }
 Function OSFilename( Filename : TString ) : TString;
 Var
   sep : Char;
   i : TStringSize;
 Begin
+  If Length(Filename) >= 2 Then
+    If Copy(Filename,1,2) = '~/'  Then
+    Begin
+      Delete(Filename,1,2);
+      { TODO: check that getting Unicode here is fine }
+      { TODO: check no truncate, warn user }
+      Insert(GetUserDir,Filename,1);
+    End;
   sep := GetDirectorySeparator;
   For i := 1 to Length(Filename) Do
     if FileName[i] = '/' Then

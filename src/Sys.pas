@@ -111,6 +111,52 @@ End;
 
 
 {----------------------------------------------------------------------------}
+{ helpers for syscall's arguments                                            }
+{----------------------------------------------------------------------------}
+
+{ get n-th argument of the predicate represented by tuple U }
+Function GetPArg( n : Byte; U : TermPtr ) : TermPtr;
+Begin
+  GetPArg := TupleArgN(2+n,U)
+End;
+
+{ return as a string pointer (or Nil) argument n of a predicate, supposed to be
+ a filename; filename can be a string or an identifier, and are always returned 
+ unquoted }
+Function GetFilenameArgAsStr( n : Byte; T : TermPtr ) : StrPtr;
+Var
+  I : IdPtr;
+  C : ConstPtr;
+  s : StrPtr;
+Begin
+  s := Nil;
+  I := EvaluateToIdentifier(GetPArg(n,T));
+  If I <> Nil Then
+    s := GetIdentAsString(I,False)
+  Else
+  Begin
+    C := EvaluateToString(GetPArg(n,T));
+    If C <> Nil Then
+      s := GetConstAsString(C,False)
+  End;
+  GetFilenameArgAsStr := s
+End;
+
+{ return True if argument n of a predicate can be assigned to Pascal
+ string str }
+Function GetFilenameArgAsString( n : Byte; T : TermPtr; 
+    Var str : TString ) : Boolean;
+Var
+  s : StrPtr;
+Begin
+  s := GetFilenameArgAsStr(n,T);
+  If s <> Nil Then
+    str := StrGetFirstData(s);
+  GetFilenameArgAsString := s <> Nil
+End;
+
+
+{----------------------------------------------------------------------------}
 { syscall                                                                    }
 {----------------------------------------------------------------------------}
 
@@ -128,7 +174,7 @@ Var
   T2 : TermPtr;
   IT2 : IdPtr Absolute T2;
   VT2 : VarPtr Absolute T2;
-  C,C1,C3 : ConstPtr;
+  C1,C3 : ConstPtr;
   rec : TPPRec;
   str : TString;
   ch : TChar;
@@ -139,14 +185,9 @@ Var
   Qi, QLast : QueryPtr;
   Stop : Boolean;
   FileName : TString;
+  FileNamePtr : StrPtr;
   o : OpPtr;
   ot : TOpType;
-
-  { get n-th argument of the predicate represented by tuple U }
-  Function GetPArg( n : Byte; U : TermPtr ) : TermPtr;
-  Begin
-    GetPArg := TupleArgN(2+n,U)
-  End;
 
 Begin
   ExecutionSysCallOk := False; { default is to fail }
@@ -293,41 +334,33 @@ Begin
       End;
     PP_QUIT:
       Terminate(0);
-    PP_INSERT: { insert("file") }
+    PP_INSERT: { insert("file") or insert('file') }
       Begin
-        C := EvaluateToString(GetPArg(1,T));
-        Ok := C <> Nil;
-        If Ok Then
+        { 1: filename (string or identifier, unquoted) }
+        FileNamePtr := GetFilenameArgAsStr(1,T);
+        If FileNamePtr = Nil Then Exit;
+        { execute }
+        QLast := LastProgramQuery(P);
+        LoadProgram(P,FileNamePtr);
+        If Error Then Exit;
+        { newly loaded rules are also in the scope of the current 
+          query and queries that follow, up to the last query before
+          the program was loaded }
+        Qi := Q;
+        Stop := False;
+        While Not Stop Do
         Begin
-          QLast := LastProgramQuery(P);
-          LoadProgram(P,GetConstAsString(C,False));
-          Ok := Not Error;
-          If Ok Then 
-          Begin
-            { newly loaded rules are also in the scope of the current 
-              query and queries that follow, up to the last query before
-              the program was loaded }
-            Qi := Q;
-            Stop := False;
-            While Not Stop Do
-            Begin
-              UpdateQueryScope(P,Qi);
-              Qi := NextQuery(Qi);
-              Stop := (Qi=Nil) Or (Qi=QLast)
-            End
-          End
+          UpdateQueryScope(P,Qi);
+          Qi := NextQuery(Qi);
+          Stop := (Qi=Nil) Or (Qi=QLast)
         End
       End;
     PP_INPUT: { input("buffer") }
       Begin
-        C := EvaluateToString(GetPArg(1,T));
-        Ok := C <> Nil;
-        If Ok Then
-        Begin
-          FileName := ConstGetPStr(C);
-          CloseOutput(FileName); { close the file if it was already open for output }
-          Ok := SetFileForInput(FileName) { TODO: warn when length > 255 }
-        End
+        If Not GetFilenameArgAsString(1,T,FileName) Then 
+          Exit;
+        CloseOutput(FileName); { close the file if it was already open for output }
+        Ok := SetFileForInput(FileName) { TODO: warn when length > 255 }
       End;
     PP_INPUT_IS: { input_is(s) }
       Begin
@@ -341,10 +374,9 @@ Begin
       End;
     PP_CLOSE_INPUT: { close_input("buffer") }
       Begin
-        C := EvaluateToString(GetPArg(1,T));
-        Ok := C <> Nil;
-        If Ok Then
-          CloseInputByName(ConstGetPStr(C)) { TODO: warn when length > 255 }
+        If Not GetFilenameArgAsString(1,T,FileName) Then 
+          Exit;
+        CloseInputByName(FileName) { TODO: warn when length > 255 }
       End;
     PP_CLEAR_INPUT: { clear_input }
       Begin
@@ -353,14 +385,10 @@ Begin
       End;
     PP_OUTPUT: { output("buffer") }
       Begin
-        C := EvaluateToString(GetPArg(1,T));
-        Ok := C <> Nil;
-        If Ok Then
-        Begin
-          FileName := ConstGetPStr(C);
-          CloseInputByName(FileName); { close the file if it was already open for input }
-          Ok := SetFileForOutput(FileName) { TODO: warn when length > 255 }
-        End;
+        If Not GetFilenameArgAsString(1,T,FileName) Then 
+          Exit;
+        CloseInputByName(FileName); { close the file if it was already open for input }
+        Ok := SetFileForOutput(FileName) { TODO: warn when length > 255 }
       End;
     PP_OUTPUT_IS: { output_is(s) }
       Begin
@@ -374,10 +402,9 @@ Begin
       End;
     PP_CLOSE_OUTPUT: { close_output("buffer") }
       Begin
-        C := EvaluateToString(GetPArg(1,T));
-        Ok := C <> Nil;
-        If Ok Then
-          CloseOutput(ConstGetPStr(C)) { TODO: warn when length > 255 }
+        If Not GetFilenameArgAsString(1,T,FileName) Then 
+          Exit;
+        CloseOutput(FileName) { TODO: warn when length > 255 }
       End;
     PP_FLUSH: { flush }
       Begin

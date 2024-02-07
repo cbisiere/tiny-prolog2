@@ -21,12 +21,6 @@ Type
 Const 
   StartFile : TStartFile = ('PII','PIIc','PIIp','E');
 
-{ file suffix: for PII+ and Edinburgh, see PII+ doc p297 }
-Type 
-  TFileExt = Array[TSyntax] Of String[3];
-Const 
-  FileExt : TFileExt = ('pro','p2c','p2','p2E');
-
 { parse and process command line parameters }
 Procedure ProcessParameters( P : ProgPtr );
 Var  

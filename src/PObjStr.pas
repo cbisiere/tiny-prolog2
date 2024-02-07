@@ -66,6 +66,18 @@ Begin
   NewStringData := sda
 End;
 
+{ set or reset a string to be an empty string }
+Procedure ZapString( s : StrPtr );
+Begin
+  With s^ Do
+  Begin
+    ST_FDAT := NewStringData('');
+    ST_LDAT := ST_FDAT;
+    ST_NDAT := 1;
+    ST_TLEN := 0
+  End
+End;
+
 { new string }
 Function NewString : StrPtr;
 Var 
@@ -73,13 +85,7 @@ Var
   ptr : TPObjPtr Absolute s;
 Begin
   ptr := NewRegisteredObject(ST,2,True,2);
-  With s^ Do
-  Begin
-    ST_FDAT := NewStringData('');
-    ST_LDAT := ST_FDAT;
-    ST_NDAT := 1;
-    ST_TLEN := 0
-  End;
+  ZapString(s);
   NewString := s
 End;
 
@@ -169,27 +175,6 @@ Begin
   StrAppend(s,CRLF)
 End;
 
-{ delete the last char from a string; remove chunk, if any, will be GC'ed }
-Procedure StrDeleteLastChar( s : StrPtr );
-Var len : TStrLength;
-Begin
-  CheckCondition(StrLength(s)>0,'Cannot delete the last char of an empty string');
-  With s^.ST_LDAT^ Do
-  Begin
-    Delete(SD_DATA,Length(SD_DATA),1);
-    s^.ST_TLEN := s^.ST_TLEN - 1;
-    len := Length(SD_DATA)
-  End;
-  { remove the last chunk if empty }
-  With s^ Do
-    If (len=0) And (ST_NDAT>1) Then
-    Begin
-      ST_LDAT := ST_LDAT^.SD_PREV;
-      ST_LDAT^.SD_NEXT := Nil;
-      ST_NDAT := ST_NDAT - 1
-    End
-End;
-
 { concatenate two strings into the first one }
 Procedure StrConcat( s1,s2 : StrPtr );
 Var sd : StrDataPtr;
@@ -211,6 +196,55 @@ Var
 Begin
   ro := DeepCopy(so);
   StrClone := r
+End;
+
+{ delete the last char from a string; removed chunk, if any, will be GC'ed }
+Procedure StrDeleteLastChar( s : StrPtr );
+Var 
+  len : TStrLength;
+Begin
+  CheckCondition(StrLength(s)>0,
+      'Cannot delete the last char of an empty string');
+  With s^.ST_LDAT^ Do
+  Begin
+    Delete(SD_DATA,Length(SD_DATA),1);
+    s^.ST_TLEN := s^.ST_TLEN - 1;
+    len := Length(SD_DATA)
+  End;
+  { remove the last chunk if empty }
+  With s^ Do
+    If (len=0) And (ST_NDAT>1) Then
+    Begin
+      ST_LDAT := ST_LDAT^.SD_PREV;
+      ST_LDAT^.SD_NEXT := Nil;
+      ST_NDAT := ST_NDAT - 1
+    End
+End;
+
+{ delete the first char from a string }
+Procedure StrDeleteFirstChar( s : StrPtr );
+Var 
+  s2 : StrPtr;
+  sd : StrDataPtr;
+  chunk : TString;
+Begin
+  CheckCondition(StrLength(s)>0,
+      'Cannot delete the first char of an empty string');
+  { clone and zap, then work on the string passed as parameter }
+  { TODO: OPT "steal" the chunks instead of cloning }
+  s2 := StrClone(s);
+  ZapString(s);
+  { copy the first chunk without its first char }
+  chunk := StrGetFirstData(s2);
+  Delete(chunk,1,1);
+  StrAppend(s,chunk);
+  { append the other chunks }
+  sd := s2^.ST_FDAT^.SD_NEXT;
+  While sd <> Nil Do
+  Begin
+    StrAppend(s,sd^.SD_DATA); { append, compacting }
+    sd := sd^.SD_NEXT
+  End
 End;
 
 { are two string data equal? }

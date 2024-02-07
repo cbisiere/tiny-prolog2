@@ -130,6 +130,17 @@ Begin
   GetDirectorySeparator := '\'
 End;
 
+{ get the user directory (FPC emulation); when non empty, it includes a 
+ trailing path separator
+ MS-DOS: return the current directory (FIXME: return HOME env var if any?)  }
+function GetUserDir: TString;
+Var
+  s : String;
+Begin
+  GetDir(0,s);
+  GetUserDir := s { FIXME: check length? }
+End;
+
 Type
   TCrtCoord = 1..255;
 
