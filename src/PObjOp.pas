@@ -85,6 +85,27 @@ Begin
     TOpTypeToArity := 2
 End;
 
+{ return an operator w/o its quotes if any }
+Function UnquotedOp( ope : TString ) : TString;
+Var
+  s : TString;
+Begin
+  s := ope;
+  If Length(s) >= 2 Then
+    If (s[1] = '''') And (s[Length(s)] = '''') Then
+    Begin
+      Delete(s,Length(s),1);
+      Delete(s,1,1)
+    End;
+  UnquotedOp := s
+End;
+
+{ are two operators identical? }
+Function SameOp( ope1,ope2 : TString ) : Boolean;
+Begin
+  SameOp := UnquotedOp(ope1) = UnquotedOp(ope2)
+End;
+
 {-----------------------------------------------------------------------}
 { constructors                                                          }
 {-----------------------------------------------------------------------}
@@ -130,7 +151,7 @@ Begin
   Found := False;
   While (o<>Nil) And Not Found Do
   Begin
-    If ((ope = '') Or (o^.OP_OPER = ope)) 
+    If ((ope = '') Or SameOp(o^.OP_OPER,ope)) { FIXME: not very efficient }
         And ((func = '') Or (o^.OP_FUNC = func)) 
         And ((OpTypes = []) Or (o^.OP_TYPE In OpTypes)) 
         And ((Arity = 0) Or (o^.OP_NPAR = Arity))
