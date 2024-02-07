@@ -476,8 +476,7 @@ Begin
   If T <> Nil Then
     Case TypeOfTerm(T) Of
     Constant:
-      Begin
-      End;
+      IT := Nil;
     Identifier:
       Begin { ignore assignment, if any }
       End;
