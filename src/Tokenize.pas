@@ -498,7 +498,10 @@ Begin
 End;
 
 { read a token, following syntax y }
-{ TODO: Edinburgh: identifiers made of graphic_char }
+{ NOTE *: about Edinburgh identifiers made of graphic_char: the dot '.' is not
+ a graphic char. However, =.. is a predefined operator that can be used 
+ *unquoted*. Rule 18 p48 allows to have dots after the second graphic char, but
+ the doc says it is a PrologII+-only rule. Weird. Is it a typo? s}
 Function ReadToken( y : TSyntax ) : TokenPtr;
 Var
   K : TokenPtr;
@@ -534,7 +537,7 @@ Begin
     If y = PrologIIp Then
       GraphicChars := PROLOG_Graphic
     Else
-      GraphicChars := EDINBURGH_Graphic;
+      GraphicChars := EDINBURGH_Graphic + ['.']; { allows =.. unquoted }
     K := NewToken(TOKEN_IDENT);
     With K^ Do
     Begin
