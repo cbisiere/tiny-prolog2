@@ -360,7 +360,7 @@ Begin
     Begin
       If HasPlaceholder(TBottom) Then
         PopExprTerm(T,TBottom);
-      T := ReadPTerm(P,K,glob,Cut);
+      T := ReadTerm(P,K,glob,Cut);
       If Error Then Exit;
       PushExprTerm(T);
       Found := True
@@ -392,34 +392,26 @@ End;
  (see pII+ p.44, "1.9.1 The syntactic level", rules 4.1 and 4.2 "term") 
  Note: dotted lists seem to be allowed in PII+ Edinburgh; we do not allowed it 
  for now, as it is tricky to distinguish this dot from an end-of-rule dot }
-{ TODO: exclude CUT? }
 Function ReadTerm; (*( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
     Cut : Boolean) : TermPtr; *)
 Var
   y : TSyntax;
   T : TermPtr;
   T2 : TermPtr;
-  MaxPred : TPrecedence;
+  WasCut : Boolean;
 Begin
   ReadTerm := Nil;
   y := GetSyntax(P);
-  If y In [PrologII,PrologIIc] Then { syntaxes w/o expressions }
-    T := ReadPTerm(P,K,glob,Cut)
-  Else
-  Begin
-    If y = Edinburgh Then
-      MaxPred := 1200
-    Else
-      MaxPred := 1000;
-    T := ReadOneExpr(P,K,MaxPred,glob,Cut)
-  End;
+  WasCut := TokenType(K) = TOKEN_CUT;
+  T := ReadPTerm(P,K,glob,Cut);
   If Error Then Exit;
-  If (y <> Edinburgh) And (TokenType(K) = TOKEN_DOT) Then { rule 4.1 }
+  If (y <> Edinburgh) And (TokenType(K) = TOKEN_DOT) 
+      And (Not WasCut) Then { rule 4.1 }
   Begin
     K := ReadToken(y);
-    T2 := ReadTerm(P,K,glob,Cut);
+    T2 := ReadTerm(P,K,glob,False);
     If Error Then Exit;
-    T := EncodeDot(P,T,T2)
+    T := NewList2(P,T,T2)
   End;
   If Error Then Exit;
   ReadTerm := T
@@ -469,7 +461,7 @@ Begin
     If Error Then Exit;
     T2 := ReadListExpr(P,K,True,glob,Cut); { remaining list }
     If Error Then Exit;
-    T := EncodeDot(P,T,T2)
+    T := NewList2(P,T,T2)
   End
   Else If TokenType(K) = TOKEN_PIPE Then  { rule 8.2: "a|b" <=> a.b }
   Begin
@@ -477,11 +469,11 @@ Begin
     If Error Then Exit;
     T2 := ReadOneExpr(P,K,999,glob,Cut);
     If Error Then Exit;
-    T := EncodeDot(P,T,T2)
+    T := NewList2(P,T,T2)
   End
   Else If comma Then { "b" as the end of "a,b" generates a.b.nil, see 6 p.45 }
   Begin
-    T := EncodeDot(P,T,Nil)
+    T := NewList2(P,T,Nil)
   End;
   ReadListExpr := T
 End;
@@ -525,6 +517,7 @@ Var
   TV : TermPtr Absolute V;
   I : IdPtr;
   TI : TermPtr Absolute I;
+  MaxPred : TPrecedence;
 Begin
   ReadPTerm := Nil;
   y := GetSyntax(P);
@@ -584,10 +577,14 @@ Begin
         T := NewF(T,F)
       End
     End;
-  TOKEN_LEFT_PAR: { rule 7.8: parenthesized term }
+  TOKEN_LEFT_PAR: { (modified) rule 7.8: parenthesized expression }
     Begin
       K := ReadToken(y);
-      T := ReadTerm(P,K,glob,False);
+      If y = Edinburgh Then
+        MaxPred := 1200
+      Else
+        MaxPred := 1000;
+      T := ReadOneExpr(P,K,MaxPred,glob,False);
       If Error Then Exit;
       VerifyToken(P,K,TOKEN_RIGHT_PAR);
       If Error Then Exit

@@ -92,6 +92,17 @@ Begin
   SetTupleQueue(U,NewTuple(T))
 End;
 
+{ create a new tuple <T1,T2>, or <T1> if T2 is Nil }
+Function NewTuple2( T1,T2 : TermPtr ) : TermPtr;
+Var
+  U : TermPtr;
+Begin
+  U := NewTuple(T1);
+  If T2 <> Nil Then
+    SetTupleQueueTerm(U,T2);
+  NewTuple2 := U
+End;
+
 { return true if U is the empty tuple }
 Function IsEmptyTuple( U : TermPtr ) : Boolean;
 Begin
@@ -143,18 +154,65 @@ Begin
   NewFunc2 := U
 End;
 
-{ return a term "a.b", viewed as '.'(a,b)" and thus implemented as 
- "F('.',F(a,F(b,Nil)))"; if b is Nil, replace it with "F('nil',Nil)", that is,
- add ".nil" at the end of the dotted list; this helps implementing the 
- following equivalences:
+{----------------------------------------------------------------------------}
+{ lists                                                                      }
+{----------------------------------------------------------------------------}
+
+{ return the head of a list: a.b.nil => a }
+Function ListHead( L : TermPtr ) : TermPtr;
+Begin
+  ListHead := TupleArgN(2,L)
+End;
+
+{ return the queue of a list: a.b.nil => b.nil }
+Function ListQueue( L : TermPtr ) : TermPtr;
+Begin
+  ListQueue := TupleArgN(3,L)
+End;
+
+{ return a term "a.b", viewed as '.'(a,b)" (equivalent to <'.',a,b>) and thus 
+ implemented as "F('.',F(a,F(b,Nil)))"; if b is Nil, replace it with 
+ "F('nil',Nil)", that is, add ".nil" at the end of the dotted list; this helps 
+ implementing the following equivalences:
   [a|b] <=> a.b
   [a,b] <=> a.b.nil
  (see PII+ syntax (cf. pdf doc p.45) }
-Function EncodeDot( P : ProgPtr; T1,T2 : TermPtr ) : TermPtr;
+Function NewList2( P : ProgPtr; T1,T2 : TermPtr ) : TermPtr;
 Begin
-  EncodeDot := Nil;
+  NewList2 := Nil;
   If T2 = Nil Then
     T2 := EmitIdent(P,'nil',True);
-  EncodeDot := NewFunc2(P,'.',T1,T2,True)
+  NewList2 := NewFunc2(P,'.',T1,T2,True)
 End;
 
+{----------------------------------------------------------------------------}
+{ conversions                                                                }
+{----------------------------------------------------------------------------}
+
+{ create a new list foo.a.b.nil from a tuple <foo,a,b> }
+Function TupleToList( P : ProgPtr; U : TermPtr ) : TermPtr;
+Var
+  L : TermPtr;
+Begin
+  If U = Nil Then
+    TupleToList := Nil
+  Else
+  Begin
+    L := TupleToList(P,TupleQueue(U));
+    TupleToList := NewList2(P,TupleHead(U),L)
+  End
+End;
+
+{ create a new tuple <foo,a,b>  from a list foo.a.b.nil }
+Function ListToTuple( L : TermPtr ) : TermPtr;
+Var
+  T : TermPtr;
+Begin
+  If L = Nil Then
+    ListToTuple := Nil
+  Else
+  Begin
+    T := ListToTuple(ListQueue(L));
+    ListToTuple := NewTuple2(ListHead(L),T)
+  End
+End;

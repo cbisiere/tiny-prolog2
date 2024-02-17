@@ -85,22 +85,30 @@ Begin
     TOpTypeToArity := 2
 End;
 
+{ return True if an operator is quoted }
+Function IsQuotedOp( s : TString ) : Boolean;
+Begin
+  IsQuotedOp := False;
+  If Length(s) >= 2 Then
+    If (s[1] = '''') And (s[Length(s)] = '''') Then
+      IsQuotedOp := True
+End;
+
 { return an operator w/o its quotes if any }
 Function UnquotedOp( ope : TString ) : TString;
 Var
   s : TString;
 Begin
   s := ope;
-  If Length(s) >= 2 Then
-    If (s[1] = '''') And (s[Length(s)] = '''') Then
-    Begin
-      Delete(s,Length(s),1);
-      Delete(s,1,1)
-    End;
+  If IsQuotedOp(s) Then
+  Begin
+    Delete(s,Length(s),1);
+    Delete(s,1,1)
+  End;
   UnquotedOp := s
 End;
 
-{ are two operators identical? }
+{ are two operators identical, regardless of simple quotes? }
 Function SameOp( ope1,ope2 : TString ) : Boolean;
 Begin
   SameOp := UnquotedOp(ope1) = UnquotedOp(ope2)
@@ -145,13 +153,25 @@ Function OpLookup( start : OpPtr; ope,func : TString;
     OpTypes : TOpTypes; Arity: Byte; MaxPred : TPrecedence ) : OpPtr;
 Var
   o : OpPtr;
-  Found : Boolean;
+  Found, OpMatch : Boolean;
 Begin
   o := start;
   Found := False;
   While (o<>Nil) And Not Found Do
   Begin
-    If ((ope = '') Or SameOp(o^.OP_OPER,ope)) { FIXME: not very efficient }
+    { identifiers match? An op declared without quotes only match unquoted 
+     operators, while an op declared with quotes match both quoted and
+     unquoted operators; we do this to solve an issue spotted while 
+     reading the Orbis program, which contains op(400,fy,'#') used as e.g. #N, 
+     and also '-' used as a character; declaring op(200,fx,-,sub) fix it. }
+    If ope = '' Then
+      OpMatch := True
+    Else If IsQuotedOp(o^.OP_OPER) Then { FIXME: inefficient }
+      OpMatch := SameOp(o^.OP_OPER,ope)
+    Else
+      OpMatch := o^.OP_OPER = ope;
+    { search criteria all ok }
+    If (OpMatch)
         And ((func = '') Or (o^.OP_FUNC = func)) 
         And ((OpTypes = []) Or (o^.OP_TYPE In OpTypes)) 
         And ((Arity = 0) Or (o^.OP_NPAR = Arity))

@@ -292,15 +292,21 @@ End;
 
 { left term of a functional symbol }
 Function FLeftArg( F : FuncPtr ) : TermPtr;
+Var
+  T : TermPtr Absolute F;
 Begin
   CheckCondition(F <> Nil,'FLeftArg of Nil');
+  CheckCondition(TypeOfTerm(T) = FuncSymbol,'FLeftArg: not a FU');
   FLeftArg := F^.TF_LTER
 End;
 
 { right term of a functional symbol }
 Function FRightArg( F : FuncPtr ) : TermPtr;
+Var
+  T : TermPtr Absolute F;
 Begin
   CheckCondition(F <> Nil,'FRightArg of Nil');
+  CheckCondition(TypeOfTerm(T) = FuncSymbol,'FRightArg: not a FU');
   FRightArg := F^.TF_RTER
 End;
 

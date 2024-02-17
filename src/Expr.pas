@@ -37,6 +37,7 @@ Type
 Function EvaluateExpression( T : TermPtr; P : ProgPtr ) : TermPtr;
 Var
   IT : IdPtr Absolute T;
+  y : TSyntax;
   e : TermPtr; { the result, as a term }
   Ident : TermPtr;
   IIdent : IdPtr Absolute Ident;
@@ -58,6 +59,7 @@ Var
   U : TermPtr; { tuple to store the current evaluated ident and arguments }
   U1 : TermPtr; { last element in this tuple }
 Begin
+  y := GetSyntax(P); 
   T := RepresentativeOf(T);
   e := T; { by default, the term evaluates to itself }
   If T <> Nil Then
@@ -189,12 +191,13 @@ Begin
                   r := Exp(ParVal[2].Val*Ln(ParVal[1].Val))
                 End
               End
-              Else If (func = 'inf') And (n = 2) Then
+              Else If ((func = 'inf') And (y = PrologIIp) 
+                  Or (func = '''<''') And (y = Edinburgh)) And (n = 2) Then
               Begin
                   r := Ord(ParVal[1].Val < ParVal[2].Val); { TODO: order on strings, etc.}
                   IsInt := True
               End
-              Else If (func = 'is') And (n = 2) Then
+              Else If (func = 'is') And (y = Edinburgh) And (n = 2) Then
               Begin
                 If ParVal[1].IsReal Xor ParVal[2].IsReal Then
                   r := 0

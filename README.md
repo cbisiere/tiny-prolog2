@@ -410,10 +410,12 @@ Note that using an explicit exponent for real numbers is mandatory, to avoid amb
 
 ### Marseille syntax
 
-Both Prolog II and Prolog II+ are based on the so-called "Marseille syntax", featuring the famous `->` symbol for rules, `/` for cut, dotted lists, and tuples.
+Both Prolog II and Prolog II+ are based on the so-called "Marseille syntax", featuring the famous `->` symbol for rules, `/` for cut, dotted lists, and tuples. Expressions in syntaxes without operators (i.e., Prolog II), as shown below, is just a term.
 
 ```
 cut = "/" ;
+
+expr = term
 
 term = pterm, [".", term] ;
 
@@ -422,7 +424,7 @@ term-list = term, [",", term-list] ;
 pterm = constant |
         (variable | identifier), ["(", term-list, ")"] |
         "<", [term-list], ">" |
-        "(", term, ")" ;       
+        "(", expr, ")" ;       
 
 rule = pterm, "->", { pterm | cut }, ";" ;
 
@@ -511,12 +513,11 @@ expr = [unary-op], term [binary-op, expr] ;
 expr-list = expr, ["," , expr-list] | 
 
 pterm = constant |
-        variable  |
-        identifier, ["(", expr-list, ")"] |
-        "<", [expr-list], ">" |
-        "<", ">", "(", expr-list, ")" |
+        (identifier | variable), ["(", term-list, ")"] |
+        "<", [term-list], ">" |
+        "<", ">", "(", term-list, ")" |
         "[", [list-expr], "]" |
-        "(", term, ")" ;       
+        "(", expr, ")" ;       
 
 list-expr = expr, ["," , list-expr] | 
             expr, "|", expr ;

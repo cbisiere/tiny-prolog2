@@ -26,7 +26,7 @@ Procedure DumpBacktrace; Forward;
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 25;
+  NB_PP = 26;
   MAX_PP_LENGHT = 21; { max string length }
   SYSCALL_IDENT_AS_STRING = 'syscall'; 
 Type
@@ -37,7 +37,7 @@ Type
     PP_QUIT,PP_INSERT,PP_LIST,
     PP_OUT,PP_OUTM,PP_LINE,
     PP_BACKTRACE,PP_CLRSRC,PP_EVAL,PP_OP,PP_ASSIGN,PP_DUMP,
-    PP_DIF);
+    PP_DIF,PP_UNIV);
   TPPRec = Record
     I : TPP; { identifier }
     S : String[MAX_PP_LENGHT]; { identifier as string }
@@ -71,7 +71,8 @@ Const
     (I:PP_OP;S:'sysop';N:4), { TODO: 3-arg version }
     (I:PP_ASSIGN;S:'sysassign';N:2),
     (I:PP_DUMP;S:'sysdump';N:0),
-    (I:PP_DIF;S:'sysdif';N:2)
+    (I:PP_DIF;S:'sysdif';N:2),
+    (I:PP_UNIV;S:'sysuniv';N:2) { '=..', Edinburgh only, p.221 }
   );
 
 { lookup for a predefined predicates; set the found record; 
@@ -188,6 +189,7 @@ Var
   FileNamePtr : StrPtr;
   o : OpPtr;
   ot : TOpType;
+  L : TermPtr;
 
 Begin
   ExecutionSysCallOk := False; { default is to fail }
@@ -285,6 +287,28 @@ Begin
           T2 := GetPArg(2,T);
           Ok := ReduceOneEq(T2,T1) { FIXME: shouldn't it be backtrackable? }
         End
+      End;
+    PP_UNIV: { '=..'(foo(a,b),[foo,a,b]) }
+      Begin
+        T1 := RepresentativeOf(GetPArg(1,T));
+        T2 := RepresentativeOf(GetPArg(2,T));
+        { create a new list from T1 }
+        Case TypeOfTerm(T1) Of
+        Constant,Identifier:
+          L := NewList2(P,T1,Nil); { foo =.. Y gives Y = [foo] }
+        FuncSymbol:
+          L := TupleToList(P,T1); { foo(a,b) =.. Y gives Y = [foo,a,b] }
+        Else
+          L := T1
+        End;
+        { create a new tuple from list T2 }
+        Case TypeOfTerm(T2) Of
+        FuncSymbol:
+          T := ListToTuple(T2); { X =.. [foo,a,b] gives X = foo(a,b) }
+        Else
+          T := T2
+        End;
+        Ok := ReduceOneEq(T,L) { TODO: backtrackable? }
       End;
     PP_OP: { op(700,xfx,"<",inf) } { TODO: implement full specs PII+ p137}
       Begin
