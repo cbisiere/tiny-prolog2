@@ -83,15 +83,25 @@ Begin
 End;
 
 { load rules and queries from a Prolog file, and execute the queries it 
- contains, if any }
-Procedure LoadProgram( P : ProgPtr; s : StrPtr );
+ contains, if any; if TryPath is True, try to use the main program dir first }
+Procedure LoadProgram( P : ProgPtr; s : StrPtr; TryPath : Boolean );
 Var 
-  Filename : TString;
+  y : TSyntax;
+  FileName, Path : TString;
+  Opened : Boolean;
 Begin
+  y := GetSyntax(P);
   If StrLength(s) <= StringMaxSize Then
   Begin
     FileName := StrGetString(s);
-    If SetPrologFileForInput(GetSyntax(P),FileName) Then
+    Path := GetProgramPath(P);
+    Opened := False;
+    If TryPath And (path <> '') And 
+        (Length(Path) + Length(FileName) <= StringMaxSize) Then
+      Opened := SetPrologFileForInput(y,Path + FileName);
+    If Not Opened Then
+      Opened := SetPrologFileForInput(y,FileName);
+    If Opened Then
     Begin
       BeginInsertion(P);
       ParseRulesAndQueries(P,GetRuleType(P));

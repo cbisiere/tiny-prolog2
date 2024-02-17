@@ -133,12 +133,19 @@ End;
 { get the user directory (FPC emulation); when non empty, it includes a 
  trailing path separator
  MS-DOS: return the current directory (FIXME: return HOME env var if any?)  }
-function GetUserDir: TString;
+Function GetUserDir: TString;
 Var
   s : String;
 Begin
   GetDir(0,s);
   GetUserDir := s { FIXME: check length? }
+End;
+
+{ TODO: return the file path part of the filename fn including the final 
+ directory separator (FPC emulation) }
+Function ExtractFilePath( fn : TString ) : TString;
+Begin
+  ExtractFilePath := fn { TBD }
 End;
 
 Type

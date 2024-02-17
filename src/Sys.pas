@@ -365,7 +365,7 @@ Begin
         If FileNamePtr = Nil Then Exit;
         { execute }
         QLast := LastProgramQuery(P);
-        LoadProgram(P,FileNamePtr);
+        LoadProgram(P,FileNamePtr,True);
         If Error Then Exit;
         { newly loaded rules are also in the scope of the current 
           query and queries that follow, up to the last query before

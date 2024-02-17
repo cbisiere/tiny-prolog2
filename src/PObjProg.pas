@@ -100,6 +100,7 @@ Type
     PP_OPER : OpPtr;   { list of operators }
     { extra data: }
     PP_LEVL : TILevel; { current file insertion level (0 is command-line) }
+    PP_PATH : TString; { path (dir) of the file passed as parameter in the CL }
     PP_TYPE : RuType;  { type of rule the program is about to read }
     PP_SYNT : TSyntax  { current active syntax }
   End;
@@ -206,6 +207,7 @@ Begin
     PP_LVAR := Nil;
     PP_OPER := Nil;
     PP_LEVL := 0;
+    PP_PATH := '';
     PP_TYPE := RTYPE_USER;
     PP_SYNT := PrologIIc
   End;
@@ -420,6 +422,18 @@ Procedure EndInsertion( P : ProgPtr );
 Begin
   CheckCondition(P^.PP_LEVL > 0,'negative insertion level');
   P^.PP_LEVL := P^.PP_LEVL - 1
+End;
+
+{ get the current type of rules to read }
+Function GetProgramPath( P : ProgPtr ) : TString;
+Begin
+  GetProgramPath := P^.PP_PATH
+End;
+
+{ set the current type of rules to read }
+Procedure SetProgramPath( P : ProgPtr; path : TString );
+Begin
+  P^.PP_PATH := path
 End;
 
 { get the current type of rules to read }
