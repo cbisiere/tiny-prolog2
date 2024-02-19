@@ -471,7 +471,7 @@ Begin
     If Error Then Exit;
     T := NewList2(P,T,T2)
   End
-  Else If comma Then { "b" as the end of "a,b" generates a.b.nil, see 6 p.45 }
+  Else { "a" <=> a.nil, see 6 p.45 }
   Begin
     T := NewList2(P,T,Nil)
   End;
