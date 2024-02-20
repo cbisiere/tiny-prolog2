@@ -38,6 +38,7 @@ Var
   Opp : OpPtr Absolute p;
   y : TSyntax;
 Begin
+  y := PrologIIc; { syntax for debug output }
   Case ObjectType(p) Of
   PR:
     Begin
@@ -56,7 +57,7 @@ Begin
   RU:
     Begin
       CWrite('Head: ');
-      OutTerm(Rup^.RU_FBTR^.BT_TERM,False)
+      OutTerm(y,Rup^.RU_FBTR^.BT_TERM,False)
     End;
   QU:
     Begin
@@ -66,11 +67,11 @@ Begin
     End;
   EQ:
     Begin
-      OutOneEquation(E,False)
+      OutOneEquation(y,E,False)
     End;
   BT:
     Begin
-      OutTerm(Bp^.BT_TERM,False);
+      OutTerm(y,Bp^.BT_TERM,False);
     End;
   CO:
     Begin
@@ -86,11 +87,11 @@ Begin
     End;
   FU:
     Begin
-      OutTerm(Tp,False);
+      OutTerm(y,Tp,False);
       If (FRed(Fp) <> Nil) Then
       Begin
         CWrite('==');
-        OutTerm(FRed(Fp),False)
+        OutTerm(y,FRed(Fp),False)
       End
     End;
   VA:
@@ -99,7 +100,7 @@ Begin
       If (VRed(Vp) <> Nil) Then
       Begin
         CWrite('==');
-        OutTerm(VRed(Vp),False)
+        OutTerm(y,VRed(Vp),False)
       End
     End;
   DE:
@@ -158,12 +159,14 @@ End;
 { display a Prolog clock header }
 Procedure DumpHeader( H : HeadPtr );
 Var 
+  y : TSyntax;
   R : RulePtr;
   isSys : Boolean;
   isCut : Boolean;
   U : RestorePtr;
   B : BTermPtr;
 Begin
+  y := PrologIIc; { syntax for header output }
   CWrite('*** Header level ' + LongIntToStr(H^.HH_CLOC) + ' ***');
   CWriteLn;
   If H^.HH_BACK <> Nil Then
@@ -175,7 +178,7 @@ Begin
   B := H^.HH_FBCL;
   While B <> Nil Do
   Begin
-    OutTerm(B^.BT_TERM,False);
+    OutTerm(y,B^.BT_TERM,False);
     If B^.BT_HEAD <> Nil Then
       CWrite('[' + LongIntToStr(B^.BT_HEAD^.HH_CLOC) + ']');
     CWrite(' ');
@@ -234,7 +237,7 @@ Begin
 End;
 
 { display variable identifiers from start to stop (excluding stop) }
-Procedure DumpDictVar( start,stop : DictPtr );
+Procedure DumpDictVar( y : TSyntax; start,stop : DictPtr );
 Var 
   e : DictPtr;
   V : VarPtr;
@@ -255,12 +258,12 @@ Begin
     If VRed(V) <> Nil Then
     Begin
       CWrite(' = ');
-      OutTerm(VRed(V),False)
+      OutTerm(y,VRed(V),False)
     End;
     If WatchIneq(V) <> Nil Then
     Begin
       CWrite(', ');
-      OutOneEquation(WatchIneq(V),False)
+      OutOneEquation(y,WatchIneq(V),False)
     End;
     CWriteLn;
     e := e^.DE_NEXT
@@ -304,7 +307,7 @@ Begin
     Begin
       DumpDictConst(P^.PP_DCON,'Constants:');
       DumpDictConst(P^.PP_DIDE,'Identifiers:');
-      DumpDictVar(P^.PP_DVAR,Nil);
+      DumpDictVar(GetSyntax(P),P^.PP_DVAR,Nil);
       If Trace Then
         Backtrace(P^.PP_HEAD)
     End;

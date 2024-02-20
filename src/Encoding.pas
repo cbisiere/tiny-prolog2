@@ -154,6 +154,31 @@ Begin
   NewFunc2 := U
 End;
 
+{ return True if term T is a 2-argument predicate with name ident, that is,
+ a tuple "<ident,t1,t2>"; retrieve the two arguments }
+Function GetFunc2( T : TermPtr; ident : TString; 
+    Var T1,T2 : TermPtr ) : Boolean;
+Var
+  T0 : TermPtr;
+Begin
+  GetFunc2 := False;
+  If Not IsTuple(T) Then
+    Exit;
+  T0 := TupleArg(T);
+  If Not IsTuple(T) Then
+    Exit;
+  If Not TermIsIdentifierEqualTo(T0,ident) Then
+    Exit;
+  T1 := TupleArg(T);
+  If Not IsTuple(T) Then
+    Exit;
+  T2 := TupleArg(T);
+  If T <> Nil Then
+    Exit;
+  GetFunc2 := True
+End;
+
+
 {----------------------------------------------------------------------------}
 { lists                                                                      }
 {----------------------------------------------------------------------------}
@@ -170,6 +195,12 @@ Begin
   ListQueue := TupleArgN(3,L)
 End;
 
+{ return an empty list "nil" }
+Function NewEmptyList( P : ProgPtr ) : TermPtr;
+Begin
+  NewEmptyList := EmitIdent(P,'nil',True)
+End;
+
 { return a term "a.b", viewed as '.'(a,b)" (equivalent to <'.',a,b>) and thus 
  implemented as "F('.',F(a,F(b,Nil)))"; if b is Nil, replace it with 
  "F('nil',Nil)", that is, add ".nil" at the end of the dotted list; this helps 
@@ -181,9 +212,30 @@ Function NewList2( P : ProgPtr; T1,T2 : TermPtr ) : TermPtr;
 Begin
   NewList2 := Nil;
   If T2 = Nil Then
-    T2 := EmitIdent(P,'nil',True);
+    T2 := NewEmptyList(P);
   NewList2 := NewFunc2(P,'.',T1,T2,True)
 End;
+
+{ return True if term T is 'nil' }
+Function IsNil( T : TermPtr ) : Boolean;
+Begin
+  IsNil := TermIsIdentifierEqualTo(T,'nil')
+End;
+
+{ return True if term T is a non-empty list: "a.b"; retrieve both arguments }
+Function GetList( T : TermPtr; Var T1,T2 : TermPtr ) : Boolean;
+Begin
+  GetList := GetFunc2(T,'.',T1,T2)
+End;
+
+{ return True if term T is a non-empty list: "a.b" }
+Function IsList( T : TermPtr ) : Boolean;
+Var 
+  T1,T2 : TermPtr;
+Begin
+  IsList := GetList(T,T1,T2)
+End;
+
 
 {----------------------------------------------------------------------------}
 { conversions                                                                }

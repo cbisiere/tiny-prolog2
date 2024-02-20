@@ -254,6 +254,19 @@ Begin
   IdentifierEqualTo := DictStrEqualTo(I^.TV_DVAR,ps)
 End;
 
+{ is an identifier and is equal to a given Pascal string }
+Function TermIsIdentifierEqualTo( T : TermPtr; ident : TString ) : Boolean;
+Var
+  I : IdPtr Absolute T;
+Begin
+  TermIsIdentifierEqualTo := False;
+  If TypeOfTerm(T) <> Identifier Then
+    Exit;
+  If Not IdentifierEqualTo(I,ident) Then
+    Exit;
+  TermIsIdentifierEqualTo := True
+End;
+
 { is an identifier the cut? }
 Function IdentifierIsCut( I : IdPtr ) : Boolean;
 Begin
@@ -262,11 +275,8 @@ End;
 
 { is a term the cut? }
 Function TermIsCut( T : TermPtr ) : Boolean;
-Var IT : IdPtr Absolute T;
 Begin
-  TermIsCut := False;
-  If TypeOfTerm(T) = Identifier Then 
-    TermIsCut := IdentifierIsCut(IT)
+  TermIsCut := TermIsIdentifierEqualTo(T,'!')
 End;
 
 { return an identifier as a (new) string; if Quotes is False, quoted 

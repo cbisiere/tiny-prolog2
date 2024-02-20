@@ -165,6 +165,7 @@ End;
 Function ExecutionSysCallOk; (* ( T : TermPtr; P : ProgPtr; Q : QueryPtr ) : Boolean; *)
 Var
   Ok : Boolean;
+  y : TSyntax;
   Ident : StrPtr;
   NbArgs : Integer;
   SysCallCode : StrPtr;
@@ -193,6 +194,7 @@ Var
 
 Begin
   ExecutionSysCallOk := False; { default is to fail }
+  y := GetSyntax(P);
 
   { coded as a functional symbol }
   CheckCondition(TypeOfTerm(T) = FuncSymbol,'syscall: functional symbol expected');
@@ -443,12 +445,12 @@ Begin
     PP_OUT:
       Begin
         Ok := True;
-        OutTerm(GetPArg(1,T),True)
+        OutTerm(y,GetPArg(1,T),True)
       End;
     PP_OUTM:
       Begin
         Ok := True;
-        OutTermBis(GetPArg(1,T),False,False,True)
+        OutTermBis(y,GetPArg(1,T),False,False,True)
       End;
     PP_LINE:
       Begin

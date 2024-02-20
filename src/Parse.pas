@@ -492,7 +492,7 @@ Begin
   VerifyToken(P,K,TOKEN_LEFT_BRA);
   If TokenType(K) = TOKEN_RIGHT_BRA Then { "[]": empty list }
   Begin
-    T := EmitIdent(P,'nil',True);
+    T := NewEmptyList(P);
     K := ReadToken(y)
   End
   Else
@@ -833,7 +833,7 @@ Begin
   StopTokens := [Syntax[y].RuleEnd];
   If Syntax[y].AcceptSys Then
     StopTokens := StopTokens + [TOKEN_LEFT_CUR];
-  R := NewRule(RuleType);
+  R := NewRule(RuleType,y);
   OpenLocalContextForRule(P,R);
   With R^ Do
   Begin
@@ -900,9 +900,9 @@ Var
   y : TSyntax;
   StopTokens : TTokenSet;
 Begin
-  Q := NewQuery(P^.PP_LEVL);
-  OpenLocalContextForQuery(P,Q);
   y := GetSyntax(P);
+  Q := NewQuery(P^.PP_LEVL,y);
+  OpenLocalContextForQuery(P,Q);
   StopTokens := [Syntax[y].PromptEnd,TOKEN_END_OF_INPUT];
   If Syntax[y].AcceptSys Then
     StopTokens := StopTokens + [TOKEN_LEFT_CUR];

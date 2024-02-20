@@ -60,7 +60,8 @@ Type
     RU_LVAR : DictPtr; { where to stop looking up for local variables }
     { extra data: }
     RU_ACUT : Boolean; { rule queue contains a cut }
-    RU_TYPE : RuType { type of rule: read from init file, or user }
+    RU_TYPE : RuType; { type of rule: read from init file, or user }
+    RU_SYNT : TSyntax { syntax the rule is written in }
   End;
 
   { query }
@@ -79,6 +80,7 @@ Type
     { extra data: }
     QU_LEVL : TILevel; { 0: command-line; 1: first inserted file, etc. }
     QU_ACUT : Boolean; { query contains a cut }
+    QU_SYNT : TSyntax { syntax the query is written in }
   End;
 
   { program }
@@ -143,7 +145,7 @@ Begin
 End;
 
 { new query w/ given file insertion level }
-Function NewQuery( level : TILevel ) : QueryPtr;
+Function NewQuery( level : TILevel; y : TSyntax ) : QueryPtr;
 Var 
   Q : QueryPtr;
   ptr : TPObjPtr Absolute Q;
@@ -160,13 +162,14 @@ Begin
     QU_FVAR := Nil;
     QU_LVAR := Nil;
     QU_LEVL := level;
-    QU_ACUT := False
+    QU_ACUT := False;
+    QU_SYNT := y
   End;
   NewQuery := Q
 End;
 
 { new rule }
-Function NewRule( RuleType : RuType ) : RulePtr;
+Function NewRule( RuleType : RuType; y : TSyntax ) : RulePtr;
 Var 
   R : RulePtr;
   ptr : TPObjPtr Absolute R;
@@ -180,7 +183,8 @@ Begin
     RU_FVAR := Nil;
     RU_LVAR := Nil;
     RU_ACUT := False;
-    RU_TYPE := RuleType
+    RU_TYPE := RuleType;
+    RU_SYNT := y
   End;
   NewRule := R
 End;
@@ -511,4 +515,16 @@ Begin
     B^.BT_HEAD := H;
     B := NextTerm(B)
   End
+End;
+
+{ get a rule's syntax }
+Function GetRuleSyntax( R : RulePtr ) : TSyntax;
+Begin
+  GetRuleSyntax := R^.RU_SYNT
+End;
+
+{ get a query's syntax }
+Function GetQuerySyntax( Q : QueryPtr ) : TSyntax;
+Begin
+  GetQuerySyntax := Q^.QU_SYNT
 End;
