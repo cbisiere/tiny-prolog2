@@ -154,30 +154,6 @@ Begin
   NewFunc2 := U
 End;
 
-{ return True if term T is a 2-argument predicate with name ident, that is,
- a tuple "<ident,t1,t2>"; retrieve the two arguments }
-Function GetFunc2( T : TermPtr; ident : TString; 
-    Var T1,T2 : TermPtr ) : Boolean;
-Var
-  T0 : TermPtr;
-Begin
-  GetFunc2 := False;
-  If Not IsTuple(T) Then
-    Exit;
-  T0 := TupleArg(T);
-  If Not IsTuple(T) Then
-    Exit;
-  If Not TermIsIdentifierEqualTo(T0,ident) Then
-    Exit;
-  T1 := TupleArg(T);
-  If Not IsTuple(T) Then
-    Exit;
-  T2 := TupleArg(T);
-  If T <> Nil Then
-    Exit;
-  GetFunc2 := True
-End;
-
 
 {----------------------------------------------------------------------------}
 { lists                                                                      }
@@ -220,20 +196,6 @@ End;
 Function IsNil( T : TermPtr ) : Boolean;
 Begin
   IsNil := TermIsIdentifierEqualTo(T,'nil')
-End;
-
-{ return True if term T is a non-empty list: "a.b"; retrieve both arguments }
-Function GetList( T : TermPtr; Var T1,T2 : TermPtr ) : Boolean;
-Begin
-  GetList := GetFunc2(T,'.',T1,T2)
-End;
-
-{ return True if term T is a non-empty list: "a.b" }
-Function IsList( T : TermPtr ) : Boolean;
-Var 
-  T1,T2 : TermPtr;
-Begin
-  IsList := GetList(T,T1,T2)
 End;
 
 

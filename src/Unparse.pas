@@ -33,6 +33,10 @@ Const
   );
 
 
+{----------------------------------------------------------------------------}
+{ inequation stack                                                           }
+{----------------------------------------------------------------------------}
+
 Const MaxIneq = 1000;
 
 Type StakIneq = Array[1..MaxIneq] Of EqPtr; { stack of inequations to print }
@@ -78,6 +82,10 @@ Begin
   End
 End;
 
+{----------------------------------------------------------------------------}
+{ naming of temporary variables                                              }
+{----------------------------------------------------------------------------}
+
 { return the name of a user or temporary variable }
 Function GetVarNameAsString( V : VarPtr ) : StrPtr;
 Var 
@@ -99,6 +107,78 @@ Begin
   GetVarNameAsString := s
 End;
 
+{----------------------------------------------------------------------------}
+{ navigating the term tree, possibly through the reduced system              }
+{----------------------------------------------------------------------------}
+
+{ tuple head }
+Function GetTupleHead( T : TermPtr; Reduce : Boolean ) : TermPtr;
+Begin
+  T := TupleHead(T);
+  If Reduce Then
+    T := RepresentativeOf(T);
+  GetTupleHead := T
+End;
+
+{ tuple queue }
+Function GetTupleQueue( T : TermPtr; Reduce : Boolean ) : TermPtr;
+Begin
+  T := TupleQueue(T);
+  If Reduce Then
+    T := RepresentativeOf(T);
+  GetTupleQueue := T
+End;
+
+{ tuple first arg, advancing U to the queue }
+Function GetTupleArg( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
+Begin
+  GetTupleArg := GetTupleHead(U,Reduce);
+  U := GetTupleQueue(U,Reduce)
+End;
+
+{ return True if term T is a 2-argument predicate with name ident, that is,
+ a tuple "<ident,t1,t2>"; retrieve the two arguments }
+Function GetFunc2( T : TermPtr; ident : TString; 
+    Var T1,T2 : TermPtr; Reduce : Boolean ) : Boolean;
+Var
+  T0 : TermPtr;
+Begin
+  GetFunc2 := False;
+  If Not IsTuple(T) Then
+    Exit;
+  T0 := GetTupleArg(T,Reduce);
+  If Not IsTuple(T) Then
+    Exit;
+  If Not TermIsIdentifierEqualTo(T0,ident) Then
+    Exit;
+  T1 := GetTupleArg(T,Reduce);
+  If Not IsTuple(T) Then
+    Exit;
+  T2 := GetTupleArg(T,Reduce);
+  If T <> Nil Then
+    Exit;
+  GetFunc2 := True
+End;
+
+{ return True if term T is a non-empty list: "a.b"; retrieve both arguments }
+Function GetList( T : TermPtr; Var T1,T2 : TermPtr; 
+    Reduce : Boolean ) : Boolean;
+Begin
+  GetList := GetFunc2(T,'.',T1,T2,Reduce)
+End;
+
+{ return True if term T is a non-empty list: "a.b" }
+Function IsList( T : TermPtr; Reduce : Boolean ) : Boolean;
+Var 
+  T1,T2 : TermPtr;
+Begin
+  IsList := GetList(T,T1,T2,Reduce)
+End;
+
+
+{----------------------------------------------------------------------------}
+{ write                                                                      }
+{----------------------------------------------------------------------------}
 
 Procedure WriteTermBis( y : TSyntax; s : StrPtr; T : TermPtr; 
     InList,ArgList,Quotes,Solution : Boolean); Forward;
@@ -106,12 +186,16 @@ Procedure WriteTermBis( y : TSyntax; s : StrPtr; T : TermPtr;
 { write a comma-separated list of arguments in tuple U }
 Procedure WriteArgument( y : TSyntax; s : StrPtr; U : TermPtr; 
     Solution : Boolean );
+Var
+  T : TermPtr;
 Begin
-  WriteTermBis(y,s,TupleHead(U),False,False,True,Solution);
-  If TupleQueue(U) <> Nil Then
+  T := GetTupleHead(U,Solution);
+  WriteTermBis(y,s,T,False,False,True,Solution);
+  T := GetTupleQueue(U,Solution);
+  If T <> Nil Then
   Begin
     StrAppend(s,',');
-    WriteArgument(y,s,TupleQueue(U),Solution)
+    WriteArgument(y,s,T,Solution)
   End
 End;
 
@@ -163,7 +247,7 @@ Var
   { others: }
   Th : TermPtr;
   ITh : IdPtr Absolute Th;
-  T1,T2,T3 : TermPtr;
+  T1,T2 : TermPtr;
 Begin
   Case TypeOfTerm(T) Of
   Constant:
@@ -205,7 +289,7 @@ Begin
     Begin
       If IsEmptyTuple(T) Then
         StrAppend(s,'<>')
-      Else If GetList(T,T1,T2) Then { t is t1.t2, coded as '.'(t1,t2) }
+      Else If GetList(T,T1,T2,Solution) Then { t is t1.t2 }
       Begin
         If ArgList Then 
           StrAppend(s,'(');
@@ -221,7 +305,7 @@ Begin
         Begin
           StrAppend(s,']')
         End
-        Else If IsList(T2) Then { t = t1.t2 where t2 is a list }
+        Else If IsList(T2,Solution) Then { t = t1.t2 where t2 is a list }
         Begin
           StrAppend(s,',');
           WriteTermBis(y,s,T2,True,False,True,Solution)
@@ -237,14 +321,15 @@ Begin
       End
       Else { a non-empty tuple that is not a list }
       Begin 
-        Th := TupleHead(T);
+        Th := GetTupleHead(T,Solution);
         If TypeOfTerm(Th) = Identifier Then
         Begin
           WriteIdentifier(s,ITh);
-          If TupleQueue(T) <> Nil Then { <ident,a,b,...> == ident(a,b,...) }
+          T1 := GetTupleQueue(T,Solution);
+          If T1 <> Nil Then { <ident,a,b,...> == ident(a,b,...) }
           Begin
             StrAppend(s,'(');
-            WriteArgument(y,s,TupleQueue(T),Solution);
+            WriteArgument(y,s,T1,Solution);
             StrAppend(s, ')')
           End
         End
@@ -330,10 +415,12 @@ Begin
   End
 End;
 
-{ write a term that is not an argument of a predicate }
+{ write a top-level term (i.e. a term that is not an argument of a predicate) }
 Procedure WriteTerm; (* ( y : TSyntax; s : StrPtr; T : TermPtr; 
     Solution : Boolean ); *)
 Begin
+  If Solution Then
+    T := RepresentativeOf(T);
   WriteTermBis(y,s,T,False,False,True,Solution)
 End;
 
@@ -401,13 +488,13 @@ Begin
     StrAppend(s,' }')
 End;
 
-{ write BTerm B }
+{ write BTerm B (as part of a rule's queue or goals) }
 Procedure WriteOneBTerm( y : TSyntax; s : StrPtr; B : BTermPtr );
 Begin
   WriteTerm(y,s,B^.BT_TERM,False)
 End;
 
-{ write a list of BTerms }
+{ write a list of BTerms (rule's queue or goals) }
 Procedure WriteTerms( y : TSyntax; s : StrPtr; B : BTermPtr; sep : TString );
 Var 
   First : Boolean;
@@ -495,14 +582,14 @@ Var
   y : TSyntax;
 Begin
   y := GetQuerySyntax(Q);
-  StrAppend(s,' ' + OSyntax[y].QueryStart);
+  StrAppend(s,OSyntax[y].QueryStart);
   WriteTerms(y,s,Q^.QU_FBTR,' ');
   If Q^.QU_SYST <> Nil Then
   Begin
     StrAppend(s,' ');
     WriteSourceSystem(s,Q^.QU_SYST)
   End;
-  StrAppend(s,' ' + OSyntax[y].QueryEnd);
+  StrAppend(s,OSyntax[y].QueryEnd);
 End;
 
 { write a list of query }

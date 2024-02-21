@@ -483,6 +483,18 @@ Begin
   EvaluateToIdentifier := IT
 End;
 
+{ return True if T evaluates to identifier (TSring) ident }
+Function EvaluatesToIdentifier( T : TermPtr; ident : TString ) : Boolean;
+Var
+  I : IdPtr;
+Begin 
+  I := EvaluateToIdentifier(T);
+  If I = Nil Then
+    EvaluatesToIdentifier := False
+  Else
+    EvaluatesToIdentifier := IdentifierEqualTo(I,ident)
+End;
+
 { return the access identifier of a term, or Nil }
 Function AccessIdentifier( T : TermPtr ) : IdPtr;
 Var 
