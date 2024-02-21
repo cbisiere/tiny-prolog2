@@ -191,6 +191,7 @@ Var
   o : OpPtr;
   ot : TOpType;
   L : TermPtr;
+  HadNoRules : Boolean;
 
 Begin
   ExecutionSysCallOk := False; { default is to fail }
@@ -366,19 +367,32 @@ Begin
         FileNamePtr := GetFilenameArgAsStr(1,T);
         If FileNamePtr = Nil Then Exit;
         { execute }
+        HadNoRules := FirstProgramRule(P) = Nil;
         QLast := LastProgramQuery(P);
-        LoadProgram(P,FileNamePtr,True);
+        LoadProgram(P,Q,FileNamePtr,True);
         If Error Then Exit;
-        { newly loaded rules are also in the scope of the current 
-          query and queries that follow, up to the last query before
-          the program was loaded }
-        Qi := Q;
-        Stop := False;
-        While Not Stop Do
+        { TWIST:
+          if the program had no rules before these new rules were inserted,
+          we must update the scopes of the current query and queries that follow, 
+          up to the last query before the program was loaded;
+          indeed, when reading a program *starting* with an insert/1, the scope
+          of this insert will be nil; upon execution, the inserted rules will 
+          not show up in the scope of this goal (and it may thus fail); the 
+          situation is similar for the queries that follow insert/1 and are in 
+          the same file: even if they have a non Nil scope, the first rule in
+          the scope is not what it should be }
+        If HadNoRules Then
         Begin
-          UpdateQueryScope(P,Qi);
-          Qi := NextQuery(Qi);
-          Stop := (Qi=Nil) Or (Qi=QLast)
+          Qi := Q;
+          Stop := False;
+          While Not Stop Do
+          Begin
+            SetFirstRuleInQueryScope(Qi,FirstProgramRule(P));
+            If LastRuleInQueryScope(Qi) = Nil Then
+              SetLastRuleInQueryScope(Qi,LastRuleInQueryScope(Q));
+            Qi := NextQuery(Qi);
+            Stop := (Qi=Nil) Or (Qi=QLast)
+          End
         End
       End;
     PP_INPUT: { input("buffer") }
@@ -440,7 +454,8 @@ Begin
     PP_LIST:
       Begin
         Ok := True;
-        OutQuestionRules(Q,RTYPE_USER,False)
+        OutRuleRange(FirstRuleInQueryScope(Q),LastRuleInQueryScope(Q),
+            RTYPE_USER,False)
       End;
     PP_OUT:
       Begin

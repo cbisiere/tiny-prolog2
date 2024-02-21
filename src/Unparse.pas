@@ -555,13 +555,13 @@ Begin
   End
 End;
 
-{ write the rules that can be used to clear a query (scoping) }
-Procedure WriteQuestionRules( s : StrPtr; Q : QueryPtr; RuleType : RuType );
+{ write rules between R1 and R2 }
+Procedure WriteRuleRange( s : StrPtr; R1,R2 : RulePtr; RuleType : RuType );
 Var
   R : RulePtr;
   Stop : Boolean;
 Begin
-  R := Q^.QU_FRUL;
+  R := R1;
   Stop := R = Nil;
   While Not Stop Do
   Begin
@@ -570,7 +570,7 @@ Begin
       WriteOneRule(s,R);
       StrAppendCR(s)
     End;
-    Stop := R = Q^.QU_LRUL;
+    Stop := R = R2;
     R := NextRule(R);
     Stop := Stop Or (R = Nil)
   End
@@ -605,14 +605,14 @@ End;
 { write all queries in a program }
 Procedure WriteProgramQueries( s : StrPtr; P : ProgPtr );
 Begin
-  WriteQueries(s,P^.PP_FQRY)
+  WriteQueries(s,FirstProgramQuery(P))
 End;
 
 
 { write all rules in a program }
 Procedure WriteProgramRules( s : StrPtr; P : ProgPtr );
 Begin
-  WriteRules(s,P^.PP_FRUL)
+  WriteRules(s,FirstProgramRule(P))
 End;
 
 
@@ -727,11 +727,11 @@ Begin
   OutStringCR(s,UseIOStack)
 End;
 
-Procedure OutQuestionRules( Q : QueryPtr; RuleType : RuType; UseIOStack : Boolean );
+Procedure OutRuleRange( R1,R2 : RulePtr; RuleType : RuType; UseIOStack : Boolean );
 Var s : StrPtr;
 Begin
   s := NewString;
-  WriteQuestionRules(s,Q,RuleType);
+  WriteRuleRange(s,R1,R2,RuleType);
   OutString(s,UseIOStack)
 End;
 

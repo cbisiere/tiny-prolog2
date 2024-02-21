@@ -93,7 +93,7 @@ Begin
     s := NewStringFrom('start/' + StartFile[y] + '.' + FileExt[y]);
     AddGCRoot(os); { protect this string from GC }
     SetRuleType(P,RTYPE_AUTO);
-    LoadProgram(P,s,False)
+    LoadProgram(P,Nil,s,False)
   End;
 
   { from now on, all rules are user rules }
@@ -105,7 +105,7 @@ Begin
     SetProgramPath(P,ExtractFilePath(filename));
     s := NewStringFrom(filename);
     AddGCRoot(os); { protect this string from GC }
-    LoadProgram(P,s,False)
+    LoadProgram(P,Nil,s,False)
   End
 End;
 

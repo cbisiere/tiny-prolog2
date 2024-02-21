@@ -77,7 +77,7 @@ Var
   Function Next( R : RulePtr ) : RulePtr;
   Begin
     CheckCondition(R <> Nil,'cannot call Next on Nil');
-    If R = Q^.QU_LRUL Then 
+    If R = LastRuleInQueryScope(Q) Then 
       Next := Nil
     Else
       Next := NextRule(R)
@@ -226,12 +226,12 @@ End;
 { d'être effacé, la procédure fait un appel à Backtracking;        }
 {------------------------------------------------------------------}
 
-  Procedure FirstRule( Var H : HeadPtr );
+  Procedure SetFirstCandidateRuleOrBacktrack( Var H : HeadPtr );
   Var
     R : RulePtr;
     isSys, isCut : Boolean;
   Begin
-    R := FirstCandidateRule(Q^.QU_FRUL,H^.HH_FBCL,isSys,isCut);
+    R := FirstCandidateRule(FirstRuleInQueryScope(Q),H^.HH_FBCL,isSys,isCut);
     SetHeaderRule(H,R,isSys,isCut);
     If (R = Nil) And (Not isSys) And (Not isCut) Then
       Backtracking(H,EndOfClock)
@@ -384,7 +384,7 @@ Begin
     Exit
   End;
 
-  R := FirstCandidateRule(Q^.QU_FRUL,B,isSys,isCut);
+  R := FirstCandidateRule(FirstRuleInQueryScope(Q),B,isSys,isCut);
 
   { not even a candidate rule to try: fail }
   If (R = Nil) And (Not isSys) And (Not isCut) Then
@@ -402,7 +402,7 @@ Begin
     Then
       MoveBackward(P^.PP_HEAD)
     Else
-      FirstRule(P^.PP_HEAD);
+      SetFirstCandidateRuleOrBacktrack(P^.PP_HEAD);
     { trigger GC after a certain number of steps }
     GCCount := GCCount + 1;
     If GCCount = 100 Then

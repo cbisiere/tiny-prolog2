@@ -83,8 +83,11 @@ Begin
 End;
 
 { load rules and queries from a Prolog file, and execute the queries it 
- contains, if any; if TryPath is True, try to use the main program dir first }
-Procedure LoadProgram( P : ProgPtr; s : StrPtr; TryPath : Boolean );
+ contains, if any; if TryPath is True, try to use the main program dir first;
+ Q is the query (if any) that triggered the loading, e.g. due to an "insert" 
+ goal }
+Procedure LoadProgram( P : ProgPtr; Q : QueryPtr; 
+    s : StrPtr; TryPath : Boolean );
 Var 
   y : TSyntax;
   FileName, Path : TString;
@@ -104,7 +107,7 @@ Begin
     If Opened Then
     Begin
       BeginInsertion(P);
-      ParseRulesAndQueries(P,GetRuleType(P));
+      ParseRulesAndQueries(P,Q,GetRuleType(P));
       If Error Then Exit;
       CloseCurrentInput;
       If Error Then Exit;

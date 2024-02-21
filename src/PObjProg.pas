@@ -297,26 +297,38 @@ Begin
   LastRule := R
 End;
 
-{ append rule R to program P }
-Procedure AppendOneRule( P : ProgPtr; R : RulePtr );
+{ append a non-empty list of rules R to program P }
+Procedure AppendRules( P : ProgPtr; R : RulePtr );
 Begin
-  If R <> Nil Then
-  Begin
-    CheckCondition((P^.PP_FRUL = Nil) And (P^.PP_LRUL = Nil) 
-        Or (P^.PP_FRUL <> Nil) And (P^.PP_LRUL <> Nil),
-        'broken list of rules');
-    R^.RU_NEXT := Nil;
-    if P^.PP_FRUL = Nil Then
-    Begin
-      P^.PP_FRUL := R;
-      P^.PP_LRUL := R
-    End
-    Else
-    Begin
-      P^.PP_LRUL^.RU_NEXT := R;
-      P^.PP_LRUL := R
-    End
-  End
+  if P^.PP_FRUL = Nil Then
+    P^.PP_FRUL := R
+  Else
+    P^.PP_LRUL^.RU_NEXT := R;
+  P^.PP_LRUL := LastRule(R)
+End;
+
+{ insert a list of rules R after rule Ra of program P, or, if Ra is Nil, just
+ append the list R to program P; return the last element of R (for chaining) }
+Function InsertRulesAfter( P : ProgPtr; Ra, R : RulePtr ) : RulePtr;
+Var
+  Rn,tmp : RulePtr;
+Begin
+  CheckCondition(R <> Nil,'InsertRulesAfter: R is Nil');
+  CheckCondition((P^.PP_FRUL = Nil) And (P^.PP_LRUL = Nil) 
+      Or (P^.PP_FRUL <> Nil) And (P^.PP_LRUL <> Nil), 
+      'broken list of rules');
+  Rn := LastRule(R);
+  If Ra = Nil Then
+    AppendRules(P,R)
+  Else If NextRule(Ra) = Nil Then
+    AppendRules(P,R)
+  Else
+  Begin { insertion "inside" P's rules, so no change to PP_FRUL and PP_LRUL }
+    tmp := NextRule(Ra);
+    Ra^.RU_NEXT := R;
+    Rn^.RU_NEXT := tmp
+  End;
+  InsertRulesAfter := Rn
 End;
 
 { next query }
@@ -331,41 +343,77 @@ Begin
   PrevQuery := Q^.QU_PREV
 End;
 
+{ last query in a list }
+Function LastQuery( Q : QueryPtr ) : QueryPtr;
+Begin
+  While (NextQuery(Q) <> Nil) Do
+    Q := NextQuery(Q);
+  LastQuery := Q
+End;
+
+{ first rule in the scope of a query }
+Function FirstRuleInQueryScope( Q : QueryPtr ) : RulePtr;
+Begin
+  FirstRuleInQueryScope := Q^.QU_FRUL
+End;
+
+{ set the first rule in the scope of a query }
+Procedure SetFirstRuleInQueryScope( Q : QueryPtr; R : RulePtr );
+Begin
+  Q^.QU_FRUL := R
+End;
+
+{ last rule in the scope of a query }
+Function LastRuleInQueryScope( Q : QueryPtr ) : RulePtr;
+Begin
+  LastRuleInQueryScope := Q^.QU_LRUL
+End;
+
+{ set the last rule in the scope of a query }
+Procedure SetLastRuleInQueryScope( Q : QueryPtr; R : RulePtr );
+Begin
+  Q^.QU_LRUL := R
+End;
+
+{ first query in a program }
+Function FirstProgramQuery( P : ProgPtr ) : QueryPtr;
+Begin
+  FirstProgramQuery := P^.PP_FQRY
+End;
+
 { last query in a program }
 Function LastProgramQuery( P : ProgPtr ) : QueryPtr;
 Begin
   LastProgramQuery := P^.PP_LQRY
 End;
 
-{ append query Q to program P }
-Procedure AppendOneQuery( P : ProgPtr; Q : QueryPtr );
+{ first rule in a program }
+Function FirstProgramRule( P : ProgPtr ) : RulePtr;
 Begin
-  If Q <> Nil Then
-  Begin
-    CheckCondition((P^.PP_FQRY = Nil) And (P^.PP_LQRY = Nil) 
-        Or (P^.PP_FQRY <> Nil) And (P^.PP_LQRY <> Nil),
-        'broken list of queries');
-    Q^.QU_NEXT := Nil;
-    Q^.QU_PREV := Nil;
-    if P^.PP_FQRY = Nil Then
-    Begin
-      P^.PP_FQRY := Q;
-      P^.PP_LQRY := Q
-    End
-    Else
-    Begin
-      P^.PP_LQRY^.QU_NEXT := Q;
-      Q^.QU_PREV := P^.PP_LQRY;
-      P^.PP_LQRY := Q
-    End
-  End
+  FirstProgramRule := P^.PP_FRUL
 End;
 
-{ update the rule scope of query Q with all the rules in P }
-Procedure UpdateQueryScope( P : ProgPtr; Q : QueryPtr );
+{ last rule in a program }
+Function LastProgramRule( P : ProgPtr ) : RulePtr;
 Begin
-  Q^.QU_FRUL := P^.PP_FRUL;
-  Q^.QU_LRUL := P^.PP_LRUL
+  LastProgramRule := P^.PP_LRUL
+End;
+
+{ append a non-empty list of query Q to program P }
+Procedure AppendQueries( P : ProgPtr; Q : QueryPtr );
+Begin
+  CheckCondition(Q <> Nil,'AppendQueries: Q is Nil');
+  CheckCondition((P^.PP_FQRY = Nil) And (P^.PP_LQRY = Nil) 
+      Or (P^.PP_FQRY <> Nil) And (P^.PP_LQRY <> Nil),
+      'broken list of queries');
+  If P^.PP_FQRY = Nil Then
+    P^.PP_FQRY := Q
+  Else
+  Begin
+    P^.PP_LQRY^.QU_NEXT := Q;
+    Q^.QU_PREV := P^.PP_LQRY
+  End;
+  P^.PP_LQRY := LastQuery(Q)
 End;
 
 { first query to execute, that is, first query having the same 

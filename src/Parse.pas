@@ -821,7 +821,8 @@ End;
    an identifier or - a tuple whose first argument is an identifier"
  actual tests on PII+ confirm that a rule head cannot be a list  
   }
-Procedure CompileOneRule( P : ProgPtr; Var K : TokenPtr; RuleType : RuType );
+Function CompileOneRule( P : ProgPtr; Var K : TokenPtr; 
+    RuleType : RuType ) : RulePtr;
 Var 
   y : TSyntax;
   R : RulePtr;
@@ -829,6 +830,7 @@ Var
   HasCut : Boolean;
   StopTokens : TTokenSet;
 Begin
+  CompileOneRule := Nil;
   y := GetSyntax(P);
   StopTokens := [Syntax[y].RuleEnd];
   If Syntax[y].AcceptSys Then
@@ -861,15 +863,23 @@ Begin
   End;
   If Error Then Exit;
   CloseLocalContextForRule(P,R);
-  AppendOneRule(P,R)
+  CompileOneRule := R
 End;
 
 { compile a sequence of rules, stopping at a token in StopTokens  }
-Procedure CompileRules( P : ProgPtr; Var K : TokenPtr; 
-    StopTokens : TTokenSet; RuleType : RuType );
+Function CompileRules( P : ProgPtr; Var K : TokenPtr; 
+    StopTokens : TTokenSet; RuleType : RuType ) : RulePtr;
+Var
+  R : RulePtr;
 Begin
-  While (Not (TokenType(K) In StopTokens)) And (Not Error) Do
-    CompileOneRule(P,K,RuleType);
+  CompileRules := Nil;
+  If (TokenType(K) In StopTokens) Or (Error) Then
+    Exit;
+  R := CompileOneRule(P,K,RuleType);
+  If Error Then Exit;
+  R^.RU_NEXT := CompileRules(P,K,StopTokens,RuleType);
+  If Error Then Exit;
+  CompileRules := R
 End;
 
 { set up local variable context to prepare compiling a new query }
@@ -886,20 +896,22 @@ Begin
 End;
 
 { compile a query, including a system of equations and equations if any;
+ - Ra is the last inserted rule
  - note that this system cannot be reduced right away, as its 
    solution (or lack thereof) may depend on global variables;
  - read the token after the end-of-query mark only if ReadNextToken is true;
    setting this parameter to false is useful when reading a goal typed at
    the prompt, as the char following the end-of-query mark is supposed to be 
    returned when the goal is in_char(c) }
-Procedure CompileOneQuery( P : ProgPtr; Var K : TokenPtr; 
-    ReadNextToken : Boolean );
+Function CompileOneQuery( P : ProgPtr; Ra : RulePtr; Var K : TokenPtr; 
+    ReadNextToken : Boolean ) : QueryPtr;
 Var
   Q : QueryPtr;
   HasCut : Boolean;
   y : TSyntax;
   StopTokens : TTokenSet;
 Begin
+  CompileOneQuery := Nil;
   y := GetSyntax(P);
   Q := NewQuery(P^.PP_LEVL,y);
   OpenLocalContextForQuery(P,Q);
@@ -923,30 +935,39 @@ Begin
     If Error Then Exit
   End;
   CloseLocalContextForQuery(P,Q);
-  UpdateQueryScope(P,Q);
-  AppendOneQuery(P,Q)
+  { scope: range of rules that can be used to clear that query }
+  CheckCondition((P^.PP_FRUL = Nil) And (Ra = Nil) 
+      Or (P^.PP_FRUL <> Nil) And (Ra <> Nil), 
+      'CompileOneQuery: broken candidate scope');
+  SetFirstRuleInQueryScope(Q,FirstProgramRule(P));
+  SetLastRuleInQueryScope(Q,Ra);
+  CompileOneQuery := Q
 End;
 
 { compile a sequence of queries; if ContTokens is not empty, each query 
   must start with a token in this set; the sequence ends with a token 
-  in StopTokens;  }
-Procedure CompileQueries( P : ProgPtr; Var K : TokenPtr; WithArrow : Boolean;
-  ContTokens, StopTokens : TTokenSet );
+  in StopTokens; Ra is the last compiled rule }
+Function CompileQueries( P : ProgPtr; Ra : RulePtr; Var K : TokenPtr; 
+  WithArrow : Boolean; ContTokens, StopTokens : TTokenSet ) : QueryPtr;
 Var
+  Q : QueryPtr;
   More : Boolean;
 Begin
-  Repeat
-    More := ((ContTokens=[]) Or (TokenType(K) In ContTokens))
-      And (Not (TokenType(K) In StopTokens)) And (Not Error);
-    If More Then
-    Begin
-      If WithArrow Then
-        VerifyToken(P,K,TOKEN_ARROW);
-      If Error Then Exit;
-      CompileOneQuery(P,K,True);
-      If Error Then Exit
-    End
-  Until Not More Or Error
+  CompileQueries := Nil;
+  More := ((ContTokens=[]) Or (TokenType(K) In ContTokens))
+    And (Not (TokenType(K) In StopTokens)) And (Not Error);
+  If Not More Then
+    Exit;
+  If WithArrow Then
+    VerifyToken(P,K,TOKEN_ARROW);
+  If Error Then Exit;
+  Q := CompileOneQuery(P,Ra,K,True);
+  If Error Then Exit;
+  Q^.QU_NEXT := CompileQueries(P,Ra,K,WithArrow,ContTokens,StopTokens);
+  If Error Then Exit;
+  If Q^.QU_NEXT <> Nil Then
+    Q^.QU_NEXT^.QU_PREV := Q;
+  CompileQueries := Q
 End;
 
 {----------------------------------------------------------------------------}
@@ -985,30 +1006,41 @@ Function ParseCommandLineQuery( P : ProgPtr ) : Boolean;
 Var
   y : TSyntax;
   K : TokenPtr;
+  Q : QueryPtr;
 Begin
   ParseCommandLineQuery := False;
   y := GetSyntax(P);
   K := ReadToken(y);
   If TokenType(K) <> TOKEN_END_OF_INPUT Then
   Begin
-    CompileOneQuery(P,K,False);
+    Q := CompileOneQuery(P,LastProgramRule(P),K,False);
     If Error Then Exit;
+    If Q <> Nil Then
+      AppendQueries(P,Q);
     ParseCommandLineQuery := True
   End
 End;
 
-{ parse and append rules and queries to a program; top-level strings (that is, 
- when a rule is expected) are taken to have the value of a comment in all the 
- supported Prolog syntaxes }
-Procedure ParseRulesAndQueries( P : ProgPtr; RuleType : RuType );
+{ parse and append rules and queries to a program; 
+ Q is the query (if any) that triggered the loading;
+ top-level strings (that is, when a rule is expected) are taken to have the 
+ value of a comment in all the supported Prolog syntaxes }
+Procedure ParseRulesAndQueries( P : ProgPtr; Q : QueryPtr; RuleType : RuType );
 Var
   Stop : Boolean;
   y : TSyntax;
   K : TokenPtr;
   StopTokens : TTokenSet;
+  Ra : RulePtr; { where new rules must be inserted }
+  Qn : QueryPtr; { new series of queries }
+  Rn : RulePtr; { new series of rules }
 Begin
   y := GetSyntax(P);
   K := ReadToken(y);
+  If Q <> Nil Then
+    Ra := LastRuleInQueryScope(Q) { insert/1 }
+  Else
+    Ra := LastProgramRule(P); { not an insert/1: autoexec or CLI }
   Stop := False;
   { common tokens ending a series of queries or rules }
   StopTokens := [TOKEN_END_OF_INPUT,TOKEN_STRING];
@@ -1025,10 +1057,18 @@ Begin
         SyntaxError(TokenStr[TOKEN_SEMICOLON] + ' not expected here');
     TOKEN_STRING:
       K := ReadToken(y);
-    TOKEN_ARROW:
-      CompileQueries(P,K,True,[TOKEN_ARROW],StopTokens);
-    Else { rules }
-      CompileRules(P,K,StopTokens + [TOKEN_ARROW],RuleType)
+    TOKEN_ARROW: { a series of queries }
+      Begin
+        Qn := CompileQueries(P,Ra,K,True,[TOKEN_ARROW],StopTokens);
+        If Qn <> Nil Then
+          AppendQueries(P,Qn)
+      End;
+    Else { a series of rules }
+      Begin
+        Rn := CompileRules(P,K,StopTokens + [TOKEN_ARROW],RuleType);
+        If Rn <> Nil Then
+          Ra := InsertRulesAfter(P,Ra,Rn) { Ra is now the last compiled rule }
+      End
     End
   Until Stop Or Error;
   If Error Then Exit;
