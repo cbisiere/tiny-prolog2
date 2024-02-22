@@ -17,7 +17,7 @@
 
 Type
   CharSet   = Set Of Char;
-
+  TComp = (CompLower,CompEqual,CompGreater,CompUndefined);
 
 { do nothing }
 Procedure Pass;

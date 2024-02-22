@@ -247,24 +247,36 @@ Begin
   End
 End;
 
-{ are two string data equal? }
-Function StrDataEqual( sd1,sd2 : StrDataPtr ) : Boolean;
-Var eq : Boolean;
+{ compare two string data; TODO: UTF8 }
+Function StrDataComp( sd1,sd2 : StrDataPtr ) : TComp;
+Var
+  Cmp : TComp;
 Begin
-  eq := Not ((sd1=Nil) Xor (sd2=Nil));
-  If eq And (sd1<>Nil) And (sd2<>Nil) Then
-  Begin
-    eq := sd1^.SD_DATA = sd2^.SD_DATA;
-    If eq Then
-      eq := StrDataEqual(sd1^.SD_NEXT,sd2^.SD_NEXT)
-  End;
-  StrDataEqual := eq
+  If (sd1 = Nil) And (sd2 = Nil) Then
+    Cmp := CompEqual
+  Else If (sd1 = Nil) And (sd2 <> Nil) Then { see invariant 2 }
+    Cmp := CompLower
+  Else If (sd1 <> Nil) And (sd2 = Nil) Then
+    Cmp := CompGreater
+  Else If sd1^.SD_DATA < sd2^.SD_DATA Then
+    Cmp := CompLower
+  Else If sd1^.SD_DATA > sd2^.SD_DATA Then
+    Cmp := CompGreater
+  Else
+    Cmp := StrDataComp(sd1^.SD_NEXT,sd2^.SD_NEXT);
+  StrDataComp := Cmp
+End;
+
+{ compare s1 with s2 }
+Function StrComp( s1,S2 : StrPtr ) : TComp;
+Begin
+  StrComp := StrDataComp(s1^.ST_FDAT,s2^.ST_FDAT)
 End;
 
 { are two strings equal? }
 Function StrEqual( s1,s2 : StrPtr ) : Boolean;
 Begin
-  StrEqual := StrDataEqual(s1^.ST_FDAT,s2^.ST_FDAT)
+  StrEqual := StrComp(s1,s2) = CompEqual
 End;
 
 { is a string equal to a Pascal string? }

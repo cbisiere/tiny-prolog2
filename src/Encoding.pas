@@ -4,11 +4,11 @@
 {   File        : Encoding.pas                                               }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2023                                                       }
+{   Updated     : 2022,2023,2024                                             }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
-{                    E N C O D I N G   O F   T E R M S                       }
+{            E N C O D I N G   O F   C O M P O U N D   T E R M S             }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
@@ -229,4 +229,73 @@ Begin
     T := ListToTuple(ListQueue(L));
     ListToTuple := NewTuple2(ListHead(L),T)
   End
+End;
+
+
+{----------------------------------------------------------------------------}
+{ navigating the term tree, possibly through the reduced system              }
+{----------------------------------------------------------------------------}
+
+{ tuple head }
+Function GetTupleHead( T : TermPtr; Reduce : Boolean ) : TermPtr;
+Begin
+  T := TupleHead(T);
+  If Reduce Then
+    T := RepresentativeOf(T);
+  GetTupleHead := T
+End;
+
+{ tuple queue }
+Function GetTupleQueue( T : TermPtr; Reduce : Boolean ) : TermPtr;
+Begin
+  T := TupleQueue(T);
+  If Reduce Then
+    T := RepresentativeOf(T);
+  GetTupleQueue := T
+End;
+
+{ tuple first arg, advancing U to the queue }
+Function GetTupleArg( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
+Begin
+  GetTupleArg := GetTupleHead(U,Reduce);
+  U := GetTupleQueue(U,Reduce)
+End;
+
+{ return True if term T is a 2-argument predicate with name ident, that is,
+ a tuple "<ident,t1,t2>"; retrieve the two arguments }
+Function GetFunc2( T : TermPtr; ident : TString; 
+    Var T1,T2 : TermPtr; Reduce : Boolean ) : Boolean;
+Var
+  T0 : TermPtr;
+Begin
+  GetFunc2 := False;
+  If Not IsTuple(T) Then
+    Exit;
+  T0 := GetTupleArg(T,Reduce);
+  If Not IsTuple(T) Then
+    Exit;
+  If Not TermIsIdentifierEqualTo(T0,ident) Then
+    Exit;
+  T1 := GetTupleArg(T,Reduce);
+  If Not IsTuple(T) Then
+    Exit;
+  T2 := GetTupleArg(T,Reduce);
+  If T <> Nil Then
+    Exit;
+  GetFunc2 := True
+End;
+
+{ return True if term T is a non-empty list: "a.b"; retrieve both arguments }
+Function GetList( T : TermPtr; Var T1,T2 : TermPtr; 
+    Reduce : Boolean ) : Boolean;
+Begin
+  GetList := GetFunc2(T,'.',T1,T2,Reduce)
+End;
+
+{ return True if term T is a non-empty list: "a.b" }
+Function IsList( T : TermPtr; Reduce : Boolean ) : Boolean;
+Var 
+  T1,T2 : TermPtr;
+Begin
+  IsList := GetList(T,T1,T2,Reduce)
 End;

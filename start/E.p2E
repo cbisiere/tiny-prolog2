@@ -66,27 +66,51 @@ once(X) :- X, !.
 
 consult(F) :- insert(F).
 
-"Composition and decomposition of objects, pII+ p.222"
-
-'=..'(X,Y) :- syscall(sysuniv,X,Y).
-
-"expressions used as term to erase, see pII+ p.221"
-
-'<'(X,Y) :- val('<'(X,Y),1).
-is(X,Y) :- val(Y,X).
+listing :- list.
 
 
 "operators"
 
 :-
     op(700,xfx,is,is)
+    op(700,xfx,=,'=')
     op(700,xfx,<,'<')
+    op(700,xfx,>,'>')
+    op(700,xfx,>=,'>=')
+    op(700,xfx,=<,'=<')
+    op(700,xfx,@<,'@<')
+    op(700,xfx,@>,'@>')
+    op(700,xfx,@>=,'@>=')
+    op(700,xfx,@=<,'@=<')
+    op(700,xfx,\=,'\=')
     op(700,xfx,=..,'=..')
-    op(500,yfx,+,add)
-    op(500,yfx,-,sub)
-    op(400,yfx,*,mul)
-    op(400,yfx,/,div)
-    op(200,fx,+,add)
-    op(200,fx,-,sub)
+    op(500,yfx,+,'+')
+    op(500,yfx,-,'-')
+    op(400,yfx,*,'*')
+    op(400,yfx,/,'/')
+    op(400,yfx,//,'//')
+    op(200,fx,+,'+')
+    op(200,fx,-,'-')
     op(200,xfy,^,'^').
 
+"Controls, pII+ p.217"
+
+'\='(X,X) :- !, fail.
+'\='(X,Y).
+
+"Composition and decomposition of objects, pII+ p.222"
+
+'=..'(X,Y) :- syscall(sysuniv,X,Y).
+
+"expressions used as term to erase, see pII+ p.221"
+
+is(X,Y) :- val(Y,X).
+'='(X,X).
+'<'(X,Y) :- val('<'(X,Y),1).
+'>'(X,Y) :- val('>'(X,Y),1).
+'>='(X,Y) :- val('>='(X,Y),1).
+'=<'(X,Y) :- val('=<'(X,Y),1).
+'@>'(X,Y) :- val('@>'(X,Y),1).
+'@<'(X,Y) :- val('@<'(X,Y),1).
+'@>='(X,Y) :- val('@>='(X,Y),1).
+'@=<'(X,Y) :- val('@=<'(X,Y),1).

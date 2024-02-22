@@ -61,6 +61,9 @@ not(X) ->;
 
 ->
     op(700,xfx,'<',inf)
+    op(700,xfx,'=<',infe)
+    op(700,xfx,'>',sup)
+    op(700,xfx,'>=',supe)
     op(500,yfx,"+",add)
     op(500,yfx,"-",sub)
     op(400,yfx,"*",mul)

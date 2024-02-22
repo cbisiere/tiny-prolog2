@@ -230,6 +230,16 @@ Begin
 End;
 
 {-----------------------------------------------------------------------}
+{ methods: variables                                                    }
+{-----------------------------------------------------------------------}
+
+{ return the name of a variable; not cloning }
+Function VariableGetName( V : VarPtr ) : StrPtr;
+Begin
+  VariableGetName := V^.TV_DVAR^.DE_STRI
+End;
+
+{-----------------------------------------------------------------------}
 { methods: identifiers                                                  }
 {-----------------------------------------------------------------------}
 
