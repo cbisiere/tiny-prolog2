@@ -20,6 +20,29 @@ Function ExecutionSysCallOk( T : TermPtr; P : ProgPtr; Q : QueryPtr ) : Boolean;
 Function IdentifierIsSyscall( I : IdPtr ) : Boolean; Forward;
 
 {----------------------------------------------------------------------------}
+{ warning during execution                                                   }
+{----------------------------------------------------------------------------}
+
+{ warn user when a goal other than 'fail' fails }
+Procedure WarnNoRuleToClearTerm( B : BTermPtr );
+Var
+  I : IdPtr;
+  m,s : StrPtr;
+Begin
+  CheckCondition(B <> Nil,'WarnNoRuleToClearTerm: B is Nil');
+  I := AccessIdentifier(B^.BT_TERM); { handle dynamic assignment of identifiers }
+  If I = Nil Then
+    Exit;
+  s := IdentifierGetStr(I);
+  If StrEqualTo(s,'fail') Then
+    Exit;
+  m := NewStringFrom('***WARNING: no rules match goal ''');
+  StrConcat(m,s);
+  StrAppend(m,'''');
+  OutStringCR(m,False)
+End;
+
+{----------------------------------------------------------------------------}
 {                                                                            }
 {                                C L O C K                                   }
 {                                                                            }
@@ -234,7 +257,10 @@ End;
     R := FirstCandidateRule(FirstRuleInQueryScope(Q),H^.HH_FBCL,isSys,isCut);
     SetHeaderRule(H,R,isSys,isCut);
     If (R = Nil) And (Not isSys) And (Not isCut) Then
+    Begin
+      WarnNoRuleToClearTerm(H^.HH_FBCL);
       Backtracking(H,EndOfClock)
+    End
   End;
 
 {------------------------------------------------------------------}
@@ -388,7 +414,10 @@ Begin
 
   { not even a candidate rule to try: fail }
   If (R = Nil) And (Not isSys) And (Not isCut) Then
-    Exit;
+  Begin
+    WarnNoRuleToClearTerm(B);
+    Exit
+  End;
 
   PushNewClockHeader(P^.PP_HEAD,B,R,isSys,isCut);
 
