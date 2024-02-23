@@ -534,7 +534,7 @@ Edinburgh syntax differs from Marseille syntax:
 * rules and facts end with a `.` (instead of `;`);
 * variable names start with a `_` or with an uppercase letter;
 * tuples must be written following the `<>(...)` syntax only;
-* expressions are allowed at the highest level, that is, as goal in rules or queries.
+* expressions are allowed at the highest level, that is, as rule head or as goal in rule queues or queries.
 
 ```
 big-letter = "A"|...|"Z" ;
@@ -543,7 +543,7 @@ extended-var = big-letter, [ { alpha } ] ;
 
 additional-graphic-char = ";" |"<" | ">" ;
 
-rule = pterm, [ ":-", expr {",", expr} ], "." ;
+rule = expr, [ ":-", expr {",", expr} ], "." ;
 
 query = ":-", expr {",", expr}, "."
 
