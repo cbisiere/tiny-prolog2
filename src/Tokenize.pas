@@ -406,24 +406,26 @@ Begin
   Until Stop Or Error
 End;
 
-{ read a number and return its canonical string representation; 
- note that real number must include an explicit exponent (see 
- PII+ doc p28); indeed, without this rule, "1.2" would be ambiguous, as it 
+{ read a number and return its canonical string representation;
+ if RealMustHaveExp, then real numbers must have an explicit exponent (e.g.
+ 1.2e+3); See footnote 3 p.47; 
+ when RealMustHaveExp is False, "1.2" would be ambiguous, as it 
  could also a list as well as a real number; note that expressions like 
  "10e+3" remain ambiguous, because the syntax states that the possibly signed
  integer number after "E" is optional; in that case we assume the "+3" is part
  of the real number, and not an addition; note that input like "1.2e+3.4e" 
  remain difficult to parse, as "+3" should be attributed to the second real
  number, realizing very late that the second dot cannot be a dot list 
- operator; FIXME: issue to be sorted out when handling arithmetic expressions }
-Function ReadNumber : TokenPtr;
+ operator;  }
+Function ReadNumber( RealMustHaveExp : Boolean ) : TokenPtr;
 Var
   K : TokenPtr;
   e1,e2 : TIChar; { undo points }
   c : TChar;
   n : LongInt;
   s,s2 : StrPtr;
-  Stop : Boolean; { not a real number, we must unread a bunch of chars }
+  Stop : Boolean; { stop parsing }
+  Undo : Boolean; { not a real: we must unread all chars from the dot }
 Begin
   ReadNumber := Nil;
   K := NewToken(TOKEN_INTEGER); { assume integer for now }
@@ -439,39 +441,48 @@ Begin
     c := NextChar(c);
     If c = '.' Then
     Begin
-      e1 := GetIChar(e1); { undo point }
+      e1 := GetIChar(e1); { undo point: the dot char }
       StrAppend(s,'.');
       n := GetCharWhile(s,Digits);
-      Stop := n = 0;
+      Undo := n = 0; { no digits after the dot? the dot was part of a list }
+      Stop := Undo;
       If Not Stop Then
       Begin
-        c := GetChar(c);
-        Stop := (c <> 'E') And (c <> 'e') And (c <> 'D') And (c <> 'd');
-        If Not Stop Then
-          StrAppend(s,'E')
-      End;
-      If Not Stop Then
-      Begin
-        { optional exponent part }
+        { optional exponent sign }
         c := NextChar(c);
-        If (c = '-') Or (c = '+') Then
-        Begin
-          e2 := GetIChar(e2); { another undo point }
-          s2 := NewStringFrom(c);
-          n := GetCharWhile(s2,Digits);
-          If n > 0 Then
-            StrConcat(s,s2)
-          Else
-            UngetChars(e2.Lnb,e2.Pos) { sign may be binary op? }
-        End
+        Stop := (c <> 'E') And (c <> 'e') And (c <> 'D') And (c <> 'd');
+        If Stop Then
+          Undo := RealMustHaveExp
         Else
         Begin
-          n := GetCharWhile(s,Digits);
-          If n = 0 Then
-            StrAppend(s,'0') { as Pascal's Val/2 cannot convert "1.2e" }
+          c := GetChar(c); { grab the exponent mark }
+          StrAppend(s,'E')
+        End;
+        If Not Stop Then { we had the exponent mark, now look for its value }
+        Begin
+          { optional exponent value: "+3" in "1.2e+3" or "3" in "1.2e3";
+           "1.2e" is valid syntax, so "1.2e+X" is read as an addition, and in
+           that case, the "+" will have to be unread }
+          c := NextChar(c);
+          If (c = '-') Or (c = '+') Then
+          Begin
+            e2 := GetIChar(e2); { another undo point: the exp sign }
+            s2 := NewStringFrom(c);
+            n := GetCharWhile(s2,Digits);
+            If n > 0 Then
+              StrConcat(s,s2)
+            Else
+              UngetChars(e2.Lnb,e2.Pos) { sign may be binary op }
+          End
+          Else
+          Begin
+            n := GetCharWhile(s,Digits);
+            If n = 0 Then
+              StrAppend(s,'0') { as Pascal's Val/2 cannot convert "1.2e" }
+          End
         End
       End;
-      If Not Stop Then 
+      If Not Undo Then 
       Begin
         TK_TYPE := TOKEN_REAL;
         StrConcat(TK_STRI,s)
@@ -549,7 +560,7 @@ Begin
   EndOfInput:
     K := NewToken(TOKEN_END_OF_INPUT);
   '0'..'9':
-    K := ReadNumber;
+    K := ReadNumber(y <> Edinburgh); { exponent are optional in Edinburgh }
   '_':
     If y In [PrologIIp,Edinburgh] Then  { a variable: PrologII+ basic syntax }
     Begin

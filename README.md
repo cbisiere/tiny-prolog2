@@ -406,7 +406,7 @@ string = q, { (character - q - newline) | (q, q) | ("\", newline) }, q ;
 
 constant = identifier | integer | real-number | string ;
 ```
-Note that using an explicit exponent for real numbers is mandatory, to avoid ambiguities with dotted lists.
+Note that using an explicit exponent for real numbers is mandatory, to avoid ambiguities with dotted lists. For convenience, it will be considered as optional in Edinburgh syntax, though.
 
 ### Marseille syntax
 
@@ -527,9 +527,14 @@ where `graphic-identifier` and `quoted-identifier` are two additional forms of `
 
 ### Edinburgh
 
-In Edinburgh mode, variable names start with a `_` or with an uppercase letter. Compared to PrologII+, three additional graphic chars are allowed in unquoted identifiers made of graphic chars. Tuples must be written following the `<>(...)` syntax. Syntax for rules and queries also differ from Prolog II+. Expressions are allowed at the highest level, that is, as goal in rules or queries. The goal `X is Y` is equivalent to `val(Y,X)`.
+Edinburgh syntax differs from Marseille syntax: 
 
-For now, the Edinburgh parser supports the following part of the syntax:
+* the arrow sign is `:-` (instead of `->`);
+* facts do not end with an arrow;
+* rules and facts end with a `.` (instead of `;`);
+* variable names start with a `_` or with an uppercase letter;
+* tuples must be written following the `<>(...)` syntax only;
+* expressions are allowed at the highest level, that is, as goal in rules or queries.
 
 ```
 big-letter = "A"|...|"Z" ;
@@ -545,7 +550,13 @@ query = ":-", expr {",", expr}, "."
 ```
 where `additional-graphic-char` is an additional form of `graphic-char`.
 
-A predefined predicate `true` is available in Edinburgh mode.
+As an additional difference, we make the exponent part of real numbers non mandatory:
+
+```
+real-number = digits, ".", digits, [("E"|"e"|"D"|"d"), [ ["+"|"-"], digits ]];
+
+```
+Since dotted lists are not allowed in Edinburgh mode, `1.2` is unambiguously read as a real number.
 
 ## Screenshots
 

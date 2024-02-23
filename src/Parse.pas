@@ -389,9 +389,7 @@ End;
 {----------------------------------------------------------------------------}
 
 { read a term: pterm [. term]*; is right-associative
- (see pII+ p.44, "1.9.1 The syntactic level", rules 4.1 and 4.2 "term") 
- Note: dotted lists seem to be allowed in PII+ Edinburgh; we do not allowed it 
- for now, as it is tricky to distinguish this dot from an end-of-rule dot }
+ (see pII+ p.44, "1.9.1 The syntactic level", rules 4.1 and 4.2 "term") }
 Function ReadTerm; (*( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
     Cut : Boolean) : TermPtr; *)
 Var
