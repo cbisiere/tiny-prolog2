@@ -152,12 +152,8 @@ Var
   End;
 
   {----------------------------------------------------------------------------}
-  { Sachant que le terme B pouvait s'unifier avec la tête de la règle R, la    }
-  { fonction  retourne un pointeur vers la règle qui suit R, si la             }
-  { tête de cette dernière peut s'unifier avec le terme B, et 0 dans le cas    }
-  { contraire.                                                                 }
-  { Cette logique impose qu'un ensemble de règles ayant même accès doit être   }
-  { écrit à la suite dans le fichier source.                                   }
+  { Assuming term B was unifiable with the head of rule R, this function       }
+  { returns the next rule whose head is unifiable with B, and Nil otherwise.   }
   {----------------------------------------------------------------------------}
 
   Function NextCandidateRule( R : RulePtr; B : BTermPtr; Var isSys : Boolean ; Var isCut : Boolean) : RulePtr;
@@ -175,24 +171,12 @@ Var
   End;
 
 {----------------------------------------------------------------------------}
-{ Remet l'horloge Prolog au dernier point de choix                           }
-{ utilisable. Si il n'y a plus de choix à envisager, elle positionne le      }
-{ booléen EndOfClock à True.                                                 }
-{                                                                            }
-{ Un retour en arrière se fait en trois étapes :                             }
-{                                                                            }
-{  (1) Dépiler la règle qui est en tête de pile grâce au pointeur qui est    }
-{      disponible dans l'entête H courante.                                  }
-{                                                                            }
-{  (2) Restaurer la mémoire à l'état antérieur grâce au pointeur de restau-  }
-{      ration de la nouvelle règle de tête.                                  }
-{                                                                            }
-{  (3) Positionner le pointeur de règle à appliquer sur la règle suivante    }
-{      à appliquer.                                                          }
-{                                                                            }
-{ Si ce dernier pointeur est nul (épuisement des règles applicables) et      }
-{ que ce n'est pas la fin (Clock=0), on recommence l'opération.              }
-{                                                                            }
+{ Backtracks the Prolog clock to the last usable point of choice. If there   }
+{ are no more choices to consider, the function sets EndOfClock to True.     }
+{ Backtracking is done in three steps:                                       }
+{ (1) unstack the current clock header                                       }
+{ (2) undo memory changes                                                    }
+{ (3) find the next rule to apply; if no rules apply, backtrack again        }
 {----------------------------------------------------------------------------}
 
   Procedure Backtracking( Var H : HeadPtr; Var NoMoreChoices : Boolean );
@@ -243,10 +227,8 @@ Var
 End;
 
 {------------------------------------------------------------------}
-{ Tente d'initialiser le pointeur de règle à appliquer             }
-{ avec la première règle dont la tête est peut-être unifiable      }
-{ avec le premier terme à effacer. Si ce terme n'a aucune chance   }
-{ d'être effacé, la procédure fait un appel à Backtracking;        }
+{ set in header H the first rule whose head is unifiable with the  }
+{ current goal and backtrack if none                               }
 {------------------------------------------------------------------}
 
   Procedure SetFirstCandidateRuleOrBacktrack( Var H : HeadPtr );
@@ -264,28 +246,12 @@ End;
   End;
 
 {------------------------------------------------------------------}
-{ MoveForward fait avancer l'horloge Prolog d'une période. Les diffé-  }
-{ rentes opérations à effectuer sont les suivantes :               }
-{                                                                  }
-{ (1) Recopier en tête de pile la règle courante à appliquer ;     }
-{ (2) Créer les quatre pointeurs de tête ;                         }
-{ (3) Ajouter à l'ensemble des contraintes l'équation              }
-{                                                                  }
-{    < Premier terme à effacer  =  tête de la règle recopiée >;    }
-{                                                                  }
-{ (4) Positionner le pointeur de termes à effacer de la manière    }
-{     suivante :                                                   }
-{                                                                  }
-{      * Chercher le dernier bloc-terme de la règle ;              }
-{      * Positionner le pointeur bloc-terme-suivant de ce bloc-    }
-{        terme vers le bloc-terme suivant du premier bloc-terme    }
-{        de l'ancienne suite de termes à effacer ;                 }
-{      * Positionner le pointeur de termes à effacer vers le       }
-{        bloc-terme suivant de la tête de la règle ;               }
-{                                                                  }
-{ (5) Positionner le pointeur de retour en arrière vers l'ancien   }
-{     sommet de pile (avant recopie de la règle).                  }
-{                                                                  }
+{ Advance the Prolog clock by one period, as follows:              }
+{ (1) create a new header pointing to a copy of the candidate rule }
+{ (2) add to the set of constraints the equation:                  }
+{     first term to clear = head of the rule                       }
+{ (3) replace in the list of terms to clear the first term to      }
+{     clear with the queue of the candidate rule                   }
 {------------------------------------------------------------------}
 
   Procedure MoveForward( Var H : HeadPtr );
@@ -359,7 +325,7 @@ End;
         { link each term of the rule to the header pointing to that rule }
         SetTermsHeader(Hc,BCopyRuleP);
 
-        { contraint to reduce: term to clear = rule head }
+        { constraint to reduce: term to clear = rule head }
         Ss := NewSystemWithEq(ClearT,BCopyRuleP^.BT_TERM);
 
         { new list of terms to clear: rule queue + all previous terms 
@@ -376,10 +342,8 @@ End;
   End;
 
 {------------------------------------------------------------------}
-{ On est ici au bout d'une feuille de l'arbre développé par        }
-{ l'horloge. Si l'ensemble de contraintes est soluble c'est une    }
-{ solution. Dans tous les cas on retourne au dernier point de      }
-{ choix.                                                           }
+{ We are in a leaf of the exploration tree; if the set of          }
+{ constraints is soluble, we have a solution; then backtrack       }
 {------------------------------------------------------------------}
 
   Procedure MoveBackward( Var H : HeadPtr );

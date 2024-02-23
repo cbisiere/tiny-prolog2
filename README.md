@@ -35,7 +35,7 @@ Being a simple implementation exercice, the interpreter offers only a few built-
 
 Nonetheless, the interpreter is fully garbage collected, and has almost no hard-coded limits.
 
-The source code contains detailed comments (though mostly in French) about the implementation (parsing and execution).
+The source code contains detailed comments about the implementation (parsing and execution).
 
 ### Lists
 In Marseille syntax, a dot `.` is used to separate items in a list. For instance, the rules defining the insertion of an element before any item in a list could be written as:

@@ -16,6 +16,8 @@
 {                                                                            }
 {                         Alain Colmerauer - 1984                            }
 {                                                                            }
+{               (quoted citations below are from this paper)                 }
+{                                                                            }
 {----------------------------------------------------------------------------}
 
 {$R+} { Range checking on. }
@@ -23,18 +25,18 @@
 
 {----------------------------------------------------------------------------}
 {                                                                            }
-{     Algorithme de réduction (SYSTEME D'EQUATIONS)                          }
+{     Reduction algorithm of a system of equations on trees:                 }
 {                                                                            }
-{         On veut réduire un système fini de la forme "S U T", où "S" est    }
-{     déjà réduit et où "T" est l'ensemble des équations apparaissant dans   }
-{     une suite finie "Z" d'équations. On considère le couple "<S,Z>" et on  }
-{     le modifie autant de fois que possible par l'opération de base qui     }
-{     suit. Si dans ce processus une opération de base se déroule anormale-  }
-{     ment, le système initial "S U T" est insoluble. Sinon on aboutit à un  }
-{     couple finial de la forme "< S' , () >". Le sous-ensemble des équa-    }
-{     tions de "S" dont les membres gauches sont des variables constitue     }
-{     alors un système réduit, équivalent au système initial "S U T" et      }
-{     contenant toujours le système initial "S".                             }
+{     "It is proposed to reduce a finite system of the form S U T, where     }
+{     S is already reduced and where T is the set of equations occurring     }
+{     in a finite sequence Z of equations. The pair <S,Z> is repeatedly      }
+{     modified using the "basic operation" which is defined below.           }
+{     If in the way, a basic operation is not executed normally then the     }
+{     initial system S U T is unsolvable. Otherwise the final result is a    }
+{     pair of the form  < S',() >. The subset of S', constituted from the    }
+{     equations whose left hand sides are variables, is then a reduced       }
+{     system equivalent to the initial system S U T and contains the         }
+{     original system S." (p.94)                                             }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
@@ -50,29 +52,26 @@ Var
 
         {---------------------------------------------------------}
         {                                                         }
-        {  OPERATION DE BASE :                                    }
+        {  BASIC OPERATION:                                       }
         {                                                         }
-        {      Choisir dans "Z" une occurence de contrainte s'=t',}
-        {  et l'enlever. Poser s = rep[s',S] et t = rep[t',S].    }
-        {  Si s=t l'operation est finie, sinon trois cas se pre-  }
-        {  sentent :                                              }
-        {                                                         }
-        {     (1) L'un au moins des termes de "s" où "t" est une   }
-        {  variable ; on ajoute alors à "S" l'une des équations   }
-        {  "s=t" où "t=s", pourvu que le membre gauche de l'équa- }
-        {  tion ajoutée soit une variable ;                       }
-        {                                                         }
-        {    (2) Les termes "s" et "t" sont respectivement de la  }
-        {  forme "f s1...sn" et "f t1...tn", avec "n>=1" ; On     }
-        {  ajoute alors à "S" l'une des équations "s=t" ou "t=s"  }
-        {  et l'on intercale, n'importe où dans "Z", la suite     }
-        {  d'équations "s1=t1 ... sn=tn";                         }
-        {                                                         }
-        {    (3) Les termes "s" et "t" sont respectivement de la  }
-        {  forme "f s1...sm" et "g t1...tn", "f" et "g" étant des }
-        {  symboles fonctionnels distincts, avec "m>=1" et        }
-        {  "n>=1"; dans ce seul cas le déroulement de l'opération }
-        {  est considéré comme anormal.                           }
+        { "Basic operation: Choose in Z any occurrence of an      }
+        { equation s'=t' and remove it. Let s = rep[s',S] and     }
+        { t = rep[t',S]. If s=t the operation terminates,         }
+        { otherwise there are 3 cases:                            }
+        { - at least one of the terms s and t is a variable;      }
+        {   in this case add to S one of the equations s=t or     }
+        {   t=s, provided that the left hand side of the added    }
+        {   equation is a variable;                               }
+        { - the terms s and t are respectively of the form        }
+        {   f s1...sm and g t1...tn, with n>=1; in this case add  }
+        {   to S one of the equations s=t or t=s and insert,      }
+        {   anywhere in Z, the sequence of equations              }
+        {   s1=t1 ... sn=tn;                                      }
+        { - the terms s and t are respectively of the form        }
+        {   f s1...sm and g t1...tn, where f and g are distinct   }
+        {   functional symbols, with m>=1 and n>=1; in this case  }
+        {   alone, we consider the execution of the basic         }
+        {   operation to be abnormal." (p.94)                     }
         {                                                         }
         {---------------------------------------------------------}
 
@@ -182,15 +181,15 @@ End; { Reduce }
 
 {----------------------------------------------------------------------------}
 {                                                                            }
-{     Algorithme de réduction (SYSTEME D'EQUATIONS ET D'INEQUATIONS)         }
+{   Reduction algorithm of a system of equations and inequations on trees:   }
 {                                                                            }
-{         On veut réduire un ensemble fini de contraintes qui est de la      }
-{     forme ( S= U S<> ) U ( Z'= U Z'<> ), où ( S= U S<> ) est déjà réduit,  }
-{     où Z'= est l'ensemble des équations apparaissant dans une suite finie  }
-{     Z= d'équations et où Z'<> est l'ensemble des contraintes du type <>    }
-{     apparaissant dans une suite finie Z<> de contraintes de type <>.       }
-{                                                                            }
-{         L'algorithme se déroule en trois étapes :                          }
+{   "Simplification algorithm: We wish to simplify a system of the form      }
+{   (Se U Si) U (Te U Ti), where the system Se U Si is already simplified    }
+{    and where Te U Ti is the complete set of equations and inequations      }
+{   occurring in a finite sequence Ze of equations and a finite sequence Zi  }
+{   of inequations. The indices e and i are systematically used to specify   }
+{   respectively equation parts and inequation parts. The algorithm consists }
+{   of transforming the pair <Se U Si,Te U Ti> in three steps:" (p.97)       }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
@@ -200,10 +199,15 @@ Var Fails : Boolean;
 
 {---------------------------------------------------------}
 {                                                         }
-{  ETAPE 1 : On modifie l'ensemble S= en appliquant       }
-{  l'algorithme de réduction d'équations sur le couple    }
-{  < S= , Z= >. Si l'algorithme échoue, le système        }
-{  initial n'est pas soluble et le processus s'arrête là. }
+{  STEP 1:                                                }
+{                                                         }
+{  "We process first the equations by applying the        }
+{  reduction algorithm to the pair <Se,Ze›. We obtain a   }
+{  reduced system Se'. If this reduced system Se' does    }
+{  not exist, the initial system (Se U Si) U (Te U Ti)    }
+{  is unsolvable and the algorithm terminates. Otherwise  }
+{  the pair <Se' U Si,Zi> remains to be processed."       }
+{  (p.98)                                                 }
 {                                                         }
 {---------------------------------------------------------}
 
@@ -216,11 +220,19 @@ Var Fails : Boolean;
 
 {---------------------------------------------------------}
 {                                                         }
-{  ETAPE 2 : On modifie l'ensemble S<> et la suite Z<>    }
-{  comme suit : de l'ensemble S<> on retire chaque        }
-{  contrainte de la forme s <x> t, avec x membre gauche   }
-{  d'une équation de S=, et on l'insère sous la forme     }
-{  s <> t dans Z<>.                                       }
+{  STEP 2:                                                }
+{                                                         }
+{  "We remove from the set Si all inequations s<>t such   }
+{  that the system Se'U(s<>t) is not in a simplified      }
+{  form, and we insert them anywhere in the sequence Zi.  }
+{  Let Si' and Zi' be the new resulting set and the new   }
+{  resulting sequence. The pair <Se' U Si',Zi'> remains   }
+{  to be processed." (p.97)                               }
+{                                                         }
+{  We modify the set Si and the sequence Zi as follows:   }
+{  we remove from Si each constraint of the form s <x> t, }
+{  where x is the left hand of an equation in Se, and we  }
+{  insert s <> t in Zi.                                   }
 {                                                         }
 {---------------------------------------------------------}
 
@@ -231,14 +243,16 @@ Var Fails : Boolean;
 
 {---------------------------------------------------------}
 {                                                         }
-{  ETAPE 3 : On considère le couple < S= U S<> , Z<> > et }
-{  on le modifie autant de fois que possible par l'opé-   }
-{  ration de base définie ci-dessous. Si dans le proces-  }
-{  sus une opération de base se déroule anormalement, le  }
-{  système initial est insoluble. Sinon on aboutit à un   }
-{  couple final de la forme < S= U S<> , ^ >. Le système  }
-{  S= U S<> constitue alors un système réduit équivalent  }
-{  au système initial.                                    }
+{  STEP 3:                                                }
+{                                                         }
+{  "We consider the pair <Se' U Si', Zi'> and repeatedly  }
+{  modify it by the "basic operation" which is defined    }
+{  below. If a basic operation executes abnormally the    }
+{  initial system (Se U Si) U (Te U Ti) is unsolvable.    }
+{  Otherwise we obtain a final pair of the form           }
+{  <Se'USi',()>. The system Se'USi' then constitutes a    }
+{  simplified system equivalent to the initial system     }
+{  (Se U Si) U (Te U Ti)." (p.97)                         }
 {                                                         }
 {---------------------------------------------------------}
 
@@ -249,18 +263,23 @@ Var Fails : Boolean;
       {                                                         }
       {  BASIC OPERATION:                                       }
       {                                                         }
-      {  Remove from Z an occurrence of an inequation s<>t,     }
-      {  and apply the reduction algorithm on the pair          }
-      {  <S=,(s=t)>. Three cases are possible:                  }
-      {                                                         }
+      {  "Basic operation: Remove an occurrence of an           }
+      {  inequation s<>t from the sequence Zi' and apply the    }
+      {  reduction algorithm on the pair <Se',(s=t)>.           }
+      {  Three cases are possible:                              }
       {  (1) the reduction algorithm fails to produce a reduced }
-      {    system: in this case the operation terminates.       }
+      {  system: in this case the operation terminates;         }
+      {  (2) the reduced system generated is of the form        }
+      {  Se' U T, with T disjoint from Se' and of the form      }
+      {  T = (y1=t1, ..., Yn-tn) with n>=1: in this case we add }
+      {  to the set Si' the inequation                          }
+      {  b..byn...y1<>b..btn...t1;                              }
+      {  (3) the reduced system generated is Se': in this case  }
+      {  alone we consider the execution of the basic operation }
+      {  to be abnormal." (p.97)                                }
       {                                                         }
-      {  (2) the reduced system added to S= an equation x=r.    }
-      {    instead, we add to S<> the contraint s<x>t.          }
-      {                                                         }
-      {  (3) otherwise the system is < S=,^ >. in this case     }
-      {  the execution of the basic operation is abnormal.      }
+      {  Note about (2): if the algorithm added to Se an        }
+      {  equation x=r, we add to Si the constraint s<x>t.       }
       {                                                         }
       {---------------------------------------------------------}
 
