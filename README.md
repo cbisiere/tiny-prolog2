@@ -5,18 +5,18 @@ A simple Prolog II interpreter written in Pascal
 
 This is a simple Prolog interpreter, for Linux, macOS, and Windows. It compiles under Turbo Pascal and Free Pascal.
 
-Regarding syntax, it (almost fully) handles the following flavours of the language: Prolog II and Prolog II+. It also supports a "Prolog II with equalities and inequalities" flavour, which was the primary purpose of this interpreter. Edinburgh support just started, and is largely incomplete. 
+Regarding syntax, it (almost fully) handles the following flavours of the language: Prolog II, Prolog II+ and Prolog Edinburgh. It also supports a "Prolog II with equalities and inequalities" flavour, which was the primary purpose of this interpreter.
 
 This whole programme started as an academic exercice, without any consideration for efficiency. In particular, memory consumption is high. Nonetheless, the interpreter is able to solve the "send more money" classical exercice in a low-end computer.
 
 ## Why?
-2022 is [the 50th anniversary of Prolog](http://prologyear.logicprogramming.org/). As a modest tribute for this anniversary, I decided to dig up a Prolog interpreter I wrote almost 35 years ago, clean it a bit, add a few missing features (e.g., the "cut", garbage collection), and push it online. As this program remains a toy program, this serves no real purpose other than to celebrate this anniversary.
+2022 was [the 50th anniversary of Prolog](http://prologyear.logicprogramming.org/). As a modest tribute for this anniversary, I decided to dig up a Prolog interpreter I wrote almost 35 years ago, clean it a bit, add a few missing features (e.g., the cut, garbage collection), and push it online. As this program remains a toy program, this serves no real purpose other than to celebrate this anniversary.
 
 I wrote this program as a course assignment, back in 1988, when I was a student at the University of Aix-Marseille II, pursuing a MSc in Computer Science and Mathematics ("Diplôme d'Études Approfondies en Informatique et Mathématique"). The course, entitled "Prolog II", was taught by the late [Alain Colmerauer](https://en.wikipedia.org/wiki/Alain_Colmerauer), creator of the Prolog language.
 
 One of the courses I also took in this MSc was Henri Méloni's course on speech recognition. As my Prolog II interpreter gained additional features, executing the Prolog programs I wrote for this course is now possible.
 
-A more ambitious goal would be to run some of the demo programs written by Alain Colmeraurer (see [Alain Colmerauer's website](http://alain.colmerauer.free.fr/)). This requires the interpreter to support Edinburgh syntax, which is under way.
+A more ambitious goal is to run some of the demo programs written by Alain Colmeraurer (see [Alain Colmerauer's website](http://alain.colmerauer.free.fr/)). At this point, the interpreter is able to read the entire Orbis program, but fails to run it as many built-ins have not been implemented yet.
 
 ## References
 Basically, the program implements two algorithms described in the following paper: 
@@ -31,9 +31,9 @@ Here are two additional interesting papers:
 
 
 ## Overview
-Being a simple implementation exercice, the interpreter offers only a few built-in functions and no advanced features. 
+Being a simple implementation exercice, the interpreter offers only a few built-in functions and no advanced features (e.g., freeze). 
 
-Nonetheless, the interpreter is fully garbage collected, and has almost no hard-coded limits.
+Nonetheless, the interpreter is fully garbage collected and has almost no hard-coded limits, thanks to its garbage collector and dynamic string manager.
 
 The source code contains detailed comments about the implementation (parsing and execution).
 
@@ -56,7 +56,7 @@ Inserting an element in a list of four items gives three different solutions:
 { x = 1.2.0.nil }
 ```
 
-Edinburgh-style lists are also supported. In PrologII+ mode, both syntaxes  can be mixed, and satisfy the five equivalences listed on page 45 of the Prolog II+ documentation, and the sixth listed in the French documentation on page 48:
+Edinburgh-style lists are also supported. In PrologII+ mode, both syntaxes  can be mixed, and satisfy the five equivalences listed on page 45 of the Prolog II+ documentation, and an additional sixth listed in the French documentation on page 48:
 
 ```
 $ ./tprolog2 -PIIp
@@ -220,6 +220,25 @@ Evaluable functions `add(x,y)`,`sub(x,y)`,`mul(x,y)`,`div(x,y)`, and `inf(x,y)` 
 >
 ```
 
+### Operators
+
+Unary operators `+`,`-` and binary operators `+`,`-`,`*`,`/`,`^`,`<`,`>`,`>=`,`=<` are supported in PrologII+ and Edinburgh modes. Internal representation can be shown as follows:  
+
+```
+-> eq(f(x,y),1'<'2);
+{ f = inf, x = 1, y = 2 }
+```
+Additional operators are available in Edinburgh mode: `is`,`=`,`//`, the standard order of terms operators `@<`,`@>`,`@=<`,`@>=`, and the "Univ" operator `=..`.
+
+The "Univ" operator matches a predicate and a list as follows:
+
+
+```
+:- foo(X,Y) =.. L.
+{ L = [foo,X,Y] }
+```
+
+New operators can be declared using `op/3` and `op/4` (see PrologII+ documentation page 137).
 
 ## Compilation
 
@@ -227,7 +246,7 @@ Evaluable functions `add(x,y)`,`sub(x,y)`,`mul(x,y)`,`div(x,y)`, and `inf(x,y)` 
 
 The program was initially developed in [Turbo Pascal 3](https://en.wikipedia.org/wiki/Turbo_Pascal#Version_3) (TP3). Turbo Pascal 3.02A is [provided](https://web.archive.org/web/20101124092418/http://edn.embarcadero.com/article/20792) to the Borland community free of charge, as a [zip file](https://web.archive.org/web/20110815014726/http://altd.embarcadero.com/download/museum/tp302.zip).
 
-I tried to maintain compatibility with TP3. So, no classes, and a few restrictions on the syntax. Workarounds had to be implemented for the most annoying limitations, namely 16-bit integers and 255-char strings. (For now, TP4 is needed as TP3 compilation triggers a memory overflow.)  
+I initially tried to maintain compatibility with TP3. So, no classes, and a few restrictions on the syntax (e.g., no type cast) or semantic (e.g., no lazy evaluation). Workarounds had to be implemented for the most annoying limitations, namely 16-bit integers and 255-char strings. As the program grew, TP3 started overflowing memory during compilation. Consequently, TP4 compatibility is the current target.  
 
 You may use a FreeDOS box to install Turbo Pascal 4, edit `src/tprolog2.pas` to replace the compiler directive `{$I FPC.pas}` with `{$I TP4.pas}`, then compile `tprolog2.pas` and run the Prolog interpreter.
 
@@ -329,11 +348,13 @@ $
 
 ### Session
 
-Predicate | Meaning | Example
---- | --- | ---
-`quit` | quit the interpreter | `>quit;`
-`list` | display the current rules | `>list;`
-`insert(f)` | insert a Prolog file | `>insert("examples/menu.pro");`
+Predicate | Syntax | Meaning | Example
+--- | --- | --- | ---
+`quit` | | quit the interpreter | `> quit;`
+`list` | | display the current rules | `> list;`
+`listing` | E | display the current rules | `?- listing.`
+`insert(f)` | | insert a Prolog file | `> insert("examples/menu.pro");`
+`consult(f)` | E | insert a Prolog file | `?- consult('examples/menu.pl');`
 
 ### Input and output
 
@@ -449,7 +470,7 @@ The Prolog II syntax is described in these two books (still on my bookshelf):
 * Francis Giannesini, Henry Kanoui, Robert Pasero, and Michel Van Caneghem, _Prolog_, InterÉditions, 1985. 
 * Michel Van Caneghem, _L'Anatomie de Prolog_, InterÉditions, 1986. 
 
-During my graduation year, in 1987-1988, I guess I did all my Prolog programming homework using the MS-DOS implementation of Prolog II. IIRC we had access to SunOS workstations. A version of Prolog might have been available on these machines, but I just do not remember.
+During my graduation year, in 1988, I believe I did all my Prolog programming homework using the MS-DOS implementation of Prolog II. IIRC we had access to SunOS workstations. A version of Prolog might have been available on these machines, but I just do not remember using it.
 
 To be able to run the Prolog programs I wrote during the academic year, the Tiny Prolog interpreter must fully support the Prolog II syntax.
 
@@ -562,7 +583,7 @@ Since dotted lists are not allowed in Edinburgh mode, `1.2` is unambiguously rea
 
 _11 June 2023:_ [repet.pro](examples/ProIIc/repet.pro), one of the original demo Prolog programs written for the interpreter back in 1988, running in a FreeDOS box with the new interpreter compiled with Turbo Pascal 4: 
 
-![Tiny Prolog running the repetition progrram in a FreeDOS box](examples/ProIIc/repet.png)
+![Tiny Prolog running the repetition program in a FreeDOS box](examples/ProIIc/repet.png)
 
 _11 June 2023:_ [phonemes.pro](examples/homework/phonemes/phonemes.pro), a homework Prolog II program written for Henri Méloni's course on speech recognition:
 
@@ -571,6 +592,10 @@ _11 June 2023:_ [phonemes.pro](examples/homework/phonemes/phonemes.pro), a homew
 _11 June 2023:_ [nobel.pro](examples/homework/nobel/nobel.pro), a homework Prolog II program. I do not remember the course, though:
 
 ![Tiny Prolog running the Nobel program on macOS](examples/homework/nobel/out.png)
+
+_23 February 2024:_ Tiny Prolog successfully running [Turing Completeness](https://en.wikipedia.org/wiki/Prolog#Turing_completeness), an example Edinburgh program of the [Prolog's Wikipedia page](https://en.wikipedia.org/wiki/Prolog):
+
+![Tiny Prolog running the Turing program on macOS](examples/ProEdin/turing.png)
 
 ## Author
 
