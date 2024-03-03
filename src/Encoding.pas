@@ -46,6 +46,7 @@ Interface
 Uses
   Strings,
   Errs,
+  Memory,
   PObj,
   PObjTerm,
   PObjProg;

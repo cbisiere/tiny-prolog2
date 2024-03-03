@@ -26,6 +26,7 @@ Uses
   Num,
   Errs,
   Common,
+  Memory,
   PObj,
   PObjOp,
   PObjStr,

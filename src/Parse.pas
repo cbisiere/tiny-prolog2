@@ -23,6 +23,7 @@ Uses
   Strings,
   Errs,
   IChar,
+  Memory,
   PObj,
   PObjOp,
   PObjStr,
