@@ -15,6 +15,16 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+Unit PObjOp;
+
+Interface
+
+Uses
+  Strings,
+  Errs,
+  Memory,
+  PObj;
+
 {-----------------------------------------------------------------------}
 { types                                                                 }
 {-----------------------------------------------------------------------}
@@ -40,6 +50,19 @@ Type
     OP_PRED : TPrecedence
   End;
 
+
+Function IsOpTypeString( s : TString ) : Boolean;
+Function PStrToOpType( s : TString ) : TOpType;
+Function TOpTypeToArity( ot : TOpType ) : TOpArity;
+
+Function OpLookup( start : OpPtr; ope,func : TString; 
+    OpTypes : TOpTypes; Arity: Byte; MaxPred : TPrecedence ) : OpPtr;
+Function OpAppend( Var list : OpPtr; ope,func : TString; ot : TOpType; 
+    pred : TPrecedence ) : OpPtr;
+
+
+Implementation
+{-----------------------------------------------------------------------------}
 
 {-----------------------------------------------------------------------}
 { helpers                                                               }
@@ -72,7 +95,7 @@ Begin
   Else If s = 'yfx' Then 
     ot := yfx
   Else
-    Bug('unknown operator type: ' + s,False);
+    Bug('unknown operator type: ' + s);
   PStrToOpType := ot
 End;
 
@@ -122,9 +145,9 @@ End;
 Function NewOp( ope,func : TString; ot : TOpType; pred : TPrecedence ) : OpPtr;
 Var 
   o : OpPtr;
-  ptr : TPObjPtr Absolute o;
+  ptr : TObjectPtr Absolute o;
 Begin
-  ptr := NewRegisteredObject(OP,1,False,0);
+  ptr := NewRegisteredPObject(OP,SizeOf(TObjOp),1,False,0);
   With o^ Do
   Begin
     OP_NEXT := Nil;
@@ -149,8 +172,8 @@ End;
  Arity: different from 0
  MaxPred: 1200 as no precedence is larger
  return a pointer to the operator object found, or Nil if not found }
-Function OpLookup( start : OpPtr; ope,func : TString; 
-    OpTypes : TOpTypes; Arity: Byte; MaxPred : TPrecedence ) : OpPtr;
+Function OpLookup( start : OpPtr; ope,func : TString; OpTypes : TOpTypes; 
+    Arity: Byte; MaxPred : TPrecedence ) : OpPtr;
 Var
   o : OpPtr;
   Found, OpMatch : Boolean;
@@ -199,3 +222,5 @@ Begin
   list := o;
   OpAppend := o
 End;
+
+End.

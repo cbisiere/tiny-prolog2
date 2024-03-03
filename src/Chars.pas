@@ -1,10 +1,10 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   File        : Char.pas                                                   }
+{   File        : Chars.pas                                                  }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2023                                                       }
+{   Updated     : 2022,2023,2024                                             }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -34,6 +34,14 @@
   [ ] always convert to terminal encoding 
 }
 
+Unit Chars;
+
+Interface
+
+Uses
+  Strings,
+  Errs;
+
 Const
   { code for 'new line':
     in the input system, 1) CR, LF and CR-LF in files, and 2) CR in terminal 
@@ -44,6 +52,8 @@ Const
   NewLine = #$0A;
   { UTF-8 byte order mark (BOM) }
   BOM : Array[1..3] Of Char = (#$EF,#$BB,#$BF);
+  { maximum number of bytes per char }
+  MaxBytesPerChar = 4;
 
 Type 
   { supported encodings }
@@ -51,6 +61,11 @@ Type
   { a single, possible multi-byte character }
   TChar = String[MaxBytesPerChar];
 
+Function CodePointWithNewLine( Var s : TString; Var cc : TChar;
+    Var Encoding : TEncoding ) : Boolean;
+
+Implementation
+{-----------------------------------------------------------------------------}
 
 { extract one code point cc at the beginning of string s, assuming a
  certain encoding enc 
@@ -163,10 +178,8 @@ End;
 
 { same as above but transform CR, LF and CRLF into NewLine; return true
  if cc is set by the function }
-Function CodePointWithNewLine( 
-  Var s : TString; 
-  Var cc : TChar;
-  Var Encoding : TEncoding ) : Boolean;
+Function CodePointWithNewLine( Var s : TString; Var cc : TChar; 
+    Var Encoding : TEncoding ) : Boolean;
 Var
   res : Boolean;
 Begin
@@ -176,3 +189,5 @@ Begin
       cc := NewLine;
   CodePointWithNewLine := res
 End;
+
+End.

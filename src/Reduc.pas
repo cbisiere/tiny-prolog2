@@ -23,6 +23,27 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+Unit Reduc;
+
+Interface
+
+Uses
+  Errs,
+  Memory,
+  PObj,
+  PObjRest,
+  PObjEq,
+  PObjTerm;
+
+Function ReduceSystem( S : SysPtr;
+    Backtrackable : Boolean; Var L : RestorePtr ) : Boolean;
+Function ReduceEquations( E : EqPtr ) : Boolean;
+Function ReduceOneEq( T1,T2 : TermPtr ) : Boolean;
+Function ReduceOneIneq( T1,T2 : TermPtr ) : Boolean;
+
+Implementation
+{-----------------------------------------------------------------------------}
+
 {----------------------------------------------------------------------------}
 {                                                                            }
 {     Reduction algorithm of a system of equations on trees:                 }
@@ -83,7 +104,7 @@ Var
     Procedure Unify( Tg,Td : TermPtr );
     Var 
       T1,T2 : TermPtr;
-      OT1 : TPObjPtr Absolute T1;
+      OT1 : TObjectPtr Absolute T1;
       VT1 : VarPtr Absolute T1;
       FT1 : FuncPtr Absolute T1;
       FT2 : FuncPtr Absolute T2;
@@ -92,7 +113,7 @@ Var
       { add an equation V1 = T2 in the reduced system }
       Procedure CreateLiaison( V1 : VarPtr; T2 : TermPtr );
       Var
-        OV1 : TPObjPtr Absolute V1;
+        OV1 : TObjectPtr Absolute V1;
       Begin
         SetMem(L,OV1,V1^.TV_TRED,T2,Backtrackable);  { add v=t in the reduced system }
 
@@ -193,8 +214,8 @@ End; { Reduce }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-Function ReduceSystem( S : SysPtr;
-    Backtrackable : Boolean; Var L : RestorePtr ) : Boolean;
+Function ReduceSystem( S : SysPtr; Backtrackable : Boolean; 
+    Var L : RestorePtr ) : Boolean;
 Var Fails : Boolean;
 
 {---------------------------------------------------------}
@@ -360,3 +381,5 @@ Function ReduceOneIneq( T1,T2 : TermPtr ) : Boolean;
 Begin
   ReduceOneIneq := ReduceOne(REL_INEQ,T1,T2)
 End;
+
+End.

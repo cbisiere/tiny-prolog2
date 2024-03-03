@@ -24,11 +24,11 @@
   
   There is also one specific issue with the two passes approach: the old
   Prolog II syntax allowed to end an input file with an extra semicolon, 
-  everything after being considered as a comment.(*) It is a bit tricky to give 
+  everything after being considered as a comment.[*] It is a bit tricky to give 
   the tokenizer enough context to understand that this semicolon is 
   equivalent to an end of input.
 
-  (*) I came to this conclusion while looking at two of my old Prolog 
+  [*] I came to this conclusion while looking at two of my old Prolog 
   assignments, which end with the string ";End world: Normal". Maybe this was 
   appended by the internal text editor of the Prolog system I was using at that 
   time? The only reference to this string on the Internet is the following:
@@ -36,6 +36,25 @@
   This syntax quirk is not mentioned in the Giannesini at al.'s Prolog book,
   so I guess this final ";" was preprocessed by the editor itself.  
 }
+
+Unit Tokenize;
+
+Interface
+
+Uses
+  Errs,
+  Strings,
+  Chars,
+  IChar,
+  PObjStr,
+  PObjTok,
+  PObjProg,
+  IStack;
+  
+Function ReadToken( y : TSyntax ) : TokenPtr;
+
+Implementation
+{-----------------------------------------------------------------------------}
 
 {----------------------------------------------------------------------------}
 { codepoint                                                                  }
@@ -121,14 +140,14 @@ Const
   Letters : CharSet = ['a'..'z','A'..'Z']; { 7-bit ASCII letters }
   Alpha : CharSet = ['a'..'z','A'..'Z','_','0'..'9']; { 7-bit ASCII alpha }
   Digits  : CharSet = ['0'..'9']; { digits }
-  ISO8859_Letters : CharSet = [#$C0..#$FF] - [#$D7,#$F7];
+  ISO8859_Letters : CharSet = [#$C0..#$D6,#$D8..#$F6,#$F8..#$FF];
   CP850_Letters : CharSet = [#$80..#$9B,#$9D,#$A0..#$A5,#$B5..#$B7,
     #$C6,#$C7,#$D0..#$D4,#$D6..#$D8,#$DE,#$E0..#$E5,#$E7..#$ED];
   CP437_Letters : CharSet = [#$80..#$99,#$A0..#$A5,#$E1];
   { identifiers can be unquoted graphic chars; PII+ p48-49 }
-  PROLOG_Graphic = ['#','$','&','*','+','-','/',':','=','?','\','@','^','~',
-    #$A0..#$BF,#$D7,#$F7];
-  EDINBURGH_Graphic = [';','<','>',
+  PROLOG_Graphic : CharSet = ['#','$','&','*','+','-','/',':','=','?','\',
+    '@','^','~',#$A0..#$BF,#$D7,#$F7];
+  EDINBURGH_Graphic: CharSet = [';','<','>',
     '#','$','&','*','+','-','/',':','=','?', '\','@','^','~',
     #$A0..#$BF,#$D7,#$F7];
 
@@ -441,7 +460,7 @@ Begin
     c := NextChar(c);
     If c = '.' Then
     Begin
-      e1 := GetIChar(e1); { undo point: the dot char }
+      GetIChar(e1); { undo point: the dot char }
       StrAppend(s,'.');
       n := GetCharWhile(s,Digits);
       Undo := n = 0; { no digits after the dot? the dot was part of a list }
@@ -466,7 +485,7 @@ Begin
           c := NextChar(c);
           If (c = '-') Or (c = '+') Then
           Begin
-            e2 := GetIChar(e2); { another undo point: the exp sign }
+            GetIChar(e2); { another undo point: the exp sign }
             s2 := NewStringFrom(c);
             n := GetCharWhile(s2,Digits);
             If n > 0 Then
@@ -527,7 +546,7 @@ Begin
   { save the next char for undo purpose; this is the char of the token but
    *including leading blank spaces*; this is needed to "unread" tokens, which 
    is required to correctly handle in_char(c) goals }
-  e := NextIChar(e);
+  NextIChar(e);
   { from PII+doc p28: "spaces can be inserted anywhere except inside constants 
    and variables"}
   ReadSpaces(y);
@@ -679,3 +698,5 @@ Begin
   SetTokenLocation(K,e.Lnb,e.Pos);
   ReadToken := K
 End;
+
+End.

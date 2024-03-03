@@ -15,6 +15,16 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+Unit PObjDict;
+
+Interface
+
+Uses
+  Strings,
+  Memory,
+  PObj,
+  PObjStr;
+
 {-----------------------------------------------------------------------}
 { types                                                                 }
 {-----------------------------------------------------------------------}
@@ -33,7 +43,23 @@ Type
     DE_GLOB : Boolean { is this entry global, and cannot be discarded? }
   End;
 
-  
+
+Function DictIsGlobal( D : DictPtr) : Boolean;
+Procedure DictSetGlobal( D : DictPtr; glob : Boolean );
+
+Function DictLookup( start,stop : DictPtr; str : StrPtr; 
+    glob : Boolean ) : DictPtr;
+Function DictAppend( Var list : DictPtr; str : StrPtr; T : TermPtr; 
+  ty : TypePrologObj; glob : Boolean ) : DictPtr;
+
+Function DictStrStartWith( D : DictPtr; E : CharSet ) : Boolean;
+Function DictStrEqualTo( D : DictPtr; ps : TString ) : Boolean;
+
+
+Implementation
+{-----------------------------------------------------------------------------}
+
+
 {-----------------------------------------------------------------------}
 { constructors                                                          }
 {-----------------------------------------------------------------------}
@@ -42,9 +68,9 @@ Type
 Function NewDictEntry( ty : TypePrologObj; glob : Boolean ) : DictPtr;
 Var 
   D : DictPtr;
-  ptr : TPObjPtr Absolute D;
+  ptr : TObjectPtr Absolute D;
 Begin
-  ptr := NewRegisteredObject(DE,3,False,0);
+  ptr := NewRegisteredPObject(DE,SizeOf(TObjDict),3,False,0);
   With D^ Do
   Begin
     DE_NEXT := Nil;
@@ -104,7 +130,7 @@ End;
 
 { append an entry to a dictionary }
 Function DictAppend( Var list : DictPtr; str : StrPtr; T : TermPtr; 
-  ty : TypePrologObj; glob : Boolean ) : DictPtr;
+    ty : TypePrologObj; glob : Boolean ) : DictPtr;
 Var e : DictPtr;
 Begin
   e := NewDictEntry(ty,glob);
@@ -130,3 +156,5 @@ Function DictStrEqualTo( D : DictPtr; ps : TString ) : Boolean;
 Begin
   DictStrEqualTo := StrEqualTo(D^.DE_STRI,ps)
 End;
+
+End.

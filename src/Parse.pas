@@ -15,6 +15,32 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+Unit Parse;
+
+Interface
+
+Uses
+  Strings,
+  Errs,
+  IChar,
+  PObj,
+  PObjOp,
+  PObjStr,
+  PObjTok,
+  PObjEq,
+  PObjTerm,
+  PObjProg,
+  IStack,
+  Encoding,
+  Tokenize;
+
+Function ParseOneTerm( P : ProgPtr ) : TermPtr;
+Function ParseCommandLineQuery( P : ProgPtr ) : Boolean;
+Procedure ParseRulesAndQueries( P : ProgPtr; Q : QueryPtr; RuleType : RuType );
+
+Implementation
+{-----------------------------------------------------------------------------}
+
 { per-syntax elements }
 Type
   TSyntaxElement = Array[TSyntax] Of Record
@@ -29,6 +55,7 @@ Const
     (RuleEnd:TOKEN_SEMICOLON;PromptEnd:TOKEN_SEMICOLON;AcceptSys:False),
     (RuleEnd:TOKEN_DOT;PromptEnd:TOKEN_DOT;AcceptSys:False)
   );
+
 
 { Note: in the following procedures, the K parameter is the *current* token 
  to analyze; the procedures themselves must make sure that, upon return, K 
@@ -70,9 +97,9 @@ Type
   TStackLen = 0..MAX_EXPR_DEEP;
 Var 
   TStack : Array[1..MAX_EXPR_DEEP] Of TermPtr;
-  OStack : Array[1..MAX_EXPR_DEEP] Of OpPtr;
+  OpStack : Array[1..MAX_EXPR_DEEP] Of OpPtr;
   TStackTop : TStackLen;
-  OStackTop : TStackLen;
+  OpStackTop : TStackLen;
 
 { reset the expression stack; must be called before any parsing phase (command
  line, file, in/1) ); if the previous parsing phase ended with an error, some
@@ -80,13 +107,13 @@ Var
 Procedure PrepareExprParsing;
 Begin
   TStackTop := 0;
-  OStackTop := 0
+  OpStackTop := 0
 End;
 
 { check the stack is empty }
 Procedure TerminateExprParsing;
 Begin
-  CheckCondition(OStackTop = 0,'op stack not empty')
+  CheckCondition(OpStackTop = 0,'op stack not empty')
 End;
 
 { return the (possibly Nil) term at the top of the stack, above TBottom, 
@@ -108,8 +135,8 @@ End;
 { return the operator at the top of the stack, above OBottom, or Nil }
 Function TopOp( OBottom : TStackLen ) : OpPtr;
 Begin
-  If OStackTop > OBottom Then
-    TopOp := OStack[OStackTop]
+  If OpStackTop > OBottom Then
+    TopOp := OpStack[OpStackTop]
   Else
     TopOp := Nil
 End;
@@ -128,19 +155,19 @@ End;
 { push an op }
 Procedure PushExprOp( o : OpPtr );
 Begin
-  If OStackTop > MAX_EXPR_DEEP - 1 Then
+  If OpStackTop > MAX_EXPR_DEEP - 1 Then
     SyntaxError('expression too complex');
   If Error Then Exit;
-  OStackTop := OStackTop + 1;
-  OStack[OStackTop] := o
+  OpStackTop := OpStackTop + 1;
+  OpStack[OpStackTop] := o
 End;
 
 { pop an op }
 Procedure PopExprOp( Var o : OpPtr; OBottom : TStackLen );
 Begin
-  CheckCondition(OStackTop > OBottom,'PopExprOp: op stack is empty');
-  o := OStack[OStackTop];
-  OStackTop := OStackTop - 1
+  CheckCondition(OpStackTop > OBottom,'PopExprOp: op stack is empty');
+  o := OpStack[OpStackTop];
+  OpStackTop := OpStackTop - 1
 End;
 
 { push a term }
@@ -208,15 +235,15 @@ Var
 Begin
   Repeat
     Stop := True;
-    If (OStackTop - OBottom) >= 2 Then { at least two operators }
+    If (OpStackTop - OBottom) >= 2 Then { at least two operators }
     Begin
-      If (OStack[OStackTop] <> Nil) Then { no pending term }
+      If (OpStack[OpStackTop] <> Nil) Then { no pending term }
       Begin
-        CheckCondition(OStack[OStackTop-1] <> Nil,
+        CheckCondition(OpStack[OpStackTop-1] <> Nil,
             'ReduceExprStack: unexpected Nil term');
-        pre1 := OStack[OStackTop]^.OP_PRED;
-        typ1 := OStack[OStackTop]^.OP_TYPE;
-        pre2 := OStack[OStackTop-1]^.OP_PRED;
+        pre1 := OpStack[OpStackTop]^.OP_PRED;
+        typ1 := OpStack[OpStackTop]^.OP_TYPE;
+        pre2 := OpStack[OpStackTop-1]^.OP_PRED;
         { priorities allow reduction? }
         If (pre1 > pre2) Or (pre1 = pre2) And (typ1 In [fy,yf,yfx]) Then
         Begin
@@ -249,7 +276,7 @@ Var
   T : TermPtr;
 Begin
   ReduceAllExpr := Nil;
-  While OStackTop > OBottom Do
+  While OpStackTop > OBottom Do
     ReduceTopExpr(P,TBottom,OBottom);
   PopExprTerm(T,TBottom); { final term }
   CheckCondition(TStackTop=TBottom,'ReduceAllExpr: terms left in the stack');
@@ -381,7 +408,7 @@ End;
 Function ReadOneExpr( P : ProgPtr; Var K : TokenPtr; MaxPred : TPrecedence; 
     glob : Boolean; Cut : Boolean) : TermPtr;
 Begin
-  ReadOneExpr := ReadExpr(P,K,TStackTop,OStackTop,MaxPred,glob,Cut)
+  ReadOneExpr := ReadExpr(P,K,TStackTop,OpStackTop,MaxPred,glob,Cut)
 End;
 
 {----------------------------------------------------------------------------}
@@ -390,8 +417,8 @@ End;
 
 { read a term: pterm [. term]*; is right-associative
  (see pII+ p.44, "1.9.1 The syntactic level", rules 4.1 and 4.2 "term") }
-Function ReadTerm; (*( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
-    Cut : Boolean) : TermPtr; *)
+Function ReadTerm( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
+    Cut : Boolean) : TermPtr;
 Var
   y : TSyntax;
   T : TermPtr;
@@ -505,8 +532,8 @@ End;
 { read a pterm, possibly accepting a cut as a valid pterm; 
  (see pII+ p.44, "1.9.1 The syntactic level", rules 8.* "pterm")
  pterms are terms authorized at the first level of terms in the rule body }
-Function ReadPTerm; (* ( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
-    Cut : Boolean ) : TermPtr *)
+Function ReadPTerm( P : ProgPtr; Var K : TokenPtr; glob : Boolean; 
+    Cut : Boolean ) : TermPtr;
 Var
   y : TSyntax;
   T : TermPtr;
@@ -1074,3 +1101,5 @@ Begin
   P^.PP_UVAR := P^.PP_DVAR;
   P^.PP_UCON := P^.PP_DCON
 End;
+
+End.

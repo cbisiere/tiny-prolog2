@@ -15,6 +15,43 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+Unit Unparse;
+
+Interface
+
+Uses
+  Memory,
+  Strings,
+  Errs,
+  OStack,
+  PObj,
+  PObjStr,
+  PObjDict,
+  PObjEq,
+  PObjTerm,
+  PObjProg,
+  Encoding;
+
+Procedure OutString( s : StrPtr; UseIOStack : Boolean );
+Procedure OutStringCR( s : StrPtr; UseIOStack : Boolean );
+Procedure OutCR( UseIOStack : Boolean );
+Procedure OutConst( C : ConstPtr; UseIOStack : Boolean );
+Procedure OutIdentifier( I : IdPtr; UseIOStack : Boolean );
+Procedure OutVarName( V : VarPtr; UseIOStack : Boolean );
+Procedure OutOneEquation( y : TSyntax; E : EqPtr; UseIOStack : Boolean );
+Procedure OutQuerySolution( Q : QueryPtr; UseIOStack : Boolean );
+Procedure OutTermBis( y : TSyntax; T : TermPtr; ArgList,Quotes : Boolean; 
+    UseIOStack : Boolean );
+Procedure OutTerm( y : TSyntax; T : TermPtr; UseIOStack : Boolean );
+Procedure OutOneRule( R : RulePtr; UseIOStack : Boolean );
+Procedure OutRuleRange( R1,R2 : RulePtr; RuleType : RuType; 
+    UseIOStack : Boolean );
+Procedure OutOneQuery( Q : QueryPtr; UseIOStack : Boolean );
+
+
+Implementation
+{-----------------------------------------------------------------------------}
+
 { per-syntax output elements }
 Type
   TOSyntaxElement = Array[TSyntax] Of Record
@@ -31,7 +68,6 @@ Const
     (RuleArrow:' ->';GoalArrow:'';RuleEnd:';';QueryStart:'->';QueryEnd:';'),
     (RuleArrow:'';GoalArrow:' :-';RuleEnd:'.';QueryStart:':-';QueryEnd:'.')
   );
-
 
 {----------------------------------------------------------------------------}
 { inequation stack                                                           }
@@ -90,7 +126,7 @@ End;
 Function GetVarNameAsString( V : VarPtr ) : StrPtr;
 Var 
   TV : TermPtr Absolute V;
-  PV : TPObjPtr Absolute V;
+  PV : TObjectPtr Absolute V;
   s : StrPtr;
   k : Integer;
   ks : TString;
@@ -168,14 +204,14 @@ End;
 { write a term, possibly as an argument of a predicate, and with quotes; 
   if Solution is true, we are currently printing a solution (that is, a 
   reduced system), and not the item as given in the source code ) }
-Procedure WriteTermBis; (* ( y : TSyntax; s : StrPtr; T : TermPtr; 
-    InList,ArgList,Quotes,Solution : Boolean ); *)
+Procedure WriteTermBis( y : TSyntax; s : StrPtr; T : TermPtr; 
+    InList,ArgList,Quotes,Solution : Boolean );
 Var
   { all casts of T: }
   CT : ConstPtr Absolute T;
   VT : VarPtr Absolute T;
   IT : IdPtr Absolute T;
-  PT : TPObjPtr Absolute T;
+  PT : TObjectPtr Absolute T;
   { others: }
   Th : TermPtr;
   ITh : IdPtr Absolute Th;
@@ -348,8 +384,8 @@ Begin
 End;
 
 { write a top-level term (i.e. a term that is not an argument of a predicate) }
-Procedure WriteTerm; (* ( y : TSyntax; s : StrPtr; T : TermPtr; 
-    Solution : Boolean ); *)
+Procedure WriteTerm( y : TSyntax; s : StrPtr; T : TermPtr; 
+    Solution : Boolean );
 Begin
   If Solution Then
     T := RepresentativeOf(T);
@@ -628,7 +664,7 @@ End;
 
 { output a term that is not an argument of a predicate }
 Procedure OutTermBis( y : TSyntax; T : TermPtr; ArgList,Quotes : Boolean; 
-    UseIOStack : Boolean );
+  UseIOStack : Boolean );
 Var s : StrPtr;
 Begin
   s := NewString;
@@ -659,7 +695,8 @@ Begin
   OutStringCR(s,UseIOStack)
 End;
 
-Procedure OutRuleRange( R1,R2 : RulePtr; RuleType : RuType; UseIOStack : Boolean );
+Procedure OutRuleRange( R1,R2 : RulePtr; RuleType : RuType; 
+    UseIOStack : Boolean );
 Var s : StrPtr;
 Begin
   s := NewString;
@@ -674,3 +711,5 @@ Begin
   WriteOneQuery(s,Q);
   OutStringCR(s,UseIOStack)
 End;
+
+End.

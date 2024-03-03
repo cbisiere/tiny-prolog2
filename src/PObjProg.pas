@@ -15,6 +15,21 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+Unit PObjProg;
+
+Interface
+
+Uses
+  Strings,
+  Errs,
+  Memory,
+  PObj,
+  PObjRest,
+  PObjOp,
+  PObjStr,
+  PObjDict,
+  PObjEq,
+  PObjTerm;
 
 {-----------------------------------------------------------------------}
 { types                                                                 }
@@ -123,6 +138,54 @@ Type
   End;
 
 
+Function NewBTerm : BTermPtr;
+Function NewQuery( level : TILevel; y : TSyntax ) : QueryPtr;
+Function NewRule( RuleType : RuType; y : TSyntax ) : RulePtr;
+Function NewProgram : ProgPtr;
+
+Function EmitConst( P : ProgPtr; s : StrPtr; ty : TypePrologObj; 
+    glob : Boolean ) : TermPtr;
+Function EmitIdent( P : ProgPtr; ident : TString; glob : Boolean ) : TermPtr;
+
+Function NextTerm( B : BTermPtr ) : BTermPtr;
+Function AccessTerm( B : BTermPtr ) : IdPtr;
+Function NextRule( R : RulePtr ) : RulePtr;
+Function InsertRulesAfter( P : ProgPtr; Ra, R : RulePtr ) : RulePtr;
+Function NextQuery( Q : QueryPtr ) : QueryPtr;
+Function FirstRuleInQueryScope( Q : QueryPtr ) : RulePtr;
+Procedure SetFirstRuleInQueryScope( Q : QueryPtr; R : RulePtr );
+Function LastRuleInQueryScope( Q : QueryPtr ) : RulePtr;
+Procedure SetLastRuleInQueryScope( Q : QueryPtr; R : RulePtr );
+Function FirstProgramQuery( P : ProgPtr ) : QueryPtr;
+Function LastProgramQuery( P : ProgPtr ) : QueryPtr;
+Function FirstProgramRule( P : ProgPtr ) : RulePtr;
+Function LastProgramRule( P : ProgPtr ) : RulePtr;
+Procedure AppendQueries( P : ProgPtr; Q : QueryPtr );
+Function FirstQueryToExecute( P : ProgPtr ) : QueryPtr;
+Procedure RemoveQueries( P : ProgPtr );
+Procedure BeginInsertion( P : ProgPtr );
+Procedure EndInsertion( P : ProgPtr );
+Function GetProgramPath( P : ProgPtr ) : TString;
+Procedure SetProgramPath( P : ProgPtr; path : TString );
+Function GetRuleType( P : ProgPtr ) : RuType;
+Procedure SetRuleType( P : ProgPtr; t : RuType );
+Function GetSyntax( P : ProgPtr ) : TSyntax;
+Procedure SetSyntax( P : ProgPtr; y : TSyntax );
+Procedure GetHeaderRule( H : HeadPtr; Var R : RulePtr; Var isSys : Boolean; 
+    Var isCut : Boolean );
+
+Procedure SetHeaderRule( H : HeadPtr; R : RulePtr; isSys, isCut : Boolean);
+Procedure PushNewClockHeader( Var list : HeadPtr; Fbcl : BTermPtr; R : RulePtr; 
+    isSys, isCut : Boolean );
+Procedure SetTermsHeader( H : HeadPtr; B : BTermPtr );
+
+Function GetRuleSyntax( R : RulePtr ) : TSyntax;
+Function GetQuerySyntax( Q : QueryPtr ) : TSyntax;
+
+
+Implementation
+{-----------------------------------------------------------------------------}
+
 {-----------------------------------------------------------------------}
 { constructors                                                          }
 {-----------------------------------------------------------------------}
@@ -131,9 +194,9 @@ Type
 Function NewBTerm : BTermPtr;
 Var 
   B : BTermPtr;
-  ptr : TPObjPtr Absolute B;
+  ptr : TObjectPtr Absolute B;
 Begin
-  ptr := NewRegisteredObject(BT,4,True,3);
+  ptr := NewRegisteredPObject(BT,SizeOf(TObjBTerm),4,True,3);
   With B^ Do
   Begin
     BT_TERM := Nil;
@@ -148,9 +211,9 @@ End;
 Function NewQuery( level : TILevel; y : TSyntax ) : QueryPtr;
 Var 
   Q : QueryPtr;
-  ptr : TPObjPtr Absolute Q;
+  ptr : TObjectPtr Absolute Q;
 Begin
-  ptr := NewRegisteredObject(QU,8,True,6);
+  ptr := NewRegisteredPObject(QU,SizeOf(TObjQuery),8,True,6);
   With Q^ Do
   Begin
     QU_PREV := Nil;
@@ -172,9 +235,9 @@ End;
 Function NewRule( RuleType : RuType; y : TSyntax ) : RulePtr;
 Var 
   R : RulePtr;
-  ptr : TPObjPtr Absolute R;
+  ptr : TObjectPtr Absolute R;
 Begin
-  ptr := NewRegisteredObject(RU,5,True,3);
+  ptr := NewRegisteredPObject(RU,SizeOf(TObjRule),5,True,3);
   With R^ Do
   Begin
     RU_NEXT := Nil;
@@ -193,9 +256,9 @@ End;
 Function NewProgram : ProgPtr;
 Var 
   P : ProgPtr;
-  ptr : TPObjPtr Absolute P;
+  ptr : TObjectPtr Absolute P;
 Begin
-  ptr := NewRegisteredObject(PR,12,True,4);
+  ptr := NewRegisteredPObject(PR,SizeOf(TObjProg),12,True,4);
   With P^ Do
   Begin
     PP_FRUL := Nil;
@@ -222,9 +285,9 @@ End;
 Function NewClockHeader : HeadPtr;
 Var 
   H : HeadPtr;
-  ptr : TPObjPtr Absolute H;
+  ptr : TObjectPtr Absolute H;
 Begin
-  ptr := NewRegisteredObject(HE,5,True,0);
+  ptr := NewRegisteredPObject(HE,SizeOf(TObjHead),5,True,0);
   With H^ Do
   Begin
     HH_NEXT := Nil;
@@ -522,7 +585,8 @@ Begin
 End;
 
 { get the rule data of a clock header }
-Procedure GetHeaderRule( H : HeadPtr; Var R : RulePtr; Var isSys : Boolean; Var isCut : Boolean );
+Procedure GetHeaderRule( H : HeadPtr; Var R : RulePtr; Var isSys : Boolean; 
+    Var isCut : Boolean );
 Begin
   R := H^.HH_RULE;
   isSys := H^.HH_ISYS;
@@ -576,3 +640,5 @@ Function GetQuerySyntax( Q : QueryPtr ) : TSyntax;
 Begin
   GetQuerySyntax := Q^.QU_SYNT
 End;
+
+End.

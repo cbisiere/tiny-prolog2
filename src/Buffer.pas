@@ -28,6 +28,27 @@
     spaces have to be unread and thus must still be present in the buffer
 }
 
+Unit Buffer;
+
+Interface
+
+Uses
+  Strings,
+  Num,
+  Chars,
+  Crt2,
+  Errs,
+  IChar,
+  Trace;
+
+Const
+  { input buffer size }
+{$IFDEF MSDOS}
+  BufSize = 255;
+{$ELSE}
+  BufSize = 1024;
+{$ENDIF}
+
 Type 
   TBufItem = TIChar; { items in the buffer (opaque to this module) }
 
@@ -44,6 +65,38 @@ Type
     { storage structure }
     Buf : Array[1..BufSize] Of TBufItem
   End;
+
+Function FirstIdx( B : TBuf ) : TBufIndex;
+Function LastIdx( B : TBuf ) : TBufIndex;
+Function NextIdx( B : TBuf; i : TBufIndex ) : TBufIndex;
+Function PrevIdx( B : TBuf; i : TBufIndex ) : TBufIndex;
+Function BufLen( B : TBuf ) : TBufIndex;
+Function BufNbFree( B : TBuf ) : TBufIndex;
+Function BufNbUnread( B : TBuf ) : TBufIndex;
+Function BufNbRead( B : TBuf ) : TBufIndex;
+Procedure BufGetLast( Var e : TBufItem; B : TBuf );
+Procedure BufGetRead( Var e : TBufItem; B : TBuf; n : TBufIndex );
+Procedure BufGetLastRead( Var e : TBufItem; B : TBuf );
+
+Procedure BufInit( Var B : TBuf );
+Procedure BufPop( Var e : TIChar; Var B : TBuf );
+Procedure BufDiscard( Var B : TBuf; n : TBufIndex );
+Procedure BufAppendTChar( Var B : TBuf; cc : TChar );
+Procedure BufDiscardUnread( Var B : TBuf );
+
+Procedure BufRead( Var e : TBufItem; Var B : TBuf );
+Procedure BufUnread( Var B : TBuf );
+
+Function BufDisplayLine( B : TBuf; max : TBufIndex ) : TBufIndex;
+Procedure BufToEchoFile( B : TBuf );
+Procedure BufFilterOut( Var B : TBuf; cc : TChar );
+Function BufDiff( B1,B2 : TBuf ) : Boolean;
+
+Procedure CharDump( cc : TChar );
+Procedure BufDump( B : TBuf );
+
+Implementation
+{-----------------------------------------------------------------------------}
 
 {----------------------------------------------------------------------------}
 { index calculations                                                         }
@@ -521,3 +574,5 @@ Begin
       CharDump(CrtChar(Row,i))
   End
 End;
+
+End.

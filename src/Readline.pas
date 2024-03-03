@@ -4,7 +4,7 @@
 {   File        : Readline.pas                                               }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2023                                                       }
+{   Updated     : 2022,2023,2024                                             }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -37,6 +37,24 @@
   1) ASCII control characters (#00..#31,#127) are also control 
     characters in the input encoding 
 }
+
+Unit Readline;
+
+Interface
+
+Uses
+  Num,
+  Errs,
+  Chars,
+  Crt,
+  Crt2,
+  IChar,
+  Buffer;
+
+Procedure ReadLnKbd( Var B : TBuf; Var Encoding : TEncoding );
+
+Implementation
+{-----------------------------------------------------------------------------}
 
 Const
   SPACES_PER_TAB = 4; { tabs are converted into spaces }
@@ -153,13 +171,6 @@ Var
   Hist : THistory;
   PromptRow : TCrtRow; { backup of the screen row when readline is called }
   KbdBuf : TBuf; { keyboard buffer to support paste with chars after new line }
-
-{ initialize the command-line history }
-Procedure InitReadline;
-Begin
-  BufInit(KbdBuf);
-  ResetHistory(Hist)
-End;
 
 { read one line from the keyboard, that is, a sequence of keys ending
   with an Enter key
@@ -403,7 +414,7 @@ Var
       Else If cc = #03 Then { Ctrl-C }
       Begin
         Stop := True;
-        Terminate(0)
+        SetQuitOn(0)
       End
       Else If cc = #08 Then { Backspace }
         Backspace
@@ -449,3 +460,9 @@ Begin
     End
   End
 End;
+
+{ initialize the command-line history }
+Begin
+  BufInit(KbdBuf);
+  ResetHistory(Hist)
+End.

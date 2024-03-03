@@ -12,53 +12,72 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-{$C-} { TP3: Ctrl-C during I/O does not interrupt program execution }
 {$U-} { TP3: Ctrl-C does not interrupt program execution }
 
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-{$I FPC.pas     }  { TP3|4.pas: Turbo Pascal; FPC.pas: Free Pascal }
+{ TP4: set stack size to the maximum instead of the 16k default }
+{$IFDEF MSDOS}
+{$M 65520,0,655360 }
+{$ENDIF}
 
-Procedure WriteToCurrentOutput( s : TString ); Forward;
-Procedure WriteToEchoFile( s : TString ); Forward;
+Program TProlog2;
 
-{$I Common.pas    }  { useful constants, types, etc.               }
-{$I Files.pas     }  { i/o helpers                                 }
-{$I Error.pas     }  { error handling, termination                 }
-{$I Strings.pas   }  { string and chars                            }
-{$I Char.pas      }  { multi-byte char                             }
-{$I Crt2.pas      }  { Crt with multi-byte support                 }
-{$I Trace.pas     }  { trace file                                  }
-{$I IChar.pas     }  { input char with position                    }
-{$I Buffer.pas    }  { circular input buffer                       }
-{$I Readline.pas  }  { read from keyboard w/ history               }
-{$I Memory.pas    }  { memory management: GC, cloning...           }
-{$I PObjRest.pas  }  { restore stack                               }
-{$I PObj.pas      }  { Prolog objects: common definitions          }
-{$I PObjOp.pas    }  { Prolog objects: operator                    }
-{$I PObjStr.pas   }  { Prolog objects: long string                 }
-{$I PObjTok.pas   }  { Prolog objects: token                       }
-{$I PObjDict.pas  }  { Prolog objects: dictionary entry            }
-{$I PObjEq.pas    }  { Prolog objects: (in)equations, system       }
-{$I PObjTerm.pas  }  { Prolog objects: terms                       }
-{$I PObjProg.pas  }  { Prolog objects: program, rules, queries     }
-{$I PObjNew.pas   }  { Prolog objects: new / dispose               }
-{$I IStream.pas   }  { read from file                              }
-{$I IStack.pas    }  { terminal and input file stack               }
-{$I OStack.pas    }  { terminal and output file stack              }
-{$I Encoding.pas  }  { encode and decode terms                     }
-{$I Unparse.pas   }  { print objects                               }
-{$I Reduc.pas     }  { system reduction                            }
-{$I Tokenize.pas  }  { Tokenize an input stream                    }
-{$I Expr.pas      }  { expressions                                 }
-{$I Parse.pas     }  { encode objects                              }
-{$I Clock.pas     }  { Prolog clock                                }
-{$I Run.pas       }  { load rules and execute queries              }
-{$I Sys.pas       }  { system calls                                }
-{$I Debug.pas     }  { core dump                                   }
-{$I Init.pas      }  { initialization                              }
+Uses 
+  Crt, 
+{$IFDEF MSDOS}
+  Turbo3,
+{$ENDIF}
+  Strings,
+  Num,
+  Errs,
+  Chars,
+  Crt2,
+  Readline,
+  Files,
+  OStack,
+  Trace,
+  Common,
+  IChar,
+  Buffer,
+  Memory,
+  PObj,
+  PObjRest,
+  PObjOp,
+  PObjStr,
+  PObjTok,
+  PObjDict,
+  PObjEq,
+  PObjTerm,
+  PObjProg,
+  IStream,
+  IStack,
+  Encoding,
+  Unparse,
+  Reduc,
+  Tokenize,
+  Expr,
+  Parse,
+  Debug,
+  Engine,
+  Init;
 
+{ check for error (or/and request to quit) and handle it }
+Procedure HandleErrorIfAny;
+Begin
+  If Error Then
+  Begin
+    DisplayInputErrorMessage(GetErrorMessage);
+    CloseCurrentInput
+  End;
+  If QuitRequested Then
+  Begin
+    TerminateTrace;
+    HaltProgram
+  End;
+  ResetError
+End;
 
 { compile the user program and solve each query }
 Procedure Main;
@@ -66,11 +85,10 @@ Var
   P : ProgPtr;
   Prompt : TString;
 Begin
-  Initialize;
   P := CreateProgram;
   ProcessParameters(P);
   Repeat
-    Error := False;
+    HandleErrorIfAny;
     Case GetSyntax(P) Of
     PrologII:
       Prompt := '> ';

@@ -27,6 +27,14 @@
     input line is not limited to BufSize.
 }
 
+Unit IChar;
+
+Interface
+
+Uses
+  Chars,
+  Common;
+
 Const
   { code for 'end of input' (ASCII SUB / Ctrl-Z); 
    this character is returned from various functions when input is exhausted  
@@ -48,8 +56,16 @@ Type
     Pos : TCharPos { position in the current line }
   End;
 
-{ set a character }
 Procedure SetIChar( Var e : TIChar; v : TChar; line : TLineNum; col : TCharPos );
+Procedure NewICharFromPrev( Var e : TIChar; p : TIChar; v : TChar );
+
+Function IsEol( e : TIChar ) : Boolean;
+
+Implementation
+
+{ set a character }
+Procedure SetIChar( Var e : TIChar; v : TChar; line : TLineNum; 
+    col : TCharPos );
 Begin
   With e Do
   Begin
@@ -102,3 +118,5 @@ Procedure SetToEndOfInput( Var e : TIChar );
 Begin
   e.Val := EndOfInput
 End;
+
+End.

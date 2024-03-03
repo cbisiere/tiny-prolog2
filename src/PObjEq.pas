@@ -12,6 +12,18 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 
+{$R+} { Range checking on. }
+{$V-} { No strict type checking for strings. }
+
+Unit PObjEq;
+
+Interface
+
+Uses
+  Errs,
+  Memory,
+  PObj,
+  PObjRest;
 
 {-----------------------------------------------------------------------}
 { types                                                                 }
@@ -43,6 +55,21 @@ Type
   End;
 
 
+Function NewEquation( EType : EqType; T1,T2 : TermPtr ) : EqPtr;
+Function NewSystem : SysPtr;
+Function SameEquations( E1,E2 : EqPtr ) : Boolean;
+Procedure InsertOneEqInSys( S : SysPtr; E : EqPtr );
+Procedure CopyAllEqInSys( S : SysPtr; E : EqPtr );
+Function HasEqInSys( S : SysPtr; EType: EqType ) : Boolean;
+Function RemoveOneEqFromSys( S : SysPtr; EType: EqType ) : EqPtr;
+Procedure SetMemEq( Var U : RestorePtr; obj : TObjectPtr;
+    Var E : EqPtr; V : EqPtr; Backtrackable : Boolean);
+Function NewSystemWithEq( T1,T2 : TermPtr ) : SysPtr;
+
+
+Implementation
+{-----------------------------------------------------------------------------}
+
 {-----------------------------------------------------------------------}
 { constructors / copy / compare                                         }
 {-----------------------------------------------------------------------}
@@ -51,10 +78,10 @@ Type
 Function NewEquation( EType : EqType; T1,T2 : TermPtr ) : EqPtr;
 Var 
   E : EqPtr;
-  ptr : TPObjPtr Absolute E;
+  ptr : TObjectPtr Absolute E;
 Begin
   CheckCondition((EType=REL_EQUA) Or (EType=REL_INEQ), 'Unknown relation');
-  ptr := NewRegisteredObject(EQ,3,True,3);
+  ptr := NewRegisteredPObject(EQ,SizeOf(TObjEq),3,True,3);
   With E^ Do
   Begin
     EQ_TYPE := EType;
@@ -78,9 +105,9 @@ End;
 Function NewSystem : SysPtr;
 Var 
   S : SysPtr;
-  ptr : TPObjPtr Absolute S;
+  ptr : TObjectPtr Absolute S;
 Begin
-  ptr := NewRegisteredObject(SY,2,True,2);
+  ptr := NewRegisteredPObject(SY,SizeOf(TObjSys),2,True,2);
   With S^ Do
   Begin
     SY_EQUA := Nil;
@@ -182,11 +209,11 @@ Begin
 End;
 
 { assign an equation, possibly allowing for backtracking }
-Procedure SetMemEq( Var U : RestorePtr; obj : TPObjPtr;
-    Var E : EqPtr; V : EqPtr; Backtrackable : Boolean);
+Procedure SetMemEq( Var U : RestorePtr; obj : TObjectPtr; Var E : EqPtr; 
+    V : EqPtr; Backtrackable : Boolean);
 Var 
-  p : TPObjPtr Absolute E;
-  pV : TPObjPtr Absolute V;
+  p : TObjectPtr Absolute E;
+  pV : TObjectPtr Absolute V;
 Begin
   SetMem(U,obj,p,pV,Backtrackable)
 End;
@@ -202,3 +229,5 @@ Begin
   InsertOneEqInSys(S,E);
   NewSystemWithEq := S
 End;
+
+End.

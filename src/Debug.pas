@@ -1,7 +1,7 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   File        : init.pas                                                   }
+{   File        : Debug.pas                                                  }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2022,2023,2024                                             }
@@ -12,13 +12,77 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 
+{$R+} { Range checking on. }
+{$V-} { No strict type checking for strings. }
+
+Unit Debug;
+
+Interface
+
+Uses
+  Strings,
+  Num,
+  Errs,
+  Trace,
+  Memory,
+  PObj,
+  PObjRest,
+  PObjOp,
+  PObjStr,
+  PObjTok,
+  PObjDict,
+  PObjEq,
+  PObjTerm,
+  PObjProg,
+  Unparse;
+
+Procedure SetCurrentProgram( P : ProgPtr );
+Procedure DumpBacktrace;
+
+Implementation
+{-----------------------------------------------------------------------------}
+
 Var
-  CurrentProgram : ProgPtr; { current Prolog program }
+  CurrentProgram : ProgPtr; { Prolog program to debug }
   OngoingCoreDump : Boolean;
 
+Procedure SetCurrentProgram( P : ProgPtr );
+Begin
+  CurrentProgram := P
+End;
+
+{----------------------------------------------------------------------------}
+{ DUMP                                                                       }
+{----------------------------------------------------------------------------}
+
+Procedure DumpToken( K : TokenPtr );
+Begin
+  CWrite('(');
+  CWriteInt(K^.TK_LINE);
+  CWrite(',');
+  CWriteInt(K^.TK_CHAR);
+  CWrite(') ');
+  CWrite(TokenTypeAsString(K));
+  If K^.TK_STRI <> Nil Then
+  Begin
+    CWrite(': ');
+    OutString(K^.TK_STRI,False)
+  End
+End;
+
+Procedure DumpTokens( K : TokenPtr );
+Begin
+  While K <> Nil Do
+  Begin
+    DumpToken(K);
+    CWriteLn;
+    K := NextToken(K)
+  End;
+  CWriteLn
+End;
 
 { Write extra data in a Prolog object }
-Procedure WriteExtraData; (*( p : TPObjPtr );*)
+Procedure WriteExtraData( p : TObjectPtr );
 Var 
   PRp : ProgPtr Absolute p;
   Tp : TermPtr Absolute p;
@@ -38,8 +102,9 @@ Var
   Opp : OpPtr Absolute p;
   y : TSyntax;
 Begin
+  CheckCondition(CurrentProgram <> Nil,'WriteExtraData: program not set');
   y := PrologIIc; { syntax for debug output }
-  Case ObjectType(p) Of
+  Case PObjectType(p) Of
   PR:
     Begin
       CWriteInt(PRp^.PP_LEVL);
@@ -140,19 +205,7 @@ Begin
       CWrite('"' + Opp^.OP_FUNC + '"')
     End;
   TK:
-    Begin
-      CWrite('(');
-      CWriteInt(Kp^.TK_LINE);
-      CWrite(',');
-      CWriteInt(Kp^.TK_CHAR);
-      CWrite(') ');
-      CWrite(TokenTypeAsString(Kp));
-      If Kp^.TK_STRI <> Nil Then
-      Begin
-        CWrite(': ');
-        OutString(Kp^.TK_STRI,False)
-      End
-    End
+    DumpToken(Kp)
   End
 End;
 
@@ -293,8 +346,8 @@ Var
 Begin
   { suspend objects registration to avoid messing up the core dump with 
     objects created during the trace }
-  reg := DoRegister;
-  DoRegister := False;
+  reg := GetRegistrationState;
+  SetRegistration(False);
   If Not OngoingCoreDump Then
   Begin
     OngoingCoreDump := True;
@@ -315,11 +368,18 @@ Begin
     CWriteLn;
     OngoingCoreDump := False
   End;
-  DoRegister := reg
+  SetRegistration(reg)
 End;
 
 { core dump the current Prolog program }
-Procedure CoreDump; (* ( Message : TString; Trace : Boolean ); *)
+Procedure CoreDump( Message : TString; Trace : Boolean );
 Begin
+  CheckCondition(CurrentProgram <> Nil,'CoreDump: program not set');
   CoreDumpProg(CurrentProgram,Message,Trace);
 End;
+
+{ initialize the unit }
+Begin
+  OngoingCoreDump := False;
+  CurrentProgram := Nil
+End.

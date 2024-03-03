@@ -3,7 +3,7 @@ A simple Prolog II interpreter written in Pascal
 
 ## What?
 
-This is a simple Prolog interpreter, for Linux, macOS, and Windows. It compiles under Turbo Pascal and Free Pascal.
+This is a simple Prolog interpreter, for Linux, macOS, and Windows. It compiles under Turbo Pascal 4 and Free Pascal.
 
 Regarding syntax, it (almost fully) handles the following flavours of the language: Prolog II, Prolog II+ and Prolog Edinburgh. It also supports a "Prolog II with equalities and inequalities" flavour, which was the primary purpose of this interpreter.
 
@@ -246,9 +246,7 @@ New operators can be declared using `op/3` and `op/4` (see PrologII+ documentati
 
 The program was initially developed in [Turbo Pascal 3](https://en.wikipedia.org/wiki/Turbo_Pascal#Version_3) (TP3). Turbo Pascal 3.02A is [provided](https://web.archive.org/web/20101124092418/http://edn.embarcadero.com/article/20792) to the Borland community free of charge, as a [zip file](https://web.archive.org/web/20110815014726/http://altd.embarcadero.com/download/museum/tp302.zip).
 
-I initially tried to maintain compatibility with TP3. So, no classes, and a few restrictions on the syntax (e.g., no type cast) or semantic (e.g., no lazy evaluation). Workarounds had to be implemented for the most annoying limitations, namely 16-bit integers and 255-char strings. As the program grew, TP3 started overflowing memory during compilation. Consequently, TP4 compatibility is the current target.  
-
-You may use a FreeDOS box to install Turbo Pascal 4, edit `src/tprolog2.pas` to replace the compiler directive `{$I FPC.pas}` with `{$I TP4.pas}`, then compile `tprolog2.pas` and run the Prolog interpreter.
+I initially tried to maintain compatibility with TP3. So, no classes, and a few restrictions on the syntax (e.g., no type cast) or semantic (e.g., no lazy evaluation). Workarounds had to be implemented for the most annoying limitations, namely 16-bit integers and 255-char strings. As the program grew, TP3 started overflowing memory during compilation. Consequently, Turbo Pascal 4.0 compatibility is the current target.  
 
 ### Free Pascal Compiler
 

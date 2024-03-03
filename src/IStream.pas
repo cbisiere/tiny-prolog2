@@ -29,6 +29,21 @@
     valid UTF-8 code point 
 }
 
+Unit IStream;
+
+Interface
+
+Uses
+  Strings,
+  Errs,
+  Chars,
+  Crt2,
+  Readline,
+  IChar,
+  Buffer,
+  Files,
+  Trace,
+  Common;
 
 { input stream }
 Type
@@ -42,6 +57,29 @@ Type
     CBuf : String[MaxBytesPerChar]; { char buffer to handle multi-byte chars  }
     ByteCount : LongInt;            { total number of bytes read so far       }
   End;
+
+Procedure ResetIStream( Var f : TIStream );
+Function GetIStreamEncoding( Var f : TIStream ) : TEncoding;
+Procedure SetIStreamEncoding( Var f : TIStream; Enc : TEncoding );
+Procedure OpenIStream( FileName : TString; Var f : TIStream );
+Procedure CloseIStream( Var f : TIStream );
+Procedure DisplayIStreamErrorMessage( Var f : TIStream; msg : TString );
+Procedure ReadLineFromKeyboard( Var f : TIStream );
+Procedure UngetCharFromStream( Var f : TIStream );
+Procedure UngetCharsFromStream( Var f : TIStream; line : TLineNum; 
+    col : TCharPos );
+Procedure GetICharFromStream( Var f : TIStream; Var e : TIChar );
+Function GetCharFromStream( Var f : TIStream; Var c : TChar ) : TChar;
+Function GetCharNbFromStream( Var f : TIStream; Var c : TChar ) : TChar;
+Procedure NextICharFromStream( Var f : TIStream; Var e : TIChar );
+Function NextCharFromStream( Var f : TIStream; Var c : TChar ) : TChar;
+Function NextNextCharFromStream( Var f : TIStream; Var c : TChar ) : TChar;
+Procedure CheckConsoleInputStream( Var f : TIStream; SkipSpaces : Boolean );
+Procedure IStreamDump( f : TIStream );
+
+
+Implementation
+{-----------------------------------------------------------------------------}
 
 {----------------------------------------------------------------------------}
 { init                                                                       }
@@ -272,13 +310,10 @@ Begin
 End;
 
 { read one codepoint with position }
-Function GetICharFromStream( Var f : TIStream; Var e : TIChar ) : TIChar;
+Procedure GetICharFromStream( Var f : TIStream; Var e : TIChar );
 Begin
   SetIChar(e,'',0,0);
-  GetICharFromStream := e;
-  ReadCodepointFromStream(f,e);
-  If Error Then Exit;
-  GetICharFromStream := e
+  ReadCodepointFromStream(f,e)
 End;
 
 { read one codepoint }
@@ -288,7 +323,7 @@ Var
 Begin
   GetCharFromStream := '';
   c := '';
-  e := GetICharFromStream(f,e);
+  GetICharFromStream(f,e);
   If Error Then Exit;
   c := e.Val;
   GetCharFromStream := c
@@ -307,9 +342,9 @@ Begin
 End;
 
 { return the next codepoint with position, without consuming it }
-Function NextICharFromStream( Var f : TIStream; Var e : TIChar ) : TIChar;
+Procedure NextICharFromStream( Var f : TIStream; Var e : TIChar );
 Begin
-  NextICharFromStream := GetICharFromStream(f,e);
+  GetICharFromStream(f,e);
   If Error Then Exit;
   UngetCharFromStream(f)
 End;
@@ -321,7 +356,7 @@ Var
 Begin
   NextCharFromStream := '';
   c := '';
-  e := NextICharFromStream(f,e);
+  NextICharFromStream(f,e);
   If Error Then Exit;
   c := e.Val;
   NextCharFromStream := c
@@ -381,3 +416,5 @@ Begin
     WriteToEchoFile(CRLF)
   End
 End;
+
+End.

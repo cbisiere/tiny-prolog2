@@ -4,7 +4,7 @@
 {   File        : Strings.pas                                                }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2023                                                       }
+{   Updated     : 2022,2023,2024                                             }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -15,10 +15,66 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+Unit Strings;
+
+Interface
+
+{$IFDEF FPC}
+Uses
+  Sysutils;
+{$ENDIF}
+
+{ longest non dynamic string }
+Const
+  StringMaxSize = 255;
+Type
+  CharSet   = Set Of Char;
+  TString = String[StringMaxSize];
+  TStringSize = 0..StringMaxSize;
+
 Const
   { 'end of line' sequence used for output text files }
   CRLF : Array[1..2] Of Char = (#13,#10);
 
+Function TrimLeftSpaces( s : TString ) : TString;
+Function RAlign( s : TString; width : TStringSize ) : TString;
+Function IntToStr( v : Integer ) : TString;
+Function BoolToStr( b : Boolean ) : TString;
+Function StartsWith( s,b : TString ) : Boolean;
+Function EndsWith( s,b : TString ) : Boolean;
+Function StartsCount( s : TString; E : CharSet ) : TStringSize;
+
+Implementation
+{-----------------------------------------------------------------------------}
+{ TP4/FPC compatibility code }
+{$IFDEF MSDOS}
+
+{ trim whitespace from the beginning of a string }
+Function TrimLeft( s : TString ) : TString;
+Var 
+  c,i : Byte;
+Label
+  Break;
+Begin
+  c := 0;
+  For i := 1 to Length(s) Do
+    If s[i]=' ' Then
+      c := c + 1
+    Else
+      Goto Break;
+  Break: If c>0 Then
+    Delete(s,1,c);
+  TrimLeft := s
+End;
+
+{$ENDIF}
+{-----------------------------------------------------------------------------}
+
+{ trim whitespace from the beginning of a string }
+Function TrimLeftSpaces( s : TString ) : TString;
+Begin
+  TrimLeftSpaces := TrimLeft(s)
+End;
 
 { right-align a string inside a blank string of size width }
 Function RAlign( s : TString; width : TStringSize ) : TString;
@@ -63,7 +119,7 @@ End;
 { pop a char from the end of a string }
 Procedure PopChar( Var s : TString; Var c : Char );
 Begin
-  CheckCondition(Length(s) > 0,'PopChar: string is empty');
+  {// CheckCondition(Length(s) > 0,'PopChar: string is empty'); }
   c := s[Length(s)];
   Delete(s,Length(s),1)
 End;
@@ -96,3 +152,5 @@ Begin
     End;
   StartsCount := Length(s)
 End;
+
+End.

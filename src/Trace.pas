@@ -15,22 +15,34 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+Unit Trace;
+
+Interface
+
+Uses
+  Chars,
+  Strings,
+  Errs,
+  Files,
+  Crt2;
+
+Procedure TerminateTrace;
+Procedure WriteToEchoFile( s : TString );
+Procedure CWrite( s : TString );
+Procedure CWriteLn;
+Procedure CWriteInt( v : Integer );
+Procedure CWriteBool( b : Boolean );
+
+Implementation
+{-----------------------------------------------------------------------------}
+
 Var
+  InitOk : Boolean;
   EchoFile : TOFile;
   Echo : Boolean;
 
 Const
   ECHO_FILE = 'echo.txt';
-
-{ initialize the trace system }
-Procedure InitTrace;
-Var 
-  Ok : Boolean;
-Begin
-  Ok := OpenForWrite(ECHO_FILE, EchoFile);
-  CheckCondition(Ok,'cannot open echo file');
-  Echo := True
-End;
 
 { close the trace file }
 Procedure TerminateTrace;
@@ -39,7 +51,7 @@ Begin
 End;
 
 { write to the echo file if trace is on }
-Procedure WriteToEchoFile; (* ( s : TString ); *)
+Procedure WriteToEchoFile( s : TString );
 Begin
   If Echo Then
     WriteToFile(ECHO_FILE,EchoFile,s)
@@ -95,3 +107,10 @@ Begin
   End;
   CWrite(']')
 End;
+
+{ initialize the trace system }
+Begin
+  InitOk := OpenForWrite(ECHO_FILE, EchoFile);
+  CheckCondition(InitOk,'cannot open echo file');
+  Echo := True
+End.

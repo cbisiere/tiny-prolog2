@@ -15,9 +15,28 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+Unit PObjTerm;
+
+Interface
+
+Uses
+  Strings,
+  Num,
+  Errs,
+  Memory,
+  PObj,
+  PObjRest,
+  PObjStr,
+  PObjDict,
+  PObjEq;
+
 {-----------------------------------------------------------------------}
 { types                                                                 }
 {-----------------------------------------------------------------------}
+
+{ type of term }
+Type
+  TTerm = (Variable,Identifier,Constant,FuncSymbol,Dummy);
 
 { constant: identifier, number or quoted string; list of constants  }
 Type
@@ -60,6 +79,52 @@ Type
   End;
 
 
+Function NewF( T1,T2 : TermPtr ) : TermPtr;
+Function TypeOfTerm( T : TermPtr ) : TTerm;
+Function OneIsNil( T1,T2 : TermPtr ) : Boolean;
+Function ObjectTypeToConstType( typ : TypePrologObj ) : TConst;
+Function ConstType( C : ConstPtr ) : TConst;
+Function ConstGetStr( C : ConstPtr ) : StrPtr;
+Function ConstGetPStr( C : ConstPtr ) : TString;
+Function GetConstAsString( C : ConstPtr; Quotes : Boolean ) : StrPtr;
+Function VariableGetName( V : VarPtr ) : StrPtr;
+Function IdentifierGetStr( I : IdPtr ) : StrPtr;
+Function IdentifierGetPStr( I : IdPtr ) : TString;
+Function IdentifierEqualTo( I : IdPtr; ps : TString ) : Boolean;
+Function TermIsIdentifierEqualTo( T : TermPtr; ident : TString ) : Boolean;
+Function IdentifierIsCut( I : IdPtr ) : Boolean;
+Function TermIsCut( T : TermPtr ) : Boolean;
+Function GetIdentAsString( I : IdPtr; Quotes : Boolean ) : StrPtr;
+Function FLeftArg( F : FuncPtr ) : TermPtr;
+Function FRightArg( F : FuncPtr ) : TermPtr;
+Procedure FSetRightArg( F : FuncPtr; T : TermPtr );
+
+Procedure UnbindVar( V : AssPtr );
+Function WatchIneq( V : VarPtr ) : EqPtr;
+Procedure AddWatch( V : VarPtr; E : EqPtr; Backtrackable : Boolean; 
+    Var L : RestorePtr );
+Function VRed( V : VarPtr ) : TermPtr;
+Function FRed( F : FuncPtr ) : TermPtr;
+Function RepresentativeOf( T : TermPtr ) : TermPtr;
+Function EvaluateToInteger( T : TermPtr ) : ConstPtr;
+Function EvaluateToString( T : TermPtr ) : ConstPtr;
+Function EvaluateToIdentifier( T : TermPtr ) : IdPtr;
+Function AccessIdentifier( T : TermPtr ) : IdPtr;
+Function IsVariable( T : TermPtr ) : Boolean;
+Procedure OrderTerms( Var T1,T2: TermPtr );
+Procedure TrackAssignment( T1,T2: TermPtr );
+Function NormalizeConstant( Var s : StrPtr; typ : TConst ) : Boolean;
+
+Function InstallConst( Var list : DictPtr; str : StrPtr; 
+    ty : TypePrologObj; glob : Boolean ) : ConstPtr;
+Function InstallVariable( Var list : DictPtr; stop : DictPtr; 
+    str : StrPtr; glob : Boolean ) : VarPtr;
+Function InstallIdentifier( Var list : DictPtr; 
+    str : StrPtr; glob : Boolean  ) : IdPtr;
+
+
+Implementation
+{-----------------------------------------------------------------------------}
 
 {-----------------------------------------------------------------------}
 { constructors                                                          }
@@ -69,9 +134,9 @@ Type
 Function NewConst : ConstPtr;
 Var 
   C : ConstPtr;
-  ptr : TPObjPtr Absolute C;
+  ptr : TObjectPtr Absolute C;
 Begin
-  ptr := NewRegisteredObject(CO,1,False,0);
+  ptr := NewRegisteredPObject(CO,SizeOf(TObjConst),1,False,0);
   With C^ Do
   Begin
     TC_DCON := Nil
@@ -83,9 +148,9 @@ End;
 Function NewAssignable( ty : TypePrologObj; CanCopy : Boolean) : AssPtr;
 Var 
   V : AssPtr;
-  ptr : TPObjPtr Absolute V;
+  ptr : TObjectPtr Absolute V;
 Begin
-  ptr := NewRegisteredObject(ty,4,CanCopy,2);
+  ptr := NewRegisteredPObject(ty,SizeOf(TObjAss),4,CanCopy,2);
   With V^ Do
   Begin
     TV_TRED := Nil;
@@ -101,9 +166,9 @@ End;
 Function NewSymbol( T1,T2 : TermPtr ) : FuncPtr;
 Var 
   F : FuncPtr;
-  ptr : TPObjPtr Absolute F;
+  ptr : TObjectPtr Absolute F;
 Begin
-  ptr := NewRegisteredObject(FU,3,True,3);
+  ptr := NewRegisteredPObject(FU,SizeOf(TObjFunc),3,True,3);
   With F^ Do
   Begin
     TF_TRED := Nil;
@@ -128,14 +193,12 @@ End;
 { methods: terms                                                        }
 {-----------------------------------------------------------------------}
 
-Type TTerm = (Variable,Identifier,Constant,FuncSymbol,Dummy);
-
 { type of term }
 Function TypeOfTerm( T : TermPtr ) : TTerm;
 Begin
   TypeOfTerm := Dummy; { FIXME: get rid of this }
   If T <> Nil Then
-    Case ObjectType(T) Of
+    Case PObjectType(T) Of
     CO:
       TypeOfTerm := Constant;
     ID:
@@ -355,11 +418,12 @@ Begin
 End;
 
 { add an inequation E to the watch list of variable V }
-Procedure AddWatch( V : VarPtr; E : EqPtr; Backtrackable : Boolean; Var L : RestorePtr );
+Procedure AddWatch( V : VarPtr; E : EqPtr; Backtrackable : Boolean; 
+    Var L : RestorePtr );
 Var 
-  OV : TPObjPtr Absolute V;
+  OV : TObjectPtr Absolute V;
   Ec : EqPtr;
-  OEc : TPObjPtr Absolute Ec;
+  OEc : TObjectPtr Absolute Ec;
 Begin
   If WatchIneq(V) = Nil Then { first watch }
     SetMemEq(L,OV,V^.TV_FWAT,E,Backtrackable)
@@ -663,8 +727,8 @@ End;
   reached through a deep copy;
   - this requires constants to be stored in canonical representation  
   FIXME: use canonical representation for real numbers }
-Function InstallConst( Var list : DictPtr; str : StrPtr; 
-    ty : TypePrologObj; glob : Boolean ) : ConstPtr;
+Function InstallConst( Var list : DictPtr; str : StrPtr; ty : TypePrologObj; 
+    glob : Boolean ) : ConstPtr;
 Var 
   C : ConstPtr;
   TC : TermPtr Absolute C;
@@ -707,16 +771,18 @@ End;
 
 { create a variable if it does not exist in list (up to stop, excluded);
   a variable is subject to deep copy }
-Function InstallVariable( Var list : DictPtr; stop : DictPtr; 
-    str : StrPtr; glob : Boolean ) : VarPtr;
+Function InstallVariable( Var list : DictPtr; stop : DictPtr; str : StrPtr; 
+    glob : Boolean ) : VarPtr;
 Begin
   InstallVariable := InstallAssignable(list,stop,str,VA,glob,True)
 End;
 
 { create an identifier if it does not exist in list; an identifier is
   not deep-copyable }
-Function InstallIdentifier( Var list : DictPtr; 
-    str : StrPtr; glob : Boolean  ) : IdPtr;
+Function InstallIdentifier( Var list : DictPtr; str : StrPtr; 
+    glob : Boolean  ) : IdPtr;
 Begin
   InstallIdentifier := InstallAssignable(list,Nil,str,ID,glob,False)
 End;
+
+End.

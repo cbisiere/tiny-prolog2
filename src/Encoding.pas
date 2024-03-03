@@ -15,6 +15,7 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+
 { encode and decode tuples, predicates, lists, etc., using the functional 
  symbol F }
 
@@ -37,6 +38,44 @@
 {               argN    Nil                                             }
 {                                                                       }
 {-----------------------------------------------------------------------}
+
+Unit Encoding;
+
+Interface
+
+Uses
+  Strings,
+  Errs,
+  PObj,
+  PObjTerm,
+  PObjProg;
+
+Function NewTuple( T : TermPtr ) : TermPtr;
+Function NewEmptyTuple : TermPtr;
+Function TupleQueue( U : TermPtr ) : TermPtr;
+Procedure SetTupleQueueTerm( U,T : TermPtr );
+Function IsEmptyTuple( U : TermPtr ) : Boolean;
+Function TupleArgCount( U : TermPtr ) : Integer;
+Function TupleArgN( N : Integer; U : TermPtr ) : TermPtr;
+
+Function NewFunc2( P : ProgPtr; ident : TString; T1,T2 : TermPtr; 
+    glob : Boolean ) : TermPtr;
+
+Function NewEmptyList( P : ProgPtr ) : TermPtr;
+Function NewList2( P : ProgPtr; T1,T2 : TermPtr ) : TermPtr;
+Function IsNil( T : TermPtr ) : Boolean;
+Function TupleToList( P : ProgPtr; U : TermPtr ) : TermPtr;
+Function ListToTuple( L : TermPtr ) : TermPtr;
+
+Function GetTupleHead( T : TermPtr; Reduce : Boolean ) : TermPtr;
+Function GetTupleQueue( T : TermPtr; Reduce : Boolean ) : TermPtr;
+Function GetTupleArg( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
+Function GetList( T : TermPtr; Var T1,T2 : TermPtr; 
+    Reduce : Boolean ) : Boolean;
+Function IsList( T : TermPtr; Reduce : Boolean ) : Boolean;
+
+Implementation
+{-----------------------------------------------------------------------------}
 
 {----------------------------------------------------------------------------}
 { tuples                                                                     }
@@ -299,3 +338,5 @@ Var
 Begin
   IsList := GetList(T,T1,T2,Reduce)
 End;
+
+End.

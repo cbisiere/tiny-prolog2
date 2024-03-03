@@ -15,6 +15,26 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+Unit Init;
+
+Interface
+
+Uses 
+  Strings,
+  Errs,
+  Files,
+  Memory,
+  PObjStr,
+  PObjProg,
+  Debug,
+  Engine;
+
+Procedure ProcessParameters( P : ProgPtr );
+Function CreateProgram : ProgPtr;
+
+Implementation
+{-----------------------------------------------------------------------------}
+
 { syntax switches; each switch is also the filename part of the start program }
 Type 
   TStartFile = Array[TSyntax] Of String[4];
@@ -28,7 +48,7 @@ Var
   par,filename : TString;
   y : TSyntax;
   s : StrPtr;
-  os : TPObjPtr Absolute s;
+  os : TObjectPtr Absolute s;
   KnownPar, HasFilePar, HasSyntaxPar, SkipStartFile : Boolean;
 Begin
 
@@ -102,34 +122,24 @@ Begin
   { load the user file }
   If Not Error And HasFilePar Then
   Begin
-    SetProgramPath(P,ExtractFilePath(filename));
+    SetProgramPath(P,ExtractPath(filename));
     s := NewStringFrom(filename);
     AddGCRoot(os); { protect this string from GC }
     LoadProgram(P,Nil,s,False)
   End
 End;
 
-{ initialize various subsystems }
-Procedure Initialize;
-Begin
-  MMInit;
-  InitIO;
-  InitCrt;
-  InitTrace;
-  InitReadline;
-  OngoingCoreDump := False;
-  Error := False
-End;
-
 { reset the Prolog engine }
 Function CreateProgram : ProgPtr;
 Var 
   P : ProgPtr;
-  OP : TPObjPtr Absolute P;
+  OP : TObjectPtr Absolute P;
 Begin
   P := NewProgram;
   AddGCRoot(OP);
-  CurrentProgram := P; 
+  SetCurrentProgram(P); 
   RegisterPredefined(P);
   CreateProgram := P
 End;
+
+End.

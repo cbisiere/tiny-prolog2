@@ -15,20 +15,37 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-{ list of (addr, value) elements, where addr is the address of a Prolog object pointer,
-  and value is a Prolog object pointers }
+Unit PObjRest;
+
+Interface
+
+Uses
+  Errs,
+  Memory,
+  PObj;
+
+{ list of (addr, value) elements, where addr is the address of a pointer,
+  and value is a pointer }
 Type
   RestorePtr = ^TObjRestore;
   TObjRestore = Record
     PO_META : TObjMeta;
     { not deep copied: }
     RE_NEXT : RestorePtr;
-    RE_POBJ : TPObjPtr; { object whose property is modified }
-    RE_PVAL : TPObjPtr; { backup of the pointer value }
+    RE_POBJ : TObjectPtr; { object whose property is modified }
+    RE_PVAL : TObjectPtr; { backup of the pointer value }
     { extra data: }
-    RE_ADDR : ^TPObjPtr; { address of the pointer value }
+    RE_ADDR : ^TObjectPtr; { address of the pointer value }
     RE_DONE : Boolean { initial value has been restored (debug) }
   End;
+
+
+Procedure SetMem( Var U : RestorePtr; obj : TObjectPtr; 
+    Var p : TObjectPtr; V : TObjectPtr; Backtrackable : Boolean);
+Procedure Restore( Var U : RestorePtr );
+
+Implementation
+{-----------------------------------------------------------------------------}
 
 {-----------------------------------------------------------------------}
 { constructor                                                           }
@@ -37,9 +54,9 @@ Type
 Function NewRestore : RestorePtr;
 Var 
   U : RestorePtr;
-  ptr : TPObjPtr Absolute U;
+  ptr : TObjectPtr Absolute U;
 Begin
-  ptr := NewRegisteredObject(RE,3,False,0);
+  ptr := NewRegisteredPObject(RE,SizeOf(TObjRestore),3,False,0);
   With U^ Do
   Begin
     RE_POBJ := Nil;
@@ -55,7 +72,8 @@ End;
 { methods                                                               }
 {-----------------------------------------------------------------------}
 
-Procedure PushRestore( Var U : RestorePtr; obj : TPObjPtr; Var p : TPObjPtr );
+Procedure PushRestore( Var U : RestorePtr; obj : TObjectPtr; 
+    Var p : TObjectPtr );
 Var NewU : RestorePtr;
 Begin
   NewU := NewRestore;
@@ -70,8 +88,8 @@ Begin
 End;
 
 
-Procedure SetMem( Var U : RestorePtr; obj : TPObjPtr; 
-    Var p : TPObjPtr; V : TPObjPtr; Backtrackable : Boolean);
+Procedure SetMem( Var U : RestorePtr; obj : TObjectPtr; 
+    Var p : TObjectPtr; V : TObjectPtr; Backtrackable : Boolean);
 Begin
   If p <> V Then
   Begin
@@ -88,12 +106,14 @@ Begin
     Begin
       Restore(RE_NEXT);
       CheckCondition(Not RE_DONE,'double restore');
-      CheckIsPObj(RE_POBJ,'Restore/obj');
+      CheckIsObject(RE_POBJ,'Restore/obj');
       If RE_ADDR^ <> Nil Then 
-        CheckIsPObj(RE_ADDR^,'Restore/addr');
+        CheckIsObject(RE_ADDR^,'Restore/addr');
       If RE_PVAL <> Nil Then 
-        CheckIsPObj(RE_PVAL,'Restore/pval');
+        CheckIsObject(RE_PVAL,'Restore/pval');
       RE_ADDR^ := RE_PVAL;
       RE_DONE := True
     End
 End;
+
+End.

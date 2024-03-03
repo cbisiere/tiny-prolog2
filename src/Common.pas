@@ -15,29 +15,20 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+Unit Common;
+
+Interface
+
 Type
-  CharSet   = Set Of Char;
   TComp = (CompLower,CompEqual,CompGreater,CompUndefined);
+
+Procedure Pass;
+
+implementation
 
 { do nothing }
 Procedure Pass;
 Begin
 End;
 
-{ maximum of two integers }
-Function Max( a,b : Integer ) : Integer;
-Begin
-  If a >= b Then
-    Max := a
-  Else
-    Max := b
-End;
-
-{ minimum of two integers }
-Function Min( a,b : Integer ) : Integer;
-Begin
-  If a <= b Then
-    Min := a
-  Else
-    Min := b
-End;
+End.

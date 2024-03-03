@@ -20,16 +20,57 @@
 {
   ASSUMPTIONS AND LIMITS:
   -----------------------
-  1) IFilesMax: 10
+  1) IFilesMax: 5
     maximum number of stacked input files, including the predefined 
     input 'console'.
 }
 
+Unit IStack;
+
+Interface
+
+Uses
+  Strings,
+  Errs,
+  Chars,
+  IChar,
+  Buffer,
+  Files,
+  IStream;
+
 Const
-  IFilesMax = 10;
+  IFilesMax = 5;
 
 Type
   TIFileStackIndex = 0..IFilesMax; { stack of input files; see PII+ doc R5-1}
+
+Procedure ClearInput;
+Procedure DisplayInputErrorMessage( msg : TString );
+Function InputIs : TString;
+Function InputEncoding : TEncoding;
+Procedure SetInputEncoding( Enc : TEncoding );
+Procedure InitIFileStack;
+Function SetFileForInput( FileName : TString ) : Boolean;
+Procedure ResetIFileStack;
+Procedure CloseInputByName( FileName : TString );
+Procedure CloseCurrentInput;
+Procedure ReadFromConsole;
+Procedure GetIChar( Var e : TIChar );
+Function GetChar( Var c : TChar ) : TChar;
+Function GetCharNb( Var c : TChar ) : TChar;
+Procedure UnGetChar;
+Procedure UngetChars( line : TLineNum; col : TCharPos );
+Procedure NextIChar( Var e : TIChar );
+Function NextChar( Var c : TChar ) : TChar;
+Function NextNextChar( Var c : TChar ) : TChar;
+Procedure CheckConsoleInput( SkipSpaces : Boolean );
+Procedure IStackDumpCurrentInput;
+
+
+Implementation
+{-----------------------------------------------------------------------------}
+
+Type
   TIFileStack = Record
     Top : TIFileStackIndex;
     Stack : Array[1..IFilesMax] Of TIStream
@@ -57,7 +98,7 @@ Begin
 End;
 
 { write an error message, pointing to the error }
-Procedure DisplayInputErrorMessage; (* ( msg : TString ); *)
+Procedure DisplayInputErrorMessage( msg : TString );
 Begin
   With IFileStack Do
     DisplayIStreamErrorMessage(Stack[Top],msg)
@@ -275,10 +316,10 @@ Begin
 End;
 
 { read one codepoint with position }
-Function GetIChar( Var e : TIChar ) : TIChar;
+Procedure GetIChar( Var e : TIChar );
 Begin
   With IFileStack Do
-    GetIChar := GetICharFromStream(Stack[Top],e)
+    GetICharFromStream(Stack[Top],e)
 End;
 
 { read one codepoint }
@@ -310,10 +351,10 @@ Begin
 End;
 
 { return the next codepoint with position, without consuming it }
-Function NextIChar( Var e : TIChar ) : TIChar;
+Procedure NextIChar( Var e : TIChar );
 Begin
   With IFileStack Do
-    NextIChar := NextICharFromStream(Stack[Top],e)
+    NextICharFromStream(Stack[Top],e)
 End;
 
 { return the next codepoint without consuming it }
@@ -348,3 +389,5 @@ Begin
   With IFileStack Do
     IStreamDump(Stack[Top])
 End;
+
+End.

@@ -65,6 +65,17 @@
     maximum width of terminal screen (in number of chars)
 }
 
+Unit Crt2;
+
+Interface
+
+Uses
+  Crt,
+  Strings,
+  Chars,
+  Num,
+  Errs;
+
 Const 
   CrtScreenMaxWidth = 255;
 
@@ -77,11 +88,55 @@ Type
     Row : TCrtRowData
   End;
 
+Type
+  TCrtCoord = 1..255;
+
 Var
   CrtRow : TCrtRow;
   CrtScreenWidth : TCrtCoord;
   CrtScreenHeight : TCrtCoord;
 
+
+Function CrtFits( cc : TChar ) : Boolean;
+Function CrtChar( R : TCrtRowData; i : TCrtCoord ) : TChar;
+
+Procedure CrtWriteLn;
+Procedure CrtWriteCharThatFits( cc : TChar );
+Procedure CrtWriteChar( cc : TChar );
+Procedure CrtWriteString( s : TString );
+
+Procedure CrtBackspace;
+Procedure CrtClrLines( y : TCrtCoord; n : Byte );
+Procedure CrtClrSrc;
+Procedure CrtBeep;
+
+Procedure CrtReplay( R : TCrtRow; y : TCrtCoord );
+
+
+Implementation
+{-----------------------------------------------------------------------------}
+{ TP4/FPC compatibility code }
+{$IFDEF MSDOS}
+
+Const
+  ScreenWidth = 80;
+  ScreenHeight = 25;
+
+{$ENDIF}
+{-----------------------------------------------------------------------------}
+
+
+{ screen width in number of 1-byte characters }
+Function GetScreenWidth : TCrtCoord;
+Begin
+  GetScreenWidth := ScreenWidth
+End;
+
+{ screen height in number of rows }
+Function GetScreenHeight : TCrtCoord;
+Begin
+  GetScreenHeight := ScreenHeight
+End;
 {----------------------------------------------------------------------------}
 { initializations                                                            }
 {----------------------------------------------------------------------------}
@@ -94,14 +149,6 @@ Begin
     Len := 0;
     Bytes := 0
   End;
-End;
-
-{ initialize the unit }
-Procedure InitCrt;
-Begin
-  CrtScreenWidth := GetScreenWidth;
-  CrtScreenHeight := GetScreenHeight;
-  CrtResetLine
 End;
 
 {----------------------------------------------------------------------------}
@@ -118,7 +165,7 @@ End;
 
 { get char i in row data R }
 Function CrtChar( R : TCrtRowData; i : TCrtCoord ) : TChar;
-Begin
+Begin;
   CrtChar := R[i]
 End;
 
@@ -250,3 +297,11 @@ Begin
     For i := 1 to Len Do
       CrtWriteCharThatFits(CrtChar(Row,i))
 End;
+
+
+{ initialize the unit }
+Begin
+  CrtScreenWidth := GetScreenWidth;
+  CrtScreenHeight := GetScreenHeight;
+  CrtResetLine
+End.

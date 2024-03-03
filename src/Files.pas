@@ -1,10 +1,10 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   File        : Input.pas                                                  }
+{   File        : Files.pas                                                  }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2023                                                       }
+{   Updated     : 2022,2023,2024                                             }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -20,6 +20,13 @@
 { NOTE: using Text as input file type (instead of File Of Char) triggers a 
  bug, where Read unexpectedly returns #00 with IOResult still equal to 0 }
 
+Unit Files;
+
+Interface
+
+Uses
+  Strings;
+
 Type
   TIODeviceType    = (TFile, TTerminal);   { input/output device type }
   TIFile = File Of Char;
@@ -28,6 +35,74 @@ Type
 Const
   CONSOLE_NAME = 'console';
 
+{ paths }
+Function ExtractPath( fn : TString ) : TString;
+
+{ input files: }
+Function OpenForRead( Filename : TString; Var TxtFile : TIFile ) : Boolean;
+Function OpenForWrite( Filename : TString; Var TxtFile : TOFile ) : Boolean;
+Procedure FlushFile( Filename : TString; Var TxtFile : TOFile );
+Procedure CloseIFile( Filename : TString; Var TxtFile : TIFile );
+
+{ output files: }
+Procedure CloseOFile( Filename : TString; Var TxtFile : TOFile );
+Procedure WriteToFile( Filename : TString; Var TxtFile : TOFile; s : TString );
+Function ReadFromFile( Filename : TString; Var TxtFile : TIFile; 
+    Var c : Char ) : Boolean;
+
+Implementation
+{-----------------------------------------------------------------------------}
+{ TP4/FPC compatibility code }
+{$IFDEF FPC}
+
+Uses
+  Sysutils;
+
+{$ENDIF}
+{$IFDEF MSDOS}
+{-----------------------------------------------------------------------------}
+
+Const
+  DirectorySeparator : Char = '\';
+
+{ TODO: return the file path part of the filename fn including the final 
+ directory separator (FPC emulation) }
+Function ExtractFilePath( fn : TString ) : TString;
+Begin
+  ExtractFilePath := fn { TBD }
+End;
+
+{ get the current directory; when non empty, it includes a 
+ trailing path separator; FIXME: return HOME env var if any? }
+Function GetUserDir: TString;
+Var
+  s : String;
+Begin
+  GetDir(0,s);
+  GetUserDir := s { FIXME: check length? }
+End;
+
+{$ENDIF}
+{-----------------------------------------------------------------------------}
+ 
+{ extract the file path part of filename fn including the final 
+ directory separator }
+Function ExtractPath( fn : TString ) : TString;
+Begin
+  ExtractPath := ExtractFilePath(fn)
+End;
+
+{ get the user directory, including a trailing separator }
+Function GetUserDirectory: TString;
+Begin
+  GetUserDirectory := GetUserDir;
+End;
+
+{ get the directory separator }
+Function GetDirectorySeparator : Char;
+Begin
+  GetDirectorySeparator := DirectorySeparator
+End;
 
 { return a full pathname to a file, usable in Assign, by 1) expanding "~/" 
  to the home dir when present, and 2) replacing the internal representation 
@@ -106,10 +181,13 @@ Begin
 End;
 
 { read a single char from a file }
-Function ReadFromFile( Filename : TString; Var TxtFile : TIFile; Var c : Char ) : Boolean;
+Function ReadFromFile( Filename : TString; Var TxtFile : TIFile; 
+    Var c : Char ) : Boolean;
 Begin
   {$I-}
   Read(TxtFile,c);
   {$I+}
   ReadFromFile := IOResult = 0
 End;
+
+End.

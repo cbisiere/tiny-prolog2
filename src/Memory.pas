@@ -15,68 +15,223 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+Unit Memory;
 
-{----------------------------------------------------------------------------}
-{ low level memory allocation procedures                                     }
-{----------------------------------------------------------------------------}
+Interface
 
-{ type of allocated objects; note that SY, EQ, HE, RE are not managed by GC }
-Type
-  TypePrologObj = (PR, RU, QU, SY, EQ, BT, CO, FU, VA, ID, CS, CI, CR, DE, HE, 
-      ST, SD, RE, OP, TK);
+Uses
+  Strings,
+  Num,
+  Errs,
+  Trace;
 
-{ string representation of these types (TP3 cannot write enumerated types);
-  must match TypePrologObj }
-Type
-  TypePrologObjStr = Array[TypePrologObj] Of String[2];
 Const
-  ObjStr : TypePrologObjStr = ('PR', 'RU', 'QU', 'SY', 'EQ', 'BT', 'CO', 'FU', 
-      'VA', 'ID', 'CS', 'CI', 'CR', 'DE', 'HE', 'ST', 'SD', 'RE', 'OP', 'TK');
+  MaxNbObjectTypes = 255;
+  MaxChildren = 255; { max numbers of child pointers per object }
+
+Type 
+  TObjectTypeIndex = 1..MaxNbObjectTypes;
+
+  TObjectSize = Integer; { size of a single object, in bytes }
+  TObjectName = String[2];
+
+  TypeMark = Boolean;
+
+{ object's metadata for object management (cloning, debugging, etc.) }
+Type
+  TObjectPtr = ^TObject;
+  { metadata }
+  TObjMeta = Record
+    PO_MAGI : Integer;          { magic number (debug) }
+    PO_FREE : Boolean;          { object's memory has been freed (debug) }
+    PO_TYPE : TObjectTypeIndex; { type of object }
+    PO_GUID : LongInt;          { object globally unique identifier (for convenience and sorting) }
+    PO_SIZE : TObjectSize;      { size in bytes (including metadata) }
+    PO_NPTR : Byte;             { number of PObject pointers (which must immediately follow the metadata) }
+    { deep copy }
+    PO_DPOK : Boolean;          { deep copy of this object is allowed }
+    PO_DEEP : Boolean;          { has been visited during the current deep copy operation }
+    PO_COPY : TObjectPtr;       { pointer to a copy made during a deep copy; warning: copy may have been GC'ed }
+    PO_CUID : LongInt;          { GUID of the copy, or 0; for display purpose, as the copy may not exist }
+    PO_NCOP : Integer;          { copy number - FIXME: may overflow }
+    PO_NDEE : Byte;             { number of pointers of objects to deep copy (must be less of equal than PO_NPTR) }
+    { garbage collection }
+    PO_MARK : TypeMark;         { GC mark }
+    PO_NEXT : TObjectPtr        { GC list of allocated objects }
+  End;
+  TObject = Record
+    PO_META : TObjMeta;
+    PO_PTRS : Array[1..MaxChildren] Of TObjectPtr { pointers to child objects }
+  End;
+
+{ mem stats }
+Procedure PrintMemoryStats;
+
+{ object types }
+Function DeclareObjectType( ObjName : TObjectName ) : TObjectTypeIndex;
+
+{ object accessors }
+Function ObjectType( p : TObjectPtr ) : TObjectTypeIndex;
+Function ObjectGuid( p : TObjectPtr ) : LongInt;
+Procedure CheckIsObject( p : TObjectPtr; prompt : TString );
+Function ObjectCopyNumber( p : TObjectPtr ) : Integer;
+Function PtrToName( p : TObjectPtr ) : TString;
+
+{ object creation and accounting }
+Function GetRegistrationState : Boolean;
+Procedure SetRegistration( state : Boolean );
+Function NewRegisteredObject( t : TObjectTypeIndex; b: TObjectSize ; n: Byte; 
+    CanCopy : Boolean; d : Byte ) : TObjectPtr;
+Procedure DumpRegisteredObject;
+
+{ deep copy }
+Function DeepCopy( p : TObjectPtr ) : TObjectPtr;
+
+{ GC }
+Procedure AddGCRoot( r : TObjectPtr );
+Procedure GarbageCollector;
+Procedure DumpGCRoots;
+
+
+Implementation
+{-----------------------------------------------------------------------------}
+{ TP4/FPC compatibility code }
+
+{ set out-of-memory allocations to return nil }
+{$IFDEF MSDOS}
+{$F+} Function HeapFunc(Size: word) : Integer; {$F-} 
+Begin
+  HeapFunc := 1
+End;
+{$ENDIF}
+
+Procedure InitMalloc;
+Begin
+{$IFDEF FPC}
+  ReturnNilIfGrowHeapFails := True
+{$ENDIF}
+End;
+
+{-----------------------------------------------------------------------------}
+
+{----------------------------------------------------------------------------}
+{ declaration of object types managed par the memory manager                 }
+{----------------------------------------------------------------------------}
+
+Type 
+  TMemSize = LongLongInt; { large amount of memory, in bytes }
+
+  TObjectCount = LongInt; { number of objects, non negative }
+
+  TMemObject = Record
+    IsSet : Boolean; { this table entry is set }
+    Name : TObjectName; { name of this type }
+    Count : TObjectCount; { number of objects of this type allocated so far }
+    Mem : TMemSize { total memory (in bytes) taken by all objects of this type }
+  End;
+
+Var
+  NbObjectTypes : 0..MaxNbObjectTypes;
+  MemObjects : Array[TObjectTypeIndex] Of TMemObject;
+
+{ return the name of an object type }
+Function GetObjectName( t : TObjectTypeIndex ) : TObjectName;
+Begin
+  With MemObjects[t] Do
+  Begin
+    CheckCondition(IsSet,'GetObjectName: entry not set');
+    GetObjectName := Name
+  End
+End;
+
+{ declare a new object type; return its index for future reference }
+Function DeclareObjectType( ObjName : TObjectName ) : TObjectTypeIndex;
+Begin
+  CheckCondition(NbObjectTypes < MaxNbObjectTypes,
+      'DeclareObjectType: table is full');
+  NbObjectTypes := NbObjectTypes + 1;
+  With MemObjects[NbObjectTypes] Do
+  Begin
+    CheckCondition(Not IsSet,'DeclareObjectType: entry already set');
+    IsSet := True;
+    Name := ObjName;
+    Count := 0;
+    Mem := 0
+  End;
+  DeclareObjectType := NbObjectTypes
+End;
+
+{ initialize the table of registered memory object types }
+Procedure InitMemObjects;
+Var
+  t : TObjectTypeIndex;
+Begin
+  NbObjectTypes := 0;
+  For t := 1 To MaxNbObjectTypes Do
+    With MemObjects[t] Do
+    Begin
+      IsSet := False;
+      Name := '';
+      Count := 0;
+      Mem := 0
+    End
+End;
 
 {----------------------------------------------------------------------------}
 { memory allocation stats                                                    }
 {----------------------------------------------------------------------------}
 
 Var 
-  mem : LongLongInt; { total number of bytes allocated }
-  PObjCount : Array[TypePrologObj] of LongInt;
+  TotalMemSize : TMemSize; { total number of bytes allocated }
 
 Procedure InitMemoryStats;
-Var 
-  t : TypePrologObj;
 Begin
-  mem := 0;
-  For t := PR To TK Do
-    PObjCount[t] := 0
+  TotalMemSize := 0
 End;
 
 Procedure PrintMemoryStats;
-Var t : TypePrologObj;
+Var 
+  t : TObjectTypeIndex;
 Begin
-  CWrite('Bytes allocated: ' + LongLongIntToStr(mem));
+  CWrite('Bytes allocated: ' + LongLongIntToStr(TotalMemSize));
   CWriteLn;
-  For t := PR To TK Do
+  For t := 1 To MaxNbObjectTypes Do
+    With MemObjects[t] Do
+      If IsSet Then
+      Begin
+        CWrite(' ' + Name + ': ' + RAlign(LongIntToStr(Count),5));
+        CWriteLn
+      End
+End;
+
+{ increase by one the number of objects of type t, with actual size b }
+Procedure IncMemoryStats( t : TObjectTypeIndex; b : TObjectSize );
+Begin
+  With MemObjects[t] Do
   Begin
-    CWrite(' ' + ObjStr[t] + ': ' + RAlign(LongIntToStr(PObjCount[t]),5));
-    CWriteLn
+    CheckCondition(IsSet,'IncMemoryStats: entry not set');
+    Count := Count + 1;
+    TotalMemSize := TotalMemSize + b
   End
 End;
 
-{ update memory stat with delta objects of a given size }
-Procedure UpdateMemoryStats( t : TypePrologObj; delta : LongInt; size : Integer );
+{ decrease by one the number of objects of type t, with actual size size }
+Procedure DecMemoryStats( t : TObjectTypeIndex; size : TObjectSize );
 Begin
-  PObjCount[t] := PObjCount[t] + delta;
-  CheckCondition(PObjCount[t] >= 0,'negative number of objects');
-  mem := mem + delta*size;
+  With MemObjects[t] Do
+  Begin
+    CheckCondition(IsSet,'DecMemoryStats: entry not set');
+    CheckCondition(Count > 0,'DecMemoryStats: count is already zero');
+    Count := Count - 1;
+    TotalMemSize := TotalMemSize - size
+  End
 End;
+
 
 
 {----------------------------------------------------------------------------}
 { marking primitives                                                         }
 {----------------------------------------------------------------------------}
-
-Type 
-  TypeMark = Boolean;
 
 Var 
   IsMarked : TypeMark; { current value for "is marked" }
@@ -122,136 +277,108 @@ End;
 {----------------------------------------------------------------------------}
 
 Const 
-  MaxChildren = 255; { max numbers of child pointers per object }
-  POBJECT_MAGIC_NUMBER = 12345;
-
-{ Prolog object's metadata for object management (cloning, debugging, etc.) }
-Type
-  TPObjPtr = ^TPObj;
-  { metadata }
-  TObjMeta = Record
-    PO_MAGI : Integer;       { magic number (debug) }
-    PO_FREE : Boolean;       { object's memory has been freed (debug) }
-    PO_TYPE : TypePrologObj; { type of object }
-    PO_GUID : LongInt;       { Prolog object globally unique identifier (for convenience and sorting) }
-    PO_SIZE : Integer;       { size in bytes (including metadata) }
-    PO_NPTR : Byte;          { number of PObject pointers (which must immediately follow the metadata) }
-    { deep copy }
-    PO_DPOK : Boolean;       { deep copy of this object is allowed }
-    PO_DEEP : Boolean;       { has been visited during the current deep copy operation }
-    PO_COPY : TPObjPtr;      { pointer to a copy made during a deep copy; warning: copy may have been GC'ed }
-    PO_CUID : LongInt;       { GUID of the copy, or 0; for display purpose, as the copy may not exist }
-    PO_NCOP : Integer;       { copy number - FIXME: may overflow }
-    PO_NDEE : Byte;          { number of PObject pointers to deep copy (must be less of equal to PO_NPTR) }
-    { garbage collection }
-    PO_MARK : TypeMark;      { GC mark }
-    PO_NEXT : TPObjPtr       { GC list of allocated objects }
-  End;
-  TPObj = Record
-    PO_META : TObjMeta;
-    PO_PTRS : Array[1..MaxChildren] Of TPObjPtr { pointers to child objects }
-  End;
+  OBJECT_MAGIC_NUMBER = 12345;
 
 {----------------------------------------------------------------------------}
 { accessors                                                                  }
 {----------------------------------------------------------------------------}
 
-Function ObjectMagic( p : TPObjPtr ) : Integer;
+Function ObjectMagic( p : TObjectPtr ) : Integer;
 Begin
   ObjectMagic := p^.PO_META.PO_MAGI
 End;
 
-Function IsObject( p : TPObjPtr ) : Boolean;
+Function IsObject( p : TObjectPtr ) : Boolean;
 Begin
-  IsObject := ObjectMagic(p) = POBJECT_MAGIC_NUMBER
+  IsObject := ObjectMagic(p) = OBJECT_MAGIC_NUMBER
 End;
 
-Procedure SetObjectMagic( p : TPObjPtr; magic : Integer );
+Procedure SetObjectMagic( p : TObjectPtr; magic : Integer );
 Begin
   p^.PO_META.PO_MAGI := magic
 End;
 
-Function ObjectIsFree( p : TPObjPtr ) : Boolean;
+Function ObjectIsFree( p : TObjectPtr ) : Boolean;
 Begin
   ObjectIsFree := p^.PO_META.PO_FREE
 End;
 
-Procedure SetObjectFree( p : TPObjPtr; IsFree : Boolean );
+Procedure SetObjectFree( p : TObjectPtr; IsFree : Boolean );
 Begin
   p^.PO_META.PO_FREE := IsFree
 End;
 
-Function ObjectType( p : TPObjPtr ) : TypePrologObj;
+Function ObjectType( p : TObjectPtr ) : TObjectTypeIndex;
 Begin
   ObjectType := p^.PO_META.PO_TYPE
 End;
 
-Procedure SetObjectType( p : TPObjPtr; t : TypePrologObj );
+Procedure SetObjectType( p : TObjectPtr; t : TObjectTypeIndex );
 Begin
   p^.PO_META.PO_TYPE := t
 End;
 
-Function ObjectSize( p : TPObjPtr ) : Integer;
+Function ObjectSize( p : TObjectPtr ) : TObjectSize;
 Begin
   ObjectSize := p^.PO_META.PO_SIZE
 End;
 
-Procedure SetObjectSize( p : TPObjPtr; size : Integer );
+Procedure SetObjectSize( p : TObjectPtr; b : TObjectSize );
 Begin
-  p^.PO_META.PO_SIZE := size
+  p^.PO_META.PO_SIZE := b
 End;
 
-Function ObjectNbChildren( p : TPObjPtr ) : Byte;
+Function ObjectNbChildren( p : TObjectPtr ) : Byte;
 Begin
   ObjectNbChildren := p^.PO_META.PO_NPTR
 End;
 
-Function ObjectNbChildrenToCopy( p : TPObjPtr ) : Byte;
+Function ObjectNbChildrenToCopy( p : TObjectPtr ) : Byte;
 Begin
   ObjectNbChildrenToCopy := p^.PO_META.PO_NDEE
 End;
 
-Function ObjectChild( p : TPObjPtr; i : Byte ) : TPObjPtr;
+Function ObjectChild( p : TObjectPtr; i : Byte ) : TObjectPtr;
 Begin
   ObjectChild := p^.PO_PTRS[i]
 End;
 
-Procedure SetObjectChild( p : TPObjPtr; i : Byte; child : TPObjPtr );
+Procedure SetObjectChild( p : TObjectPtr; i : Byte; child : TObjectPtr );
 Begin
   p^.PO_PTRS[i] := child
 End;
 
-Function ObjectCopyNumber( p : TPObjPtr ) : Integer;
+Function ObjectCopyNumber( p : TObjectPtr ) : Integer;
 Begin
   ObjectCopyNumber := p^.PO_META.PO_NCOP
 End;
 
-Function ObjectGuid( p : TPObjPtr ) : LongInt;
+Function ObjectGuid( p : TObjectPtr ) : LongInt;
 Begin
   ObjectGuid := p^.PO_META.PO_GUID
 End;
 
-Procedure SetObjectGuid( p : TPObjPtr; guid : LongInt);
+Procedure SetObjectGuid( p : TObjectPtr; guid : LongInt);
 Begin
   p^.PO_META.PO_GUID := guid
 End;
 
-Function ObjectIsMarked( p : TPObjPtr ) : Boolean;
+Function ObjectIsMarked( p : TObjectPtr ) : Boolean;
 Begin
   ObjectIsMarked := IsMark(p^.PO_META.PO_MARK)
 End;
 
-Procedure SetObjectMark( p : TPObjPtr; Marked : Boolean);
+Procedure SetObjectMark( p : TObjectPtr; Marked : Boolean);
 Begin
   SetMark(p^.PO_META.PO_MARK,Marked)
 End;
 
-Function ObjectNext( p : TPObjPtr ) : TPObjPtr;
+Function ObjectNext( p : TObjectPtr ) : TObjectPtr;
 Begin
   ObjectNext := p^.PO_META.PO_NEXT
 End;
 
-Procedure SetObjectNext( p,nxt : TPObjPtr );
+Procedure SetObjectNext( p,nxt : TObjectPtr );
 Begin
   p^.PO_META.PO_NEXT := nxt
 End;
@@ -260,7 +387,7 @@ End;
 { debug / dump                                                               }
 {----------------------------------------------------------------------------}
 
-Function FindObjectById( guid : LongInt ) : TPObjPtr; Forward;
+Function FindObjectById( guid : LongInt ) : TObjectPtr; Forward;
 
 { global object ID to string }
 Function GuidToStr( guid : LongInt ) : TString;
@@ -269,7 +396,7 @@ Begin
 End;
 
 { object pointer to object name }
-Function PtrToName( p : TPObjPtr ) : TString;
+Function PtrToName( p : TObjectPtr ) : TString;
 Var
   s : TString;
   guid : LongInt;
@@ -291,19 +418,17 @@ Begin
   PtrToName := s
 End;
 
-Procedure WriteExtraData( p : TPObjPtr ); forward;
-
 { dump an object, possibly with extra data }
-Procedure DumpObject( p : TPObjPtr; extra : Boolean );
+Procedure DumpObject( p : TObjectPtr; extra : Boolean );
 Var 
   i : Byte;
-  child : TPObjPtr;
+  child : TObjectPtr;
 Begin
   CWrite(RAlign(PtrToName(p),5) + ' : ');
   CWrite(RAlign(IntToStr(ObjectSize(p)),3) + ' ');
   With p^.PO_META Do
   Begin
-    CWrite(ObjStr[PO_TYPE] + ' ' + MarkToStr(PO_MARK) + ' ');
+    CWrite(GetObjectName(PO_TYPE) + ' ' + MarkToStr(PO_MARK) + ' ');
     CWrite(IntToStr(PO_NCOP) + ' ' + IntToStr(Ord(PO_DEEP)) + ' ');
     CWrite(RAlign(GuidToStr(PO_CUID),5))
   End;
@@ -317,24 +442,23 @@ Begin
   If extra Then
   Begin
     CWrite(' ');
-    WriteExtraData(p)
+    {//}{WriteExtraData(p)}
   End;
   CWriteLn
 End;
 
 { check a memory location has a chance to be a legit Prolog object }
-Procedure CheckIsPObj( p : TPObjPtr; prompt : TString );
+Procedure CheckIsObject( p : TObjectPtr; prompt : TString );
 Begin
-  CheckCondition(IsObject(p),
-    prompt + ': not a Prolog object')
+  CheckCondition(IsObject(p), prompt + ': not an object')
 End;
 
 { dump all the registered Prolog objects }
-Procedure DumpObjects( p : TPObjPtr; extra : Boolean );
+Procedure DumpObjects( p : TObjectPtr; extra : Boolean );
 Begin
   If p<>Nil Then
   Begin
-    CheckIsPObj(p,'DumpObjects');
+    CheckIsObject(p,'DumpObjects');
     DumpObject(p,extra);
     DumpObjects(ObjectNext(p),extra)
   End
@@ -346,15 +470,25 @@ End;
 {----------------------------------------------------------------------------}
 
 Var 
-  AllocHead : TPObjPtr; { list of all allocations }
+  AllocHead : TObjectPtr; { list of all allocations }
   OngoingGC : Boolean;  { is a GC ongoing? }
   DoRegister : Boolean; { should new objects be registered? False during debug }
+
+Procedure SetRegistration( state : Boolean );
+Begin
+  DoRegister := state
+End;
+
+Function GetRegistrationState : Boolean;
+Begin
+  GetRegistrationState := DoRegister
+End;
 
 Procedure InitAlloc;
 Begin
   AllocHead := Nil;
   OngoingGC := False;
-  DoRegister := True
+  SetRegistration(True)
 End;
 
 { dump all registered objects }
@@ -364,9 +498,9 @@ Begin
 End;
 
 { find the object with guid id in the object store, or Nil }
-Function FindObjectById; (*( guid : LongInt ) : TPObjPtr;*)
+Function FindObjectById( guid : LongInt ) : TObjectPtr;
 Var
-  p : TPObjPtr;
+  p : TObjectPtr;
   Found : Boolean;
 Begin
   p := AllocHead;
@@ -381,14 +515,14 @@ Begin
 End;
 
 { add an object to the list of allocations and set its GC metadata }
-Procedure RegisterObject( p : TPObjPtr );
+Procedure RegisterObject( p : TObjectPtr );
 Var
-  nxt : TPObjPtr;
+  nxt : TObjectPtr;
   guid : LongInt;
 Begin
-  CheckCondition(Not OngoingGC Or Not DoRegister,
+  CheckCondition(Not OngoingGC Or Not GetRegistrationState,
       'RegisterObject: object registration during GC');
-  If DoRegister Then 
+  If GetRegistrationState Then 
   Begin
     SetObjectNext(p,AllocHead);
     SetObjectMark(p,False);
@@ -405,9 +539,9 @@ End;
 { remove an object from the list of allocated objects; prev is the
   object just before in the list, or Nil if p is the first object;
   return the next object after p (could be Nil) }
-Function UnregisterObject( prev,p : TPObjPtr ) : TPObjPtr;
+Function UnregisterObject( prev,p : TObjectPtr ) : TObjectPtr;
 Var 
-  nxt : TPObjPtr;
+  nxt : TObjectPtr;
 Begin
   CheckCondition(p <> Nil,'Unregister: p is Nil');
   nxt := ObjectNext(p);
@@ -423,52 +557,60 @@ End;
 { object allocation with accounting                                          }
 {----------------------------------------------------------------------------}
 
-{ low-level memory function for typed Prolog objects; see PObjNew.pas }
-Function PObjNew( t : TypePrologObj ) : TPObjPtr; Forward;
-Procedure PObjDispose( t : TypePrologObj; p : TPObjPtr ); Forward;
-Function PObjSizeOf( t : TypePrologObj; p : TPObjPtr ) : Integer; Forward;
-
-{ allocate memory on the heap for an object of type t; size returns 
-  the size of the allocated object, in bytes }
-Function NewObject( t : TypePrologObj ) : TPObjPtr;
-Var 
-  p : TPObjPtr;
-  ptr : Pointer Absolute p;
-  size : Integer;
+{ allocate heap memory for an object of b bytes; return the object }
+Function GetMemForObject( b : TObjectSize ) : TObjectPtr;
+Var
+  p : TObjectPtr;
 Begin
-  p := PObjNew(t);
-  { GC cannot only be run at some specific execution points, so in case of 
-    OOM we just abort }
+  GetMem(p,b);
+  { cannot GC here, so in case of OOM we just abort }
   CheckCondition(p<>Nil,'Memory exhausted');
-  size := MemSizeOf(ptr,PObjSizeOf(t,p)); { true allocated size }
-  FillChar(p^,size,0);
+  GetMemForObject := p
+End;
+
+Procedure FreeMemOfObject( Var p : TObjectPtr );
+Begin
+  FreeMem(p,ObjectSize(p));
+  p := Nil { prevent dangling pointers }
+End;
+
+{ allocate memory on the heap for an object of type t and size b in bytes; 
+ returns the object }
+Function NewObject( t : TObjectTypeIndex; b : TObjectSize ) : TObjectPtr;
+Var 
+  p : TObjectPtr;
+  ptr : Pointer Absolute p;
+Begin
+  p := GetMemForObject(b);
+  FillChar(p^,b,0);
   { set the bare minimum object data }
-  SetObjectMagic(p,POBJECT_MAGIC_NUMBER);
+  SetObjectMagic(p,OBJECT_MAGIC_NUMBER);
   SetObjectFree(p,False);
   SetObjectType(p,t);
-  SetObjectSize(p,size);
+  SetObjectSize(p,b);
   { accounting }
-  UpdateMemoryStats(t,1,size);
+  IncMemoryStats(t,b);
   NewObject := p
 End;
 
 { free a Prolog object }
-Procedure FreeObject( Var p : TPObjPtr );
+Procedure FreeObject( Var p : TObjectPtr );
 Begin
-  UpdateMemoryStats(ObjectType(p),-1,ObjectSize(p));
+  DecMemoryStats(ObjectType(p),ObjectSize(p));
   SetObjectFree(p,True);
-  PObjDispose(ObjectType(p),p);
-  p := Nil { prevent dangling pointers }
+  FreeMemOfObject(p)
 End;
 
 { clone object p in memory, and return the clone }
-Function CloneObject( p : TPObjPtr ) : TPObjPtr;
+Function CloneObject( p : TObjectPtr ) : TObjectPtr;
 Var 
-  pc : TPObjPtr;
+  pc : TObjectPtr;
+  t : TObjectTypeIndex;
 Begin
-  pc := PObjNew(ObjectType(p));
+  t := ObjectType(p);
+  pc := GetMemForObject(ObjectSize(p));
   Move(p^,pc^,ObjectSize(p));
-  UpdateMemoryStats(ObjectType(pc),1,ObjectSize(pc));
+  IncMemoryStats(t,ObjectSize(pc));
   CloneObject := pc
 End;
 
@@ -477,11 +619,11 @@ End;
 {----------------------------------------------------------------------------}
 
 { free a registered object p, and return the next object }
-Function FreeRegisteredObject( prev : TPObjPtr; Var p : TPObjPtr ) : TPObjPtr;
+Function FreeRegisteredObject( prev : TObjectPtr; Var p : TObjectPtr ) : TObjectPtr;
 Var 
-  nxt : TPObjPtr;
+  nxt : TObjectPtr;
 Begin
-  CheckIsPObj(p,'FreeRegisteredObject');
+  CheckIsObject(p,'FreeRegisteredObject');
   CheckCondition(Not ObjectIsFree(p),'FreeRegisteredObject: double free');
   nxt := UnregisterObject(prev,p);
   FreeObject(p);
@@ -489,16 +631,16 @@ Begin
 End;
 
 
-{ allocate a Prolog object of size s; metadata are followed by n Prolog child 
+{ allocate an object of type t and size b; metadata are followed by n child 
   object pointers; the first d child objects of these n are copied when the 
   object is deep copied (but only if deep copy is allowed for that object: 
   CanCopy) }
-Function NewRegisteredObject( t : TypePrologObj; n: Byte; CanCopy : Boolean; 
-    d : Byte ) : TPObjPtr;
+Function NewRegisteredObject( t : TObjectTypeIndex; b: TObjectSize; n: Byte; 
+    CanCopy : Boolean; d : Byte ) : TObjectPtr;
 Var 
-  p : TPObjPtr;
+  p : TObjectPtr;
 Begin
-  p := NewObject(t);
+  p := NewObject(t,b);
   With p^.PO_META Do
   Begin
     PO_NPTR := n;
@@ -520,9 +662,9 @@ End;
 - set PO_COPY of the old object to point to its copy
 - set PO_COPY of the new object to Nil to characterize this object as new
 }
-Function CopyObject( p : TPObjPtr ) : TPObjPtr;
+Function CopyObject( p : TObjectPtr ) : TObjectPtr;
 Var 
-  pc : TPObjPtr;
+  pc : TObjectPtr;
 Begin
   CheckCondition(Not p^.PO_META.PO_DEEP,'Copy of an already visited object');
   pc := CloneObject(p);
@@ -545,9 +687,9 @@ End;
 
 
 { deep copy of an object, or Nil if p is Nil }
-Function DeepCopyObject( p : TPObjPtr ) : TPObjPtr;
+Function DeepCopyObject( p : TObjectPtr ) : TObjectPtr;
 Var 
-  pc : TPObjPtr;
+  pc : TObjectPtr;
   i : Byte;
 Begin
   pc := Nil;
@@ -577,7 +719,7 @@ End;
 
 { reset the deep copy state of p and of all objects that are reachable 
   from p through children subject to deep copy }
-Procedure PrepareDeepCopy( p : TPObjPtr );
+Procedure PrepareDeepCopy( p : TObjectPtr );
 Var 
   i : Byte;
 Begin
@@ -605,7 +747,7 @@ End;
 { free all unmarked objects and associated memory management record }
 Procedure Sweep;
 Var 
-  p, prev : TPObjPtr;
+  p, prev : TObjectPtr;
 Begin
   p := AllocHead;
   prev := Nil;
@@ -622,13 +764,13 @@ Begin
 End;
 
 { set p as marked to escape the next sweeping operation }
-Procedure MarkOneObject( p : TPObjPtr );
+Procedure MarkOneObject( p : TObjectPtr );
 Begin
   SetObjectMark(p,True)
 End;
 
 { is p a reference to an object that must be marked? }
-Function Markable( p : TPObjPtr ) : Boolean;
+Function Markable( p : TObjectPtr ) : Boolean;
 Var 
   must : Boolean;
 Begin
@@ -642,7 +784,7 @@ Begin
 End;
 
 { mark p and all objects that are reachable from p }
-Procedure Mark( p : TPObjPtr );
+Procedure Mark( p : TObjectPtr );
 Var 
   i : Byte;
 Begin
@@ -667,7 +809,7 @@ Type
 
 Var 
   NbRoots : TNbRoots;
-  Roots : Array[1..MaxGCRoots] Of TPObjPtr;
+  Roots : Array[1..MaxGCRoots] Of TObjectPtr;
 
 Procedure InitGCRoots;
 Begin
@@ -687,7 +829,7 @@ Begin
   End
 End;
 
-Procedure AddGCRoot( r : TPObjPtr );
+Procedure AddGCRoot( r : TObjectPtr );
 Begin
   CheckCondition(NbRoots < MaxGCRoots,'GC root pool is full');
   NbRoots := NbRoots + 1;
@@ -723,9 +865,9 @@ End;
 { deep copy                                                                  }
 {----------------------------------------------------------------------------}
 
-Function DeepCopy( p : TPObjPtr ) : TPObjPtr;
+Function DeepCopy( p : TObjectPtr ) : TObjectPtr;
 Var 
-  pc : TPObjPtr;
+  pc : TObjectPtr;
 Begin
   PrepareDeepCopy(p);
   pc := DeepCopyObject(p);
@@ -734,12 +876,11 @@ End;
 
 
 {----------------------------------------------------------------------------}
-{ initialize memory management unit                                          }
+{ initialize the memory management unit                                      }
 {----------------------------------------------------------------------------}
-
-Procedure MMInit;
 Begin
   InitMalloc;
+  InitMemObjects;
   InitMemoryStats;
   GCInit
-End;
+End.

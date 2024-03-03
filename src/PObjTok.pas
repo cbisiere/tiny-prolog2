@@ -1,7 +1,7 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   File        : Tokenize.pas                                               }
+{   File        : PObjTok.pas                                                }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
@@ -15,6 +15,18 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+Unit PObjTok;
+
+Interface
+
+Uses
+  Strings,
+  Errs,
+  Trace,
+  IChar,
+  Memory,
+  PObj,
+  PObjStr;
 
 { Tokens; spaces and comments are always allowed between tokens }
 Type
@@ -96,6 +108,18 @@ Type
     TK_CHAR : TCharPos { index in the input line }
   End;
 
+
+Function NewToken( typ : TTokenType ) : TokenPtr;
+Procedure GetTokenLocation( K : TokenPtr; Var line : TLineNum; Var col : TCharPos); 
+Procedure SetTokenLocation( K : TokenPtr; line : TLineNum; col : TCharPos );
+Function NextToken( K : TokenPtr ) : TokenPtr;
+Function TokenType( K : TokenPtr ) : TTokenType;
+Function TokenTypeAsString( K : TokenPtr ) : TString;
+
+
+Implementation
+{-----------------------------------------------------------------------------}
+
 {-----------------------------------------------------------------------}
 { constructors                                                          }
 {-----------------------------------------------------------------------}
@@ -104,9 +128,9 @@ Type
 Function NewToken( typ : TTokenType ) : TokenPtr;
 Var 
   K : TokenPtr;
-  ptr : TPObjPtr Absolute K;
+  ptr : TObjectPtr Absolute K;
 Begin
-  ptr := NewRegisteredObject(TK,2,False,0);
+  ptr := NewRegisteredPObject(TK,SizeOf(TObjToken),2,False,0);
   With K^ Do
   Begin
     TK_NEXT := Nil;
@@ -172,18 +196,4 @@ Begin
   TokenTypeAsString := TokenStr[TokenType(K)]
 End;
 
-
-{----------------------------------------------------------------------------}
-{ DEBUG                                                                      }
-{----------------------------------------------------------------------------}
-
-Procedure DumpTokens( K : TokenPtr );
-Begin
-  While K <> Nil Do
-  Begin
-    WriteExtraData(TPObjPtr(K));
-    CWriteLn;
-    K := NextToken(K)
-  End;
-  CWriteLn
-End;
+End.

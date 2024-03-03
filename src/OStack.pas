@@ -20,13 +20,23 @@
 {
   ASSUMPTIONS AND LIMITS:
   -----------------------
-  1) OFilesMax: 20
+  1) OFilesMax: 5
     maximum number of stacked output files, including the predefined 
     output 'console'.
 }
 
+Unit OStack;
+
+Interface
+
+Uses 
+  Strings,
+  Errs,
+  Files,
+  Trace;
+
 Const
-  OFilesMax = 20;
+  OFilesMax = 5;
 
 Type
   TOFileStackIndex = 0..OFilesMax;
@@ -41,6 +51,20 @@ Type
     Top : TOFileStackIndex;
     Stack : Array[1..OFilesMax] Of TOFileStream
   End;
+
+
+Procedure InitOFileStack;
+Function SetFileForOutput( FileName : TString ) : Boolean;
+Procedure ResetOFileStack;
+Procedure CloseOutput( FileName : TString );
+Procedure CloseCurrentOutput;
+Procedure FlushCurrentOutput;
+Function OutputIs : TString;
+Function OutputIsTerminal : Boolean;
+Procedure WriteToCurrentOutput( s : TString );
+
+Implementation
+{-----------------------------------------------------------------------------}
 
 Var
   OFileStack : TOFileStack;
@@ -206,7 +230,7 @@ Begin
 End;
 
 { write a Pascal string to the current output }
-Procedure WriteToCurrentOutput; (* ( s : TString ); *)
+Procedure WriteToCurrentOutput( s : TString );
 Begin
   With OFileStack.Stack[OFileStack.Top] Do
     Case DeviceType Of
@@ -216,3 +240,5 @@ Begin
         WriteToFile(FName,OFile,s)
     End
 End;
+
+End.

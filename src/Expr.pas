@@ -17,6 +17,27 @@
 
 { handle expressions with evaluable functions }
 
+Unit Expr;
+
+Interface
+
+Uses
+  Strings,
+  Num,
+  Errs,
+  Common,
+  PObj,
+  PObjOp,
+  PObjStr,
+  PObjTerm,
+  PObjProg,
+  Encoding;
+
+Function EvaluateExpression( T : TermPtr; P : ProgPtr ) : TermPtr;
+
+Implementation
+{-----------------------------------------------------------------------------}
+
 {----------------------------------------------------------------------------}
 { standard order of terms                                                    }
 {----------------------------------------------------------------------------}
@@ -415,3 +436,5 @@ Begin
   End;
   EvaluateExpression := e
 End;
+
+End.
