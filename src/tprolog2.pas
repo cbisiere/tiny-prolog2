@@ -60,6 +60,7 @@ Uses
   Expr,
   Parse,
   Debug,
+  Predef,
   Engine,
   Init;
 

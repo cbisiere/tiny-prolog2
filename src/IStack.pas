@@ -44,7 +44,7 @@ Const
 Type
   TIFileStackIndex = 0..IFilesMax; { stack of input files; see PII+ doc R5-1}
 
-Procedure ClearInput;
+Procedure DoClearInput;
 Procedure DisplayInputErrorMessage( msg : TString );
 Function InputIs : TString;
 Function InputEncoding : TEncoding;
@@ -91,7 +91,7 @@ Begin
 End;
 
 { ignores characters remaining unread in the current input line }
-Procedure ClearInput;
+Procedure DoClearInput;
 Begin
   With IFileStack.Stack[IFileStack.Top] Do
     BufDiscardUnread(IBuf)

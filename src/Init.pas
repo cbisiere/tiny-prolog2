@@ -27,6 +27,7 @@ Uses
   PObjStr,
   PObjProg,
   Debug,
+  Predef,
   Engine;
 
 Procedure ProcessParameters( P : ProgPtr );
