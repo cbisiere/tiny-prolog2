@@ -8,6 +8,8 @@ insert(F) -> syscall(sysinsert,F);
 
 "i/o"
 
+expand_file_name(F,L) -> syscall(sysexpandfilename,F,L);
+
 input_is(F) -> syscall(sysinputis,F);
 input(F) -> syscall(sysinput,F);
 close_input -> syscall(sysclosecurrentinput);

@@ -20,7 +20,7 @@ Unit PObjTerm;
 Interface
 
 Uses
-  Strings,
+  ShortStr,
   Num,
   Errs,
   Memory,

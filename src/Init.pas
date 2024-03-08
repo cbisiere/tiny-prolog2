@@ -20,7 +20,7 @@ Unit Init;
 Interface
 
 Uses 
-  Strings,
+  ShortStr,
   Errs,
   Files,
   Memory,

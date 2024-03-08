@@ -22,7 +22,7 @@ Unit Expr;
 Interface
 
 Uses
-  Strings,
+  ShortStr,
   Num,
   Errs,
   Common,

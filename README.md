@@ -358,6 +358,7 @@ Predicate | Syntax | Meaning | Example
 
 Predicate | Meaning | Example
 --- | --- | ---
+`expand_file_name(f,l)`| list files using a pattern | `> expand_file_name('~/bin/*',l);`
 `input_is(f)`| return the current input | `> input_is(f);` `{ f = "console" }`
 `input(f)` | set the current input | `>input("infile.txt");`
 `close_input` | close the current input |

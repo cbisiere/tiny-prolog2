@@ -20,7 +20,7 @@ Unit Parse;
 Interface
 
 Uses
-  Strings,
+  ShortStr,
   Errs,
   IChar,
   Memory,

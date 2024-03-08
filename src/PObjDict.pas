@@ -20,7 +20,7 @@ Unit PObjDict;
 Interface
 
 Uses
-  Strings,
+  ShortStr,
   Memory,
   PObj,
   PObjStr;

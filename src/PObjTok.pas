@@ -20,7 +20,7 @@ Unit PObjTok;
 Interface
 
 Uses
-  Strings,
+  ShortStr,
   Errs,
   Trace,
   IChar,

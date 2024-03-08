@@ -20,7 +20,7 @@ Unit Num;
 Interface
 
 Uses
-  Strings;
+  ShortStr;
 
 Const
   MaxLongInt = 1e+24;

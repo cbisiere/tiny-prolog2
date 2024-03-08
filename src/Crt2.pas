@@ -71,7 +71,7 @@ Interface
 
 Uses
   Crt,
-  Strings,
+  ShortStr,
   Chars,
   Num,
   Errs;

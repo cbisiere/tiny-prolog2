@@ -44,7 +44,7 @@ Unit Encoding;
 Interface
 
 Uses
-  Strings,
+  ShortStr,
   Errs,
   Memory,
   PObj,

@@ -21,7 +21,7 @@ Interface
 
 Uses
   Memory,
-  Strings,
+  ShortStr,
   Errs,
   OStack,
   PObj,

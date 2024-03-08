@@ -30,7 +30,7 @@ Unit OStack;
 Interface
 
 Uses 
-  Strings,
+  ShortStr,
   Errs,
   Files,
   Trace;

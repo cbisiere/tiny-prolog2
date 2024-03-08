@@ -1,21 +1,21 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   File        : Strings.pas                                                }
+{   File        : ShortStr.pas                                               }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2022,2023,2024                                             }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
-{                                S T R I N G S                               }
+{                         S H O R T   S T R I N G S                          }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-Unit Strings;
+Unit ShortStr;
 
 Interface
 

@@ -20,7 +20,7 @@ Unit Memory;
 Interface
 
 Uses
-  Strings,
+  ShortStr,
   Num,
   Errs,
   Trace;

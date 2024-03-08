@@ -34,7 +34,7 @@ Unit IStream;
 Interface
 
 Uses
-  Strings,
+  ShortStr,
   Errs,
   Chars,
   Crt2,

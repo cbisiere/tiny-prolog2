@@ -20,7 +20,7 @@ Unit Errs;
 Interface
 
 Uses
-  Strings;
+  ShortStr;
 
 Procedure ResetError;
 

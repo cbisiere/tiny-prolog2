@@ -20,7 +20,7 @@ Unit PObjStr;
 Interface
 
 Uses
-  Strings,
+  ShortStr,
   Errs,
   OStack,
   Trace,

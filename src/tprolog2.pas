@@ -26,10 +26,11 @@ Program TProlog2;
 
 Uses 
   Crt, 
+  Dos,
 {$IFDEF MSDOS}
   Turbo3,
 {$ENDIF}
-  Strings,
+  ShortStr,
   Num,
   Errs,
   Chars,

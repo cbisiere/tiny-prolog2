@@ -21,7 +21,7 @@ Interface
 
 Uses
   Chars,
-  Strings,
+  ShortStr,
   Errs,
   Files,
   Crt2;

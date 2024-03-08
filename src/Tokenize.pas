@@ -43,7 +43,7 @@ Interface
 
 Uses
   Errs,
-  Strings,
+  ShortStr,
   Chars,
   IChar,
   PObjStr,

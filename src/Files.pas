@@ -25,7 +25,7 @@ Unit Files;
 Interface
 
 Uses
-  Strings;
+  ShortStr;
 
 Type
   TIODeviceType    = (TFile, TTerminal);   { input/output device type }
@@ -35,8 +35,9 @@ Type
 Const
   CONSOLE_NAME = 'console';
 
-{ paths }
+{ path handling }
 Function ExtractPath( fn : TString ) : TString;
+Function OSFilename( Filename : TString ) : TString;
 
 { input files: }
 Function OpenForRead( Filename : TString; Var TxtFile : TIFile ) : Boolean;

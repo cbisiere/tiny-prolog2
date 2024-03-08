@@ -20,7 +20,7 @@ Unit PObjOp;
 Interface
 
 Uses
-  Strings,
+  ShortStr,
   Errs,
   Memory,
   PObj;

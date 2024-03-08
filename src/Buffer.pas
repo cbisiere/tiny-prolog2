@@ -33,7 +33,7 @@ Unit Buffer;
 Interface
 
 Uses
-  Strings,
+  ShortStr,
   Num,
   Chars,
   Crt2,

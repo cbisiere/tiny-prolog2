@@ -20,7 +20,7 @@ Unit Debug;
 Interface
 
 Uses
-  Strings,
+  ShortStr,
   Num,
   Errs,
   Trace,

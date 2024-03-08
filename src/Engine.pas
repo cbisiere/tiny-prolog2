@@ -20,7 +20,7 @@ Unit Engine;
 Interface
 
 Uses
-  Strings,
+  ShortStr,
   Errs,
   OStack,
   Trace,

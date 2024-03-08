@@ -30,7 +30,7 @@ Unit IStack;
 Interface
 
 Uses
-  Strings,
+  ShortStr,
   Errs,
   Chars,
   IChar,

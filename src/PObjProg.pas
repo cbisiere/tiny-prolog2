@@ -20,7 +20,7 @@ Unit PObjProg;
 Interface
 
 Uses
-  Strings,
+  ShortStr,
   Errs,
   Memory,
   PObj,

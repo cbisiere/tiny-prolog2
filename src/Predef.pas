@@ -20,10 +20,12 @@ Unit Predef;
 Interface
 
 Uses
-  Strings,
+  Dos,
+  ShortStr,
   Errs,
   Chars,
   Crt2,
+  Files,
   OStack,
   Memory,
   PObj,
@@ -42,6 +44,7 @@ Uses
 
 Type
   TPP = (
+    PP_EXPAND_FILENAME,
     PP_INPUT_IS,
     PP_INPUT,
     PP_CLOSE_CURRENT_INPUT,
@@ -89,7 +92,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 26;
+  NB_PP = 27;
   MAX_PP_LENGHT = 21; { max string length }
   SYSCALL_IDENT_AS_STRING = 'syscall'; 
 Type
@@ -106,6 +109,7 @@ Type
 
 Const 
   PPArray : TPPArray = (
+    (I:PP_EXPAND_FILENAME;S:'sysexpandfilename';N:2),
     (I:PP_INPUT_IS;S:'sysinputis';N:1),
     (I:PP_INPUT;S:'sysinput';N:1),
     (I:PP_CLOSE_CURRENT_INPUT;S:'sysclosecurrentinput';N:0),
@@ -338,6 +342,31 @@ Begin
 
   T2 := GetPArg(2,T);
   ClearEval := ReduceOneEq(T2,T1) { FIXME: shouldn't it be backtrackable? }
+End;
+
+{ expand_file_name("~/*.¨", L). 
+ https://www.swi-prolog.org/pldoc/doc_for?object=expand_file_name/2 
+ Note: only handles ~ (home) and DOS-style wildcards (e.g., *.*) }
+Function ClearExpandFileName( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  T1 : TermPtr;
+  Pattern : TString;
+  L : TermPtr;
+  DirInfo: SearchRec;
+Begin
+  ClearExpandFileName := False;
+  If Not GetFilenameArgAsString(1,T,Pattern) Then 
+    Exit;
+  Pattern := OSFilename(Pattern);
+  L := NewEmptyList(P);
+  FindFirst(Pattern, AnyFile, DirInfo);
+  While DosError = 0 do
+  Begin
+    T1 := EmitConst(P,NewStringFrom(DirInfo.Name),CS,False);
+    L := NewList2(P,T1,L);
+    FindNext(DirInfo)
+  End;
+  ClearExpandFileName := ReduceOneEq(L,GetPArg(2,T))
 End;
 
 { '=..'(foo(a,b),[foo,a,b]) }
@@ -625,7 +654,9 @@ Begin
   PP_OP:
     Ok := ClearOp(P,T);
   PP_QUIT:
-    ClearQuit;
+    Ok := ClearQuit;
+  PP_EXPAND_FILENAME:
+    Ok := ClearExpandFileName(P,T);
   PP_INPUT:
     Ok := ClearInput(T);
   PP_INPUT_IS:

@@ -39,7 +39,7 @@ Unit Chars;
 Interface
 
 Uses
-  Strings,
+  ShortStr,
   Errs;
 
 Const
