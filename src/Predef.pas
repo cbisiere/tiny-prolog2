@@ -350,19 +350,29 @@ End;
 Function ClearExpandFileName( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   T1 : TermPtr;
-  Pattern : TString;
+  Pattern,Path : TString;
+  s : StrPtr;
   L : TermPtr;
   DirInfo: SearchRec;
 Begin
   ClearExpandFileName := False;
   If Not GetFilenameArgAsString(1,T,Pattern) Then 
     Exit;
-  Pattern := OSFilename(Pattern);
+  Pattern := OSFilename(Pattern); { handle ~ }
+  Path := ExtractPath(Pattern); { path part, with training sep }
   L := NewEmptyList(P);
   FindFirst(Pattern, AnyFile, DirInfo);
   While DosError = 0 do
   Begin
-    T1 := EmitConst(P,NewStringFrom(DirInfo.Name),CS,False);
+    s := NewStringFrom(Path);
+    StrAppend(s,DirInfo.Name);
+    If GetSyntax(P) = Edinburgh Then { Edinburgh uses quoted ident }
+    Begin
+      StrQuote(s);
+      T1 := EmitIdent(P,s,False)
+    End
+    Else
+      T1 := EmitConst(P,s,CS,False);
     L := NewList2(P,T1,L);
     FindNext(DirInfo)
   End;

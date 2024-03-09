@@ -574,7 +574,7 @@ Begin
     Begin
       If Cut Then 
       Begin
-        T := EmitIdent(P,'!',True);
+        T := EmitShortIdent(P,'!',True);
         K := ReadToken(y)
       End
       Else

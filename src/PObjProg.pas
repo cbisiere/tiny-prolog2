@@ -145,7 +145,9 @@ Function NewProgram : ProgPtr;
 
 Function EmitConst( P : ProgPtr; s : StrPtr; ty : TypePrologObj; 
     glob : Boolean ) : TermPtr;
-Function EmitIdent( P : ProgPtr; ident : TString; glob : Boolean ) : TermPtr;
+Function EmitIdent( P : ProgPtr; s : StrPtr; glob : Boolean ) : TermPtr;
+Function EmitShortIdent( P : ProgPtr; ident : TString; 
+    glob : Boolean ) : TermPtr;
 
 Function NextTerm( B : BTermPtr ) : BTermPtr;
 Function AccessTerm( B : BTermPtr ) : IdPtr;
@@ -318,15 +320,21 @@ Begin
   EmitConst := TC
 End;
 
-{ return a new identifier as a term, from a Pascal string }
-Function EmitIdent( P : ProgPtr; ident : TString; glob : Boolean ) : TermPtr;
+{ return a new identifier as a term, from a string }
+Function EmitIdent( P : ProgPtr; s : StrPtr; glob : Boolean ) : TermPtr;
 Var
   I : IdPtr;
-  TI : TermPtr Absolute I;
 Begin
   EmitIdent := Nil;
-  I := InstallIdentifier(P^.PP_DIDE,NewStringFrom(ident),glob);
-  EmitIdent := TI
+  I := InstallIdentifier(P^.PP_DIDE,s,glob);
+  EmitIdent := TermPtr(I)
+End;
+
+{ return a new identifier as a term, from a Pascal string }
+Function EmitShortIdent( P : ProgPtr; ident : TString; 
+    glob : Boolean ) : TermPtr;
+Begin
+  EmitShortIdent := EmitIdent(P,NewStringFrom(ident),glob)
 End;
 
 {-----------------------------------------------------------------------}

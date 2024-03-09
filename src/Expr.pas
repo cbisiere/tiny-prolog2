@@ -254,7 +254,7 @@ Begin
               Else
               Begin
                 { evaluate the function's parameters, building a new term }
-                U := NewTuple(EmitIdent(P,func,False));
+                U := NewTuple(EmitShortIdent(P,func,False));
                 e := U; { we may return the term with its args evaluated }
                 U1 := U;
                 For i := 1 to n Do

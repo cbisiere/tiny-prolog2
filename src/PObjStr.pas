@@ -74,6 +74,8 @@ Function NewStringFrom(ps: TString): StrPtr;
 Procedure StrAppendCR(s: StrPtr);
 Procedure StrConcat(s1, s2: StrPtr);
 Function StrClone(s: StrPtr): StrPtr;
+Procedure StrEnclose( s : StrPtr; QStart,QEnd : TString );
+Procedure StrQuote( s : StrPtr );
 Procedure StrDeleteLastChar(s: StrPtr);
 Procedure StrDeleteFirstChar(s: StrPtr);
 Function StrComp(s1, S2: StrPtr): TComp;
@@ -240,6 +242,25 @@ Var
 Begin
   ro := DeepCopy(so);
   StrClone := r
+End;
+
+{ enclose a string within an opening and ending Pascal string }
+Procedure StrEnclose( s : StrPtr; QStart,QEnd : TString );
+Var 
+  s2: StrPtr;
+Begin
+  s2 := StrClone(s);
+  ZapString(s);
+  StrAppend(s,QStart);
+  StrConcat(s,s2);
+  StrAppend(s,QEnd)
+End;
+
+{ single quote a string }
+{ FIXME: escape? double single quotes inside the path }
+Procedure StrQuote( s : StrPtr );
+Begin
+  StrEnclose(s,'''','''')
 End;
 
 { delete the last char from a string; removed chunk, if any, will be GC'ed }

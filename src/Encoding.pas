@@ -187,7 +187,7 @@ Var
   U : TermPtr;
 Begin
   CheckCondition(T1 <> Nil,'NewFunc2: first argument is Nil');
-  U := NewTuple(EmitIdent(P,ident,glob));
+  U := NewTuple(EmitShortIdent(P,ident,glob));
   SetTupleQueueTerm(U,T1);
   If T2 <> Nil Then
     SetTupleQueueTerm(TupleQueue(U),T2);
@@ -214,7 +214,7 @@ End;
 { return an empty list "nil" }
 Function NewEmptyList( P : ProgPtr ) : TermPtr;
 Begin
-  NewEmptyList := EmitIdent(P,'nil',True)
+  NewEmptyList := EmitShortIdent(P,'nil',True)
 End;
 
 { return a term "a.b", viewed as '.'(a,b)" (equivalent to <'.',a,b>) and thus 
