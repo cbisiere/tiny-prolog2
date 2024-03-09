@@ -66,11 +66,20 @@ Uses
 Const
   DirectorySeparator : Char = '\';
 
-{ TODO: return the file path part of the filename fn including the final 
- directory separator (FPC emulation) }
+{ extract the file path part of filename fn including the final 
+ directory separator; works with platform sep and '/'' }
 Function ExtractFilePath( fn : TString ) : TString;
+Var
+  Done : Boolean;
 Begin
-  ExtractFilePath := fn { TBD }
+  Repeat
+    Done := Length(fn) = 0;
+    If Not Done Then
+      Done := fn[Length(fn)] In [DirectorySeparator,'/'];
+    If Not Done Then
+      Delete(fn,Length(fn),1)
+  Until Done;
+  ExtractFilePath := fn
 End;
 
 { get the current directory; when non empty, it includes a 
@@ -86,8 +95,14 @@ End;
 {$ENDIF}
 {-----------------------------------------------------------------------------}
  
+{ get the directory separator }
+Function GetDirectorySeparator : Char;
+Begin
+  GetDirectorySeparator := DirectorySeparator
+End;
+
 { extract the file path part of filename fn including the final 
- directory separator }
+ directory separator; works with platform sep and '/'' }
 Function ExtractPath( fn : TString ) : TString;
 Begin
   ExtractPath := ExtractFilePath(fn)
@@ -99,13 +114,7 @@ Begin
   GetUserDirectory := GetUserDir;
 End;
 
-{ get the directory separator }
-Function GetDirectorySeparator : Char;
-Begin
-  GetDirectorySeparator := DirectorySeparator
-End;
-
-{ return a full pathname to a file, usable in Assign, by 1) expanding "~/" 
+{ return a full pathname to a file, usable in Assign, by 1) expanding "~" 
  to the home dir when present, and 2) replacing the internal representation 
  '/' of the directory separator with the os-dependant one }
 Function OSFilename( Filename : TString ) : TString;
@@ -113,14 +122,13 @@ Var
   sep : Char;
   i : TStringSize;
 Begin
-  If Length(Filename) >= 2 Then
-    If Copy(Filename,1,2) = '~/'  Then
-    Begin
-      Delete(Filename,1,2);
-      { TODO: check that getting Unicode here is fine }
-      { TODO: check no truncate, warn user }
-      Insert(GetUserDir,Filename,1);
-    End;
+  If (Filename = '~') Or (Copy(Filename,1,2) = '~/')  Then
+  Begin
+    Delete(Filename,1,2);
+    { TODO: check that getting Unicode here is fine }
+    { TODO: check no truncate, warn user }
+    Insert(GetUserDirectory,Filename,1);
+  End;
   sep := GetDirectorySeparator;
   For i := 1 to Length(Filename) Do
     if FileName[i] = '/' Then
