@@ -49,9 +49,10 @@ Uses
   PObjStr,
   PObjTok,
   PObjProg,
+  IStream,
   IStack;
   
-Function ReadToken( y : TSyntax ) : TokenPtr;
+Function ReadToken( f : TIStreamPtr; y : TSyntax ) : TokenPtr;
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -62,7 +63,7 @@ Implementation
 
 { append to a string codepoints while their first letter belongs to a 
  certain set; return the number of codepoints appended }
-Function GetCharWhile( Ch : StrPtr; E : CharSet ) : LongInt;
+Function GetCharWhile( f : TIStreamPtr; Ch : StrPtr; E : CharSet ) : LongInt;
 Var 
   c : TChar;
   n : LongInt;
@@ -71,11 +72,11 @@ Begin
   GetCharWhile := 0;
   n := 0;
   Repeat
-    c := GetChar(c);
+    c := GetCharFromStream(f,c);
     If Error Then Exit;
     Found := c[1] In E;
     If Not Found Then
-      UnGetChar
+      UngetCharFromStream(f)
     Else
     Begin
       StrAppend(Ch,c);
@@ -87,18 +88,18 @@ End;
 
 { append to a string codepoints until a codepoint has its first letter 
  in a certain set; return that codepoint }
-Function GetCharUntil( Ch : StrPtr; E : CharSet ) : TChar;
+Function GetCharUntil( f : TIStreamPtr; Ch : StrPtr; E : CharSet ) : TChar;
 Var 
   c : TChar;
   Found : Boolean;
 Begin
   GetCharUntil := '';
   Repeat
-    c := GetChar(c);
+    c := GetCharFromStream(f,c);
     If Error Then Exit;
     Found := c[1] In E;
     If Found Then
-      UnGetChar
+      UngetCharFromStream(f)
     Else
       StrAppend(Ch,c)
   Until Found Or Error;
@@ -106,22 +107,22 @@ Begin
 End;
 
 { return the next non-blank codepoint without consuming it }
-Function NextCharNb( Var c : TChar ) : TChar;
+Function NextCharNb( f : TIStreamPtr; Var c : TChar ) : TChar;
 Begin
-  NextCharNb := GetCharNb(c);
+  NextCharNb := GetCharNbFromStream(f,c);
   If Error Then Exit;
-  UnGetChar
+  UngetCharFromStream(f)
 End;
 
 { verify that all the 1-byte chars in string s is next in input }
-Procedure Verify( s : TString );
+Procedure Verify( f : TIStreamPtr; s : TString );
 Var
   q : TString;
   c  : TChar;
 Begin
   q := s;
   Repeat
-    c := GetChar(c);
+    c := GetCharFromStream(f,c);
     If Error Then Exit;
     If c <> q[1] Then 
       SyntaxError('"' + s + '" expected');
@@ -162,7 +163,8 @@ Const
   identifier, so either the input is UTF8 and there is a syntax error,
   or the input is UTF8, which we therefore assume;
   "big letters" are A-Z only, see PrologII+ manual, R 1-23  }
-Function GrabOneLetter( Var Ch : StrPtr; Var IsUpper : Boolean ) : Boolean;
+Function GrabOneLetter( f : TIStreamPtr; Var Ch : StrPtr; 
+    Var IsUpper : Boolean ) : Boolean;
 Var
   c : TChar;
   Found : Boolean;
@@ -170,7 +172,7 @@ Var
 
   Procedure Accept( Enc : TEncoding );
   Begin
-    c := GetChar(c);
+    c := GetCharFromStream(f,c);
     If Error Then Exit;
     StrAppend(Ch,c);
     SetInputEncoding(Enc);
@@ -179,7 +181,7 @@ Var
 
 Begin
   GrabOneLetter := False;
-  c := NextChar(c);
+  c := NextCharFromStream(f,c);
   If Error Then Exit;
   IsUpper := False;
   Enc := InputEncoding;
@@ -231,14 +233,14 @@ Begin
 End;
 
 { grab letters; return the number of letters appended to Ch }
-Function GrabLetters( Var Ch : StrPtr ) : LongInt;
+Function GrabLetters( f : TIStreamPtr; Var Ch : StrPtr ) : LongInt;
 Var
   n : LongInt;
   IsUpper : Boolean;
 Begin
   GrabLetters := 0;
   n := 0;
-  While GrabOneLetter(Ch,IsUpper) And (Not Error) Do
+  While GrabOneLetter(f,Ch,IsUpper) And (Not Error) Do
     n := n + 1;
   If Error Then Exit;
   GrabLetters := n
@@ -246,7 +248,7 @@ End;
 
 { append to a string any alphanumeric characters (plus underscore); 
  return the number of characters added to the string }
-Function GrabAlpha( Var Ch : StrPtr ) : LongInt;
+Function GrabAlpha( f : TIStreamPtr; Var Ch : StrPtr ) : LongInt;
 Var
   n : LongInt;
   More : Boolean;
@@ -257,9 +259,9 @@ Begin
   More := True;
   While More And Not Error Do
   Begin
-    n := n + GetCharWhile(Ch,Alpha);
+    n := n + GetCharWhile(f,Ch,Alpha);
     If Error Then Exit;
-    More := GrabOneLetter(Ch,IsUpper);
+    More := GrabOneLetter(f,Ch,IsUpper);
     If Error Then Exit;
     If More Then
       n := n + 1
@@ -279,7 +281,7 @@ End;
  enough to encompass double-quoted constant string and single-quoted 
  identifiers }
 { TODO: escaped chars }
-Function ReadQuotedRunOfChars( quote : Char; tt : TTokenType; 
+Function ReadQuotedRunOfChars( f : TIStreamPtr; quote : Char; tt : TTokenType; 
     keep : Boolean ) : TokenPtr;
 Var
   K : TokenPtr;
@@ -287,7 +289,7 @@ Var
   Done : Boolean;
 Begin
   ReadQuotedRunOfChars := Nil;
-  c := GetChar(c);
+  c := GetCharFromStream(f,c);
   If Error Then Exit;
   CheckCondition(c = quote, TokenStr[tt] + ' expected');
   K := NewToken(tt);
@@ -299,17 +301,17 @@ Begin
     Repeat
       Done := False;
       { look for the next char with special meaning inside a string }
-      c := GetCharUntil(TK_STRI, [quote,'\',NewLine,EndOfInput]);
+      c := GetCharUntil(f,TK_STRI, [quote,'\',NewLine,EndOfInput]);
       If Error Then Exit;
       If c = quote Then { doubled double quote or end of string }
       Begin
-        c := GetChar(c); { discard it }
+        c := GetCharFromStream(f,c); { discard it }
         If Error Then Exit;
-        c := NextChar(c);
+        c := NextCharFromStream(f,c);
         If Error Then Exit;
         If c = quote Then { doubled quotes }
         Begin
-          c := GetChar(c);
+          c := GetCharFromStream(f,c);
           If Error Then Exit;
           StrAppend(TK_STRI,c);
           If keep Then
@@ -324,17 +326,17 @@ Begin
       End
       Else If c = '\' Then { backslash or line continuation }
       Begin
-        c := NextNextChar(c);
+        c := NextNextCharFromStream(f,c);
         If Error Then Exit;
         if c = NewLine Then
         Begin
-          c := GetChar(c); { discard '\' }
+          c := GetCharFromStream(f,c); { discard '\' }
           If Error Then Exit;
-          c := GetChar(c)  { discard NewLine } 
+          c := GetCharFromStream(f,c)  { discard NewLine } 
         End
         Else
         Begin
-          c := GetChar(c);
+          c := GetCharFromStream(f,c);
           If Error Then Exit;
           StrAppend(TK_STRI,c) { append '\' }
         End
@@ -351,38 +353,38 @@ End;
 
 { skip a *-style comment, with symbol '/' or '|'; *-style comments can be 
   nested, e.g. "/* ... |* .... *| .... */" (even with the same symbol) }
-Procedure ReadComment( symbol : TChar );
+Procedure ReadComment( f : TIStreamPtr; symbol : TChar );
 Var
   c,c2 : TChar;
   Stop : Boolean;
 Begin
-  Verify(symbol + '*');
+  Verify(f,symbol + '*');
   If Error Then Exit;
   Repeat
     Stop := False;
     Repeat
-      c := GetChar(c)
+      c := GetCharFromStream(f,c)
     Until Error Or (c = '*') Or (c = '/') Or (c = '|') Or (c = EndOfInput);
     If Error Then Exit;
     If c = '*' Then
     Begin
-      c := NextChar(c);
+      c := NextCharFromStream(f,c);
       If Error Then Exit;
       If c = symbol Then
       Begin
-        c := GetChar(c);
+        c := GetCharFromStream(f,c);
         If Error Then Exit;
         Stop := true
       End
     End
     Else If (c = '/') Or (c = '|') Then
     Begin
-      c2 := NextChar(c2);
+      c2 := NextCharFromStream(f,c2);
       If Error Then Exit;
       If c2 = '*' Then
       Begin
-        UnGetChar;
-        ReadComment(c);
+        UngetCharFromStream(f);
+        ReadComment(f,c);
         If Error Then Exit
       End
     End
@@ -392,32 +394,32 @@ Begin
 End;
 
 { skip any sequence of blank spaces and comments }
-Procedure ReadSpaces( y : TSyntax );
+Procedure ReadSpaces( f : TIStreamPtr; y : TSyntax );
 Var
   c,c2 : TChar;
   Stop : Boolean;
 Begin
   Repeat
     Stop := True;
-    c := NextCharNb(c);
+    c := NextCharNb(f,c);
     If Error Then Exit;
-    c2 := NextNextChar(c2);
+    c2 := NextNextCharFromStream(f,c2);
     If Error Then Exit;
     If y In [PrologIIp,Edinburgh] Then
     Begin
       If c = '%' Then
       Begin
         Repeat
-          c := GetChar(c)
+          c := GetCharFromStream(f,c)
         Until Error Or (c = NewLine) Or (c = EndOfInput); 
         If Error Then Exit;
         If c = EndOfInput Then
-          UnGetChar;
+          UngetCharFromStream(f);
         Stop := False
       End
       Else If ((c = '/') Or (c = '|')) And (c2 = '*') Then
       Begin
-        ReadComment(c);
+        ReadComment(f,c);
         If Error Then Exit;
         Stop := False
       End
@@ -436,7 +438,7 @@ End;
  remain difficult to parse, as "+3" should be attributed to the second real
  number, realizing very late that the second dot cannot be a dot list 
  operator;  }
-Function ReadNumber( RealMustHaveExp : Boolean ) : TokenPtr;
+Function ReadNumber( f : TIStreamPtr; RealMustHaveExp : Boolean ) : TokenPtr;
 Var
   K : TokenPtr;
   e1,e2 : TIChar; { undo points }
@@ -452,29 +454,29 @@ Begin
   Begin
     TK_STRI := NewString;
     { integer part }
-    n := GetCharWhile(TK_STRI,Digits);
+    n := GetCharWhile(f,TK_STRI,Digits);
     If Error Then Exit;
     CheckCondition(n > 0,'Number expected');
     { optional real part }
     s := NewString;
-    c := NextChar(c);
+    c := NextCharFromStream(f,c);
     If c = '.' Then
     Begin
-      GetIChar(e1); { undo point: the dot char }
+      GetICharFromStream(f,e1); { undo point: the dot char }
       StrAppend(s,'.');
-      n := GetCharWhile(s,Digits);
+      n := GetCharWhile(f,s,Digits);
       Undo := n = 0; { no digits after the dot? the dot was part of a list }
       Stop := Undo;
       If Not Stop Then
       Begin
         { optional exponent sign }
-        c := NextChar(c);
+        c := NextCharFromStream(f,c);
         Stop := (c <> 'E') And (c <> 'e') And (c <> 'D') And (c <> 'd');
         If Stop Then
           Undo := RealMustHaveExp
         Else
         Begin
-          c := GetChar(c); { grab the exponent mark }
+          c := GetCharFromStream(f,c); { grab the exponent mark }
           StrAppend(s,'E')
         End;
         If Not Stop Then { we had the exponent mark, now look for its value }
@@ -482,20 +484,20 @@ Begin
           { optional exponent value: "+3" in "1.2e+3" or "3" in "1.2e3";
            "1.2e" is valid syntax, so "1.2e+X" is read as an addition, and in
            that case, the "+" will have to be unread }
-          c := NextChar(c);
+          c := NextCharFromStream(f,c);
           If (c = '-') Or (c = '+') Then
           Begin
-            GetIChar(e2); { another undo point: the exp sign }
+            GetICharFromStream(f,e2); { another undo point: the exp sign }
             s2 := NewStringFrom(c);
-            n := GetCharWhile(s2,Digits);
+            n := GetCharWhile(f,s2,Digits);
             If n > 0 Then
               StrConcat(s,s2)
             Else
-              UngetChars(e2.Lnb,e2.Pos) { sign may be binary op }
+              UngetCharsFromStream(f,e2.Lnb,e2.Pos) { sign may be binary op }
           End
           Else
           Begin
-            n := GetCharWhile(s,Digits);
+            n := GetCharWhile(f,s,Digits);
             If n = 0 Then
               StrAppend(s,'0') { as Pascal's Val/2 cannot convert "1.2e" }
           End
@@ -507,7 +509,7 @@ Begin
         StrConcat(TK_STRI,s)
       End
       Else
-        UngetChars(e1.Lnb,e1.Pos) { no real part: undo }
+        UngetCharsFromStream(f,e1.Lnb,e1.Pos) { no real part: undo }
     End
   End;
   ReadNumber := K
@@ -515,13 +517,13 @@ End;
 
 { create a token of type typ while checking a given string of 1-byte
  chars is in input }
-Function GrabToken( typ : TTokenType; s : TString ) : TokenPtr;
+Function GrabToken( f : TIStreamPtr; typ : TTokenType; s : TString ) : TokenPtr;
 Var
   K : TokenPtr;
 Begin
   GrabToken := Nil;
   K := Nil;
-  Verify(s);
+  Verify(f,s);
   If Error Then Exit;
   K := NewToken(typ);
   GrabToken := K
@@ -532,7 +534,7 @@ End;
  a graphic char. However, =.. is a predefined operator that can be used 
  *unquoted*. Rule 18 p48 allows to have dots after the second graphic char, but
  the doc says it is a PrologII+-only rule. Weird. Is it a typo? s}
-Function ReadToken( y : TSyntax ) : TokenPtr;
+Function ReadToken( f : TIStreamPtr; y : TSyntax ) : TokenPtr;
 Var
   K : TokenPtr;
   e : TIChar;
@@ -546,20 +548,20 @@ Begin
   { save the next char for undo purpose; this is the char of the token but
    *including leading blank spaces*; this is needed to "unread" tokens, which 
    is required to correctly handle in_char(c) goals }
-  NextIChar(e);
+  NextICharFromStream(f,e);
   { from PII+doc p28: "spaces can be inserted anywhere except inside constants 
    and variables"}
-  ReadSpaces(y);
+  ReadSpaces(f,y);
   If Error Then Exit;
-  c := NextChar(c);
+  c := NextCharFromStream(f,c);
   If Error Then Exit;
-  c2 := NextNextChar(c2);
+  c2 := NextNextCharFromStream(f,c2);
   If Error Then Exit;
   { arrow must be checked before identifiers made of graphic chars }
   If (c = '-') And (c2 = '>') And (y <> Edinburgh) Then { '->' }
-    K := GrabToken(TOKEN_ARROW,'->')
+    K := GrabToken(f,TOKEN_ARROW,'->')
   Else If (c = ':') And (c2 = '-') And (y = Edinburgh) Then { ':-' }
-    K := GrabToken(TOKEN_ARROW,':-')
+    K := GrabToken(f,TOKEN_ARROW,':-')
   { identifiers made of graphic chars }
   Else If (c[1] In PROLOG_Graphic) And (y = PrologIIp) Or 
       (c[1] In EDINBURGH_Graphic) And (y = Edinburgh) Then
@@ -572,14 +574,14 @@ Begin
     With K^ Do
     Begin
       TK_STRI := NewString;
-      n := GetCharWhile(TK_STRI,GraphicChars)
+      n := GetCharWhile(f,TK_STRI,GraphicChars)
     End
   End
   Else Case c[1] Of
   EndOfInput:
     K := NewToken(TOKEN_END_OF_INPUT);
   '0'..'9':
-    K := ReadNumber(y <> Edinburgh); { exponent are optional in Edinburgh }
+    K := ReadNumber(f,y <> Edinburgh); { exponent are optional in Edinburgh }
   '_':
     If y In [PrologIIp,Edinburgh] Then  { a variable: PrologII+ basic syntax }
     Begin
@@ -587,53 +589,53 @@ Begin
       With K^ Do
       Begin
         TK_STRI := NewString;
-        n := GrabAlpha(TK_STRI) { letters (inc. accented), digits, underscore }
+        n := GrabAlpha(f,TK_STRI) { letters (inc. accented), digits, underscore }
       End
     End;
   '"':
-    K := ReadQuotedRunOfChars('"',TOKEN_STRING,False);
+    K := ReadQuotedRunOfChars(f,'"',TOKEN_STRING,False);
   '''':
-    K := ReadQuotedRunOfChars('''',TOKEN_IDENT,True); { quoted identifier }
+    K := ReadQuotedRunOfChars(f,'''',TOKEN_IDENT,True); { quoted identifier }
   '!':
     If y In [PrologIIp,Edinburgh] Then
-      K := GrabToken(TOKEN_CUT,c);
+      K := GrabToken(f,TOKEN_CUT,c);
   '/':
     If y In [PrologII,PrologIIc] Then
-      K := GrabToken(TOKEN_CUT,c);
+      K := GrabToken(f,TOKEN_CUT,c);
   ';':
-    K := GrabToken(TOKEN_SEMICOLON,c);
+    K := GrabToken(f,TOKEN_SEMICOLON,c);
   '(':
-    K := GrabToken(TOKEN_LEFT_PAR,c);
+    K := GrabToken(f,TOKEN_LEFT_PAR,c);
   ')':
-    K := GrabToken(TOKEN_RIGHT_PAR,c);
+    K := GrabToken(f,TOKEN_RIGHT_PAR,c);
   '{':
-    K := GrabToken(TOKEN_LEFT_CUR,c);
+    K := GrabToken(f,TOKEN_LEFT_CUR,c);
   '}':
-    K := GrabToken(TOKEN_RIGHT_CUR,c);
+    K := GrabToken(f,TOKEN_RIGHT_CUR,c);
   '<':
-    K := GrabToken(TOKEN_LEFT_CHE,c);
+    K := GrabToken(f,TOKEN_LEFT_CHE,c);
   '>':
-    K := GrabToken(TOKEN_RIGHT_CHE,c);
+    K := GrabToken(f,TOKEN_RIGHT_CHE,c);
   '[':
-    K := GrabToken(TOKEN_LEFT_BRA,c);
+    K := GrabToken(f,TOKEN_LEFT_BRA,c);
   ']':
-    K := GrabToken(TOKEN_RIGHT_BRA,c);
+    K := GrabToken(f,TOKEN_RIGHT_BRA,c);
   '.':
-    K := GrabToken(TOKEN_DOT,c);
+    K := GrabToken(f,TOKEN_DOT,c);
   ',':
-    K := GrabToken(TOKEN_COMMA,c);
+    K := GrabToken(f,TOKEN_COMMA,c);
   '=':
     If y = PrologIIc Then
-      K := GrabToken(TOKEN_EQUAL,c);
+      K := GrabToken(f,TOKEN_EQUAL,c);
   '|':
-    K := GrabToken(TOKEN_PIPE,c);
+    K := GrabToken(f,TOKEN_PIPE,c);
   Else
     Begin { should be a variable or an identifier }
       K := NewToken(TOKEN_UNKNOWN);
       With K^ Do
       Begin
         TK_STRI := NewString;
-        If GrabOneLetter(TK_STRI,IsUpper) Then
+        If GrabOneLetter(f,TK_STRI,IsUpper) Then
         Begin
           { Edinburgh variables start with a "big letter"; Marseille variables 
             start with a single letter }
@@ -643,7 +645,7 @@ Begin
             Else
               TK_TYPE := TOKEN_IDENT
           Else
-            If Not GrabOneLetter(TK_STRI,IsUpper) Then
+            If Not GrabOneLetter(f,TK_STRI,IsUpper) Then
               TK_TYPE := TOKEN_VARIABLE
             Else
               TK_TYPE := TOKEN_IDENT;
@@ -652,33 +654,33 @@ Begin
           If y In [PrologII,PrologIIc] Then { old Prolog II syntax, w/ accented letters }
           Begin
             Repeat
-              c := NextChar(c);
+              c := NextCharFromStream(f,c);
               If Error Then Exit;
               If c = '-' Then { "-"<word> continuation }
               Begin
-                c := GetChar(c);
+                c := GetCharFromStream(f,c);
                 If Error Then Exit;
                 StrAppend(TK_STRI,c)
               End;
-              n := GrabLetters(TK_STRI);
+              n := GrabLetters(f,TK_STRI);
               If Error Then Exit;
-              m := GetCharWhile(TK_STRI,Digits);
+              m := GetCharWhile(f,TK_STRI,Digits);
               If Error Then Exit;
-              m := GetCharWhile(TK_STRI,['''']);
+              m := GetCharWhile(f,TK_STRI,['''']);
               If Error Then Exit;
               If (c = '-') And (n = 0) Then
                 SyntaxError('dash must be followed by a letter');
               If Error Then Exit;
-              c := NextChar(c);
+              c := NextCharFromStream(f,c);
               If Error Then Exit
             Until (c <> '-') Or Error;
           End
           Else { PrologII+ and Edinburgh extended syntax }
           Begin
-            n := GrabAlpha(TK_STRI);
+            n := GrabAlpha(f,TK_STRI);
             If Error Then Exit;
             If y <> Edinburgh Then
-              n := GetCharWhile(TK_STRI,[''''])
+              n := GetCharWhile(f,TK_STRI,[''''])
           End
         End
         Else
@@ -690,7 +692,7 @@ Begin
   If Error Then Exit;
   If K = Nil Then
   Begin
-    c := GetChar(c); { read the char so error message points to it }
+    c := GetCharFromStream(f,c); { read the char so error message points to it }
     If Error Then Exit;
     SyntaxError('that character is not allowed here')
   End;

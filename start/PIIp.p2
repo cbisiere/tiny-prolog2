@@ -6,26 +6,24 @@ quit -> outml("bye!") syscall(sysquit);
 list -> syscall(syslist);
 insert(F) -> syscall(sysinsert,F);
 
-"i/o"
-
-expand_file_name(F,L) -> syscall(sysexpandfilename,F,L);
+"i/o: PII+"
 
 input_is(F) -> syscall(sysinputis,F);
-input(F) -> syscall(sysinput,F);
+input(F) -> syscall(sysopen,F,read,S,nil);
 close_input -> syscall(sysclosecurrentinput);
 close_input(F) -> syscall(syscloseinput,F);
 clear_input -> syscall(sysclearinput);
 
 output_is(F) -> syscall(sysoutputis,F);
-output(F) -> syscall(sysoutput,F);
+output(F) -> syscall(sysopen,F,write,S,nil);
 close_output -> syscall(sysclosecurrentoutput);
 close_output(F) -> syscall(syscloseoutput,F);
 flush -> syscall(sysflush);
 
 "in"
 
-in(T) -> syscall(sysinterm,T);
-in_char(C) -> syscall(sysinchar,C);
+in(T) -> input_is(S) syscall(sysinterm,S,T);
+in_char(C) -> input_is(S) syscall(sysinchar,S,C);
 
 "out"
 

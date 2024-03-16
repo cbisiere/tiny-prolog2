@@ -22,6 +22,9 @@ Interface
 Uses
   ShortStr,
   Errs,
+  Files,
+  IStream,
+  IStack,
   OStack,
   Trace,
   Memory,
@@ -33,7 +36,6 @@ Uses
   PObjEq,
   PObjTerm,
   PObjProg,
-  IStack,
   Encoding,
   Unparse,
   Reduc,
@@ -73,7 +75,7 @@ Var
 Begin
   ClearInsert := False;
   { 1: filename (string or identifier, unquoted) }
-  FileNamePtr := GetFilenameArgAsStr(1,T);
+  FileNamePtr := GetAtomArgAsStr(1,T,False);
   If FileNamePtr = Nil Then 
     Exit;
   { execute }
@@ -141,7 +143,7 @@ End;
 Procedure WarnNoRuleToClearTerm( B : BTermPtr );
 Var
   I : IdPtr;
-  m,s : StrPtr;
+  s : StrPtr;
 Begin
   CheckCondition(B <> Nil,'WarnNoRuleToClearTerm: B is Nil');
   I := AccessIdentifier(B^.BT_TERM); { handle dynamic assignment of identifiers }
@@ -150,10 +152,11 @@ Begin
   s := IdentifierGetStr(I);
   If StrEqualTo(s,'fail') Then
     Exit;
-  m := NewStringFrom('***WARNING: no rules match goal ''');
-  StrConcat(m,s);
-  StrAppend(m,'''');
-  OutStringCR(m,False)
+  CWriteWarning('no rules match goal');
+  CWrite(' ''');
+  StrWrite(s);
+  CWrite('''');
+  CWriteLn
 End;
 
 { clear a query }
@@ -553,26 +556,24 @@ Begin
   RemoveQueries(P)
 End;
 
-{ return True if filename fn can be set to be an input file, using
- default program extensions for syntax y;
+{ return a stream for filename fn, using default program extensions for 
+ syntax y;
  NOTE: probably less TOCTOU-prone than looking for the file and then setting it  
- as input
- FIXME: where to convert through OSFilename/1 and which name to store in the IO
- stream objects is a question that need to be solved; maybe two members? 
- (the user provided name, without alteration, and the actual path to the file)}
-Function SetPrologFileForInput( y : TSyntax; fn : TString ) : Boolean;
+ as input }
+Function SetPrologFileForInput( y : TSyntax; fn : TPath; 
+    Var FileDesc : TFileDescriptor ) : TIStreamPtr;
 Var
-  Found : Boolean;
+  f : TIStreamPtr;
 Begin
-  Found := SetFileForInput(fn);
-  If Not Found Then
+  f := SetFileForInput(FileDesc,fn,fn,False);
+  If f = Nil Then
   Begin
     If y = Edinburgh Then
-      Found := SetFileForInput(fn + '.pl');
-    If Not Found Then
-      Found := SetFileForInput(fn + '.' + FileExt[y])
+      f := SetFileForInput(FileDesc,fn,fn + '.pl',False);
+    If f = Nil Then
+      f := SetFileForInput(FileDesc,fn,fn + '.' + FileExt[y],False)
   End;
-  SetPrologFileForInput := Found
+  SetPrologFileForInput := f
 End;
 
 { load rules and queries from a Prolog file, and execute the queries it 
@@ -583,26 +584,27 @@ Procedure LoadProgram( P : ProgPtr; Q : QueryPtr; s : StrPtr;
     TryPath : Boolean );
 Var 
   y : TSyntax;
-  FileName, Path : TString;
-  Opened : Boolean;
+  FileName, Path : TPath;
+  f : TIStreamPtr;
+  FileDesc : TFileDescriptor;
 Begin
   y := GetSyntax(P);
   If StrLength(s) <= StringMaxSize Then
   Begin
     FileName := StrGetString(s);
     Path := GetProgramPath(P);
-    Opened := False;
+    f := Nil;
     If TryPath And (path <> '') And 
         (Length(Path) + Length(FileName) <= StringMaxSize) Then
-      Opened := SetPrologFileForInput(y,Path + FileName);
-    If Not Opened Then
-      Opened := SetPrologFileForInput(y,FileName);
-    If Opened Then
+      f := SetPrologFileForInput(y,Path + FileName,FileDesc);
+    If f = Nil Then
+      f := SetPrologFileForInput(y,FileName,FileDesc);
+    If f <> Nil Then
     Begin
       BeginInsertion(P);
-      ParseRulesAndQueries(P,Q,GetRuleType(P));
+      ParseRulesAndQueries(f,P,Q,GetRuleType(P));
       If Error Then Exit;
-      CloseCurrentInput;
+      CloseInputByFileDescriptor(FileDesc); { TODO: close(f) }
       If Error Then Exit;
       { clearing goals only after closing the input file is the right way to  
         do it, as calls to input_is, etc. must not consider the program file 

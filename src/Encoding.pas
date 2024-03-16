@@ -71,6 +71,10 @@ Function ListToTuple( L : TermPtr ) : TermPtr;
 Function GetTupleHead( T : TermPtr; Reduce : Boolean ) : TermPtr;
 Function GetTupleQueue( T : TermPtr; Reduce : Boolean ) : TermPtr;
 Function GetTupleArg( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
+
+Function GetFunc1( T : TermPtr; ident : TString; 
+    Var T1 : TermPtr; Reduce : Boolean ) : Boolean;
+
 Function GetList( T : TermPtr; Var T1,T2 : TermPtr; 
     Reduce : Boolean ) : Boolean;
 Function IsList( T : TermPtr; Reduce : Boolean ) : Boolean;
@@ -299,6 +303,27 @@ Function GetTupleArg( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
 Begin
   GetTupleArg := GetTupleHead(U,Reduce);
   U := GetTupleQueue(U,Reduce)
+End;
+
+{ return True if term T is a 1-argument predicate with name ident, that is,
+ a tuple "<ident,t1>"; retrieve the argument }
+Function GetFunc1( T : TermPtr; ident : TString; 
+    Var T1 : TermPtr; Reduce : Boolean ) : Boolean;
+Var
+  T0 : TermPtr;
+Begin
+  GetFunc1 := False;
+  If Not IsTuple(T) Then
+    Exit;
+  T0 := GetTupleArg(T,Reduce);
+  If Not IsTuple(T) Then
+    Exit;
+  If Not TermIsIdentifierEqualTo(T0,ident) Then
+    Exit;
+  T1 := GetTupleArg(T,Reduce);
+  If T <> Nil Then
+    Exit;
+  GetFunc1 := True
 End;
 
 { return True if term T is a 2-argument predicate with name ident, that is,

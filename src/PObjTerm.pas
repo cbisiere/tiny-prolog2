@@ -106,6 +106,8 @@ Procedure AddWatch( V : VarPtr; E : EqPtr; Backtrackable : Boolean;
 Function VRed( V : VarPtr ) : TermPtr;
 Function FRed( F : FuncPtr ) : TermPtr;
 Function RepresentativeOf( T : TermPtr ) : TermPtr;
+Function IsBound( T : TermPtr ) : Boolean;
+Function IsFree( T : TermPtr ) : Boolean;
 Function EvaluateToInteger( T : TermPtr ) : ConstPtr;
 Function EvaluateToString( T : TermPtr ) : ConstPtr;
 Function EvaluateToIdentifier( T : TermPtr ) : IdPtr;
@@ -499,6 +501,22 @@ Begin
       T := RepresentativeOf(T2)
   End;
   RepresentativeOf := T
+End;
+
+{ return True if a term is bound; see pII p60 }
+Function IsBound( T : TermPtr ) : Boolean;
+Begin
+  T := RepresentativeOf(T);
+  IsBound := TypeOfTerm(T) <> Variable
+End;
+
+{ return True if a term a free variable }
+Function IsFree( T : TermPtr ) : Boolean;
+Begin
+  IsFree := False;
+  If TypeOfTerm(T) <> Variable Then
+    Exit;
+  IsFree := Not IsBound(T)
 End;
 
 { return the constant term (number or string constant) the term T is 

@@ -119,7 +119,6 @@ End;
 { pop a char from the end of a string }
 Procedure PopChar( Var s : TString; Var c : Char );
 Begin
-  {// CheckCondition(Length(s) > 0,'PopChar: string is empty'); }
   c := s[Length(s)];
   Delete(s,Length(s),1)
 End;

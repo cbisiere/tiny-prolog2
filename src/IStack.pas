@@ -36,6 +36,7 @@ Uses
   IChar,
   Buffer,
   Files,
+  Trace,
   IStream;
 
 Const
@@ -46,14 +47,22 @@ Type
 
 Procedure DoClearInput;
 Procedure DisplayInputErrorMessage( msg : TString );
-Function InputIs : TString;
+Function InputIs : TAlias;
 Function InputEncoding : TEncoding;
 Procedure SetInputEncoding( Enc : TEncoding );
 Procedure InitIFileStack;
-Function SetFileForInput( FileName : TString ) : Boolean;
+Function SetFileForInput( Var FileDesc : TFileDescriptor; 
+    FileAlias : TAlias; FileName : TPath; 
+    IsDefault : Boolean ) : TIStreamPtr;
 Procedure ResetIFileStack;
-Procedure CloseInputByName( FileName : TString );
+Function GetIStreamFromFileDescriptor( FileDesc : TFileDescriptor ): TIStreamPtr;
+Function GetIStreamFromFileAlias( FileAlias : TAlias ) : TIStreamPtr;
+Procedure CloseInputByFileDescriptor( FileDesc : TFileDescriptor );
+Procedure CloseInputByFileAlias( FileAlias : TAlias );
+Procedure CloseInputByFileName( FileName : TPath );
 Procedure CloseCurrentInput;
+
+Function GetInputConsole : TIStreamPtr;
 Procedure ReadFromConsole;
 Procedure GetIChar( Var e : TIChar );
 Function GetChar( Var c : TChar ) : TChar;
@@ -63,8 +72,9 @@ Procedure UngetChars( line : TLineNum; col : TCharPos );
 Procedure NextIChar( Var e : TIChar );
 Function NextChar( Var c : TChar ) : TChar;
 Function NextNextChar( Var c : TChar ) : TChar;
-Procedure CheckConsoleInput( SkipSpaces : Boolean );
+
 Procedure IStackDumpCurrentInput;
+Procedure IStackDumpAll;
 
 
 Implementation
@@ -73,7 +83,7 @@ Implementation
 Type
   TIFileStack = Record
     Top : TIFileStackIndex;
-    Stack : Array[1..IFilesMax] Of TIStream
+    Stack : Array[1..IFilesMax] Of TIStreamPtr
   End;
 
 Var
@@ -90,11 +100,16 @@ Begin
     ResetIStream(Stack[Top])
 End;
 
-{ ignores characters remaining unread in the current input line }
+{ return the current (that is, top) input stream }
+Function CurrentInput : TIStreamPtr;
+Begin
+  CurrentInput := IFileStack.Stack[IFileStack.Top]
+End;
+
+{ ignore all characters remaining unread in the current input line }
 Procedure DoClearInput;
 Begin
-  With IFileStack.Stack[IFileStack.Top] Do
-    BufDiscardUnread(IBuf)
+  ClearInputFromIStream(CurrentInput)
 End;
 
 { write an error message, pointing to the error }
@@ -104,18 +119,18 @@ Begin
     DisplayIStreamErrorMessage(Stack[Top],msg)
 End;
 
-{ return the name of the current input file }
-Function InputIs : TString;
+{ return the name (alias) of the current input file }
+Function InputIs : TAlias;
 Begin
   With IFileStack Do
-    InputIs := Stack[Top].FName
+    InputIs := GetIStreamAlias(Stack[Top])
 End;
 
 { return true if the current input is the terminal }
 Function InputIsConsole : Boolean;
 Begin
   With IFileStack Do
-    InputIsConsole := Stack[Top].DeviceType = TTerminal
+    InputIsConsole := GetIStreamDeviceType(Stack[Top]) = TTerminal
 End;
 
 { encoding of the current input }
@@ -138,39 +153,47 @@ End;
 
 { append a file to the input stack; return zero if the file cannot
   be opened }
-Function PushIFile( FileName : TString ) : TIFileStackIndex;
+Function PushIFile( FileAlias : TAlias; FileName : TPath ) : TIFileStackIndex;
 Var 
-  f : TIStream;
   K : TIFileStackIndex;
 Begin
+  K := 0;
   With IFileStack Do
   Begin
     CheckCondition(Top < IFilesMax,'Input Stack is full');
-    OpenIStream(FileName,f);
-    If f.IsOpen Then
+    OpenIStream(GetNewFileDescriptor,FileAlias,FileName,Stack[Top+1]);
+    If IStreamIsOpen(Stack[Top+1]) Then
     Begin
       Top := Top + 1;
-      Stack[Top] := f;
       K := Top
     End
-    Else
-      K := 0
   End;
   PushIFile := K
+End;
+
+{ allocate memory for input stream records in the stack }
+Procedure AllocIStack;
+Var 
+  I : TIFileStackIndex;
+Begin
+  For I := 1 To IFilesMax Do
+    GetMem(IFileStack.Stack[I],SizeOf(TIStream))
 End;
 
 { initialize the input system, setting up the console as the default 
   input device }
 Procedure InitIFileStack;
-Var K : TIFileStackIndex;
+Var 
+  K : TIFileStackIndex;
 Begin
-  IFileStack.Top := 0;
-  K := PushIFile(CONSOLE_NAME);
+  With IFileStack Do
+    Top := 0;
+  K := PushIFile(CONSOLE_NAME,CONSOLE_NAME);
   CheckCondition(K>0,'cannot open default input console')
 End;
 
-{ lookup from the top; return zero if the entry is not in the stack }
-Function IFileIndex( FileName : TString ) : TIFileStackIndex;
+{ return the console }
+Function GetInputConsole : TIStreamPtr;
 Var
   Found : Boolean;
   K : TIFileStackIndex;
@@ -181,7 +204,36 @@ Begin
     K := Top;
     While Not Found And (K > 0) Do
     Begin
-      Found := Stack[K].FName = FileName;
+      Found := GetIStreamAlias(Stack[K]) = CONSOLE_NAME;
+      If Not Found Then
+        K := K - 1
+    End;
+    CheckCondition(Found,'cannot find the input console');
+    GetInputConsole := Stack[K]
+  End
+End;
+
+{ lookup from the top, combining three search criteria:
+ - descriptor if Desc is not zero
+ - alias if FileAlias is not empty
+ - file name if FileName is not empty
+ return zero if the entry is not in the stack }
+Function IFileIndex( FileDesc : TFileDescriptor; 
+    FileAlias : TAlias; FileName : TPath ) : TIFileStackIndex;
+Var
+  Found : Boolean;
+  K : TIFileStackIndex;
+Begin
+  With IFileStack Do
+  Begin
+    Found := False;
+    K := Top;
+    While Not Found And (K > 0) Do
+    Begin
+      Found := 
+          ((FileDesc = 0) Or (GetIStreamDescriptor(Stack[K]) = FileDesc)) And
+          ((FileAlias = '') Or (GetIStreamAlias(Stack[K]) = FileAlias)) And
+          ((FileName = '') Or (GetIStreamFileName(Stack[K]) = FileName));
       If Not Found Then
         K := K - 1
     End
@@ -189,26 +241,45 @@ Begin
   IFileIndex := K
 End;
 
-{ set a file as the current input file }
-Function SetFileForInput( FileName : TString ) : Boolean;
+{ set a file (FileAlias, FileName) as an input stream, if it does not exist
+ yet; makes it the default if IsDefault is True; in cas of success, set the 
+ file descriptor parameter and return the stream }
+Function SetFileForInput( Var FileDesc : TFileDescriptor; 
+    FileAlias : TAlias; FileName : TPath; 
+    IsDefault : Boolean ) : TIStreamPtr;
 Var
   K,I : TIFileStackIndex;
-  tmp : TIStream;
+  tmp : TIStreamPtr;
 Begin
+  SetFileForInput := Nil;
   With IFileStack Do
   Begin
-    K := IFileIndex(FileName);
+    { warn when the file is known under a different alias }
+    K := IFileIndex(0,'',FileName);
+    If K <> 0 Then 
+      If GetIStreamAlias(Stack[K]) <> FileAlias Then
+      Begin
+        CWriteWarning('input file already aliased : ''');
+        CWrite(FileName);
+        CWrite('''');
+        CWriteLn;
+        Exit;
+      End;
+    K := IFileIndex(0,FileAlias,FileName);
     If K = 0 Then
-      K := PushIFile(FileName)
-    Else If K < Top Then { not on top: move to top }
+      K := PushIFile(FileAlias,FileName)
+    Else If IsDefault And (K < Top) Then { not on top: move to top }
     Begin
       tmp := Stack[K];
       For I := K To Top - 1 Do
         Stack[I] := Stack[I+1];
       Stack[Top] := tmp
-    End
-  End;
-  SetFileForInput := K > 0
+    End;
+    If K = 0 Then
+      Exit;
+    FileDesc := GetIStreamDescriptor(Stack[K]);
+    SetFileForInput := Stack[K]
+  End
 End;
 
 { close the input file at index K in the stack }
@@ -237,18 +308,16 @@ End;
  prompt, otherwise in_char(c) would not work as intended }
 Procedure ResetIFileStack;
 Var
-  console : TIStream;
-  K : TIFileStackIndex;
+  console : TIStreamPtr;
 Begin
   With IFileStack Do
   Begin
-    { backup the console state, including the input buffer }
-    K := IFileIndex(CONSOLE_NAME);
-    CheckCondition(K > 0, 'ResetIFileStack: unable to locate the console');
-    console := Stack[K];
-    { make sure all the files are closed }
+    { backup the console pointer, as the input buffer must be preserved }
+    console := GetInputConsole;
+    CheckCondition(console <> Nil, 'ResetIFileStack: unable to locate the console');
+    { make sure all the files are closed; this does not affect the console }
     CloseAllIFiles;
-    { reinstall the console }
+    { reinstall the console as the sole input stream }
     Top := 1;
     Stack[Top] := console
   End
@@ -259,11 +328,11 @@ End;
 Procedure CloseInputAtIndex( K : TIFileStackIndex );
 Var
   I : TIFileStackIndex;
-  tmp : TIStream;
+  tmp : TIStreamPtr;
 Begin
   With IFileStack Do
   Begin
-    Case Stack[K].DeviceType Of
+    Case GetIStreamDeviceType(Stack[K]) Of
     TTerminal:
       If (K = Top) And (K > 1) Then
       Begin
@@ -284,17 +353,67 @@ Begin
   End
 End;
 
-{ close an input file by name }
-Procedure CloseInputByName( FileName : TString );
+{ get the IStream having a given file descriptor, or Nil }
+Function GetIStreamFromFileDescriptor( FileDesc : TFileDescriptor ): TIStreamPtr;
+Var
+  K : TIFileStackIndex;
+Begin
+  GetIStreamFromFileDescriptor := Nil;
+  With IFileStack Do
+  Begin
+    K := IFileIndex(FileDesc,'','');
+    If K = 0 Then
+      Exit;
+    GetIStreamFromFileDescriptor := Stack[K]
+  End
+End;
+
+{ get the IStream having a given file descriptor }
+Function GetIStreamFromFileAlias( FileAlias : TAlias ) : TIStreamPtr;
+Var
+  K : TIFileStackIndex;
+Begin
+  GetIStreamFromFileAlias := Nil;
+  With IFileStack Do
+  Begin
+    K := IFileIndex(0,FileAlias,'');
+    If K = 0 Then
+      Exit;
+    GetIStreamFromFileAlias := Stack[K]
+  End
+End;
+
+{ close an input file by descriptor, alias or file name }
+
+Procedure CloseInputBy( FileDesc : TFileDescriptor; 
+    FileAlias : TAlias; FileName : TPath );
 Var
   K : TIFileStackIndex;
 Begin
   With IFileStack Do
   Begin
-    K := IFileIndex(FileName);
+    K := IFileIndex(FileDesc,FileAlias,FileName);
     If K > 0 Then { delete }
       CloseInputAtIndex(K)
   End
+End;
+
+{ close an input file by file descriptor }
+Procedure CloseInputByFileDescriptor( FileDesc : TFileDescriptor );
+Begin
+ CloseInputBy(FileDesc,'','')
+End;
+
+{ close an input file by file alias }
+Procedure CloseInputByFileAlias( FileAlias : TAlias );
+Begin
+ CloseInputBy(0,FileAlias,'')
+End;
+
+{ close an input file by file name }
+Procedure CloseInputByFileName( FileName : TPath );
+Begin
+ CloseInputBy(0,'',FileName)
 End;
 
 { close the current input file, if it is not the console }
@@ -305,14 +424,13 @@ Begin
 End;
 
 {----------------------------------------------------------------------------}
-{ read on current input                                                      }
+{ read from current input stream                                             }
 {----------------------------------------------------------------------------}
 
-{ read a line from the keyboard: FIXME: why top? }
+{ read a line from the keyboard }
 Procedure ReadFromConsole;
 Begin
-  With IFileStack Do
-    ReadLineFromKeyboard(Stack[Top])
+  ReadLineFromKeyboard(GetInputConsole)
 End;
 
 { read one codepoint with position }
@@ -371,15 +489,6 @@ Begin
     NextNextChar := NextNextCharFromStream(Stack[Top],c)
 End;
 
-{ if the current input is from a console, read a line from the keyboard when 
- there is no more chars available }
-Procedure CheckConsoleInput( SkipSpaces : Boolean );
-Begin
-  With IFileStack Do
-    CheckConsoleInputStream(Stack[Top],SkipSpaces)
-End;
-
-
 {----------------------------------------------------------------------------}
 { DEBUG                                                                      }
 {----------------------------------------------------------------------------}
@@ -390,4 +499,16 @@ Begin
     IStreamDump(Stack[Top])
 End;
 
+Procedure IStackDumpAll;
+Var
+  I : TIFileStackIndex;
+Begin
+  With IFileStack Do
+    For I := Top DownTo 1 Do
+      IStreamDump(Stack[I])
+End;
+
+{ initialize the unit }
+Begin
+  AllocIStack
 End.

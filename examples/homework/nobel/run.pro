@@ -1,6 +1,7 @@
-load -> 
-	insert("examples/homework/nobel/nobel_db.pro")
-	insert("examples/homework/nobel/nobel.pro");
+impasse -> fail;
 
--> load go;
--> quit;
+-> 
+	insert("nobel_db.pro")
+	insert("nobel.pro")
+	list
+	go;

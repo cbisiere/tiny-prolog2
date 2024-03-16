@@ -25,30 +25,37 @@ Unit Files;
 Interface
 
 Uses
-  ShortStr;
+  ShortStr,
+  Num;
 
 Type
-  TIODeviceType    = (TFile, TTerminal);   { input/output device type }
+  TIODeviceType = (TFile, TTerminal);   { input/output device type }
   TIFile = File Of Char;
   TOFile = Text;
+  TFileDescriptor = PosInt; { file descriptor }
+  TPath = TString; { file or directory full path }
+  TAlias = TString; { file name (a.k.a. "alias") }
 
 Const
-  CONSOLE_NAME = 'console';
+  CONSOLE_NAME : TAlias = 'console';
+
+{ unique file descriptor }
+Function GetNewFileDescriptor : TFileDescriptor;
 
 { path handling }
-Function ExtractPath( fn : TString ) : TString;
-Function OSFilename( Filename : TString ) : TString;
+Function ExtractPath( fn : TPath ) : TPath;
+Function OSFilename( Filename : TPath ) : TPath;
 
 { input files: }
-Function OpenForRead( Filename : TString; Var TxtFile : TIFile ) : Boolean;
-Function OpenForWrite( Filename : TString; Var TxtFile : TOFile ) : Boolean;
-Procedure FlushFile( Filename : TString; Var TxtFile : TOFile );
-Procedure CloseIFile( Filename : TString; Var TxtFile : TIFile );
+Function OpenForRead( Filename : TPath; Var TxtFile : TIFile ) : Boolean;
+Function OpenForWrite( Filename : TPath; Var TxtFile : TOFile ) : Boolean;
+Procedure FlushFile( Filename : TPath; Var TxtFile : TOFile );
+Procedure CloseIFile( Filename : TPath; Var TxtFile : TIFile );
 
 { output files: }
-Procedure CloseOFile( Filename : TString; Var TxtFile : TOFile );
-Procedure WriteToFile( Filename : TString; Var TxtFile : TOFile; s : TString );
-Function ReadFromFile( Filename : TString; Var TxtFile : TIFile; 
+Procedure CloseOFile( Filename : TPath; Var TxtFile : TOFile );
+Procedure WriteToFile( Filename : TPath; Var TxtFile : TOFile; s : TString );
+Function ReadFromFile( Filename : TPath; Var TxtFile : TIFile; 
     Var c : Char ) : Boolean;
 
 Implementation
@@ -68,7 +75,7 @@ Const
 
 { extract the file path part of filename fn including the final 
  directory separator; works with platform sep and '/'' }
-Function ExtractFilePath( fn : TString ) : TString;
+Function ExtractFilePath( fn : TPath ) : TPath;
 Var
   Done : Boolean;
 Begin
@@ -84,7 +91,7 @@ End;
 
 { get the current directory; when non empty, it includes a 
  trailing path separator; FIXME: return HOME env var if any? }
-Function GetUserDir: TString;
+Function GetUserDir: TPath;
 Var
   s : String;
 Begin
@@ -95,6 +102,15 @@ End;
 {$ENDIF}
 {-----------------------------------------------------------------------------}
  
+ Var
+  FreeDesc : TFileDescriptor; { next file descriptor to assign }
+
+Function GetNewFileDescriptor : TFileDescriptor;
+Begin
+  GetNewFileDescriptor := FreeDesc;
+  FreeDesc := FreeDesc + 1
+End;
+
 { get the directory separator }
 Function GetDirectorySeparator : Char;
 Begin
@@ -103,13 +119,13 @@ End;
 
 { extract the file path part of filename fn including the final 
  directory separator; works with platform sep and '/'' }
-Function ExtractPath( fn : TString ) : TString;
+Function ExtractPath( fn : TPath ) : TPath;
 Begin
   ExtractPath := ExtractFilePath(fn)
 End;
 
 { get the user directory, including a trailing separator }
-Function GetUserDirectory: TString;
+Function GetUserDirectory: TPath;
 Begin
   GetUserDirectory := GetUserDir;
 End;
@@ -117,7 +133,7 @@ End;
 { return a full pathname to a file, usable in Assign, by 1) expanding "~" 
  to the home dir when present, and 2) replacing the internal representation 
  '/' of the directory separator with the os-dependant one }
-Function OSFilename( Filename : TString ) : TString;
+Function OSFilename( Filename : TPath ) : TPath;
 Var
   sep : Char;
   i : TStringSize;
@@ -131,13 +147,13 @@ Begin
   End;
   sep := GetDirectorySeparator;
   For i := 1 to Length(Filename) Do
-    if FileName[i] = '/' Then
-      FileName[i] := sep;
-  OSFilename := FileName
+    if Filename[i] = '/' Then
+      Filename[i] := sep;
+  OSFilename := Filename
 End;
 
 { open a text file: read mode }
-Function OpenForRead( Filename : TString; Var TxtFile : TIFile ) : Boolean;
+Function OpenForRead( Filename : TPath; Var TxtFile : TIFile ) : Boolean;
 Begin
   Assign(TxtFile,OSFilename(Filename));
   {$I-}
@@ -147,7 +163,7 @@ Begin
 End;
 
 { open a text file: write mode }
-Function OpenForWrite( Filename : TString; Var TxtFile : TOFile ) : Boolean;
+Function OpenForWrite( Filename : TPath; Var TxtFile : TOFile ) : Boolean;
 Begin
   Assign(TxtFile,OSFilename(Filename));
   {$I-}
@@ -157,7 +173,7 @@ Begin
 End;
 
 { flush a text file }
-Procedure FlushFile( Filename : TString; Var TxtFile : TOFile );
+Procedure FlushFile( Filename : TPath; Var TxtFile : TOFile );
 Begin
   {$I-}
   Flush(TxtFile)
@@ -165,7 +181,7 @@ Begin
 End;
 
 { close an input file }
-Procedure CloseIFile( Filename : TString; Var TxtFile : TIFile );
+Procedure CloseIFile( Filename : TPath; Var TxtFile : TIFile );
 Begin
   {$I-}
   Close(TxtFile)
@@ -173,7 +189,7 @@ Begin
 End;
 
 { close an output file }
-Procedure CloseOFile( Filename : TString; Var TxtFile : TOFile );
+Procedure CloseOFile( Filename : TPath; Var TxtFile : TOFile );
 Begin
   {$I-}
   Close(TxtFile)
@@ -181,7 +197,7 @@ Begin
 End;
 
 { write a string to a file }
-Procedure WriteToFile( Filename : TString; Var TxtFile : TOFile; s : TString );
+Procedure WriteToFile( Filename : TPath; Var TxtFile : TOFile; s : TString );
 Begin
   {$I-}
   Write(TxtFile,s);
@@ -190,7 +206,7 @@ Begin
 End;
 
 { read a single char from a file }
-Function ReadFromFile( Filename : TString; Var TxtFile : TIFile; 
+Function ReadFromFile( Filename : TPath; Var TxtFile : TIFile; 
     Var c : Char ) : Boolean;
 Begin
   {$I-}
@@ -199,4 +215,6 @@ Begin
   ReadFromFile := IOResult = 0
 End;
 
+Begin
+  FreeDesc := 1
 End.

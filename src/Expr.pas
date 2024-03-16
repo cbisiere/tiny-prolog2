@@ -302,32 +302,32 @@ Begin
                   For i := 1 to n Do
                     IsInt := IsInt And Not ParVal[i].IsReal;
                   { TODO: absolute precision }
-                  If ((func = 'add') And (y = PrologIIp) Or 
+                  If ((func = 'add') And (y <> Edinburgh) Or 
                       (func = '''+''') And (y = Edinburgh)) And (n = 1) Then
                   Begin
                     r := ParVal[1].Val
                   End
-                  Else If ((func = 'sub') And (y = PrologIIp) Or 
+                  Else If ((func = 'sub') And (y <> Edinburgh) Or 
                       (func = '''-''') And (y = Edinburgh)) And (n = 1) Then
                   Begin
                     r := -1*ParVal[1].Val
                   End
-                  Else If ((func = 'add') And (y = PrologIIp) Or 
+                  Else If ((func = 'add') And (y <> Edinburgh) Or 
                       (func = '''+''') And (y = Edinburgh)) And (n = 2) Then
                   Begin
                     r := ParVal[1].Val + ParVal[2].Val
                   End
-                  Else If ((func = 'sub') And (y = PrologIIp) Or 
+                  Else If ((func = 'sub') And (y <> Edinburgh) Or 
                       (func = '''-''') And (y = Edinburgh)) And (n = 2) Then
                   Begin
                     r := ParVal[1].Val - ParVal[2].Val
                   End
-                  Else If ((func = 'mul') And (y = PrologIIp) Or 
+                  Else If ((func = 'mul') And (y <> Edinburgh) Or 
                       (func = '''*''') And (y = Edinburgh)) And (n = 2) Then
                   Begin
                     r := ParVal[1].Val * ParVal[2].Val
                   End
-                  Else If ((func = 'div') And (y = PrologIIp) Or 
+                  Else If ((func = 'div') And (y <> Edinburgh) Or 
                       ((func = '''/''') Or (func = '''//''')) And (y = Edinburgh)) 
                       And (n = 2) Then
                   Begin
@@ -368,25 +368,25 @@ Begin
                       r := Exp(ParVal[2].Val*Ln(ParVal[1].Val))
                     End
                   End
-                  Else If ((func = 'inf') And (y = PrologIIp) 
+                  Else If ((func = 'inf') And (y <> Edinburgh) 
                       Or (func = '''<''') And (y = Edinburgh)) And (n = 2) Then
                   Begin
                       r := Ord(ParVal[1].Val < ParVal[2].Val); { TODO: order on strings, etc.}
                       IsInt := True
                   End
-                  Else If ((func = 'infe') And (y = PrologIIp) 
+                  Else If ((func = 'infe') And (y <> Edinburgh) 
                       Or (func = '''=<''') And (y = Edinburgh)) And (n = 2) Then
                   Begin
                       r := Ord(ParVal[1].Val <= ParVal[2].Val); { TODO: order on strings, etc.}
                       IsInt := True
                   End
-                  Else If ((func = 'sup') And (y = PrologIIp) 
+                  Else If ((func = 'sup') And (y <> Edinburgh) 
                       Or (func = '''>''') And (y = Edinburgh)) And (n = 2) Then
                   Begin
                       r := Ord(ParVal[1].Val > ParVal[2].Val); { TODO: order on strings, etc.}
                       IsInt := True
                   End
-                  Else If ((func = 'supe') And (y = PrologIIp) 
+                  Else If ((func = 'supe') And (y <> Edinburgh) 
                       Or (func = '''>=''') And (y = Edinburgh)) And (n = 2) Then
                   Begin
                       r := Ord(ParVal[1].Val >= ParVal[2].Val); { TODO: order on strings, etc.}

@@ -32,6 +32,8 @@ Procedure CWrite( s : TString );
 Procedure CWriteLn;
 Procedure CWriteInt( v : Integer );
 Procedure CWriteBool( b : Boolean );
+Procedure CWriteWarning( s : TString );
+Procedure CWriteLnWarning( s : TString );
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -42,7 +44,7 @@ Var
   Echo : Boolean;
 
 Const
-  ECHO_FILE = 'echo.txt';
+  ECHO_FILE : TPath = 'echo.txt';
 
 { close the trace file }
 Procedure TerminateTrace;
@@ -106,6 +108,20 @@ Begin
     First := False
   End;
   CWrite(']')
+End;
+
+{ write a warning }
+Procedure CWriteWarning( s : TString );
+Begin
+  CWrite('***WARNING: ');
+  CWrite(s);
+End;
+
+{ writeln a warning }
+Procedure CWriteLnWarning( s : TString );
+Begin
+  CWriteWarning(s);
+  CWriteLn
 End;
 
 { initialize the trace system }

@@ -6,28 +6,38 @@ quit :- outml("bye!"), syscall(sysquit).
 list :- syscall(syslist).
 insert(F) :- syscall(sysinsert,F).
 
-"i/o"
+"i/o: SWI"
 
 expand_file_name(F,L) :- syscall(sysexpandfilename,F,L).
+open(File,Mode,Stream,Opt) :- syscall(sysopen,File,Mode,Stream,Opt).
+open(File,Mode,Stream) :- syscall(sysopen,File,Mode,Stream,[]).
+close(Stream) :- syscall(syscloseinput,Stream), !.
+close(Stream) :- syscall(syscloseoutput,Stream).
+get_char(Stream,Char) :- syscall(sysinchar,Stream,Char).
+get_char(Char) :- syscall(sysinputis,Stream) syscall(sysinchar,Stream,Char).
+read(Stream,Term) :- syscall(sysinterm,Stream,Term).
+read(Term) :- syscall(sysinputis,Stream) syscall(sysinterm,Stream,Term).
+
+"i/o: PII+"
 
 input_is(F) :- syscall(sysinputis,F).
-input(F) :- syscall(sysinput,F).
+input(F) :- syscall(sysopen,F,read,S,[]).
 close_input :- syscall(sysclosecurrentinput).
 close_input(F) :- syscall(syscloseinput,F).
 clear_input :- syscall(sysclearinput).
 
 output_is(F) :- syscall(sysoutputis,F).
-output(F) :- syscall(sysoutput,F).
+output(F) :- syscall(sysopen,F,write,S,[]).
 close_output :- syscall(sysclosecurrentoutput).
 close_output(F) :- syscall(syscloseoutput,F).
 flush :- syscall(sysflush).
 
-"in"
+"in: PII+"
 
-in(T) :- syscall(sysinterm,T).
-in_char(C) :- syscall(sysinchar,C).
+in(T) :- input_is(S) syscall(sysinterm,S,T).
+in_char(C) :- input_is(S) syscall(sysinchar,S,C).
 
-"out"
+"out: PII+"
 
 out(T) :- syscall(sysout,T).
 outm(S) :- syscall(sysoutm,S).

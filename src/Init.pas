@@ -46,7 +46,8 @@ Const
 Procedure ProcessParameters( P : ProgPtr );
 Var  
   i : Byte;
-  par,filename : TString;
+  par : TString;
+  filename : TPath;
   y : TSyntax;
   s : StrPtr;
   os : TObjectPtr Absolute s;

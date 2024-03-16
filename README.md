@@ -352,13 +352,24 @@ Predicate | Syntax | Meaning | Example
 `list` | | display the current rules | `> list;`
 `listing` | E | display the current rules | `?- listing.`
 `insert(f)` | | insert a Prolog file | `> insert("examples/menu.pro");`
-`consult(f)` | E | insert a Prolog file | `?- consult('examples/menu.pl');`
+`consult(f)` | E | insert a Prolog file | `?- consult('examples/menu.pl').`
 
 ### Input and output
 
+#### Edinburgh
+
 Predicate | Meaning | Example
 --- | --- | ---
-`expand_file_name(f,l)`| list files using a pattern | `> expand_file_name('~/bin/*',l);`
+`expand_file_name(F,L)`| list files using a pattern | `?- expand_file_name('~/bin/*',L).`
+`open(F,M,D,O)`, `open(F,M,D)`| open a stream, setting a descriptor `D` | `?- open('~/data.txt',read,D,alias(data)).`
+`close(S)`| close a stream `S` | `?- close(data).`
+`get_char(S,C)`, `get_char(C)`| read a char from stream `S` or from the current stream | `?- get_char(data,C).`
+`read(S,T)`, `read(T)`| read a term from stream `S` or from the current stream | `?- read(data,T).`
+
+#### All syntaxes
+
+Predicate | Meaning | Example
+--- | --- | ---
 `input_is(f)`| return the current input | `> input_is(f);` `{ f = "console" }`
 `input(f)` | set the current input | `>input("infile.txt");`
 `close_input` | close the current input |

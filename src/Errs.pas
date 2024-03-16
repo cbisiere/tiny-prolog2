@@ -113,12 +113,12 @@ Begin
   RaiseError('Runtime error: ' + msg)
 End;
 
-{ a bug occurred: display a message and ask for termination }
+{ a bug occurred: display a message and terminate }
 Procedure Bug( msg : TString );
 Begin
-  RaiseError('Internal error (sorry): ' + msg);
-  SetQuitOn(1);
-  HaltProgram
+  Writeln;
+  Writeln('*** Internal error (sorry): ' + msg);
+  Halt(1)
 End;
 
 { assert }

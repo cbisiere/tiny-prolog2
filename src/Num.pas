@@ -25,6 +25,8 @@ Uses
 Const
   MaxLongInt = 1e+24;
 
+Type
+  PosInt = Word;
 {$IFDEF MSDOS}
 Type 
   LongInt = Real; { simulate a LongInt }
@@ -39,6 +41,7 @@ Type
 
 Function Max( a,b : Integer ) : Integer;
 Function Min( a,b : Integer ) : Integer;
+Function PosIntToStr( v : PosInt ) : TString;
 Function LongRealToLongInt( v : LongReal ) : LongInt;
 Function LongIntToStr( v : LongInt ) : TString;
 Function LongLongIntToStr( v : LongLongInt ) : TString;
@@ -66,6 +69,15 @@ Begin
     Min := a
   Else
     Min := b
+End;
+
+{ format a positive integer for display }
+Function PosIntToStr( v : PosInt ) : TString;
+Var 
+  s : TString;
+Begin
+  Str(v,s);
+  PosIntToStr := s
 End;
 
 { round a long real to a long integer value; may crash }

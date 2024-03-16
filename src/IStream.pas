@@ -8,7 +8,7 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
-{                           I N P U T   S T E A M                            }
+{                         I N P U T   S T R E A M                            }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
@@ -35,6 +35,7 @@ Interface
 
 Uses
   ShortStr,
+  Num,
   Errs,
   Chars,
   Crt2,
@@ -48,7 +49,9 @@ Uses
 { input stream }
 Type
   TIStream = Record
-    FName : TString;
+    FDesc : TFileDescriptor;        { 1,2,...                                 }
+    Alias : TAlias;                 { name of the stream                      }
+    FName : TPath;                  { file's full path                        }
     IFile : TIFile;                 { file handler (if not a console)         }
     IsOpen : Boolean;               { is the stream ready for input?          }
     DeviceType : TIODeviceType;     { where do we get input from?             }
@@ -57,25 +60,34 @@ Type
     CBuf : String[MaxBytesPerChar]; { char buffer to handle multi-byte chars  }
     ByteCount : LongInt;            { total number of bytes read so far       }
   End;
+  TIStreamPtr = ^TIStream;
 
-Procedure ResetIStream( Var f : TIStream );
-Function GetIStreamEncoding( Var f : TIStream ) : TEncoding;
-Procedure SetIStreamEncoding( Var f : TIStream; Enc : TEncoding );
-Procedure OpenIStream( FileName : TString; Var f : TIStream );
-Procedure CloseIStream( Var f : TIStream );
-Procedure DisplayIStreamErrorMessage( Var f : TIStream; msg : TString );
-Procedure ReadLineFromKeyboard( Var f : TIStream );
-Procedure UngetCharFromStream( Var f : TIStream );
-Procedure UngetCharsFromStream( Var f : TIStream; line : TLineNum; 
+Procedure ResetIStream( f : TIStreamPtr );
+Function IStreamIsOpen( f : TIStreamPtr ) : Boolean;
+Function GetIStreamDescriptor( f : TIStreamPtr ) : TFileDescriptor;
+Function GetIStreamAlias( f : TIStreamPtr ) : TAlias;
+Function GetIStreamFileName( f : TIStreamPtr ) : TPath;
+Function GetIStreamDeviceType( f : TIStreamPtr ) : TIODeviceType;
+Function GetIStreamEncoding( f : TIStreamPtr ) : TEncoding;
+Procedure SetIStreamEncoding( f : TIStreamPtr; Enc : TEncoding );
+
+Procedure OpenIStream( Desc : TFileDescriptor; FileAlias : TAlias; 
+    FileName : TPath; f : TIStreamPtr );
+Procedure CloseIStream( f : TIStreamPtr );
+Procedure DisplayIStreamErrorMessage( f : TIStreamPtr; msg : TString );
+Procedure ClearInputFromIStream( f : TIStreamPtr );
+Procedure ReadLineFromKeyboard( f : TIStreamPtr );
+Procedure UngetCharFromStream( f : TIStreamPtr );
+Procedure UngetCharsFromStream( f : TIStreamPtr; line : TLineNum; 
     col : TCharPos );
-Procedure GetICharFromStream( Var f : TIStream; Var e : TIChar );
-Function GetCharFromStream( Var f : TIStream; Var c : TChar ) : TChar;
-Function GetCharNbFromStream( Var f : TIStream; Var c : TChar ) : TChar;
-Procedure NextICharFromStream( Var f : TIStream; Var e : TIChar );
-Function NextCharFromStream( Var f : TIStream; Var c : TChar ) : TChar;
-Function NextNextCharFromStream( Var f : TIStream; Var c : TChar ) : TChar;
-Procedure CheckConsoleInputStream( Var f : TIStream; SkipSpaces : Boolean );
-Procedure IStreamDump( f : TIStream );
+Procedure GetICharFromStream( f : TIStreamPtr; Var e : TIChar );
+Function GetCharFromStream( f : TIStreamPtr; Var c : TChar ) : TChar;
+Function GetCharNbFromStream( f : TIStreamPtr; Var c : TChar ) : TChar;
+Procedure NextICharFromStream( f : TIStreamPtr; Var e : TIChar );
+Function NextCharFromStream( f : TIStreamPtr; Var c : TChar ) : TChar;
+Function NextNextCharFromStream( f : TIStreamPtr; Var c : TChar ) : TChar;
+Procedure CheckConsoleInputStream( f : TIStreamPtr; SkipSpaces : Boolean );
+Procedure IStreamDump( f : TIStreamPtr );
 
 
 Implementation
@@ -87,9 +99,9 @@ Implementation
 
 { reset the read buffers of an input stream; must be done once before
  reading from a file stream, or before reading a line from the keyboard }
-Procedure ResetIStream( Var f : TIStream );
+Procedure ResetIStream( f : TIStreamPtr );
 Begin
-  With f Do
+  With f^ Do
   Begin
     ByteCount := 0;
     CBuf := '';
@@ -101,25 +113,64 @@ End;
 { getters / setters                                                          }
 {----------------------------------------------------------------------------}
 
-{ get encoding }
-Function GetIStreamEncoding( Var f : TIStream ) : TEncoding;
+{ is an input stream open? }
+Function IStreamIsOpen( f : TIStreamPtr ) : Boolean;
 Begin
-  GetIStreamEncoding := f.Encoding
+  With f^ Do
+    IStreamIsOpen := IsOpen
+End;
+
+{ get file descriptor }
+Function GetIStreamDescriptor( f : TIStreamPtr ) : TFileDescriptor;
+Begin
+  With f^ Do
+    GetIStreamDescriptor := FDesc
+End;
+
+{ get file alias }
+Function GetIStreamAlias( f : TIStreamPtr ) : TAlias;
+Begin
+  With f^ Do
+    GetIStreamAlias := Alias
+End;
+
+{ get file path }
+Function GetIStreamFileName( f : TIStreamPtr ) : TPath;
+Begin
+  With f^ Do
+    GetIStreamFileName := FName
+End;
+
+{ get device type }
+Function GetIStreamDeviceType( f : TIStreamPtr ) : TIODeviceType;
+Begin
+  With f^ Do
+    GetIStreamDeviceType := DeviceType
+End;
+
+{ get encoding }
+Function GetIStreamEncoding( f : TIStreamPtr ) : TEncoding;
+Begin
+  With f^ Do
+    GetIStreamEncoding := Encoding
 End;
 
 { set encoding }
-Procedure SetIStreamEncoding( Var f : TIStream; Enc : TEncoding );
+Procedure SetIStreamEncoding( f : TIStreamPtr; Enc : TEncoding );
 Begin
-  f.Encoding := Enc
+  With f^ Do
+    Encoding := Enc
 End;
 
 { return true if there is no more chars available for reading in f's buffer
  system }
-Function IStreamIsDry( Var f : TIStream ) : Boolean;
+Function IStreamIsDry( f : TIStreamPtr ) : Boolean;
 Begin
-  CheckCondition(f.IsOpen,'IStreamIsDry: file is closed');
-  With f Do
+  With f^ Do
+  Begin
+    CheckCondition(IsOpen,'IStreamIsDry: file is closed');
     IStreamIsDry := (BufNbUnread(IBuf) = 0) And (Length(CBuf) = 0)
+  End
 End;
 
 {----------------------------------------------------------------------------}
@@ -127,13 +178,16 @@ End;
 {----------------------------------------------------------------------------}
 
 { open an input stream }
-Procedure OpenIStream( FileName : TString; Var f : TIStream );
+Procedure OpenIStream( Desc : TFileDescriptor; FileAlias : TAlias; 
+    FileName : TPath; f : TIStreamPtr );
 Begin
-  With f Do
+  With f^ Do
   Begin
+    FDesc := Desc;
+    Alias := FileAlias;
     FName := FileName;
     Encoding := UNDECIDED; { default; detection is dynamic }
-    If FName = CONSOLE_NAME Then
+    If Alias = CONSOLE_NAME Then
     Begin
       DeviceType := TTerminal;
       IsOpen := True
@@ -142,19 +196,21 @@ Begin
     Begin
       DeviceType := TFile;
       IsOpen := OpenForRead(FName,IFile)
-    End;
+    End
   End;
   ResetIStream(f)
 End;
 
-{ close an input stream }
-Procedure CloseIStream( Var f : TIStream );
+{ close an input stream; never close a console }
+Procedure CloseIStream( f : TIStreamPtr );
 Begin
-  With f Do
+  With f^ Do
   Begin
     If IsOpen And (DeviceType = TFile) Then
+    Begin
       CloseIFile(FName,IFile);
-    IsOpen := False
+      IsOpen := False
+    End
   End
 End;
 
@@ -163,14 +219,14 @@ End;
 {----------------------------------------------------------------------------}
 
 { write an error message, pointing a cursor to the error }
-Procedure DisplayIStreamErrorMessage( Var f : TIStream; msg : TString );
+Procedure DisplayIStreamErrorMessage( f : TIStreamPtr; msg : TString );
 Var 
   HasRead : Boolean; { buffer contains read chars }
   e : TIChar; { last char read }
   i : TBufIndex;
   n : TBufIndex;
 Begin
-  With f Do
+  With f^ Do
   Begin
     HasRead := BufNbRead(IBuf) > 0;
     If Not HasRead Then
@@ -205,11 +261,11 @@ End;
 {----------------------------------------------------------------------------}
 
 { replenish the small char buffer CBuf as much as possible }
-Procedure GetCharsFromStream( Var f : TIStream );
+Procedure GetCharsFromStream( f : TIStreamPtr );
 Var
   c : Char;
 Begin
-  With f Do
+  With f^ Do
   Begin
     While Not Error And IsOpen And (Length(CBuf) < MaxBytesPerChar) Do
     Begin
@@ -230,31 +286,38 @@ End;
 { read using circular buffer                                                 }
 {----------------------------------------------------------------------------}
 
+{ clear the input buffer of an input stream }
+Procedure ClearInputFromIStream( f : TIStreamPtr );
+Begin
+  With f^ Do
+    BufDiscardUnread(IBuf)
+End;
+
 { input one line from the keyboard and store it into the char buffer; note 
  that the buffer is not *reset* }
-Procedure ReadLineFromKeyboard( Var f : TIStream );
+Procedure ReadLineFromKeyboard( f : TIStreamPtr );
 Begin
   ResetIStream(f);
-  With f Do
+  With f^ Do
     ReadLnKbd(IBuf,Encoding)
 End;
 
 { move the read cursor backward by one }
-Procedure UngetCharFromStream( Var f : TIStream );
+Procedure UngetCharFromStream( f : TIStreamPtr );
 Begin
-  With f Do
+  With f^ Do
     BufUnread(IBuf)
 End;
 
 { move the read cursor backward up to (and including) a certain line and 
  column number }
-Procedure UngetCharsFromStream( Var f : TIStream; line : TLineNum; 
+Procedure UngetCharsFromStream( f : TIStreamPtr; line : TLineNum; 
     col : TCharPos );
 Var 
   e : TIChar;
   Found : Boolean;
 Begin
-  With f Do
+  With f^ Do
   Begin
     Found := False;
     While Not Found And Not Error Do
@@ -277,11 +340,11 @@ End;
  the stream cannot return additional codepoints; Note to self: make sure all
  the code paths end with a call to BufRead, otherwise a subsequent call to 
  BufUnread with create a bug, as it will unread a different codepoint }
-Procedure ReadCodepointFromStream( Var f : TIStream; Var e : TIChar );
+Procedure ReadCodepointFromStream( f : TIStreamPtr; Var e : TIChar );
 Var
   cc : TChar;
 Begin
-  With f Do
+  With f^ Do
   Begin
     { no more unread codepoints available: try to replenish the buffer }
     If BufNbUnread(IBuf) = 0 Then
@@ -310,14 +373,14 @@ Begin
 End;
 
 { read one codepoint with position }
-Procedure GetICharFromStream( Var f : TIStream; Var e : TIChar );
+Procedure GetICharFromStream( f : TIStreamPtr; Var e : TIChar );
 Begin
   SetIChar(e,'',0,0);
   ReadCodepointFromStream(f,e)
 End;
 
 { read one codepoint }
-Function GetCharFromStream( Var f : TIStream; Var c : TChar ) : TChar;
+Function GetCharFromStream( f : TIStreamPtr; Var c : TChar ) : TChar;
 Var
   e : TIChar;
 Begin
@@ -330,7 +393,7 @@ Begin
 End;
 
 { read the next non-blank codepoint }
-Function GetCharNbFromStream( Var f : TIStream; Var c : TChar ) : TChar;
+Function GetCharNbFromStream( f : TIStreamPtr; Var c : TChar ) : TChar;
 Begin
   GetCharNbFromStream := '';
   Repeat 
@@ -342,7 +405,7 @@ Begin
 End;
 
 { return the next codepoint with position, without consuming it }
-Procedure NextICharFromStream( Var f : TIStream; Var e : TIChar );
+Procedure NextICharFromStream( f : TIStreamPtr; Var e : TIChar );
 Begin
   GetICharFromStream(f,e);
   If Error Then Exit;
@@ -350,7 +413,7 @@ Begin
 End;
 
 { return the next codepoint without consuming it }
-Function NextCharFromStream( Var f : TIStream; Var c : TChar ) : TChar;
+Function NextCharFromStream( f : TIStreamPtr; Var c : TChar ) : TChar;
 Var
   e : TIChar;
 Begin
@@ -363,7 +426,7 @@ Begin
 End;
 
 { ditto but two codepoints in advance }
-Function NextNextCharFromStream( Var f : TIStream; Var c : TChar ) : TChar;
+Function NextNextCharFromStream( f : TIStreamPtr; Var c : TChar ) : TChar;
 Begin
   NextNextCharFromStream := '';
   c := GetCharFromStream(f,c);
@@ -379,11 +442,11 @@ End;
  are available in the input line; optionally skip spaces beforehand; skipping 
  spaces is useful when reading a terms with in(t); this is the opposite when 
  reading a char (in_char) or line (inl); }
-Procedure CheckConsoleInputStream( Var f : TIStream; SkipSpaces : Boolean );
+Procedure CheckConsoleInputStream( f : TIStreamPtr; SkipSpaces : Boolean );
 Var 
   c : TChar;
 Begin
-  If f.DeviceType = TTerminal Then
+  If f^.DeviceType = TTerminal Then
   Begin
     If SkipSpaces Then
     Begin
@@ -402,11 +465,15 @@ End;
 { DEBUG                                                                      }
 {----------------------------------------------------------------------------}
 
-Procedure IStreamDump( f : TIStream );
+Procedure IStreamDump( f : TIStreamPtr );
 Begin
-  With f Do
+  With f^ Do
   Begin
-    WriteToEchoFile('State of stream "' + FName + '"');
+    WriteToEchoFile('State of stream #' + PosIntToStr(FDesc));
+    WriteToEchoFile(CRLF);
+    WriteToEchoFile(' Alias: ' + Alias);
+    WriteToEchoFile(CRLF);
+    WriteToEchoFile(' Path: ' + FName);
     WriteToEchoFile(CRLF);
     WriteToEchoFile(' IBuf: ');
     BufDump(IBuf);

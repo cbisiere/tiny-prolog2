@@ -22,11 +22,16 @@ Interface
 Uses
   Dos,
   ShortStr,
+  Num,
   Errs,
   Chars,
   Crt2,
   Files,
+  Trace,
+  OStream,
   OStack,
+  IStream,
+  IStack,
   Memory,
   PObj,
   PObjOp,
@@ -34,7 +39,6 @@ Uses
   PObjDict,
   PObjTerm,
   PObjProg,
-  IStack,
   Encoding,
   Unparse,
   Reduc,
@@ -46,13 +50,13 @@ Type
   TPP = (
     PP_EXPAND_FILENAME,
     PP_INPUT_IS,
-    PP_INPUT,
+    PP_OPEN,
     PP_CLOSE_CURRENT_INPUT,
     PP_CLOSE_INPUT,
     PP_CLEAR_INPUT,
-    PP_IN_TERM,PP_IN_CHAR,
+    PP_IN_TERM,
+    PP_IN_CHAR,
     PP_OUTPUT_IS,
-    PP_OUTPUT,
     PP_CLOSE_CURRENT_OUTPUT,
     PP_CLOSE_OUTPUT,
     PP_FLUSH,
@@ -76,10 +80,8 @@ Procedure RegisterPredefined( P : ProgPtr );
 Function IdentifierIsSyscall( I : IdPtr ) : Boolean;
 Function PredefCallIsOk( P : ProgPtr; T : TermPtr; Var Predef : TPP ) : Boolean;
 
-Function GetPArg( n : Byte; U : TermPtr ) : TermPtr;
-Function GetFilenameArgAsStr( n : Byte; T : TermPtr ) : StrPtr;
-Function GetFilenameArgAsString( n : Byte; T : TermPtr; 
-    Var str : TString ) : Boolean;
+Function GetAtomArgAsStr( n : Byte; T : TermPtr; 
+    Quotes : Boolean ) : StrPtr;
 
 Function ClearPredef( Predef : TPP; P : ProgPtr; Q : QueryPtr; 
     T : TermPtr ) : Boolean;
@@ -92,7 +94,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 27;
+  NB_PP = 26;
   MAX_PP_LENGHT = 21; { max string length }
   SYSCALL_IDENT_AS_STRING = 'syscall'; 
 Type
@@ -111,14 +113,13 @@ Const
   PPArray : TPPArray = (
     (I:PP_EXPAND_FILENAME;S:'sysexpandfilename';N:2),
     (I:PP_INPUT_IS;S:'sysinputis';N:1),
-    (I:PP_INPUT;S:'sysinput';N:1),
+    (I:PP_OPEN;S:'sysopen';N:4),
     (I:PP_CLOSE_CURRENT_INPUT;S:'sysclosecurrentinput';N:0),
     (I:PP_CLOSE_INPUT;S:'syscloseinput';N:1),
     (I:PP_CLEAR_INPUT;S:'sysclearinput';N:0),
-    (I:PP_IN_TERM;S:'sysinterm';N:1),
-    (I:PP_IN_CHAR;S:'sysinchar';N:1),
+    (I:PP_IN_TERM;S:'sysinterm';N:2),
+    (I:PP_IN_CHAR;S:'sysinchar';N:2),
     (I:PP_OUTPUT_IS;S:'sysoutputis';N:1),
-    (I:PP_OUTPUT;S:'sysoutput';N:1),
     (I:PP_CLOSE_CURRENT_OUTPUT;S:'sysclosecurrentoutput';N:0),
     (I:PP_CLOSE_OUTPUT;S:'syscloseoutput';N:1),
     (I:PP_FLUSH;S:'sysflush';N:0),
@@ -161,15 +162,15 @@ End;
 
 
 { is an identifier a syscall? }
-Function IdentifierIsSyscall;
-(*( I : IdPtr ) : Boolean; *)
+Function IdentifierIsSyscall( I : IdPtr ) : Boolean;
 Begin
   IdentifierIsSyscall := IdentifierEqualTo(I,SYSCALL_IDENT_AS_STRING)
 End;
 
 { install all predefined, persistent constants }
 Procedure RegisterPredefined( P : ProgPtr );
-Var I : IdPtr;
+Var 
+  I : IdPtr;
 Begin
   I := InstallIdentifier(P^.PP_DCON,NewStringFrom(SYSCALL_IDENT_AS_STRING),True)
 End;
@@ -185,39 +186,132 @@ Begin
   GetPArg := TupleArgN(2+n,U)
 End;
 
-{ return as a string pointer (or Nil) argument n of a predicate, supposed to be
- a filename; filename can be a string or an identifier, and are always returned 
+{ evaluate the n-th argument of the predicate represented by tuple U }
+Function EvalPArg( n : Byte; U : TermPtr ) : TermPtr;
+Var
+  T : TermPtr;
+Begin
+  T := GetPArg(n,U);
+  EvalPArg := RepresentativeOf(T)
+End;
+
+{ evaluate an argument as an identifier or Nil }
+Function EvalPArgAsIdent( n : Byte; U : TermPtr ) : IdPtr;
+Begin
+  EvalPArgAsIdent := EvaluateToIdentifier(GetPArg(n,U))
+End;
+
+{ evaluate an argument as a string or Nil }
+Function EvalPArgAsString( n : Byte; U : TermPtr ) : ConstPtr;
+Begin
+  EvalPArgAsString := EvaluateToString(GetPArg(n,U))
+End;
+
+{ evaluate an argument as an integer or Nil }
+Function EvalPArgAsInt( n : Byte; U : TermPtr ) : ConstPtr;
+Begin
+  EvalPArgAsInt := EvaluateToInteger(GetPArg(n,U))
+End;
+
+{ return as a string pointer (or Nil) argument n of a predicate, which can be 
+ a string or an identifier; if Quotes is False, identifier is returned 
  unquoted }
-Function GetFilenameArgAsStr( n : Byte; T : TermPtr ) : StrPtr;
+Function GetAtomArgAsStr( n : Byte; T : TermPtr; 
+    Quotes : Boolean ) : StrPtr;
 Var
   I : IdPtr;
   C : ConstPtr;
   s : StrPtr;
 Begin
   s := Nil;
-  I := EvaluateToIdentifier(GetPArg(n,T));
+  I := EvalPArgAsIdent(n,T);
   If I <> Nil Then
-    s := GetIdentAsString(I,False)
+    s := GetIdentAsString(I,Quotes)
   Else
   Begin
-    C := EvaluateToString(GetPArg(n,T));
+    C := EvalPArgAsString(n,T);
     If C <> Nil Then
       s := GetConstAsString(C,False)
   End;
-  GetFilenameArgAsStr := s
+  GetAtomArgAsStr := s
 End;
 
 { return True if argument n of a predicate can be assigned to Pascal
- string str }
-Function GetFilenameArgAsString( n : Byte; T : TermPtr; 
+ string str; if Quotes is False, identifier is returned unquoted}
+Function GetAtomArgAsShortStr( n : Byte; T : TermPtr; Quotes : Boolean;
     Var str : TString ) : Boolean;
 Var
   s : StrPtr;
 Begin
-  s := GetFilenameArgAsStr(n,T);
-  If s <> Nil Then
-    str := StrGetFirstData(s);
-  GetFilenameArgAsString := s <> Nil
+  GetAtomArgAsShortStr := False;
+  s := GetAtomArgAsStr(n,T,Quotes);
+  If s = Nil Then
+    Exit;
+  str := StrGetFirstData(s);
+  If StrLength(s) > StringMaxSize Then
+  Begin
+    CWriteWarning('string too long: ');
+    CWrite(str);
+    CWrite('...');
+    CWriteLn;
+    Exit
+  End;
+  GetAtomArgAsShortStr := True
+End;
+
+{ return True if argument n of a predicate can be filename  }
+Function GetFilenameArgAsString( n : Byte; T : TermPtr; 
+    Var str : TString ) : Boolean;
+Begin
+  GetFilenameArgAsString := GetAtomArgAsShortStr(n,T,False,str)
+End;
+
+{ get a positive integer argument n }
+Function GetPosIntArg( n : Byte; T : TermPtr; Var v : PosInt ) : Boolean;
+Var
+  C : ConstPtr;
+  code : Integer;
+  str : TString;
+Begin
+  GetPosIntArg := False;
+  C := EvalPArgAsInt(n,T);
+  If C = Nil Then
+    Exit;
+  str := ConstGetPStr(C);
+  Val(str,v,code);
+  GetPosIntArg := code = 0
+End;
+
+{ get an input stream from argument n, or Nil }
+Function GetIStreamArg( n : Byte; T : TermPtr ) : TIStreamPtr;
+Var
+  f : TIStreamPtr;
+  FileAlias : TAlias;
+  FileDesc : TFileDescriptor;
+Begin
+  f := Nil;
+  If GetPosIntArg(n,T,FileDesc) Then { case 1: file descriptor }
+    f := GetIStreamFromFileDescriptor(FileDesc)
+  Else { case 2: alias; leave quotes if any }
+    If GetAtomArgAsShortStr(n,T,True,FileAlias) Then 
+      f := GetIStreamFromFileAlias(FileAlias);
+  GetIStreamArg := f
+End;
+
+{ get an output stream from argument n, or Nil }
+Function GetOStreamArg( n : Byte; T : TermPtr ) : TOStreamPtr;
+Var
+  f : TOStreamPtr;
+  FileAlias : TAlias;
+  FileDesc : TFileDescriptor;
+Begin
+  f := Nil;
+  If GetPosIntArg(n,T,FileDesc) Then { case 1: file descriptor }
+    f := GetOStreamFromFileDescriptor(FileDesc)
+  Else { case 2: alias; leave quotes if any }
+    If GetAtomArgAsShortStr(n,T,True,FileAlias) Then 
+      f := GetOStreamFromFileAlias(FileAlias);
+  GetOStreamArg := f
 End;
 
 { call to predefined T = syscall(Code,Arg1,...ArgN), meaning Code(Arg1,...,ArgN) 
@@ -350,7 +444,7 @@ End;
 Function ClearExpandFileName( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   T1 : TermPtr;
-  Pattern,Path : TString;
+  Pattern,Path : TPath;
   s : StrPtr;
   L : TermPtr;
   DirInfo: SearchRec;
@@ -420,7 +514,7 @@ Var
 Begin
   ClearOp := False;
   { 1: precedence (integer value between 1 and 1200) }
-  C1 := EvaluateToInteger(GetPArg(1,T));
+  C1 := EvalPArgAsInt(1,T);
   If C1 = Nil Then
     Exit;
   str := ConstGetPStr(C1);
@@ -432,7 +526,7 @@ Begin
   If (v < 0) Or (v > 1200) Then
     Exit;
   { 2: type of operator (identifier in a list) }
-  I2 := EvaluateToIdentifier(GetPArg(2,T));
+  I2 := EvalPArgAsIdent(2,T);
   If I2 = Nil Then
     Exit;
   Id2 := IdentifierGetPStr(I2);
@@ -440,18 +534,18 @@ Begin
     Exit;
   ot := PStrToOpType(Id2);
   { 3: operator (string or identifier) }
-  I3 := EvaluateToIdentifier(GetPArg(3,T));
+  I3 := EvalPArgAsIdent(3,T);
   If I3 <> Nil Then
     Id3 := IdentifierGetPStr(I3)
   Else
   Begin
-    C3 := EvaluateToString(GetPArg(3,T));
+    C3 := EvalPArgAsString(3,T);
     If C3 = Nil Then
       Exit;
     Id3 := ConstGetPStr(C3) { limits to StringMaxSize chars }
   End;
   { 4: functional symbol (identifier) }
-  I4 := EvaluateToIdentifier(GetPArg(4,T));
+  I4 := EvalPArgAsIdent(4,T);
   If I4 = Nil Then
     Exit;
   Id4 := IdentifierGetPStr(I4);
@@ -471,44 +565,134 @@ Begin
   ClearQuit := True
 End;
 
-{ input("buffer") }
-Function ClearInput( T : TermPtr ) : Boolean;
-Var
-  FileName : TString;
-Begin
-  ClearInput := False;
-  If Not GetFilenameArgAsString(1,T,FileName) Then 
-    Exit;
-  CloseOutput(FileName); { close the file if it was already open for output }
-  ClearInput := SetFileForInput(FileName) { TODO: warn when length > 255 }
-End;
-
-{ input_is(s) }
-Function ClearInputIs( P : ProgPtr; T : TermPtr ) : Boolean;
-Var
-  T1 : TermPtr;
-Begin
-  T1 := EmitConst(P,NewStringFrom(InputIs),CS,False);
-  ClearInputIs := ReduceOneEq(GetPArg(1,T),T1)
-End;
-
-{ close_input }
-Function ClearCloseCurrentInput : Boolean;
-Begin
-  CloseCurrentInput;
-  ClearCloseCurrentInput := True
-End;
-
 { close_input("buffer") }
 Function ClearCloseInput( T : TermPtr ) : Boolean;
 Var
-  FileName : TString;
+  f : TIStreamPtr;
 Begin
   ClearCloseInput := False;
+  f := GetIStreamArg(1,T);
+  If f = Nil Then
+    Exit;
+  CloseInputByFileDescriptor(GetIStreamDescriptor(f));
+  ClearCloseInput := True
+End;
+
+{ close_output("buffer") }
+Function ClearCloseOutput( T : TermPtr ) : Boolean;
+Var
+  f : TOStreamPtr;
+Begin
+  ClearCloseOutput := False;
+  f := GetOStreamArg(1,T);
+  If f = Nil Then
+    Exit;
+  CloseOutputByFileDescriptor(GetOStreamDescriptor(f));
+  ClearCloseOutput := True
+End;
+
+{ sysopen(F,Mode,Fd,Opt) to implement:
+ - open("buffer.txt",read/write,Fd,[alias(name)])
+ - input/output("buffer") 
+ see 
+ https://www.swi-prolog.org/pldoc/man?predicate=open/4 }
+Function ClearSetStream( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  FileName : TPath;
+  FileAlias : TAlias;
+  FileDesc : TFileDescriptor;
+  T3,T4,Td,Ta : TermPtr;
+  P1,P2 : TermPtr;
+  I2,I : IdPtr;
+  Mode : TString;
+  Ok : Boolean;
+Begin
+  ClearSetStream := False;
+  
+  { 1: file name }
   If Not GetFilenameArgAsString(1,T,FileName) Then 
     Exit;
-  CloseInputByName(FileName); { TODO: warn when length > 255 }
-  ClearCloseInput := True
+  { 2: mode (read/write) }
+  I2 := EvalPArgAsIdent(2,T);
+  If I2 = Nil Then
+    Exit;
+  Mode := IdentifierGetPStr(I2);
+  If (Mode <> 'read') And (Mode <> 'write') Then { TODO: warning }
+  Begin
+    CWriteWarning('unsupported file mode: ''');
+    CWrite(Mode);
+    CWrite('''');
+    CWriteLn;
+    Exit
+  End;
+  { 3: file descriptor; must be a free variable }
+  T3 := GetPArg(3,T);
+  If Not IsFree(T3) Then
+    Exit;
+  { 4: list of options; only [alias(ident)] is supported }
+  FileAlias := FileName; { default }
+  T4 := EvalPArg(4,T);
+  If Not IsNil(T4) Then { [] }
+  Begin
+    If Not GetList(T4,P1,P2,True) Then
+      Exit;
+    If Not IsNil(P2) Then { only one option is allowed }
+      Exit;
+    If Not GetFunc1(P1,'alias',Ta,True) Then
+    Begin
+      CWriteWarning('''alias'' is the only supported option');
+      CWriteLn;
+      Exit
+    End;
+    I := EvaluateToIdentifier(Ta);
+    If I = Nil Then
+      Exit;
+    FileAlias := IdentifierGetPStr(IdPtr(Ta))
+  End;
+
+  { ok, we have Filename, Mode, Td (free var for file descriptor), FileAlias }
+  If Mode = 'read' Then
+    Ok := SetFileForInput(FileDesc,FileAlias,FileName,True) <> Nil
+  Else
+    Ok := SetFileForOutput(FileDesc,FileAlias,FileName,True) <> Nil;
+  
+  If Ok Then
+  Begin
+    { bind the free variable with the file descriptor }
+    Td := EmitConst(P,NewStringFrom(PosIntToStr(FileDesc)),CI,True);
+    Ok := ReduceOneEq(T3,Td);
+    CheckCondition(Ok,'failed to bind a variable to a file descriptor')
+  End;
+  { close the file if it was already open in the other mode }
+  If Mode = 'read' Then
+    CloseOutputByFileName(FileName)
+  Else
+    CloseInputByFileName(FileName);
+  ClearSetStream := Ok
+End;
+
+{ input/output_is(s) }
+Function ClearStreamIs( P : ProgPtr; T : TermPtr; input : Boolean ) : Boolean;
+Var
+  T1 : TermPtr;
+  FileAlias : TAlias; 
+Begin
+  If input Then
+    FileAlias := InputIs
+  Else
+    FileAlias := OutputIs;
+  T1 := EmitConst(P,NewStringFrom(FileAlias),CS,False);
+  ClearStreamIs := ReduceOneEq(GetPArg(1,T),T1)
+End;
+
+{ close_input/output }
+Function ClearCloseCurrentStream( input : Boolean ) : Boolean;
+Begin
+  If input Then
+    CloseCurrentInput
+  Else
+    CloseCurrentOutput;
+  ClearCloseCurrentStream := True
 End;
 
 { clear_input }
@@ -516,46 +700,6 @@ Function ClearClearInput : Boolean;
 Begin
   DoClearInput;
   ClearClearInput := True
-End;
-
-{ output("buffer") }
-Function ClearOutput( T : TermPtr ) : Boolean;
-Var
-  FileName : TString;
-Begin
-  ClearOutput := False;
-  If Not GetFilenameArgAsString(1,T,FileName) Then 
-    Exit;
-  CloseInputByName(FileName); { close the file if it was already open for input }
-  ClearOutput := SetFileForOutput(FileName) { TODO: warn when length > 255 }
-End;
-
-{ output_is(s) }
-Function ClearOutputIs( P : ProgPtr; T : TermPtr ) : Boolean;
-Var
-  T1 : TermPtr;
-Begin
-  T1 := EmitConst(P,NewStringFrom(OutputIs),CS,False);
-  ClearOutputIs := ReduceOneEq(GetPArg(1,T),T1)
-End;
-
-{ close_output }
-Function ClearCloseCurrentOutput : Boolean;
-Begin
-  CloseCurrentOutput;
-  ClearCloseCurrentOutput := True
-End;
-
-{ close_output("buffer") }
-Function ClearCloseOutput( T : TermPtr ) : Boolean;
-Var
-  FileName : TString;
-Begin
-  ClearCloseOutput := False;
-  If Not GetFilenameArgAsString(1,T,FileName) Then 
-    Exit;
-  CloseOutput(FileName); { TODO: warn when length > 255 }
-  ClearCloseOutput := True
 End;
 
 { flush }
@@ -602,33 +746,52 @@ Begin
   ClearClrScr := True
 End;
 
-{ in(T) }
+{ read_term(Stream,T) }
 Function ClearInTerm( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
-  T1 : TermPtr;
+  f : TIStreamPtr;
+  T2,Tr : TermPtr;
 Begin
   ClearInTerm := False;
-  CheckConsoleInput(True);
-  T1 := ParseOneTerm(P);
+  { 1: stream }
+  f := GetIStreamArg(1,T);
+  If f = Nil Then
+    Exit;
+  { 2: term variable }
+  T2 := GetPArg(2,T);
+
+  { buffer in console input, when necessary; skip leading spaces }
+  CheckConsoleInputStream(f,True);
+  { read the term }
+  Tr := ParseOneTerm(f,P);
   If Error Then
     Exit;
-  ClearInTerm := ReduceOneEq(GetPArg(1,T),T1)
+  ClearInTerm := ReduceOneEq(T2,Tr)
 End;
 
-{ in_char(C) }
+{ get_char(Stream,C) }
 Function ClearInChar( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
-  T1 : TermPtr;
-  str : TString;
-  ch : TChar;
+  T2,Tc : TermPtr;
+  c : TChar;
+  f : TIStreamPtr;
 Begin
   ClearInChar := False;
-  CheckConsoleInput(False);
-  str := GetChar(ch);
+  { 1: stream }
+  f := GetIStreamArg(1,T);
+  If f = Nil Then
+    Exit;
+  { 2: char variable }
+  T2 := GetPArg(2,T);
+
+  { buffer in console input, when necessary; do not skip spaces }
+  CheckConsoleInputStream(f,False);
+  { get the char }
+  c := GetCharFromStream(f,c);
   If Error Then
     Exit;
-  T1 := EmitConst(P,NewStringFrom(str),CS,False);
-  ClearInChar := ReduceOneEq(GetPArg(1,T),T1)
+  Tc := EmitConst(P,NewStringFrom(c),CS,False);
+  ClearInChar := ReduceOneEq(T2,Tc)
 End;
 
 { bt }
@@ -667,22 +830,20 @@ Begin
     Ok := ClearQuit;
   PP_EXPAND_FILENAME:
     Ok := ClearExpandFileName(P,T);
-  PP_INPUT:
-    Ok := ClearInput(T);
+  PP_OPEN:
+    Ok := ClearSetStream(P,T);
   PP_INPUT_IS:
-    Ok := ClearInputIs(P,T);
+    Ok := ClearStreamIs(P,T,True);
   PP_CLOSE_CURRENT_INPUT:
-    Ok := ClearCloseCurrentInput;
+    Ok := ClearCloseCurrentStream(True);
   PP_CLOSE_INPUT: 
     Ok := ClearCloseInput(T);
   PP_CLEAR_INPUT: 
     Ok := ClearClearInput;
-  PP_OUTPUT: 
-    Ok := ClearOutput(T);
   PP_OUTPUT_IS: 
-    Ok := ClearOutputIs(P,T);
+    Ok := ClearStreamIs(P,T,False);
   PP_CLOSE_CURRENT_OUTPUT:
-    Ok := ClearCloseCurrentOutput;
+    Ok := ClearCloseCurrentStream(False);
   PP_CLOSE_OUTPUT:
     Ok := ClearCloseOutput(T);
   PP_FLUSH:
