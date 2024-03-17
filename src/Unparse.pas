@@ -180,9 +180,9 @@ Begin
 End;
 
 { write an identifier }
-Procedure WriteIdentifier( s : StrPtr; I : IdPtr );
+Procedure WriteIdentifier( s : StrPtr; I : IdPtr; Quotes : Boolean );
 Begin
-  StrConcat(s,IdentifierGetStr(I))
+  StrConcat(s,GetIdentAsString(I,Quotes))
 End;
 
 
@@ -230,7 +230,7 @@ Begin
         Else
           StrAppend(s,'nil')
       Else
-        WriteIdentifier(s,IT)
+        WriteIdentifier(s,IT,Quotes)
     End;
   Variable:
     Begin
@@ -292,7 +292,7 @@ Begin
         Th := GetTupleHead(T,Solution);
         If TypeOfTerm(Th) = Identifier Then
         Begin
-          WriteIdentifier(s,ITh);
+          WriteIdentifier(s,ITh,Quotes);
           T1 := GetTupleQueue(T,Solution);
           If T1 <> Nil Then { <ident,a,b,...> == ident(a,b,...) }
           Begin
@@ -625,7 +625,7 @@ Procedure OutIdentifier( I : IdPtr; UseIOStack : Boolean );
 Var s : StrPtr;
 Begin
   s := NewString;
-  WriteIdentifier(s,I);
+  WriteIdentifier(s,I,True);
   OutString(s,UseIOStack)
 End;
 

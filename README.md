@@ -363,7 +363,8 @@ Predicate | Meaning | Example
 `expand_file_name(F,L)`| list files using a pattern | `?- expand_file_name('~/bin/*',L).`
 `open(F,M,D,O)`, `open(F,M,D)`| open a stream, setting a descriptor `D` | `?- open('~/data.txt',read,D,alias(data)).`
 `close(S)`| close a stream `S` | `?- close(data).`
-`get_char(S,C)`, `get_char(C)`| read a char from stream `S` or from the current stream | `?- get_char(data,C).`
+`get_char(S,C)`, `get_char(C)`| read a character from stream `S` or from the current stream | `?- get_char(data,C).`
+`put_char(C)` | write a character to the current stream | `?- put_char('a').`
 `read(S,T)`, `read(T)`| read a term from stream `S` or from the current stream | `?- read(data,T).`
 `asserta(T)`, `assertz(T)`| insert a fact at the beginning or end of a group of rules | `?- asserta(animal(cat)).`
 

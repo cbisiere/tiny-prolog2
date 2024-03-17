@@ -766,7 +766,7 @@ Begin
   ClearOut := True
 End;
 
-{ outm("hello") }
+{ outm("hello"), or put_char('a'); TODO: put_char(Stream,Char) }
 Function ClearOutm( P : ProgPtr; T : TermPtr ) : Boolean;
 Begin
   OutTermBis(GetSyntax(P),GetPArg(1,T),False,False,True);

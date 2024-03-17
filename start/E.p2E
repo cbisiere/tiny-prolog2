@@ -15,6 +15,7 @@ close(Stream) :- syscall(syscloseinput,Stream), !.
 close(Stream) :- syscall(syscloseoutput,Stream).
 get_char(Stream,Char) :- syscall(sysinchar,Stream,Char).
 get_char(Char) :- syscall(sysinputis,Stream) syscall(sysinchar,Stream,Char).
+put_char(Char) :- syscall(sysoutm,Char).
 read(Stream,Term) :- syscall(sysinterm,Stream,Term).
 read(Term) :- syscall(sysinputis,Stream) syscall(sysinterm,Stream,Term).
 asserta(Term) :- syscall(sysasserta,Term).
