@@ -20,6 +20,7 @@ Unit PObjTerm;
 Interface
 
 Uses
+  Common,
   ShortStr,
   Num,
   Errs,
@@ -108,6 +109,7 @@ Function FRed( F : FuncPtr ) : TermPtr;
 Function RepresentativeOf( T : TermPtr ) : TermPtr;
 Function IsBound( T : TermPtr ) : Boolean;
 Function IsFree( T : TermPtr ) : Boolean;
+Function CopyTerm( T : TermPtr ) : TermPtr;
 Function EvaluateToInteger( T : TermPtr ) : ConstPtr;
 Function EvaluateToString( T : TermPtr ) : ConstPtr;
 Function EvaluateToIdentifier( T : TermPtr ) : IdPtr;
@@ -406,6 +408,12 @@ End;
 { methods: reduced system                                               }
 {-----------------------------------------------------------------------}
 
+{ remove bindings for a functional symbol in the reduced system }
+Procedure UnbindFunc( F : FuncPtr );
+Begin
+  F^.TF_TRED := Nil
+End;
+
 { remove bindings for a variable in the reduced system }
 Procedure UnbindVar( V : AssPtr );
 Begin
@@ -518,6 +526,36 @@ Begin
     Exit;
   IsFree := Not IsBound(T)
 End;
+
+{ deep copy a term, w/ evaluations }
+Function CopyTerm( T : TermPtr ) : TermPtr;
+
+  Function CopyT( T : TermPtr ) : TermPtr;
+  Begin
+    T := RepresentativeOf(T);
+    If T <> Nil Then
+      Case TypeOfTerm(T) Of
+      Constant,
+      Identifier, { TODO: what happens when assigned (now or later)? }
+      Variable :
+        Pass;
+      FuncSymbol:
+        Begin
+          T := DeepCopyObject(T,False);
+          With FuncPtr(T)^ Do
+          Begin
+            TF_LTER := CopyT(TF_LTER);
+            TF_RTER := CopyT(TF_RTER)
+          End
+        End;
+      End;
+    CopyT := T
+  End;
+Begin
+  PrepareDeepCopy(T);
+  CopyTerm := CopyT(T)
+End;
+
 
 { return the constant term (number or string constant) the term T is 
   equal to, possibly going through the reduced system, of Nil if T is 

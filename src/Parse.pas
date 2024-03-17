@@ -754,21 +754,16 @@ End;
 
 { compile a goal at rule or query level }
 Function CompileRuleHead( f : TIStreamPtr; P : ProgPtr; Var K : TokenPtr; 
-  glob : Boolean; Cut : Boolean ) : BTermPtr;
+    glob : Boolean; Cut : Boolean ) : BTermPtr;
 Var 
-  B : BTermPtr;
+  T : TermPtr;
 Begin
   CompileRuleHead := Nil;
-  B := NewBTerm;
-  With B^ Do
-  Begin
-    PrepareExprParsing;
-    BT_TERM := ReadPTerm(f,P,K,glob,Cut);
-    If Error Then Exit;
-    TerminateExprParsing;
-    BT_ACCE := AccessIdentifier(BT_TERM)
-  End;
-  CompileRuleHead := B
+  PrepareExprParsing;
+  T := ReadPTerm(f,P,K,glob,Cut);
+  If Error Then Exit;
+  TerminateExprParsing;
+  CompileRuleHead := NewBTerm(T)
 End;
 
 { compile a goal at rule or query level }
@@ -776,25 +771,18 @@ Function CompileOneGoal( f : TIStreamPtr; P : ProgPtr; Var K : TokenPtr;
   glob : Boolean; Cut : Boolean ) : BTermPtr;
 Var 
   y : TSyntax;
-  B : BTermPtr;
   T : TermPtr;
 Begin
   CompileOneGoal := Nil;
   y := GetSyntax(P);
-  B := NewBTerm;
-  With B^ Do
-  Begin
-    PrepareExprParsing;
-    If y = Edinburgh Then { see rule 2.2: expr are allowed at top level }
-      T := ReadOneExpr(f,P,K,1199,glob,Cut)
-    Else
-      T := ReadPTerm(f,P,K,glob,Cut);
-    If Error Then Exit;
-    TerminateExprParsing;
-    BT_TERM := T;
-    BT_ACCE := AccessIdentifier(BT_TERM)
-  End;
-  CompileOneGoal := B
+  PrepareExprParsing;
+  If y = Edinburgh Then { see rule 2.2: expr are allowed at top level }
+    T := ReadOneExpr(f,P,K,1199,glob,Cut)
+  Else
+    T := ReadPTerm(f,P,K,glob,Cut);
+  If Error Then Exit;
+  TerminateExprParsing;
+  CompileOneGoal := NewBTerm(T)
 End;
 
 { compile a (possibly empty) sequence of goals, stopping at a token in 
@@ -908,16 +896,20 @@ End;
 Function CompileRules( f : TIStreamPtr; P : ProgPtr; Var K : TokenPtr; 
     StopTokens : TTokenSet; RuleType : RuType ) : RulePtr;
 Var
-  R : RulePtr;
+  R1,R2 : RulePtr;
 Begin
   CompileRules := Nil;
   If (TokenType(K) In StopTokens) Or (Error) Then
     Exit;
-  R := CompileOneRule(f,P,K,RuleType);
+  R1 := CompileOneRule(f,P,K,RuleType);
   If Error Then Exit;
-  R^.RU_NEXT := CompileRules(f,P,K,StopTokens,RuleType);
+  R2 := CompileRules(f,P,K,StopTokens,RuleType);
   If Error Then Exit;
-  CompileRules := R
+  If R2 = Nil Then
+    R1^.RU_NEXT := Nil
+  Else
+    ChainRules(R1,R2);
+  CompileRules := R1
 End;
 
 { set up local variable context to prepare compiling a new query }
@@ -1109,7 +1101,7 @@ Begin
       Begin
         Rn := CompileRules(f,P,K,StopTokens + [TOKEN_ARROW],RuleType);
         If Rn <> Nil Then
-          Ra := InsertRulesAfter(P,Ra,Rn) { Ra is now the last compiled rule }
+          Ra := InsertRulesA(P,Ra,Rn) { Ra is now the last compiled rule }
       End
     End
   Until Stop Or Error;

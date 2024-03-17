@@ -48,6 +48,8 @@ Uses
 
 Type
   TPP = (
+    PP_ASSERTA,
+    PP_ASSERTZ,
     PP_EXPAND_FILENAME,
     PP_INPUT_IS,
     PP_OPEN,
@@ -94,7 +96,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 26;
+  NB_PP = 28;
   MAX_PP_LENGHT = 21; { max string length }
   SYSCALL_IDENT_AS_STRING = 'syscall'; 
 Type
@@ -111,6 +113,8 @@ Type
 
 Const 
   PPArray : TPPArray = (
+    (I:PP_ASSERTA;S:'sysasserta';N:1),
+    (I:PP_ASSERTZ;S:'sysassertz';N:1),
     (I:PP_EXPAND_FILENAME;S:'sysexpandfilename';N:2),
     (I:PP_INPUT_IS;S:'sysinputis';N:1),
     (I:PP_OPEN;S:'sysopen';N:4),
@@ -370,6 +374,44 @@ End;
 { clear predefined predicates (except insert)                                }
 {----------------------------------------------------------------------------}
 
+{ asserta(T), assertz(T); TODO: handle rules (we handle facts, for now) }
+Function ClearAssert( P : ProgPtr; T : TermPtr; first : Boolean ) : Boolean;
+Var
+  T1 : TermPtr;
+  Ih : IdPtr;
+  R,Ri : RulePtr;
+Begin
+  ClearAssert := False;
+  { 1: the fact (ident or predicate) }
+  T1 := GetPArg(1,T);
+
+  { deep copy with eval }
+  T1 := CopyTerm(T1);
+
+  { get the head }
+  Ih := AccessIdentifier(T1);
+  If Ih = Nil Then
+    Exit;
+
+  { create the rule from the term }
+  R := NewRule(RTYPE_USER,GetSyntax(P));
+  R^.RU_FBTR := NewBTerm(T1);
+
+  { insert the rule }
+  Ri := FirstRuleWithHead(P,Ih);
+  If Ri = Nil Then { no rules yet; insert at the end }
+    AppendRules(P,R)
+  Else If first Then { asserta }
+    R := InsertRulesB(P,Ri,R)
+  Else { assertz }
+  Begin
+    Ri := LastRuleWithHead(P,Ih);
+    R := InsertRulesA(P,Ri,R)
+  End;
+
+  ClearAssert := True
+End;
+
 { dif(T1,T2) }
 Function ClearDif( T : TermPtr ) : Boolean;
 Var
@@ -480,8 +522,8 @@ Var
   L : TermPtr;
 Begin
   ClearUniv := False;
-  T1 := RepresentativeOf(GetPArg(1,T));
-  T2 := RepresentativeOf(GetPArg(2,T));
+  T1 := EvalPArg(1,T);
+  T2 := EvalPArg(2,T);
   { create a new list from T1 }
   Case TypeOfTerm(T1) Of
   Constant,Identifier:
@@ -828,6 +870,10 @@ Begin
     Ok := ClearOp(P,T);
   PP_QUIT:
     Ok := ClearQuit;
+  PP_ASSERTA:
+    Ok := ClearAssert(P,T,True);
+  PP_ASSERTZ:
+    Ok := ClearAssert(P,T,False);
   PP_EXPAND_FILENAME:
     Ok := ClearExpandFileName(P,T);
   PP_OPEN:

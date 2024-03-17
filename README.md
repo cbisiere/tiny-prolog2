@@ -365,6 +365,7 @@ Predicate | Meaning | Example
 `close(S)`| close a stream `S` | `?- close(data).`
 `get_char(S,C)`, `get_char(C)`| read a char from stream `S` or from the current stream | `?- get_char(data,C).`
 `read(S,T)`, `read(T)`| read a term from stream `S` or from the current stream | `?- read(data,T).`
+`asserta(T)`, `assertz(T)`| insert a fact at the beginning or end of a group of rules | `?- asserta(animal(cat)).`
 
 #### All syntaxes
 

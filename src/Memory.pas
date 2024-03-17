@@ -84,7 +84,9 @@ Function NewRegisteredObject( t : TObjectTypeIndex; b: TObjectSize ; n: Byte;
     CanCopy : Boolean; d : Byte ) : TObjectPtr;
 Procedure DumpRegisteredObject;
 
-{ deep copy }
+{ copy and deep copy }
+Procedure PrepareDeepCopy( p : TObjectPtr );
+Function DeepCopyObject( p : TObjectPtr; CopyChildren : Boolean ) : TObjectPtr;
 Function DeepCopy( p : TObjectPtr ) : TObjectPtr;
 
 { GC }
@@ -686,8 +688,12 @@ Begin
 End;
 
 
-{ deep copy of an object, or Nil if p is Nil }
-Function DeepCopyObject( p : TObjectPtr ) : TObjectPtr;
+{ deep copy of an object, or Nil if p is Nil; deep copy all the children if
+ CopyChildren is True; this boolean allows writing tailor-made deep copy 
+ procedures (see, e.g. CopyTerm); note that such procedure should only go
+ through children declared as subject to deep copy, since PrepareDeepCopy
+ only go through them }
+Function DeepCopyObject( p : TObjectPtr; CopyChildren : Boolean ) : TObjectPtr;
 Var 
   pc : TObjectPtr;
   i : Byte;
@@ -709,8 +715,9 @@ Begin
       Else
       Begin
         pc := CopyObject(p);
-        For i := 1 To ObjectNbChildrenToCopy(p) Do
-          SetObjectChild(pc,i,DeepCopyObject(ObjectChild(p,i)))
+        If CopyChildren Then
+          For i := 1 To ObjectNbChildrenToCopy(p) Do
+            SetObjectChild(pc,i,DeepCopyObject(ObjectChild(p,i),CopyChildren))
       End
     End
   End;
@@ -870,7 +877,7 @@ Var
   pc : TObjectPtr;
 Begin
   PrepareDeepCopy(p);
-  pc := DeepCopyObject(p);
+  pc := DeepCopyObject(p,True);
   DeepCopy := pc
 End;
 

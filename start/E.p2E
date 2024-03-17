@@ -6,7 +6,7 @@ quit :- outml("bye!"), syscall(sysquit).
 list :- syscall(syslist).
 insert(F) :- syscall(sysinsert,F).
 
-"i/o: SWI"
+"i/o: ISO/SWI"
 
 expand_file_name(F,L) :- syscall(sysexpandfilename,F,L).
 open(File,Mode,Stream,Opt) :- syscall(sysopen,File,Mode,Stream,Opt).
@@ -17,6 +17,8 @@ get_char(Stream,Char) :- syscall(sysinchar,Stream,Char).
 get_char(Char) :- syscall(sysinputis,Stream) syscall(sysinchar,Stream,Char).
 read(Stream,Term) :- syscall(sysinterm,Stream,Term).
 read(Term) :- syscall(sysinputis,Stream) syscall(sysinterm,Stream,Term).
+asserta(Term) :- syscall(sysasserta,Term).
+assertz(Term) :- syscall(sysassertz,Term).
 
 "i/o: PII+"
 

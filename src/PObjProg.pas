@@ -67,6 +67,7 @@ Type
   TObjRule = Record
     PO_META : TObjMeta;
     { deep copied: }
+    RU_PREV : RulePtr; { previous rule }
     RU_NEXT : RulePtr; { next rule }
     RU_FBTR : BTermPtr; { list of terms (the first is the rule head) }
     RU_SYST : EqPtr; { list of equation or inequation in the rule; Warning: not GC }
@@ -138,7 +139,7 @@ Type
   End;
 
 
-Function NewBTerm : BTermPtr;
+Function NewBTerm( T : TermPtr ) : BTermPtr;
 Function NewQuery( level : TILevel; y : TSyntax ) : QueryPtr;
 Function NewRule( RuleType : RuType; y : TSyntax ) : RulePtr;
 Function NewProgram : ProgPtr;
@@ -151,8 +152,15 @@ Function EmitShortIdent( P : ProgPtr; ident : TString;
 
 Function NextTerm( B : BTermPtr ) : BTermPtr;
 Function AccessTerm( B : BTermPtr ) : IdPtr;
+Function PrevRule( R : RulePtr ) : RulePtr;
 Function NextRule( R : RulePtr ) : RulePtr;
-Function InsertRulesAfter( P : ProgPtr; Ra, R : RulePtr ) : RulePtr;
+Procedure ChainRules( R1,R2 : RulePtr );
+Function FirstRuleWithHead( P : ProgPtr; I : IdPtr ) : RulePtr;
+Function LastRuleWithHead( P : ProgPtr; I : IdPtr ) : RulePtr;
+Procedure PrependRules( P : ProgPtr; R : RulePtr );
+Procedure AppendRules( P : ProgPtr; R : RulePtr );
+Function InsertRulesB( P : ProgPtr; Rb, R : RulePtr ) : RulePtr;
+Function InsertRulesA( P : ProgPtr; Ra, R : RulePtr ) : RulePtr;
 Function NextQuery( Q : QueryPtr ) : QueryPtr;
 Function FirstRuleInQueryScope( Q : QueryPtr ) : RulePtr;
 Procedure SetFirstRuleInQueryScope( Q : QueryPtr; R : RulePtr );
@@ -192,8 +200,8 @@ Implementation
 { constructors                                                          }
 {-----------------------------------------------------------------------}
 
-{ new block }
-Function NewBTerm : BTermPtr;
+{ new block for term T }
+Function NewBTerm( T : TermPtr ) : BTermPtr;
 Var 
   B : BTermPtr;
   ptr : TObjectPtr Absolute B;
@@ -201,9 +209,9 @@ Begin
   ptr := NewRegisteredPObject(BT,SizeOf(TObjBTerm),4,True,3);
   With B^ Do
   Begin
-    BT_TERM := Nil;
+    BT_TERM := T;
     BT_NEXT := Nil;
-    BT_ACCE := Nil;
+    BT_ACCE := AccessIdentifier(T);
     BT_HEAD := Nil
   End;
   NewBTerm := B
@@ -239,9 +247,10 @@ Var
   R : RulePtr;
   ptr : TObjectPtr Absolute R;
 Begin
-  ptr := NewRegisteredPObject(RU,SizeOf(TObjRule),5,True,3);
+  ptr := NewRegisteredPObject(RU,SizeOf(TObjRule),6,True,4);
   With R^ Do
   Begin
+    RU_PREV := Nil;
     RU_NEXT := Nil;
     RU_FBTR := Nil;
     RU_SYST := Nil;
@@ -354,6 +363,12 @@ Begin
   AccessTerm := B^.BT_ACCE
 End;
 
+{ previous rule }
+Function PrevRule( R : RulePtr ) : RulePtr;
+Begin
+  PrevRule := R^.RU_PREV
+End;
+
 { next rule }
 Function NextRule( R : RulePtr ) : RulePtr;
 Begin
@@ -368,38 +383,162 @@ Begin
   LastRule := R
 End;
 
+{ first rule whose head is a given identifier, or Nil }
+Function FirstRuleWithHead( P : ProgPtr; I : IdPtr ) : RulePtr;
+Var
+  R : RulePtr;
+  Ir : IdPtr;
+  Found : Boolean;
+Begin
+  Found := False;
+  R := FirstProgramRule(P);
+  While (R <> Nil) And Not Found Do
+  Begin
+    Ir := AccessTerm(R^.RU_FBTR);
+    Found := SameTerms(TermPtr(Ir),TermPtr(I));
+    If Not Found Then
+      R := NextRule(R)
+  End;
+  If Not Found Then
+    R := Nil;
+  FirstRuleWithHead := R
+End;
+
+{ last rule whose head is a given identifier, or Nil }
+Function LastRuleWithHead( P : ProgPtr; I : IdPtr ) : RulePtr;
+Var
+  R : RulePtr;
+  Ir : IdPtr;
+  Found : Boolean;
+Begin
+  Found := False;
+  R := LastProgramRule(P);
+  While (R <> Nil) And Not Found Do
+  Begin
+    Ir := AccessTerm(R^.RU_FBTR);
+    Found := SameTerms(TermPtr(Ir),TermPtr(I));
+    If Not Found Then
+      R := PrevRule(R)
+  End;
+  If Not Found Then
+    R := Nil;
+  LastRuleWithHead := R
+End;
+
+{ link two rules: R1 --> R2 }
+Procedure ChainRules( R1,R2 : RulePtr );
+Begin
+  R1^.RU_NEXT := R2;
+  R2^.RU_PREV := R1
+End;
+
+{ insert a list of rules R before rule Rb of program P; does not update P's
+ list pointers }
+Procedure InsertRulesBefore( Rb, R : RulePtr );
+Var
+  Rp,Rl : RulePtr;
+Begin
+  CheckCondition(Rb <> Nil,'InsertRulesBefore: Rb is Nil');
+  CheckCondition(R <> Nil,'InsertRulesBefore: R is Nil');
+
+  { goal: prev(Rb) --> first(R) --> ... --> last(R) --> Rb }
+  Rp := PrevRule(Rb);
+  Rl := LastRule(R);
+
+  { last(R) <--> Rb }
+  ChainRules(Rl,Rb);
+
+  { prev(Rb) <--> first(R) }
+  If Rp <> Nil Then
+    ChainRules(Rp,R)
+End;
+
+{ insert a list of rules R after rule Ra of program P; does not update P's
+ list pointers }
+Procedure InsertRulesAfter( Ra, R : RulePtr );
+Var
+  Rn,Rl : RulePtr;
+Begin
+  CheckCondition(Ra <> Nil,'InsertRulesAfter: Ra is Nil');
+  CheckCondition(R <> Nil,'InsertRulesAfter: R is Nil');
+
+  { goal: Ra --> first(R) --> ... --> last(R) --> next(Ra) }
+  Rn := NextRule(Ra);
+  Rl := LastRule(R);
+
+  { Ra <--> first(R) }
+  ChainRules(Ra,R);
+
+  { last(R) <--> next(Ra) }
+  If Rn <> Nil Then
+    ChainRules(Rl,Rn)
+End;
+
+{ prepend a non-empty list of rules R to program P }
+Procedure PrependRules( P : ProgPtr; R : RulePtr );
+Var
+  Rl : RulePtr;
+Begin
+  Rl := LastRule(R);
+  R^.RU_PREV := Nil;
+
+  if P^.PP_FRUL = Nil Then
+    P^.PP_LRUL := Rl { last(P) := last(R) }
+  Else
+    ChainRules(Rl,P^.PP_FRUL); { last(R) <--> first(P) }
+  P^.PP_FRUL := R { first(P) := first(R) }
+End;
+
 { append a non-empty list of rules R to program P }
 Procedure AppendRules( P : ProgPtr; R : RulePtr );
+Var
+  Rl : RulePtr;
 Begin
+  Rl := LastRule(R);
+  R^.RU_PREV := Nil;
+
   if P^.PP_FRUL = Nil Then
     P^.PP_FRUL := R
   Else
-    P^.PP_LRUL^.RU_NEXT := R;
-  P^.PP_LRUL := LastRule(R)
+    ChainRules(P^.PP_LRUL,R);
+  P^.PP_LRUL := Rl
+End;
+
+{ insert a list of rules R before rule Rb of program P, or, if Rb is Nil, just
+ prepend the list R to program P; return the first element of R (for chaining) }
+Function InsertRulesB( P : ProgPtr; Rb, R : RulePtr ) : RulePtr;
+Begin
+  CheckCondition(R <> Nil,'InsertRulesB: R is Nil');
+  CheckCondition((P^.PP_FRUL = Nil) And (P^.PP_LRUL = Nil) 
+      Or (P^.PP_FRUL <> Nil) And (P^.PP_LRUL <> Nil), 
+      'broken list of rules');
+  If Rb = Nil Then
+    PrependRules(P,R)
+  Else If PrevRule(Rb) = Nil Then { Ra is the first rule of P }
+    PrependRules(P,R)
+  Else
+    InsertRulesBefore(Rb,R); { insertion "inside" P's rules, so no change to P }
+  InsertRulesB := R
 End;
 
 { insert a list of rules R after rule Ra of program P, or, if Ra is Nil, just
  append the list R to program P; return the last element of R (for chaining) }
-Function InsertRulesAfter( P : ProgPtr; Ra, R : RulePtr ) : RulePtr;
+Function InsertRulesA( P : ProgPtr; Ra, R : RulePtr ) : RulePtr;
 Var
-  Rn,tmp : RulePtr;
+  Rn : RulePtr;
 Begin
-  CheckCondition(R <> Nil,'InsertRulesAfter: R is Nil');
+  CheckCondition(R <> Nil,'InsertRulesA: R is Nil');
   CheckCondition((P^.PP_FRUL = Nil) And (P^.PP_LRUL = Nil) 
       Or (P^.PP_FRUL <> Nil) And (P^.PP_LRUL <> Nil), 
       'broken list of rules');
   Rn := LastRule(R);
   If Ra = Nil Then
     AppendRules(P,R)
-  Else If NextRule(Ra) = Nil Then
+  Else If NextRule(Ra) = Nil Then { Ra is the last rule of P }
     AppendRules(P,R)
   Else
-  Begin { insertion "inside" P's rules, so no change to PP_FRUL and PP_LRUL }
-    tmp := NextRule(Ra);
-    Ra^.RU_NEXT := R;
-    Rn^.RU_NEXT := tmp
-  End;
-  InsertRulesAfter := Rn
+    InsertRulesAfter(Ra,R); { insertion "inside" P's rules, so no change to P }
+  InsertRulesA := Rn
 End;
 
 { next query }
