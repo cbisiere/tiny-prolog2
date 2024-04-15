@@ -25,6 +25,7 @@ Uses
   Files,
   Memory,
   PObjStr,
+  PObjDef,
   PObjProg,
   Debug,
   Predef,
@@ -52,6 +53,7 @@ Var
   s : StrPtr;
   os : TObjectPtr Absolute s;
   KnownPar, HasFilePar, HasSyntaxPar, SkipStartFile : Boolean;
+  DummyOk : Boolean;
 Begin
 
   HasSyntaxPar := False;
@@ -108,26 +110,25 @@ Begin
         SetSyntax(P,y)
   End;
 
-  { load the startup file }
+  { load the startup file into the current world }
   If Not Error And Not SkipStartFile Then
   Begin
     y := GetSyntax(P);
-    s := NewStringFrom('start/' + StartFile[y] + '.' + FileExt[y]);
+    s := Str_NewFromString('start/' + StartFile[y] + '.' + FileExt[y]);
     AddGCRoot(os); { protect this string from GC }
-    SetRuleType(P,RTYPE_AUTO);
-    LoadProgram(P,Nil,s,False)
+    LoadProgram(P,s,False)
   End;
 
-  { from now on, all rules are user rules }
-  SetRuleType(P,RTYPE_USER);
+  { create the default user world below the current world }
+  DummyOk := CreateNewSubWorld(P,Str_NewFromString('Normal'),True);
 
   { load the user file }
   If Not Error And HasFilePar Then
   Begin
     SetProgramPath(P,ExtractPath(filename));
-    s := NewStringFrom(filename);
+    s := Str_NewFromString(filename);
     AddGCRoot(os); { protect this string from GC }
-    LoadProgram(P,Nil,s,False)
+    LoadProgram(P,s,False)
   End
 End;
 
@@ -137,7 +138,7 @@ Var
   P : ProgPtr;
   OP : TObjectPtr Absolute P;
 Begin
-  P := NewProgram;
+  P := Prog_New;
   AddGCRoot(OP);
   SetCurrentProgram(P); 
   RegisterPredefined(P);

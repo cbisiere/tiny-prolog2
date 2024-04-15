@@ -1,34 +1,78 @@
-"Prolog II (1982) predefined rules"
+"Prolog II version 2 (1982) predefined rules"
+
+"worlds"
+
+world(W) -> syscall(sysworld,W);
+new-subworld(W) -> syscall(sysnewworld,W);
+kill-subworld(W) -> syscall(syskillworld,W);
+climb(W) -> syscall(sysclimbworld,W);
+climb -> syscall(sysparentworld,W) syscall(sysclimbworld,W);
+down(W) -> string(W) syscall(sysdownworld,W);
+state -> syscall(sysstateworld);
+
+"statements"
+
+down(N) -> integer(N) syscall(sysdownstatement,N);
+down -> down(1);
+up(N) -> syscall(sysupstatement,N);
+up -> up(1);
+top -> syscall(systopstatement);
+bottom -> syscall(sysbottomstatement);
+
+find-rule(I) -> syscall(sysfindrule,I);
+rule(T,Q) -> syscall(sysrule,T,Q);
+
+insert(F) -> syscall(sysinsert,F);
+insert -> input-is(F) syscall(sysinsert,F);
+suppress(N) -> syscall(syssuppress,N);
+
+"rules"
+
+list(N) -> syscall(syslist,N);
+list -> list(0);
+assert(<T,Q>) -> syscall(sysasserta,T,Q);
 
 "session"
 
 quit -> outml("bye!") syscall(sysquit);
-list -> syscall(syslist);
-insert(F) -> syscall(sysinsert,F);
+
+"is"
+
+ident(T) -> syscall(sysisdent,T);
+integer(T) -> syscall(sysisinteger,T);
+real(T) -> syscall(sysisreal,T);
+string(T) -> syscall(sysisstring,T);
+dot(T) -> syscall(sysisdot,T);
+tuple(T) -> syscall(sysistuple,T);
+
+"string"
+
+char-code(C,N) -> syscall(syscharcode,C,N);
 
 "i/o"
 
 input-is(F) -> syscall(sysinputis,F);
-input(F) -> syscall(sysopen,F,read,S,nil);
-close-input -> syscall(sysclosecurrentinput);
+input(F) -> syscall(sysselectinput,F) /;
+input(F) -> syscall(sysopennew,F,read,S,alias(F));
+close-input -> input-is(F) close-input(F);
 close-input(F) -> syscall(syscloseinput,F);
 clear-input -> syscall(sysclearinput);
 
 output-is(F) -> syscall(sysoutputis,F);
-output(F) -> syscall(sysopen,F,write,S,nil);
-close-output -> syscall(sysclosecurrentoutput);
+output(F) -> syscall(sysselectoutput,F) /;
+output(F) -> syscall(sysopennew,F,write,S,alias(F));
+close-output -> output-is(F) close-output(F);
 close-output(F) -> syscall(syscloseoutput,F);
 flush -> syscall(sysflush);
 
-"the following is needed to run the exercise on Nobel Prizes unmodified, \
-even if it does not fit the description in the 1985 Prolog book (p. 297), \
-which translates to: add a new file to the stack of buffer files"
-new-buffer(t) -> t;
+new-buffer(t) -> syscall(sysnewbuffer) t fail;
+new-buffer(t) -> syscall(sysdelbuffer);
 
 "in"
 
 in(T) -> input-is(S) syscall(sysinterm,S,T);
 in-char(C) -> input-is(S) syscall(sysinchar,S,C);
+in-char'(C) -> input-is(S) syscall(sysincharskipspaces,S,C);
 
 "out"
 
@@ -44,6 +88,11 @@ clear -> page fail;
 
 assign(I,T) -> syscall(sysassign,I,T);
 val(T1,T2) -> syscall(syseval,T1,T2);
+
+"control"
+
+block(E,T) ->;
+block-exit(E) ->;
 
 "debug"
 
@@ -65,4 +114,5 @@ TODO: eql, mod"
     syscall(sysop,400,yfx,mul,mul)
     syscall(sysop,400,yfx,div,div)
     syscall(sysop,200,fx,add,add)
-    syscall(sysop,200,fx,sub,sub);
+    syscall(sysop,200,fx,sub,sub)
+    fail;

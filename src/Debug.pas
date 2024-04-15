@@ -33,11 +33,16 @@ Uses
   PObjDict,
   PObjEq,
   PObjTerm,
+  PObjDef,
+  PObjBter,
+  PObjHead,
   PObjProg,
+  PObjRule,
   Unparse;
 
 Procedure SetCurrentProgram( P : ProgPtr );
 Procedure DumpBacktrace;
+Procedure CoreDump( Message : TString; Trace : Boolean );
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -62,11 +67,11 @@ Begin
   CWrite(',');
   CWriteInt(K^.TK_CHAR);
   CWrite(') ');
-  CWrite(TokenTypeAsString(K));
-  If K^.TK_STRI <> Nil Then
+  CWrite(Token_GetTypeAsString(K));
+  If Token_GetStr(K) <> Nil Then
   Begin
     CWrite(': ');
-    OutString(K^.TK_STRI,False)
+    OutString(Nil,Token_GetStr(K))
   End
 End;
 
@@ -76,7 +81,7 @@ Begin
   Begin
     DumpToken(K);
     CWriteLn;
-    K := NextToken(K)
+    K := Token_GetNext(K)
   End;
   CWriteLn
 End;
@@ -122,7 +127,7 @@ Begin
   RU:
     Begin
       CWrite('Head: ');
-      OutTerm(y,Rup^.RU_FBTR^.BT_TERM,False)
+      OutTerm(Nil,y,BTerm_GetTerm(Rule_GetHead(Rup)))
     End;
   QU:
     Begin
@@ -132,47 +137,47 @@ Begin
     End;
   EQ:
     Begin
-      OutOneEquation(y,E,False)
+      OutOneEquation(Nil,y,E)
     End;
   BT:
     Begin
-      OutTerm(y,Bp^.BT_TERM,False);
+      OutTerm(Nil,y,BTerm_GetTerm(Bp));
     End;
   CO:
     Begin
       CWrite('''');
-      OutConst(Cp,False);
+      OutConst(Nil,Cp);
       CWrite('''')
     End;
   ID:
     Begin
       CWriteBool(Ip^.TV_ASSI);
       CWrite(' ');
-      OutIdentifier(Ip,False)
+      OutIdentifier(Nil,Ip)
     End;
   FU:
     Begin
-      OutTerm(y,Tp,False);
+      OutTerm(Nil,y,Tp);
       If (FRed(Fp) <> Nil) Then
       Begin
         CWrite('==');
-        OutTerm(y,FRed(Fp),False)
+        OutTerm(Nil,y,FRed(Fp))
       End
     End;
   VA:
     Begin
-      OutVarName(Vp,False);
+      OutVarName(Nil,Vp);
       If (VRed(Vp) <> Nil) Then
       Begin
         CWrite('==');
-        OutTerm(y,VRed(Vp),False)
+        OutTerm(Nil,y,VRed(Vp))
       End
     End;
   DE:
     Begin
-      CWriteBool(Dp^.DE_GLOB);
+      CWriteBool(Dict_IsGlobal(Dp));
       CWrite(' "');
-      OutString(Dp^.DE_STRI,False);
+      OutString(Nil,Dict_GetStr(Dp));
       CWrite('"')
     End;
   HE:
@@ -185,8 +190,8 @@ Begin
     End;
   ST:
     Begin
-      OutString(s,False);
-      CWrite(' (' + LongIntToStr(s^.ST_NDAT) + ',' + LongIntToStr(StrLength(s)) + ')')
+      OutString(Nil,s);
+      CWrite(' (' + LongIntToStr(Str_Length(s)) + ')')
     End;
   SD:
     Begin
@@ -200,9 +205,9 @@ Begin
     End;
   OP:
     Begin
-      CWrite('"' + Opp^.OP_OPER + '"');
+      CWrite('"' + Op_GetOperator(Opp) + '"');
       CWrite(' ');
-      CWrite('"' + Opp^.OP_FUNC + '"')
+      CWrite('"' + Op_GetFunction(Opp) + '"')
     End;
   TK:
     DumpToken(Kp)
@@ -231,15 +236,15 @@ Begin
   B := H^.HH_FBCL;
   While B <> Nil Do
   Begin
-    OutTerm(y,B^.BT_TERM,False);
+    OutTerm(Nil,y,BTerm_GetTerm(B));
     If B^.BT_HEAD <> Nil Then
       CWrite('[' + LongIntToStr(B^.BT_HEAD^.HH_CLOC) + ']');
     CWrite(' ');
-    B := NextTerm(B)
+    B := BTerms_GetNext(B)
   End;
   CWriteLn;
   CWrite('  Rule: ');
-  GetHeaderRule(H,R,isSys,isCut);
+  Header_GetRule(H,R,isSys,isCut);
   if (isSys) Then
   Begin
     CWrite('SYS');
@@ -259,7 +264,7 @@ Begin
   Begin
     CWrite('Rule has cut? ' + BoolToStr(R^.RU_ACUT));
     CWriteLn;
-    OutOneRule(R,False);
+    OutOneRule(Nil,R);
   End;
   CWrite('  Restore: ');
   U := H^.HH_REST;
@@ -289,8 +294,8 @@ Begin
     Backtrace(CurrentProgram^.PP_HEAD)
 End;
 
-{ display variable identifiers from start to stop (excluding stop) }
-Procedure DumpDictVar( y : TSyntax; start,stop : DictPtr );
+{ display variable identifiers in a dictionary }
+Procedure DumpDictVar( y : TSyntax; D : DictPtr );
 Var 
   e : DictPtr;
   V : VarPtr;
@@ -298,28 +303,28 @@ Var
 Begin
   CWrite('Variables:');
   CWriteLn;
-  e := start;
-  while (e<>Nil) And (e<>stop) Do
+  e := D;
+  while e <> Nil Do
   Begin
-    TV := e^.DE_TERM;
+    TV := Dict_GetTerm(e);
     CWrite(' ');
-    If DictIsGlobal(e) Then
+    If Dict_IsGlobal(e) Then
       CWrite('*')
     Else
       CWrite(' ');
-    OutVarName(V,False);
+    OutVarName(Nil,V);
     If VRed(V) <> Nil Then
     Begin
       CWrite(' = ');
-      OutTerm(y,VRed(V),False)
+      OutTerm(Nil,y,VRed(V))
     End;
     If WatchIneq(V) <> Nil Then
     Begin
       CWrite(', ');
-      OutOneEquation(y,WatchIneq(V),False)
+      OutOneEquation(Nil,y,WatchIneq(V))
     End;
     CWriteLn;
-    e := e^.DE_NEXT
+    e := Dict_GetNext(e)
   End
 End;
 
@@ -330,12 +335,12 @@ Begin
   CWriteLn;
   while (e<>Nil) Do
   Begin
-    If DictIsGlobal(e) Then
+    If Dict_IsGlobal(e) Then
       CWrite('*')
     Else
       CWrite(' ');
-    OutStringCR(e^.DE_STRI,False);
-    e := e^.DE_NEXT
+    OutStringCR(Nil,Dict_GetStr(e));
+    e := Dict_GetNext(e)
   End
 End;
 
@@ -360,7 +365,6 @@ Begin
     Begin
       DumpDictConst(P^.PP_DCON,'Constants:');
       DumpDictConst(P^.PP_DIDE,'Identifiers:');
-      DumpDictVar(GetSyntax(P),P^.PP_DVAR,Nil);
       If Trace Then
         Backtrace(P^.PP_HEAD)
     End;

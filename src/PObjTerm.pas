@@ -119,11 +119,11 @@ Procedure OrderTerms( Var T1,T2: TermPtr );
 Procedure TrackAssignment( T1,T2: TermPtr );
 Function NormalizeConstant( Var s : StrPtr; typ : TConst ) : Boolean;
 
-Function InstallConst( Var list : DictPtr; str : StrPtr; 
+Function InstallConst( Var D : DictPtr; str : StrPtr; 
     ty : TypePrologObj; glob : Boolean ) : ConstPtr;
-Function InstallVariable( Var list : DictPtr; stop : DictPtr; 
+Function InstallVariable( Var D : DictPtr;
     str : StrPtr; glob : Boolean ) : VarPtr;
-Function InstallIdentifier( Var list : DictPtr; 
+Function InstallIdentifier( Var D : DictPtr; 
     str : StrPtr; glob : Boolean  ) : IdPtr;
 
 
@@ -250,13 +250,13 @@ End;
 { return the type of a constant }
 Function ConstType( C : ConstPtr ) : TConst;
 Begin
-  ConstType := ObjectTypeToConstType(C^.TC_DCON^.DE_TYPE)
+  ConstType := ObjectTypeToConstType(Dict_GetType(C^.TC_DCON))
 End;
 
 { return the string value of a constant; not cloning }
 Function ConstGetStr( C : ConstPtr ) : StrPtr;
 Begin
-  ConstGetStr := C^.TC_DCON^.DE_STRI
+  ConstGetStr := Dict_GetStr(C^.TC_DCON)
 End;
 
 { return the Pascal string value of a constant, shortening the
@@ -265,19 +265,19 @@ Function ConstGetPStr( C : ConstPtr ) : TString;
 Var s : StrPtr;
 Begin
   s := ConstGetStr(C);
-  ConstGetPStr := StrGetFirstData(s)
+  ConstGetPStr := Str_GetFirstData(s)
 End;
 
 { is a constant equal to a given Pascal string? }
 Function ConstEqualTo( C : ConstPtr; ps : TString ) : Boolean;
 Begin
-  ConstEqualTo := DictStrEqualTo(C^.TC_DCON,ps)
+  ConstEqualTo := Dict_StrIsEqualTo(C^.TC_DCON,ps)
 End;
 
 { is a constant starting with a char in a given set? not UTF-8 aware }
 Function ConstStartWith( C : ConstPtr; E : CharSet ) : Boolean;
 Begin
-  ConstStartWith := DictStrStartWith(C^.TC_DCON,E)
+  ConstStartWith := Dict_StrStartsWith(C^.TC_DCON,E)
 End;
 
 { return a constant as a string, with or without double quotes }
@@ -287,12 +287,12 @@ Var
   s : StrPtr;
 Begin
   quoted := Quotes And (ConstType(C)=QString);
-  s := NewString;
+  s := Str_New;
   If quoted Then
-    StrAppend(s,'"');
-  StrConcat(s,ConstGetStr(C));
+    Str_Append(s,'"');
+  Str_Concat(s,ConstGetStr(C));
   If quoted Then
-    StrAppend(s,'"');
+    Str_Append(s,'"');
   GetConstAsString := s
 End;
 
@@ -303,7 +303,7 @@ End;
 { return the name of a variable; not cloning }
 Function VariableGetName( V : VarPtr ) : StrPtr;
 Begin
-  VariableGetName := V^.TV_DVAR^.DE_STRI
+  VariableGetName := Dict_GetStr(V^.TV_DVAR)
 End;
 
 {-----------------------------------------------------------------------}
@@ -313,7 +313,7 @@ End;
 { return the string value of an identifier; not cloning }
 Function IdentifierGetStr( I : IdPtr ) : StrPtr;
 Begin
-  IdentifierGetStr := I^.TV_DVAR^.DE_STRI
+  IdentifierGetStr := Dict_GetStr(I^.TV_DVAR)
 End;
 
 { return the Pascal string value of an identifier, shortening the
@@ -322,13 +322,13 @@ Function IdentifierGetPStr( I : IdPtr ) : TString;
 Var s : StrPtr;
 Begin
   s := IdentifierGetStr(I);
-  IdentifierGetPStr := StrGetFirstData(s)
+  IdentifierGetPStr := Str_GetFirstData(s)
 End;
 
 { is an identifier equal to a given Pascal string? }
 Function IdentifierEqualTo( I : IdPtr; ps : TString ) : Boolean;
 Begin
-  IdentifierEqualTo := DictStrEqualTo(I^.TV_DVAR,ps)
+  IdentifierEqualTo := Dict_StrIsEqualTo(I^.TV_DVAR,ps)
 End;
 
 { is an identifier and is equal to a given Pascal string }
@@ -363,12 +363,12 @@ Var
   unquote : Boolean; { does the identifier need to be unquoted? }
   s : StrPtr;
 Begin
-  s := StrClone(IdentifierGetStr(I));
-  unquote := Not Quotes And StrStartsWith(s,['''']) And StrEndsWith(s,['''']);
+  s := Str_Clone(IdentifierGetStr(I));
+  unquote := Not Quotes And Str_StartsWith(s,['''']) And Str_EndsWith(s,['''']);
   If unquote Then
   Begin
-    StrDeleteLastChar(s);
-    StrDeleteFirstChar(s)
+    Str_DeleteLastChar(s);
+    Str_DeleteFirstChar(s)
   End;
   GetIdentAsString := s
 End;
@@ -752,21 +752,21 @@ Begin
   IntegerNumber,
   RealNumber:
     Begin
-      If StrLength(s) > StringMaxSize Then
+      If Str_Length(s) > StringMaxSize Then
         Exit;
       Case typ Of
       IntegerNumber:
-        i := StrToLongInt(StrGetString(s), code);
+        i := StrToLongInt(Str_AsString(s), code);
       RealNumber:
-        r := StrToLongReal(StrGetString(s), code);
+        r := StrToLongReal(Str_AsString(s), code);
       End;
       If code <> 0 Then
         Exit;
       Case typ Of
       IntegerNumber:
-        s := NewStringFrom(LongIntToStr(i));
+        s := Str_NewFromString(LongIntToStr(i));
       RealNumber: 
-        s := NewStringFrom(LongRealToStr(r));
+        s := Str_NewFromString(LongRealToStr(r));
       End;
     End
   End;
@@ -783,28 +783,28 @@ End;
   reached through a deep copy;
   - this requires constants to be stored in canonical representation  
   FIXME: use canonical representation for real numbers }
-Function InstallConst( Var list : DictPtr; str : StrPtr; ty : TypePrologObj; 
+Function InstallConst( Var D : DictPtr; str : StrPtr; ty : TypePrologObj; 
     glob : Boolean ) : ConstPtr;
 Var 
   C : ConstPtr;
   TC : TermPtr Absolute C;
   e : DictPtr;
 Begin
-  e := DictLookup(list,Nil,str,glob);
+  e := Dict_Lookup(D,str,glob);
   If e = Nil Then
   Begin
     C := NewConst;
-    e := DictAppend(list,str,TC,ty,glob);
+    e := Dict_Append(D,str,TC,ty,glob);
     C^.TC_DCON := e
   End
   Else
-    TC := e^.DE_TERM;
+    TC := Dict_GetTerm(e);
   InstallConst := C
 End;
 
 { create an assignable object (variable or identifier) if it does not 
-  exist in list (up to stop, excluded); return it }
-Function InstallAssignable( Var list : DictPtr; stop : DictPtr; 
+  exist in dictionary; return it }
+Function InstallAssignable( Var D : DictPtr; 
     str : StrPtr; ty : TypePrologObj; glob : Boolean; 
     CanCopy : Boolean) : AssPtr;
 Var
@@ -813,32 +813,32 @@ Var
   e : DictPtr;
 Begin
   CheckCondition((ty=VA) Or (ty=ID),'InstallAssignable: VA or ID expected');
-  e := DictLookup(list,stop,str,glob);
+  e := Dict_Lookup(D,str,glob);
   If e = Nil Then
   Begin
     V := NewAssignable(ty,CanCopy);
-    e := DictAppend(list,str,TV,VA,glob);
+    e := Dict_Append(D,str,TV,VA,glob);
     V^.TV_DVAR := e
   End
   Else
-    TV := e^.DE_TERM;
+    TV := Dict_GetTerm(e);
   InstallAssignable := V
 End;
 
-{ create a variable if it does not exist in list (up to stop, excluded);
+{ create a variable if it does not exist in dictionary;
   a variable is subject to deep copy }
-Function InstallVariable( Var list : DictPtr; stop : DictPtr; str : StrPtr; 
+Function InstallVariable( Var D : DictPtr; str : StrPtr; 
     glob : Boolean ) : VarPtr;
 Begin
-  InstallVariable := InstallAssignable(list,stop,str,VA,glob,True)
+  InstallVariable := InstallAssignable(D,str,VA,glob,True)
 End;
 
-{ create an identifier if it does not exist in list; an identifier is
+{ create an identifier if it does not exist in a dictionary; an identifier is
   not deep-copyable }
-Function InstallIdentifier( Var list : DictPtr; str : StrPtr; 
+Function InstallIdentifier( Var D : DictPtr; str : StrPtr; 
     glob : Boolean  ) : IdPtr;
 Begin
-  InstallIdentifier := InstallAssignable(list,Nil,str,ID,glob,False)
+  InstallIdentifier := InstallAssignable(D,str,ID,glob,False)
 End;
 
 End.

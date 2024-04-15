@@ -115,7 +115,7 @@ Var
       Var
         OV1 : TObjectPtr Absolute V1;
       Begin
-        SetMem(L,OV1,V1^.TV_TRED,T2,Backtrackable);  { add v=t in the reduced system }
+        Restore_SetMem(L,OV1,V1^.TV_TRED,T2,Backtrackable);  { add v=t in the reduced system }
 
         { step 2 of system solving is handled here}
         If WatchIneq(V1) <> Nil Then { x already watched a liaison }
@@ -160,7 +160,7 @@ Var
           Else
           Begin
             { add "f = f" to the reduced system; must always be undone }
-            SetMem(Uf,OT1,FT1^.TF_TRED,T2,True);
+            Restore_SetMem(Uf,OT1,FT1^.TF_TRED,T2,True);
             { insert in the unreduced system l1=l2 and r1=r2 }
             If (FRightArg(FT1) <> Nil) And (FRightArg(FT2) <> Nil) Then
             Begin

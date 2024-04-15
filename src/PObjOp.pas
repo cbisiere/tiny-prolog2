@@ -55,9 +55,15 @@ Function IsOpTypeString( s : TString ) : Boolean;
 Function PStrToOpType( s : TString ) : TOpType;
 Function TOpTypeToArity( ot : TOpType ) : TOpArity;
 
-Function OpLookup( start : OpPtr; ope,func : TString; 
+Function Op_GetType( o : OpPtr ) : TOpType;
+Function Op_GetArity( o : OpPtr ) : TOpArity;
+Function Op_GetOperator( o : OpPtr ) : TString;
+Function Op_GetFunction( o : OpPtr ) : TString;
+Function Op_GetPrecedence( o : OpPtr ) : TPrecedence;
+
+Function Op_Lookup( start : OpPtr; ope,func : TString; 
     OpTypes : TOpTypes; Arity: Byte; MaxPred : TPrecedence ) : OpPtr;
-Function OpAppend( Var list : OpPtr; ope,func : TString; ot : TOpType; 
+Function Op_Append( Var list : OpPtr; ope,func : TString; ot : TOpType; 
     pred : TPrecedence ) : OpPtr;
 
 
@@ -108,33 +114,33 @@ Begin
     TOpTypeToArity := 2
 End;
 
-{ return True if an operator is quoted }
-Function IsQuotedOp( s : TString ) : Boolean;
+{ return True if a short string is single-quoted }
+Function IsSingleQuoted( s : TString ) : Boolean;
 Begin
-  IsQuotedOp := False;
+  IsSingleQuoted := False;
   If Length(s) >= 2 Then
     If (s[1] = '''') And (s[Length(s)] = '''') Then
-      IsQuotedOp := True
+      IsSingleQuoted := True
 End;
 
-{ return an operator w/o its quotes if any }
-Function UnquotedOp( ope : TString ) : TString;
+{ return a short string w/o its single quotes if any }
+Function Unquoted( ope : TString ) : TString;
 Var
   s : TString;
 Begin
   s := ope;
-  If IsQuotedOp(s) Then
+  If IsSingleQuoted(s) Then
   Begin
     Delete(s,Length(s),1);
     Delete(s,1,1)
   End;
-  UnquotedOp := s
+  Unquoted := s
 End;
 
 { are two operators identical, regardless of simple quotes? }
-Function SameOp( ope1,ope2 : TString ) : Boolean;
+Function SameAs( ope1,ope2 : TString ) : Boolean;
 Begin
-  SameOp := UnquotedOp(ope1) = UnquotedOp(ope2)
+  SameAs := Unquoted(ope1) = Unquoted(ope2)
 End;
 
 {-----------------------------------------------------------------------}
@@ -142,7 +148,7 @@ End;
 {-----------------------------------------------------------------------}
 
 { create a new operator object }
-Function NewOp( ope,func : TString; ot : TOpType; pred : TPrecedence ) : OpPtr;
+Function Op_New( ope,func : TString; ot : TOpType; pred : TPrecedence ) : OpPtr;
 Var 
   o : OpPtr;
   ptr : TObjectPtr Absolute o;
@@ -157,7 +163,41 @@ Begin
     OP_NPAR := TOpTypeToArity(ot);
     OP_PRED := pred
   End;
-  NewOp := o
+  Op_New := o
+End;
+
+{-----------------------------------------------------------------------}
+{ get / set                                                             }
+{-----------------------------------------------------------------------}
+
+{ type }
+Function Op_GetType( o : OpPtr ) : TOpType;
+Begin
+  Op_GetType := o^.OP_TYPE
+End;
+
+{ arity }
+Function Op_GetArity( o : OpPtr ) : TOpArity;
+Begin
+  Op_GetArity := o^.OP_NPAR
+End;
+
+{ name when used as an operator }
+Function Op_GetOperator( o : OpPtr ) : TString;
+Begin
+  Op_GetOperator := o^.OP_OPER
+End;
+
+{ name when used as a function }
+Function Op_GetFunction( o : OpPtr ) : TString;
+Begin
+  Op_GetFunction := o^.OP_FUNC
+End;
+
+{ precedence }
+Function Op_GetPrecedence( o : OpPtr ) : TPrecedence;
+Begin
+  Op_GetPrecedence := o^.OP_PRED
 End;
 
 {-----------------------------------------------------------------------}
@@ -172,7 +212,7 @@ End;
  Arity: different from 0
  MaxPred: 1200 as no precedence is larger
  return a pointer to the operator object found, or Nil if not found }
-Function OpLookup( start : OpPtr; ope,func : TString; OpTypes : TOpTypes; 
+Function Op_Lookup( start : OpPtr; ope,func : TString; OpTypes : TOpTypes; 
     Arity: Byte; MaxPred : TPrecedence ) : OpPtr;
 Var
   o : OpPtr;
@@ -189,38 +229,38 @@ Begin
      and also '-' used as a character; declaring op(200,fx,-,sub) fix it. }
     If ope = '' Then
       OpMatch := True
-    Else If IsQuotedOp(o^.OP_OPER) Then { FIXME: inefficient }
-      OpMatch := SameOp(o^.OP_OPER,ope)
+    Else If IsSingleQuoted(Op_GetOperator(o)) Then { FIXME: inefficient }
+      OpMatch := SameAs(Op_GetOperator(o),ope)
     Else
-      OpMatch := o^.OP_OPER = ope;
+      OpMatch := Op_GetOperator(o) = ope;
     { search criteria all ok }
     If (OpMatch)
-        And ((func = '') Or (o^.OP_FUNC = func)) 
-        And ((OpTypes = []) Or (o^.OP_TYPE In OpTypes)) 
-        And ((Arity = 0) Or (o^.OP_NPAR = Arity))
-        And (o^.OP_PRED <= MaxPred) Then
+        And ((func = '') Or (Op_GetFunction(o) = func)) 
+        And ((OpTypes = []) Or (Op_GetType(o) In OpTypes)) 
+        And ((Arity = 0) Or (Op_GetArity(o) = Arity))
+        And (Op_GetPrecedence(o) <= MaxPred) Then
       Found := True
     Else
       o := o^.OP_NEXT
   End;
   If Not Found Then
     o := Nil;
-  OpLookup := o
+  Op_Lookup := o
 End;
 
 { append an operator to a list of operators }
-Function OpAppend( Var list : OpPtr; ope,func : TString; ot : TOpType; 
+Function Op_Append( Var list : OpPtr; ope,func : TString; ot : TOpType; 
     pred : TPrecedence ) : OpPtr;
 Var 
   o : OpPtr;
 Begin
-  o := NewOp(ope,func,ot,pred);
+  o := Op_New(ope,func,ot,pred);
   With o^ Do
   Begin
     OP_NEXT := list
   End;
   list := o;
-  OpAppend := o
+  Op_Append := o
 End;
 
 End.

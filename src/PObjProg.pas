@@ -22,127 +22,63 @@ Interface
 Uses
   ShortStr,
   Errs,
+  Files,
+  Trace,
   Memory,
   PObj,
+  PObjTok,
+  Tokenize,
   PObjRest,
   PObjOp,
   PObjStr,
+  PObjIO,
   PObjDict,
   PObjEq,
-  PObjTerm;
+  PObjTerm,
+  PObjDef,
+  PObjBter,
+  PObjRule,
+  PObjQury,
+  PObjHead,
+  PObjComm,
+  PObjWrld,
+  PObjStmt;
 
-{-----------------------------------------------------------------------}
-{ types                                                                 }
-{-----------------------------------------------------------------------}
+Function Prog_New : ProgPtr;
 
-Type 
-  TILevel = Integer; { file insertion level (0 is command line) }
-  TSyntax = (
-    PrologII,   { Prolog II: second Prolog developed by the GIA }
-    PrologIIc,  { Tiny Prolog II: Prolog II with constraints (my version) }
-    PrologIIp,  { Prolog II+ }
-    Edinburgh   { Edinburgh syntax as defined in Prolog II+ }
-  );
+Function CurrentInput( P : ProgPtr ) : StreamPtr;
+Function CurrentOutput( P : ProgPtr ) : StreamPtr;
+Function OutputIsConsole( P : ProgPtr ) : Boolean;
+Function GetInputConsole( P : ProgPtr )  : StreamPtr;
 
-Type 
-  BTermPtr = ^TObjBTerm;
-  RulePtr = ^TObjRule;
-  QueryPtr = ^TObjQuery;
-  ProgPtr = ^TObjProg;
-  HeadPtr = ^TObjHead;
+Function GetStreamByPath( P : ProgPtr; Path : TPath ) : StreamPtr;
+Function GetStreamByMode( P : ProgPtr; Mode : TStreamMode ) : StreamPtr;
+Function GetStreamByDescriptor( P : ProgPtr; 
+    Desc : TFileDescriptor ) : StreamPtr;
+Function GetStreamByAlias( P : ProgPtr; Alias : TAlias ) : StreamPtr;
+Procedure CloseAndDeleteStream( P : ProgPtr; f : StreamPtr );
+Procedure PushStream( P : ProgPtr; f : StreamPtr );
+Procedure SetStreamAsCurrent( P : ProgPtr; f : StreamPtr );
+Procedure DeleteTopBuffer( P : ProgPtr );
+Procedure ResetIO( P : ProgPtr );
+Procedure ReadFromConsole( P : ProgPtr );
 
-  { list of terms }
-  TObjBTerm = Record
-    PO_META : TObjMeta;
-    { deep copied: }
-    BT_NEXT : BTermPtr; { next element }
-    BT_TERM : TermPtr; { term }
-    BT_ACCE : IdPtr; { access identifier or Nil }
-    { not deep copied: }
-    BT_HEAD : HeadPtr { clock header point to the rule containing this term }
-  End;
+{ worlds }
+Function GetCurrentWorld( P : ProgPtr ) : WorldPtr;
+Procedure SetCurrentWorld( P : ProgPtr; W : WorldPtr );
+Function CreateNewSubWorld( P : ProgPtr; Name : StrPtr; 
+    UserLand : Boolean ) : Boolean;
 
-  { rule }
-  RuType = (RTYPE_AUTO, RTYPE_USER);
-  TObjRule = Record
-    PO_META : TObjMeta;
-    { deep copied: }
-    RU_PREV : RulePtr; { previous rule }
-    RU_NEXT : RulePtr; { next rule }
-    RU_FBTR : BTermPtr; { list of terms (the first is the rule head) }
-    RU_SYST : EqPtr; { list of equation or inequation in the rule; Warning: not GC }
-    { not deep copied: }
-    RU_FVAR : DictPtr; { where to start looking up for local variables }
-    RU_LVAR : DictPtr; { where to stop looking up for local variables }
-    { extra data: }
-    RU_ACUT : Boolean; { rule queue contains a cut }
-    RU_TYPE : RuType; { type of rule: read from init file, or user }
-    RU_SYNT : TSyntax { syntax the rule is written in }
-  End;
+{ statements: iterate }
+Procedure ProgInsertComment( P : ProgPtr; s : StrPtr );
+Procedure ProgInsertRule( P : ProgPtr; R : RulePtr );
 
-  { query }
-  TObjQuery = Record
-    PO_META : TObjMeta;
-    { deep copied: }
-    QU_PREV : QueryPtr; { previous query }
-    QU_NEXT : QueryPtr; { next query }
-    QU_FRUL : RulePtr; { first rule to try }
-    QU_LRUL : RulePtr; { last rule to try }
-    QU_FBTR : BTermPtr; { terms in the query }
-    QU_SYST : EqPtr; { list of equation or inequation in the query }
-    { not deep copied: }
-    QU_FVAR : DictPtr; { where to start looking up for local variables }
-    QU_LVAR : DictPtr; { where to stop looking up for local variables }
-    { extra data: }
-    QU_LEVL : TILevel; { 0: command-line; 1: first inserted file, etc. }
-    QU_ACUT : Boolean; { query contains a cut }
-    QU_SYNT : TSyntax { syntax the query is written in }
-  End;
-
-  { program }
-  TObjProg = Record
-    PO_META : TObjMeta;
-    { deep copied: }
-    PP_FQRY : QueryPtr; { first query }
-    PP_LQRY : QueryPtr; { last query }
-    PP_FRUL : RulePtr; { first rule }
-    PP_LRUL : RulePtr; { last rule }
-    { not deep copied: }
-    PP_HEAD : HeadPtr; { current clock head (during execution of a query) }
-    PP_DCON : DictPtr; { list of all constants }
-    PP_UCON : DictPtr; { constant list head before processing user's command line; unused }
-    PP_DIDE : DictPtr; { list of all identifiers (globals, can be assigned, must not backtrack) }
-    PP_DVAR : DictPtr; { list of all variable identifiers }
-    PP_UVAR : DictPtr; { variable identifier list head before processing user's command line }
-    PP_LVAR : DictPtr; { last identifier to lookup when parsing (local variables)}
-    PP_OPER : OpPtr;   { list of operators }
-    { extra data: }
-    PP_LEVL : TILevel; { current file insertion level (0 is command-line) }
-    PP_PATH : TString; { path (dir) of the file passed as parameter in the CL }
-    PP_TYPE : RuType;  { type of rule the program is about to read }
-    PP_SYNT : TSyntax  { current active syntax }
-  End;
-
-  { clock header }
-  TObjHead = Record
-      PO_META : TObjMeta;
-      { not deep copied: }
-      HH_NEXT : HeadPtr; { previous clock header or Nil }
-      HH_RULE : RulePtr; { rule to apply }
-      HH_FBCL : BTermPtr; { terms to clear }
-      HH_REST : RestorePtr; { restoration stack }
-      HH_BACK : HeadPtr; { where to backtrack (cut) }
-      { extra data: }
-      HH_CLOC : LongInt; { clock time (unlikely to overflow)}
-      HH_ISYS : Boolean; { term to clear is a system call? }
-      HH_ICUT : Boolean { term to clear is a cut? }
-  End;
-
-
-Function NewBTerm( T : TermPtr ) : BTermPtr;
-Function NewQuery( level : TILevel; y : TSyntax ) : QueryPtr;
-Function NewRule( RuleType : RuType; y : TSyntax ) : RulePtr;
-Function NewProgram : ProgPtr;
+{ rules: iterate }
+Function FirstRule( P : ProgPtr; Local : Boolean ) : RulePtr;
+Function NextRule( R : RulePtr; Local : Boolean ) : RulePtr;
+Function FirstRuleWithHead( P : ProgPtr; I : IdPtr; Local : Boolean ) : RulePtr;
+Function LastRuleWithHead( P : ProgPtr; I : IdPtr; Local : Boolean ) : RulePtr;
+Function FindRuleWithHead( R : RulePtr; I : IdPtr; Local : Boolean ) : RulePtr;
 
 Function EmitConst( P : ProgPtr; s : StrPtr; ty : TypePrologObj; 
     glob : Boolean ) : TermPtr;
@@ -150,170 +86,219 @@ Function EmitIdent( P : ProgPtr; s : StrPtr; glob : Boolean ) : TermPtr;
 Function EmitShortIdent( P : ProgPtr; ident : TString; 
     glob : Boolean ) : TermPtr;
 
-Function NextTerm( B : BTermPtr ) : BTermPtr;
-Function AccessTerm( B : BTermPtr ) : IdPtr;
-Function PrevRule( R : RulePtr ) : RulePtr;
-Function NextRule( R : RulePtr ) : RulePtr;
-Procedure ChainRules( R1,R2 : RulePtr );
-Function FirstRuleWithHead( P : ProgPtr; I : IdPtr ) : RulePtr;
-Function LastRuleWithHead( P : ProgPtr; I : IdPtr ) : RulePtr;
-Procedure PrependRules( P : ProgPtr; R : RulePtr );
-Procedure AppendRules( P : ProgPtr; R : RulePtr );
-Function InsertRulesB( P : ProgPtr; Rb, R : RulePtr ) : RulePtr;
-Function InsertRulesA( P : ProgPtr; Ra, R : RulePtr ) : RulePtr;
-Function NextQuery( Q : QueryPtr ) : QueryPtr;
-Function FirstRuleInQueryScope( Q : QueryPtr ) : RulePtr;
-Procedure SetFirstRuleInQueryScope( Q : QueryPtr; R : RulePtr );
-Function LastRuleInQueryScope( Q : QueryPtr ) : RulePtr;
-Procedure SetLastRuleInQueryScope( Q : QueryPtr; R : RulePtr );
-Function FirstProgramQuery( P : ProgPtr ) : QueryPtr;
-Function LastProgramQuery( P : ProgPtr ) : QueryPtr;
-Function FirstProgramRule( P : ProgPtr ) : RulePtr;
-Function LastProgramRule( P : ProgPtr ) : RulePtr;
-Procedure AppendQueries( P : ProgPtr; Q : QueryPtr );
-Function FirstQueryToExecute( P : ProgPtr ) : QueryPtr;
-Procedure RemoveQueries( P : ProgPtr );
+
+Function NewProgramQuery( P : ProgPtr ) : QueryPtr;
+Function ReadProgramToken( P : ProgPtr; f : StreamPtr ) : TokenPtr; 
+
+Procedure ReleaseMemory( P : ProgPtr );
 Procedure BeginInsertion( P : ProgPtr );
 Procedure EndInsertion( P : ProgPtr );
 Function GetProgramPath( P : ProgPtr ) : TString;
 Procedure SetProgramPath( P : ProgPtr; path : TString );
-Function GetRuleType( P : ProgPtr ) : RuType;
-Procedure SetRuleType( P : ProgPtr; t : RuType );
 Function GetSyntax( P : ProgPtr ) : TSyntax;
 Procedure SetSyntax( P : ProgPtr; y : TSyntax );
-Procedure GetHeaderRule( H : HeadPtr; Var R : RulePtr; Var isSys : Boolean; 
-    Var isCut : Boolean );
-
-Procedure SetHeaderRule( H : HeadPtr; R : RulePtr; isSys, isCut : Boolean);
-Procedure PushNewClockHeader( Var list : HeadPtr; Fbcl : BTermPtr; R : RulePtr; 
-    isSys, isCut : Boolean );
-Procedure SetTermsHeader( H : HeadPtr; B : BTermPtr );
-
-Function GetRuleSyntax( R : RulePtr ) : TSyntax;
-Function GetQuerySyntax( Q : QueryPtr ) : TSyntax;
-
 
 Implementation
 {-----------------------------------------------------------------------------}
+
+Const
+  DEFAULT_PROLOG_SYNTAX : TSyntax = PrologIIc;
+
+{-----------------------------------------------------------------------}
+{ helpers                                                               }
+{-----------------------------------------------------------------------}
+
+{ create the default streams for a Prolog engine using syntax y }
+Function CreateDefaultStreams( y : TSyntax ) : StreamPtr;
+Var 
+  f,f2,f3 : StreamPtr;
+Begin
+  f := Nil;
+  If y in [PrologII,PrologIIc,PrologIIp] Then
+  Begin
+    f := NewConsole(MODE_READ); { top read: default input }
+    f2 := NewConsole(MODE_WRITE); { top write: default output }
+    StreamChain(f,f2);
+    If y In [PrologII,PrologIIc] Then
+    Begin
+      f3 := NewBuffer; { new-buffer is not mandatory to use a buffer (TBC)}
+      StreamChain(f2,f3)
+    End
+  End;
+  CreateDefaultStreams := f
+End;
 
 {-----------------------------------------------------------------------}
 { constructors                                                          }
 {-----------------------------------------------------------------------}
 
-{ new block for term T }
-Function NewBTerm( T : TermPtr ) : BTermPtr;
-Var 
-  B : BTermPtr;
-  ptr : TObjectPtr Absolute B;
-Begin
-  ptr := NewRegisteredPObject(BT,SizeOf(TObjBTerm),4,True,3);
-  With B^ Do
-  Begin
-    BT_TERM := T;
-    BT_NEXT := Nil;
-    BT_ACCE := AccessIdentifier(T);
-    BT_HEAD := Nil
-  End;
-  NewBTerm := B
-End;
-
-{ new query w/ given file insertion level }
-Function NewQuery( level : TILevel; y : TSyntax ) : QueryPtr;
-Var 
-  Q : QueryPtr;
-  ptr : TObjectPtr Absolute Q;
-Begin
-  ptr := NewRegisteredPObject(QU,SizeOf(TObjQuery),8,True,6);
-  With Q^ Do
-  Begin
-    QU_PREV := Nil;
-    QU_NEXT := Nil;
-    QU_FRUL := Nil;
-    QU_LRUL := Nil;
-    QU_FBTR := Nil;
-    QU_SYST := Nil;
-    QU_FVAR := Nil;
-    QU_LVAR := Nil;
-    QU_LEVL := level;
-    QU_ACUT := False;
-    QU_SYNT := y
-  End;
-  NewQuery := Q
-End;
-
-{ new rule }
-Function NewRule( RuleType : RuType; y : TSyntax ) : RulePtr;
-Var 
-  R : RulePtr;
-  ptr : TObjectPtr Absolute R;
-Begin
-  ptr := NewRegisteredPObject(RU,SizeOf(TObjRule),6,True,4);
-  With R^ Do
-  Begin
-    RU_PREV := Nil;
-    RU_NEXT := Nil;
-    RU_FBTR := Nil;
-    RU_SYST := Nil;
-    RU_FVAR := Nil;
-    RU_LVAR := Nil;
-    RU_ACUT := False;
-    RU_TYPE := RuleType;
-    RU_SYNT := y
-  End;
-  NewRule := R
-End;
-
 { new program }
-Function NewProgram : ProgPtr;
+Function Prog_New : ProgPtr;
 Var 
   P : ProgPtr;
   ptr : TObjectPtr Absolute P;
 Begin
-  ptr := NewRegisteredPObject(PR,SizeOf(TObjProg),12,True,4);
+  ptr := NewRegisteredPObject(PR,SizeOf(TObjProg),10,True,4);
   With P^ Do
   Begin
-    PP_FRUL := Nil;
-    PP_LRUL := Nil;
+    PP_WTOP := World_New(Str_NewFromString('Supervisor'),False);
+    PP_WCUR := PP_WTOP;
+    PP_FILE := CreateDefaultStreams(DEFAULT_PROLOG_SYNTAX);
+    PP_TOKE := Nil;
     PP_FQRY := Nil;
-    PP_LQRY := Nil;
     PP_HEAD := Nil;
     PP_DCON := Nil;
-    PP_UCON := Nil;
     PP_DIDE := Nil;
     PP_DVAR := Nil;
-    PP_UVAR := Nil;
-    PP_LVAR := Nil;
     PP_OPER := Nil;
     PP_LEVL := 0;
     PP_PATH := '';
-    PP_TYPE := RTYPE_USER;
-    PP_SYNT := PrologIIc
+    PP_SYNT := DEFAULT_PROLOG_SYNTAX
   End;
-  NewProgram := P
-End;
-
-{ new clock header }
-Function NewClockHeader : HeadPtr;
-Var 
-  H : HeadPtr;
-  ptr : TObjectPtr Absolute H;
-Begin
-  ptr := NewRegisteredPObject(HE,SizeOf(TObjHead),5,True,0);
-  With H^ Do
-  Begin
-    HH_NEXT := Nil;
-    HH_RULE := Nil;
-    HH_FBCL := Nil;
-    HH_REST := Nil;
-    HH_BACK := Nil;
-    HH_CLOC := 0;
-    HH_ISYS := False;
-    HH_ICUT := False
-  End;
-  NewClockHeader := H
+  Prog_New := P
 End;
 
 {-----------------------------------------------------------------------}
+{ streams                                                               }
+{-----------------------------------------------------------------------}
+
+{ return the current input stream }
+Function CurrentInput( P : ProgPtr ) : StreamPtr;
+Begin
+  CurrentInput := StreamStackCurrentInput(P^.PP_FILE)
+End;
+
+{ return the current output stream }
+Function CurrentOutput( P : ProgPtr ) : StreamPtr;
+Begin
+  CurrentOutput := StreamStackCurrentOutput(P^.PP_FILE)
+End;
+
+{ return true if the current output is the terminal }
+Function OutputIsConsole( P : ProgPtr ) : Boolean;
+Begin
+  OutputIsConsole := StreamIsConsole(CurrentOutput(P))
+End;
+
+{ return the input console as a stream }
+Function GetInputConsole( P : ProgPtr )  : StreamPtr;
+Begin
+  GetInputConsole := StreamStackInputConsole(P^.PP_FILE)
+End;
+
+{ return a stream having path Path, or Nil }
+Function GetStreamByPath( P : ProgPtr; Path : TPath ) : StreamPtr;
+Begin
+  GetStreamByPath := StreamStackLookupByPath(P^.PP_FILE,Path)
+End;
+
+{ return a stream having mode Mode, or Nil }
+Function GetStreamByMode( P : ProgPtr; Mode : TStreamMode ) : StreamPtr;
+Begin
+  GetStreamByMode := StreamStackLookupByMode(P^.PP_FILE,Mode)
+End;
+
+{ return a stream having file descriptor Desc, or Nil }
+Function GetStreamByDescriptor( P : ProgPtr; 
+    Desc : TFileDescriptor ) : StreamPtr;
+Begin
+  GetStreamByDescriptor := StreamStackLookupByDescriptor(P^.PP_FILE,Desc)
+End;
+
+{ return a stream having alias Alias, or Nil }
+Function GetStreamByAlias( P : ProgPtr; Alias : TAlias ) : StreamPtr;
+Begin
+  GetStreamByAlias := StreamStackLookupByAlias(P^.PP_FILE,Alias)
+End;
+
+{ push a stream at the top of the stack }
+Procedure PushStream( P : ProgPtr; f : StreamPtr );
+Begin
+  StreamStackPush(P^.PP_FILE,f)
+End;
+
+{ close and remove a stream from the stack }
+Procedure CloseAndDeleteStream( P : ProgPtr; f : StreamPtr );
+Begin
+  CheckCondition(Not StreamIsConsole(f),
+      'CloseAndDeleteStream: attempt to delete a console');
+  StreamClose(f);
+  StreamStackUnchain(P^.PP_FILE,f)
+End;
+
+{ set stream f as current (read or write) }
+Procedure SetStreamAsCurrent( P : ProgPtr; f : StreamPtr );
+Begin
+  StreamStackMoveToTop(P^.PP_FILE,f)
+End;
+
+{ delete the highest buffer in the stack }
+Procedure DeleteTopBuffer( P : ProgPtr );
+Var
+  f : StreamPtr;
+Begin
+  f := StreamStackLookupByDevice(P^.PP_FILE,DEV_BUFFER);
+  CheckCondition(f <> Nil,'DelBuffer: no buffer');
+  CloseAndDeleteStream(P,f)
+End;
+
+{ reset the program stream set }
+Procedure ResetIO( P : ProgPtr );
+Begin
+  StreamStackCloseAll(P^.PP_FILE);
+  P^.PP_FILE := CreateDefaultStreams(GetSyntax(P))
+End;
+
+{ read a line from the keyboard }
+Procedure ReadFromConsole( P : ProgPtr );
+Begin
+  ReadLineFromKeyboard(GetInputConsole(P))
+End;
+
+
+{-----------------------------------------------------------------------}
+{ worlds                                                                }
+{-----------------------------------------------------------------------}
+
+{ return the current world of program P }
+Function GetCurrentWorld( P : ProgPtr ) : WorldPtr;
+Begin
+  GetCurrentWorld := P^.PP_WCUR
+End;
+
+{ set the current world of program P to be W }
+Procedure SetCurrentWorld( P : ProgPtr; W : WorldPtr );
+Begin
+  P^.PP_WCUR := W
+End;
+
+{ create a new world with name Name, below the current world of P, and set it
+ as the new current world }
+Function CreateNewSubWorld( P : ProgPtr; Name : StrPtr; 
+    UserLand : Boolean ) : Boolean;
+Var
+  Wc,W : WorldPtr;
+  Ok : Boolean;
+Begin
+  Wc := GetCurrentWorld(P);
+  CheckCondition(Wc <> Nil,'CreateNewWorldBelow: current world is not set');
+  Ok := World_FindChildByName(Wc,Name) = Nil;
+  If Not Ok Then
+  Begin
+    CWriteWarning('current world already has a child with name ''');
+    Str_CWrite(Name);
+    CWrite('''');
+    CWriteLn;
+    Exit
+  End;
+  W := World_New(Name,UserLand);
+  World_AppendChild(Wc,W);
+  SetCurrentWorld(P,W);
+  CreateNewSubWorld := Ok
+End;
+
+
+{----------------------------------------------s-------------------------}
 { methods: misc. convenient emit functions                              }
 {-----------------------------------------------------------------------}
 
@@ -343,334 +328,164 @@ End;
 Function EmitShortIdent( P : ProgPtr; ident : TString; 
     glob : Boolean ) : TermPtr;
 Begin
-  EmitShortIdent := EmitIdent(P,NewStringFrom(ident),glob)
+  EmitShortIdent := EmitIdent(P,Str_NewFromString(ident),glob)
+End;
+
+{-----------------------------------------------------------------------}
+{ rules: iterate, through worlds and statements                         }
+{-----------------------------------------------------------------------}
+
+{ first statement to look at when looking for a rule to apply }
+Function FirstStatement( P : ProgPtr ) : StmtPtr;
+Begin
+  FirstStatement := World_GetFirstStatement(GetCurrentWorld(P))
+End;
+
+{ next statement to look at, or Nil when there is no more statements; do not
+ climb worlds if Local is True }
+Function NextStatement( St : StmtPtr; Local : Boolean ) : StmtPtr;
+Var
+  W : WorldPtr;
+Begin
+  W := Statement_GetWorld(St);
+  St := Statement_GetNext(St);
+  If (St = Nil) And (Not Local) Then
+  Begin
+    W := World_GetParent(W); { go one world up }
+    If W <> Nil Then
+      St := World_GetFirstStatement(W)
+  End;
+  NextStatement := St 
+End;
+
+{ first rule in the program starting on the current world, or Nil }
+Function FirstRule( P : ProgPtr; Local : Boolean ) : RulePtr;
+Var
+  St : StmtPtr;
+Begin
+  FirstRule := Nil;
+  St := FirstStatement(P);
+  While (St <> Nil) And (Statement_GetType(St) <> Rule) Do
+    St := NextStatement(St,Local);
+  If St <> Nil Then
+    FirstRule := RulePtr(Statement_GetObject(St))
+End;
+
+{ next rule after a given rule, or Nil }
+Function NextRule( R : RulePtr; Local : Boolean ) : RulePtr;
+Var
+  St : StmtPtr;
+Begin
+  NextRule := Nil;
+  St := Rule_GetStatement(R);
+  St := NextStatement(St,Local);
+  While (St <> Nil) And (Statement_GetType(St) <> Rule) Do
+    St := NextStatement(St,Local);
+  If St <> Nil Then
+    NextRule := RulePtr(Statement_GetObject(St))
+End;
+
+{ find the first rule whose head is a given identifier, starting on
+ a given rule, or Nil; if the starting rule is Nil, return Nil }
+Function FindRuleWithHead( R : RulePtr; I : IdPtr; Local : Boolean ) : RulePtr;
+Begin
+  While (R <> Nil) And (Not Unifiable(TermPtr(Rule_Access(R)),TermPtr(I))) Do
+    R := NextRule(R,Local);
+  FindRuleWithHead := R
+End;
+
+{ first rule whose head is a given identifier, or Nil }
+Function FirstRuleWithHead( P : ProgPtr; I : IdPtr; Local : Boolean ) : RulePtr;
+Begin
+  FirstRuleWithHead := FindRuleWithHead(FirstRule(P,Local),I,Local)
+End;
+
+{ last rule whose head is a given identifier, or Nil }
+Function LastRuleWithHead( P : ProgPtr; I : IdPtr; Local : Boolean ) : RulePtr;
+Var
+  R,Rn : RulePtr;
+Begin
+  LastRuleWithHead := Nil;
+  R := FirstRuleWithHead(P,I,Local);
+  If R = Nil Then
+    Exit;
+  Rn := FindRuleWithHead(NextRule(R,Local),I,Local);
+  If Rn <> Nil Then
+    LastRuleWithHead := Rn
+  Else
+    LastRuleWithHead := R
+End;
+
+{-----------------------------------------------------------------------}
+{ statements                                                            }
+{-----------------------------------------------------------------------}
+
+{ insert a comment }
+Procedure ProgInsertComment( P : ProgPtr; s : StrPtr );
+Var
+  St : StmtPtr;
+  C : ConstPtr;
+Begin
+  C := InstallConst(P^.PP_DCON,s,CS,True);
+  St := Statement_New(Comment,TObjectPtr(Comment_New(C)));
+  World_InsertStatement(GetCurrentWorld(P),St)
+End;
+
+{ insert one rule; setting the link between rule and statement }
+Procedure ProgInsertRule( P : ProgPtr; R : RulePtr );
+Var
+  St : StmtPtr;
+Begin
+  St := Statement_New(Rule,TObjectPtr(R));
+  Rule_SetStatement(R,St);
+  World_InsertStatement(GetCurrentWorld(P),St)
 End;
 
 {-----------------------------------------------------------------------}
 { methods                                                               }
 {-----------------------------------------------------------------------}
 
-{ next block }
-Function NextTerm( B : BTermPtr ) : BTermPtr;
+{ add a token to the program's list; meant to protect them against GC }
+Procedure AppendProgramToken( P : ProgPtr; K: TokenPtr );
 Begin
-  CheckCondition(B <> Nil,'Cannot compute the next term of Nil');
-  NextTerm := B^.BT_NEXT
+  If P^.PP_TOKE <> Nil Then
+    Token_SetNext(K,P^.PP_TOKE);
+  P^.PP_TOKE := K
 End;
 
-{ access identifier of a block }
-Function AccessTerm( B : BTermPtr ) : IdPtr;
+{ add a query to the program's list; meant to protect them against GC }
+Procedure AppendProgramQuery( P : ProgPtr; Q : QueryPtr );
 Begin
-  AccessTerm := B^.BT_ACCE
+  If P^.PP_FQRY <> Nil Then
+    Query_SetNext(Q,P^.PP_FQRY);
+  P^.PP_FQRY := Q
 End;
 
-{ previous rule }
-Function PrevRule( R : RulePtr ) : RulePtr;
-Begin
-  PrevRule := R^.RU_PREV
-End;
-
-{ next rule }
-Function NextRule( R : RulePtr ) : RulePtr;
-Begin
-  NextRule := R^.RU_NEXT
-End;
-
-{ last rule in a list }
-Function LastRule( R : RulePtr ) : RulePtr;
-Begin
-  While (NextRule(R) <> Nil) Do
-    R := NextRule(R);
-  LastRule := R
-End;
-
-{ first rule whose head is a given identifier, or Nil }
-Function FirstRuleWithHead( P : ProgPtr; I : IdPtr ) : RulePtr;
+{ create a new query, protected from GC }
+Function NewProgramQuery( P : ProgPtr ) : QueryPtr;
 Var
-  R : RulePtr;
-  Ir : IdPtr;
-  Found : Boolean;
-Begin
-  Found := False;
-  R := FirstProgramRule(P);
-  While (R <> Nil) And Not Found Do
-  Begin
-    Ir := AccessTerm(R^.RU_FBTR);
-    Found := SameTerms(TermPtr(Ir),TermPtr(I));
-    If Not Found Then
-      R := NextRule(R)
-  End;
-  If Not Found Then
-    R := Nil;
-  FirstRuleWithHead := R
-End;
-
-{ last rule whose head is a given identifier, or Nil }
-Function LastRuleWithHead( P : ProgPtr; I : IdPtr ) : RulePtr;
-Var
-  R : RulePtr;
-  Ir : IdPtr;
-  Found : Boolean;
-Begin
-  Found := False;
-  R := LastProgramRule(P);
-  While (R <> Nil) And Not Found Do
-  Begin
-    Ir := AccessTerm(R^.RU_FBTR);
-    Found := SameTerms(TermPtr(Ir),TermPtr(I));
-    If Not Found Then
-      R := PrevRule(R)
-  End;
-  If Not Found Then
-    R := Nil;
-  LastRuleWithHead := R
-End;
-
-{ link two rules: R1 --> R2 }
-Procedure ChainRules( R1,R2 : RulePtr );
-Begin
-  R1^.RU_NEXT := R2;
-  R2^.RU_PREV := R1
-End;
-
-{ insert a list of rules R before rule Rb of program P; does not update P's
- list pointers }
-Procedure InsertRulesBefore( Rb, R : RulePtr );
-Var
-  Rp,Rl : RulePtr;
-Begin
-  CheckCondition(Rb <> Nil,'InsertRulesBefore: Rb is Nil');
-  CheckCondition(R <> Nil,'InsertRulesBefore: R is Nil');
-
-  { goal: prev(Rb) --> first(R) --> ... --> last(R) --> Rb }
-  Rp := PrevRule(Rb);
-  Rl := LastRule(R);
-
-  { last(R) <--> Rb }
-  ChainRules(Rl,Rb);
-
-  { prev(Rb) <--> first(R) }
-  If Rp <> Nil Then
-    ChainRules(Rp,R)
-End;
-
-{ insert a list of rules R after rule Ra of program P; does not update P's
- list pointers }
-Procedure InsertRulesAfter( Ra, R : RulePtr );
-Var
-  Rn,Rl : RulePtr;
-Begin
-  CheckCondition(Ra <> Nil,'InsertRulesAfter: Ra is Nil');
-  CheckCondition(R <> Nil,'InsertRulesAfter: R is Nil');
-
-  { goal: Ra --> first(R) --> ... --> last(R) --> next(Ra) }
-  Rn := NextRule(Ra);
-  Rl := LastRule(R);
-
-  { Ra <--> first(R) }
-  ChainRules(Ra,R);
-
-  { last(R) <--> next(Ra) }
-  If Rn <> Nil Then
-    ChainRules(Rl,Rn)
-End;
-
-{ prepend a non-empty list of rules R to program P }
-Procedure PrependRules( P : ProgPtr; R : RulePtr );
-Var
-  Rl : RulePtr;
-Begin
-  Rl := LastRule(R);
-  R^.RU_PREV := Nil;
-
-  if P^.PP_FRUL = Nil Then
-    P^.PP_LRUL := Rl { last(P) := last(R) }
-  Else
-    ChainRules(Rl,P^.PP_FRUL); { last(R) <--> first(P) }
-  P^.PP_FRUL := R { first(P) := first(R) }
-End;
-
-{ append a non-empty list of rules R to program P }
-Procedure AppendRules( P : ProgPtr; R : RulePtr );
-Var
-  Rl : RulePtr;
-Begin
-  Rl := LastRule(R);
-  R^.RU_PREV := Nil;
-
-  if P^.PP_FRUL = Nil Then
-    P^.PP_FRUL := R
-  Else
-    ChainRules(P^.PP_LRUL,R);
-  P^.PP_LRUL := Rl
-End;
-
-{ insert a list of rules R before rule Rb of program P, or, if Rb is Nil, just
- prepend the list R to program P; return the first element of R (for chaining) }
-Function InsertRulesB( P : ProgPtr; Rb, R : RulePtr ) : RulePtr;
-Begin
-  CheckCondition(R <> Nil,'InsertRulesB: R is Nil');
-  CheckCondition((P^.PP_FRUL = Nil) And (P^.PP_LRUL = Nil) 
-      Or (P^.PP_FRUL <> Nil) And (P^.PP_LRUL <> Nil), 
-      'broken list of rules');
-  If Rb = Nil Then
-    PrependRules(P,R)
-  Else If PrevRule(Rb) = Nil Then { Ra is the first rule of P }
-    PrependRules(P,R)
-  Else
-    InsertRulesBefore(Rb,R); { insertion "inside" P's rules, so no change to P }
-  InsertRulesB := R
-End;
-
-{ insert a list of rules R after rule Ra of program P, or, if Ra is Nil, just
- append the list R to program P; return the last element of R (for chaining) }
-Function InsertRulesA( P : ProgPtr; Ra, R : RulePtr ) : RulePtr;
-Var
-  Rn : RulePtr;
-Begin
-  CheckCondition(R <> Nil,'InsertRulesA: R is Nil');
-  CheckCondition((P^.PP_FRUL = Nil) And (P^.PP_LRUL = Nil) 
-      Or (P^.PP_FRUL <> Nil) And (P^.PP_LRUL <> Nil), 
-      'broken list of rules');
-  Rn := LastRule(R);
-  If Ra = Nil Then
-    AppendRules(P,R)
-  Else If NextRule(Ra) = Nil Then { Ra is the last rule of P }
-    AppendRules(P,R)
-  Else
-    InsertRulesAfter(Ra,R); { insertion "inside" P's rules, so no change to P }
-  InsertRulesA := Rn
-End;
-
-{ next query }
-Function NextQuery( Q : QueryPtr ) : QueryPtr;
-Begin
-  NextQuery := Q^.QU_NEXT
-End;
-
-{ previous query }
-Function PrevQuery( Q : QueryPtr ) : QueryPtr;
-Begin
-  PrevQuery := Q^.QU_PREV
-End;
-
-{ last query in a list }
-Function LastQuery( Q : QueryPtr ) : QueryPtr;
-Begin
-  While (NextQuery(Q) <> Nil) Do
-    Q := NextQuery(Q);
-  LastQuery := Q
-End;
-
-{ first rule in the scope of a query }
-Function FirstRuleInQueryScope( Q : QueryPtr ) : RulePtr;
-Begin
-  FirstRuleInQueryScope := Q^.QU_FRUL
-End;
-
-{ set the first rule in the scope of a query }
-Procedure SetFirstRuleInQueryScope( Q : QueryPtr; R : RulePtr );
-Begin
-  Q^.QU_FRUL := R
-End;
-
-{ last rule in the scope of a query }
-Function LastRuleInQueryScope( Q : QueryPtr ) : RulePtr;
-Begin
-  LastRuleInQueryScope := Q^.QU_LRUL
-End;
-
-{ set the last rule in the scope of a query }
-Procedure SetLastRuleInQueryScope( Q : QueryPtr; R : RulePtr );
-Begin
-  Q^.QU_LRUL := R
-End;
-
-{ first query in a program }
-Function FirstProgramQuery( P : ProgPtr ) : QueryPtr;
-Begin
-  FirstProgramQuery := P^.PP_FQRY
-End;
-
-{ last query in a program }
-Function LastProgramQuery( P : ProgPtr ) : QueryPtr;
-Begin
-  LastProgramQuery := P^.PP_LQRY
-End;
-
-{ first rule in a program }
-Function FirstProgramRule( P : ProgPtr ) : RulePtr;
-Begin
-  FirstProgramRule := P^.PP_FRUL
-End;
-
-{ last rule in a program }
-Function LastProgramRule( P : ProgPtr ) : RulePtr;
-Begin
-  LastProgramRule := P^.PP_LRUL
-End;
-
-{ append a non-empty list of query Q to program P }
-Procedure AppendQueries( P : ProgPtr; Q : QueryPtr );
-Begin
-  CheckCondition(Q <> Nil,'AppendQueries: Q is Nil');
-  CheckCondition((P^.PP_FQRY = Nil) And (P^.PP_LQRY = Nil) 
-      Or (P^.PP_FQRY <> Nil) And (P^.PP_LQRY <> Nil),
-      'broken list of queries');
-  If P^.PP_FQRY = Nil Then
-    P^.PP_FQRY := Q
-  Else
-  Begin
-    P^.PP_LQRY^.QU_NEXT := Q;
-    Q^.QU_PREV := P^.PP_LQRY
-  End;
-  P^.PP_LQRY := LastQuery(Q)
-End;
-
-{ first query to execute, that is, first query having the same 
-  insertion level as the current one }
-Function FirstQueryToExecute( P : ProgPtr ) : QueryPtr;
-Var 
-  Q : QueryPtr;
-  Found : Boolean;
-Begin
-  Q := P^.PP_FQRY;
-  Found := False;
-  While (Q <> Nil) And (Not Found) Do
-  Begin
-    Found := Q^.QU_LEVL = P^.PP_LEVL;
-    If Not Found Then
-      Q := NextQuery(Q)
-  End;
-  FirstQueryToExecute := Q
-End;
-
-{ remove all queries from program P at current insertion level; 
-  FIXME: we cannot discard constants 
-  and identifiers, since they have a global scope (plus, identifiers can be
-  assigned); FIXME: as more queries are submitted, more memory is consumed }
-Procedure RemoveQueries( P : ProgPtr );
-Var 
   Q : QueryPtr;
 Begin
-  { detach the queries }
-  Q := FirstQueryToExecute(P);
-  If Q <> Nil Then
-  Begin
-    If Q^.QU_PREV = Nil Then { was first in list }
-    Begin
-      P^.PP_FQRY := Nil;
-      P^.PP_LQRY := Nil
-    End
-    Else
-    Begin
-      Q^.QU_PREV^.QU_NEXT := Nil; { shorten the list }
-      P^.PP_LQRY := Q^.QU_PREV;
-      Q^.QU_PREV := Nil { detach }
-    End;
-  End;
-  { TODO: discard non persistent identifiers and constants }
-  { forget variables }
-  P^.PP_DVAR := P^.PP_UVAR 
+  Q := Query_New(P^.PP_LEVL,GetSyntax(P));
+  AppendProgramQuery(P,Q);
+  NewProgramQuery := Q
+End;
+
+{ read a token from a stream; protect it from GC }
+Function ReadProgramToken( P : ProgPtr; f : StreamPtr ) : TokenPtr; 
+Var
+  K : TokenPtr;
+Begin
+  K := ReadToken(f,GetSyntax(P));
+  AppendProgramToken(P,K);
+  ReadProgramToken := K
+End;
+
+{ expose to GC objects that are not useful anymore }
+Procedure ReleaseMemory( P : ProgPtr );
+Begin
+  P^.PP_TOKE := Nil;
+  P^.PP_FQRY := Nil
 End;
 
 { a file is about to be inserted }
@@ -686,7 +501,7 @@ Begin
   P^.PP_LEVL := P^.PP_LEVL - 1
 End;
 
-{ get the current type of rules to read }
+{ get the Prolog program's path passed as parameter }
 Function GetProgramPath( P : ProgPtr ) : TString;
 Begin
   GetProgramPath := P^.PP_PATH
@@ -696,18 +511,6 @@ End;
 Procedure SetProgramPath( P : ProgPtr; path : TString );
 Begin
   P^.PP_PATH := path
-End;
-
-{ get the current type of rules to read }
-Function GetRuleType( P : ProgPtr ) : RuType;
-Begin
-  GetRuleType := P^.PP_TYPE
-End;
-
-{ set the current type of rules to read }
-Procedure SetRuleType( P : ProgPtr; t : RuType );
-Begin
-  P^.PP_TYPE := t
 End;
 
 { get the current syntax }
@@ -720,72 +523,6 @@ End;
 Procedure SetSyntax( P : ProgPtr; y : TSyntax );
 Begin
   P^.PP_SYNT := y
-End;
-
-{ append a clock header to a list }
-Procedure AppendClockHeader( Var list : HeadPtr; H : HeadPtr );
-Begin
-  H^.HH_NEXT := list;
-  list := H;
-  If H^.HH_NEXT <> Nil Then
-    H^.HH_CLOC := H^.HH_NEXT^.HH_CLOC + 1
-End;
-
-{ get the rule data of a clock header }
-Procedure GetHeaderRule( H : HeadPtr; Var R : RulePtr; Var isSys : Boolean; 
-    Var isCut : Boolean );
-Begin
-  R := H^.HH_RULE;
-  isSys := H^.HH_ISYS;
-  isCut := H^.HH_ICUT
-End;
-
-{ set the rule data of a clock header }
-Procedure SetHeaderRule( H : HeadPtr; R : RulePtr; isSys, isCut : Boolean);
-Begin
-  With H^ Do
-  Begin
-    HH_RULE := R;
-    HH_ISYS := isSys;
-    HH_ICUT := isCut
-  End
-End;
-
-{ create and set a clock header on top of a list of headers }
-Procedure PushNewClockHeader( Var list : HeadPtr; Fbcl : BTermPtr; R : RulePtr; 
-    isSys, isCut : Boolean );
-Var 
-  H : HeadPtr;
-Begin
-  H := NewClockHeader;
-  With H^ Do
-  Begin
-    HH_FBCL := Fbcl
-  End;
-  SetHeaderRule(H,R,isSys,isCut);
-  AppendClockHeader(list,H)
-End;
-
-{ make all terms in B point back to header H }
-Procedure SetTermsHeader( H : HeadPtr; B : BTermPtr );
-Begin
-  While B <> Nil Do
-  Begin
-    B^.BT_HEAD := H;
-    B := NextTerm(B)
-  End
-End;
-
-{ get a rule's syntax }
-Function GetRuleSyntax( R : RulePtr ) : TSyntax;
-Begin
-  GetRuleSyntax := R^.RU_SYNT
-End;
-
-{ get a query's syntax }
-Function GetQuerySyntax( Q : QueryPtr ) : TSyntax;
-Begin
-  GetQuerySyntax := Q^.QU_SYNT
 End;
 
 End.

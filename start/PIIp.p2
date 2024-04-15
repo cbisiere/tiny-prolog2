@@ -3,19 +3,19 @@
 "session"
 
 quit -> outml("bye!") syscall(sysquit);
-list -> syscall(syslist);
+list -> syscall(syslist,0);
 insert(F) -> syscall(sysinsert,F);
 
 "i/o: PII+"
 
 input_is(F) -> syscall(sysinputis,F);
-input(F) -> syscall(sysopen,F,read,S,nil);
+input(F) -> syscall(sysopennew,F,read,S,nil);
 close_input -> syscall(sysclosecurrentinput);
 close_input(F) -> syscall(syscloseinput,F);
 clear_input -> syscall(sysclearinput);
 
 output_is(F) -> syscall(sysoutputis,F);
-output(F) -> syscall(sysopen,F,write,S,nil);
+output(F) -> syscall(sysopennew,F,write,S,nil);
 close_output -> syscall(sysclosecurrentoutput);
 close_output(F) -> syscall(syscloseoutput,F);
 flush -> syscall(sysflush);

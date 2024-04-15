@@ -109,12 +109,15 @@ Type
   End;
 
 
-Function NewToken( typ : TTokenType ) : TokenPtr;
-Procedure GetTokenLocation( K : TokenPtr; Var line : TLineNum; Var col : TCharPos); 
-Procedure SetTokenLocation( K : TokenPtr; line : TLineNum; col : TCharPos );
-Function NextToken( K : TokenPtr ) : TokenPtr;
-Function TokenType( K : TokenPtr ) : TTokenType;
-Function TokenTypeAsString( K : TokenPtr ) : TString;
+Function Token_New( typ : TTokenType ) : TokenPtr;
+
+Function Token_GetNext( K : TokenPtr ) : TokenPtr;
+Procedure Token_SetNext( K,N : TokenPtr );
+Function Token_GetStr( K : TokenPtr ) : StrPtr;
+Procedure Token_GetLocation( K : TokenPtr; Var line : TLineNum; Var col : TCharPos); 
+Procedure Token_SetLocation( K : TokenPtr; line : TLineNum; col : TCharPos );
+Function Token_GetType( K : TokenPtr ) : TTokenType;
+Function Token_GetTypeAsString( K : TokenPtr ) : TString;
 
 
 Implementation
@@ -125,7 +128,7 @@ Implementation
 {-----------------------------------------------------------------------}
 
 { create a new token of type typ }
-Function NewToken( typ : TTokenType ) : TokenPtr;
+Function Token_New( typ : TTokenType ) : TokenPtr;
 Var 
   K : TokenPtr;
   ptr : TObjectPtr Absolute K;
@@ -139,16 +142,36 @@ Begin
     TK_LINE := 0;
     TK_CHAR := 0
   End;
-  NewToken := K
+  Token_New := K
 End;
 
 {-----------------------------------------------------------------------}
-{ methods                                                               }
+{ get / set                                                             }
 {-----------------------------------------------------------------------}
+
+{ get next token }
+Function Token_GetNext( K : TokenPtr ) : TokenPtr;
+Begin
+  CheckCondition(K <> Nil,'Token_GetNext: Nil');
+  Token_GetNext := K^.TK_NEXT
+End;
+
+{ set next token }
+Procedure Token_SetNext( K,N : TokenPtr );
+Begin
+  CheckCondition(K <> Nil,'Token_SetNext: Nil');
+  K^.TK_NEXT := N
+End;
+
+{ get a token's str }
+Function Token_GetStr( K : TokenPtr ) : StrPtr;
+Begin
+  Token_GetStr := K^.TK_STRI
+End;
 
 { get the line and column number of the start of token K, *including
  preceding blank spaces* }
-Procedure GetTokenLocation( K : TokenPtr; Var line : TLineNum; 
+Procedure Token_GetLocation( K : TokenPtr; Var line : TLineNum; 
     Var col : TCharPos );
 Begin
   With K^ Do
@@ -160,7 +183,7 @@ End;
 
 { set the line and column number of the start of token K, *including
  preceding blank spaces* }
-Procedure SetTokenLocation( K : TokenPtr; line : TLineNum; col : TCharPos );
+Procedure Token_SetLocation( K : TokenPtr; line : TLineNum; col : TCharPos );
 Begin
   With K^ Do
   Begin
@@ -169,31 +192,21 @@ Begin
   End
 End;
 
-{ get next token }
-Function NextToken( K : TokenPtr ) : TokenPtr;
-Begin
-  CheckCondition(K <> Nil,'Cannot compute the next term of Nil');
-  NextToken := K^.TK_NEXT
-End;
-
-{ set next token }
-Procedure SetNextToken( K,N : TokenPtr );
-Begin
-  CheckCondition(K <> Nil,'Cannot set the next term of Nil');
-  K^.TK_NEXT := N
-End;
-
 { get token type }
-Function TokenType( K : TokenPtr ) : TTokenType;
+Function Token_GetType( K : TokenPtr ) : TTokenType;
 Begin
-  CheckCondition(K <> Nil,'Cannot compute the type of token Nil');
-  TokenType := K^.TK_TYPE
+  CheckCondition(K <> Nil,'Token_GetType: Nil');
+  Token_GetType := K^.TK_TYPE
 End;
+
+{-----------------------------------------------------------------------}
+{ methods                                                               }
+{-----------------------------------------------------------------------}
 
 { get token type as a string }
-Function TokenTypeAsString( K : TokenPtr ) : TString;
+Function Token_GetTypeAsString( K : TokenPtr ) : TString;
 Begin
-  TokenTypeAsString := TokenStr[TokenType(K)]
+  Token_GetTypeAsString := TokenStr[Token_GetType(K)]
 End;
 
 End.

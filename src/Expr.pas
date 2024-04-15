@@ -31,6 +31,7 @@ Uses
   PObjOp,
   PObjStr,
   PObjTerm,
+  PObjDef,
   PObjProg,
   Encoding;
 
@@ -112,7 +113,7 @@ Begin
   Variable:
     Begin
       If TT2 = Variable Then
-        Cmp := StrComp(VariableGetName(V1),VariableGetName(V2))
+        Cmp := Str_Comp(VariableGetName(V1),VariableGetName(V2))
       Else
         Cmp := CompLower
     End;
@@ -125,7 +126,7 @@ Begin
         Begin
           If ConstType(C1) = QString Then
             If ConstType(C2) = QString Then
-              Cmp := StrComp(ConstGetStr(C1),ConstGetStr(C2))
+              Cmp := Str_Comp(ConstGetStr(C1),ConstGetStr(C2))
             Else
               Cmp := CompGreater
           Else
@@ -144,7 +145,7 @@ Begin
       FuncSymbol:
         Cmp := CompLower;
       Identifier:
-        Cmp := StrComp(IdentifierGetStr(I1),IdentifierGetStr(I2));
+        Cmp := Str_Comp(IdentifierGetStr(I1),IdentifierGetStr(I2));
       Variable,Constant:
         Cmp := CompGreater;
       End
@@ -229,7 +230,7 @@ Begin
             { function is known and has the correct number of parameters }
             func := IdentifierGetPStr(IIdent);
             n := TupleArgCount(T) - 1;
-            o := OpLookup(P^.PP_OPER,'',func,[],n,1200);
+            o := Op_Lookup(P^.PP_OPER,'',func,[],n,1200);
             Ok := o <> Nil;
             If Ok Then
             Begin
@@ -425,7 +426,7 @@ Begin
                 End;
                 If Ok Then
                 Begin
-                  s := NewStringFrom(rs);
+                  s := Str_NewFromString(rs);
                   e := EmitConst(P,s,cot,False) { FIXME: not glob? }
                 End
               End

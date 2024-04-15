@@ -414,13 +414,14 @@ Begin
   End
 End;
 
-{ display last characters read, belonging to the same line, and up to a 
- maximum of max characters; return the number of characters actually
+{ display last characters read, belonging to the same line, and taking up to a 
+ maximum of max columns; return the number of columns actually
  displayed }
 Function BufDisplayLine( B : TBuf; max : TBufIndex ) : TBufIndex;
 Var
   n,m : TBufIndex;
   i,j : TBufIndex;
+  cols : Byte;
 Begin
   n := 0;
   With B Do
@@ -433,16 +434,17 @@ Begin
       j := PrevIdx(B,i);
       While (m < max) And (j <> 0) Do
       Begin
-        If IsEol(Buf[j]) Then
+        cols := CrtCharWidthOnScreen(Buf[j].Val);
+        If IsEol(Buf[j]) Or ((m + cols) > max) Then
           j := 0
         Else
         Begin
           i := j;
-          m := m + 1;
+          m := m + cols;
           j := PrevIdx(B,j)
         End
       End;
-      { display from i to read index }
+      { display from char i to read index }
       n := 0;
       While i <> 0 Do
       Begin
@@ -450,7 +452,7 @@ Begin
           CWrite(' ')
         Else
           CWrite(Buf[i].Val);
-        n := n + 1;
+        n := n + CrtCharWidthOnScreen(Buf[i].Val);
         If i = IdxR Then
           i := 0
         Else
@@ -569,7 +571,7 @@ Var
 Begin
   With CrtRow Do
   Begin
-    WriteToEchoFile(IntToStr(Len) + ' ' + IntToStr(Bytes) + ' ');
+    WriteToEchoFile(IntToStr(Len) + ' ' + IntToStr(Wrap) + ' ');
     For i := 1 to Len Do
       CharDump(CrtChar(Row,i))
   End

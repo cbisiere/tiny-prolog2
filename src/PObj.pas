@@ -25,8 +25,8 @@ Uses
 
 { type of allocated objects; note that SY, EQ, HE, RE are not managed by GC }
 Type
-  TypePrologObj = (PR, RU, QU, SY, EQ, BT, CO, FU, VA, ID, CS, CI, CR, DE, HE, 
-      ST, SD, RE, OP, TK);
+  TypePrologObj = (PR, SM, WO, CM, RU, QU, SY, EQ, BT, CO, FU, VA, ID, 
+      CS, CI, CR, DE, HE, ST, SD, RE, OP, FI, TK);
 
 { term: constant, variable, functional symbol }
 Type
@@ -39,6 +39,7 @@ Function NewRegisteredPObject( t : TypePrologObj; b: TObjectSize; n: Byte;
     CanCopy : Boolean; d : Byte ) : TObjectPtr;
 
 Function SameTerms( T1,T2 : TermPtr ) : Boolean;
+Function Unifiable( T1,T2 : TermPtr ) : Boolean;
 Function OrderedTerms( T1,T2 : TermPtr ) : Boolean;
 
 Implementation
@@ -54,8 +55,9 @@ Implementation
 Type
   TypePrologObjStr = Array[TypePrologObj] Of TObjectName;
 Const
-  ObjStr : TypePrologObjStr = ('PR', 'RU', 'QU', 'SY', 'EQ', 'BT', 'CO', 'FU', 
-      'VA', 'ID', 'CS', 'CI', 'CR', 'DE', 'HE', 'ST', 'SD', 'RE', 'OP', 'TK');
+  ObjStr : TypePrologObjStr = ('PR', 'SM', 'WO', 'CM', 'RU', 'QU', 'SY', 'EQ', 
+      'BT', 'CO', 'FU', 'VA', 'ID', 'CS', 'CI', 'CR', 'DE', 'HE', 'ST', 'SD', 
+      'RE', 'OP', 'FI', 'TK');
 
 { mapping between types: Internal Index <-> Prolog }
 Var
@@ -115,6 +117,20 @@ End;
 Function SameTerms( T1,T2 : TermPtr ) : Boolean;
 Begin
   SameTerms := T1 = T2
+End;
+
+{ are two terms possibly unifiable? if not, there is not point in copying
+ a rule, etc.; note that since we make sure that a given constant value 
+ (identifiers, numbers, strings) is represented by exactly one term,
+ comparing pointers is fine even for constants }
+Function Unifiable( T1,T2 : TermPtr ) : Boolean;
+Var 
+  Ok : Boolean;
+Begin
+  CheckCondition((T1<>Nil) Or (T2<>Nil),
+    'Call to Unifiable with two Nil terms'); { FIXME: is it really a problem?}
+  Ok := SameTerms(T1,T2) Or (T1=Nil) Or (T2=Nil); { FIXME: why Nil? }
+  Unifiable := Ok
 End;
 
 { arbitrary order on terms: are two terms ordered? }

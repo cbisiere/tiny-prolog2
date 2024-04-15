@@ -215,7 +215,7 @@ Var
   p : TObjectPtr Absolute E;
   pV : TObjectPtr Absolute V;
 Begin
-  SetMem(U,obj,p,pV,Backtrackable)
+  Restore_SetMem(U,obj,p,pV,Backtrackable)
 End;
 
 { create a new system containing a single equation T1=T2 }

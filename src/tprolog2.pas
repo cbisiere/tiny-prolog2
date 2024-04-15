@@ -38,13 +38,12 @@ Uses
   Readline,
   Files,
   Trace,
-  OStream,
-  OStack,
   Common,
   IChar,
   Buffer,
   Memory,
   PObj,
+  PObjIO,
   PObjRest,
   PObjOp,
   PObjStr,
@@ -52,9 +51,15 @@ Uses
   PObjDict,
   PObjEq,
   PObjTerm,
+  PObjDef,
+  PObjBter,
+  PObjRule,
+  PObjQury,
+  PObjHead,
+  PObjComm,
+  PObjWrld,
+  PObjStmt,
   PObjProg,
-  IStream,
-  IStack,
   Encoding,
   Unparse,
   Reduc,
@@ -67,12 +72,15 @@ Uses
   Init;
 
 { check for error (or/and request to quit) and handle it }
-Procedure HandleErrorIfAny;
+Procedure HandleErrorIfAny( P : ProgPtr );
+Var
+  f : StreamPtr;
 Begin
   If Error Then
   Begin
-    DisplayInputErrorMessage(GetErrorMessage);
-    CloseCurrentInput
+    f := CurrentInput(P);
+    StreamDisplayErrorMessage(f,GetErrorMessage);
+    StreamClose(f)
   End;
   If QuitRequested Then
   Begin
@@ -82,16 +90,15 @@ Begin
   ResetError
 End;
 
-{ compile the user program and solve each query }
-Procedure Main;
+{ Read Evaluate Print Loop }
+Procedure REPL( P : ProgPtr );
 Var
-  P : ProgPtr;
   Prompt : TString;
 Begin
-  P := CreateProgram;
-  ProcessParameters(P);
   Repeat
-    HandleErrorIfAny;
+    HandleErrorIfAny(P);
+    ResetIO(P);
+    ReleaseMemory(P);
     Case GetSyntax(P) Of
     PrologII:
       Prompt := '> ';
@@ -103,13 +110,17 @@ Begin
       Prompt := '?- ';
     End;
     CWrite(Prompt);
-    ReadFromConsole;
-    While ParseCommandLineQuery(P) And Not Error Do
-      AnswerQueries(P,False)
+    ReadFromConsole(P);
+    ProcessCommandLine(P)
   Until False
 End;
 
+Var
+  P : ProgPtr;
+
 { main }
 Begin
-  Main
+  P := CreateProgram;
+  ProcessParameters(P);
+  REPL(P)
 End.

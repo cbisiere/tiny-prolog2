@@ -25,22 +25,12 @@ Unit Files;
 Interface
 
 Uses
-  ShortStr,
-  Num;
+  ShortStr;
 
 Type
-  TIODeviceType = (TFile, TTerminal);   { input/output device type }
   TIFile = File Of Char;
   TOFile = Text;
-  TFileDescriptor = PosInt; { file descriptor }
   TPath = TString; { file or directory full path }
-  TAlias = TString; { file name (a.k.a. "alias") }
-
-Const
-  CONSOLE_NAME : TAlias = 'console';
-
-{ unique file descriptor }
-Function GetNewFileDescriptor : TFileDescriptor;
 
 { path handling }
 Function ExtractPath( fn : TPath ) : TPath;
@@ -102,15 +92,6 @@ End;
 {$ENDIF}
 {-----------------------------------------------------------------------------}
  
- Var
-  FreeDesc : TFileDescriptor; { next file descriptor to assign }
-
-Function GetNewFileDescriptor : TFileDescriptor;
-Begin
-  GetNewFileDescriptor := FreeDesc;
-  FreeDesc := FreeDesc + 1
-End;
-
 { get the directory separator }
 Function GetDirectorySeparator : Char;
 Begin
@@ -215,6 +196,4 @@ Begin
   ReadFromFile := IOResult = 0
 End;
 
-Begin
-  FreeDesc := 1
 End.

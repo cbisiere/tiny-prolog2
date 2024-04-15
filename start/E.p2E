@@ -3,14 +3,14 @@
 "session"
 
 quit :- outml("bye!"), syscall(sysquit).
-list :- syscall(syslist).
+list :- syscall(syslist,0).
 insert(F) :- syscall(sysinsert,F).
 
 "i/o: ISO/SWI"
 
 expand_file_name(F,L) :- syscall(sysexpandfilename,F,L).
-open(File,Mode,Stream,Opt) :- syscall(sysopen,File,Mode,Stream,Opt).
-open(File,Mode,Stream) :- syscall(sysopen,File,Mode,Stream,[]).
+open(File,Mode,Stream,Opt) :- syscall(sysopennew,File,Mode,Stream,Opt).
+open(File,Mode,Stream) :- syscall(sysopennew,File,Mode,Stream,[]).
 close(Stream) :- syscall(syscloseinput,Stream), !.
 close(Stream) :- syscall(syscloseoutput,Stream).
 get_char(Stream,Char) :- syscall(sysinchar,Stream,Char).
@@ -24,13 +24,13 @@ assertz(Term) :- syscall(sysassertz,Term).
 "i/o: PII+"
 
 input_is(F) :- syscall(sysinputis,F).
-input(F) :- syscall(sysopen,F,read,S,[]).
+input(F) :- syscall(sysopennew,F,read,S,[]).
 close_input :- syscall(sysclosecurrentinput).
 close_input(F) :- syscall(syscloseinput,F).
 clear_input :- syscall(sysclearinput).
 
 output_is(F) :- syscall(sysoutputis,F).
-output(F) :- syscall(sysopen,F,write,S,[]).
+output(F) :- syscall(sysopennew,F,write,S,[]).
 close_output :- syscall(sysclosecurrentoutput).
 close_output(F) :- syscall(syscloseoutput,F).
 flush :- syscall(sysflush).

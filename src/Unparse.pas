@@ -23,30 +23,34 @@ Uses
   Memory,
   ShortStr,
   Errs,
-  OStack,
   PObj,
+  PObjIO,
   PObjStr,
   PObjDict,
   PObjEq,
   PObjTerm,
+  PObjDef,
+  PObjBter,
+  PObjComm,
+  PObjRule,
+  PObjQury,
   PObjProg,
   Encoding;
 
-Procedure OutString( s : StrPtr; UseIOStack : Boolean );
-Procedure OutStringCR( s : StrPtr; UseIOStack : Boolean );
-Procedure OutCR( UseIOStack : Boolean );
-Procedure OutConst( C : ConstPtr; UseIOStack : Boolean );
-Procedure OutIdentifier( I : IdPtr; UseIOStack : Boolean );
-Procedure OutVarName( V : VarPtr; UseIOStack : Boolean );
-Procedure OutOneEquation( y : TSyntax; E : EqPtr; UseIOStack : Boolean );
-Procedure OutQuerySolution( Q : QueryPtr; UseIOStack : Boolean );
-Procedure OutTermBis( y : TSyntax; T : TermPtr; ArgList,Quotes : Boolean; 
-    UseIOStack : Boolean );
-Procedure OutTerm( y : TSyntax; T : TermPtr; UseIOStack : Boolean );
-Procedure OutOneRule( R : RulePtr; UseIOStack : Boolean );
-Procedure OutRuleRange( R1,R2 : RulePtr; RuleType : RuType; 
-    UseIOStack : Boolean );
-Procedure OutOneQuery( Q : QueryPtr; UseIOStack : Boolean );
+Procedure OutString( f : StreamPtr; s : StrPtr );
+Procedure OutStringCR( f : StreamPtr; s : StrPtr );
+Procedure OutCR( f : StreamPtr );
+Procedure OutConst( f : StreamPtr; C : ConstPtr );
+Procedure OutIdentifier( f : StreamPtr; I : IdPtr );
+Procedure OutVarName( f : StreamPtr; V : VarPtr );
+Procedure OutOneEquation( f : StreamPtr; y : TSyntax; E : EqPtr );
+Procedure OutQuerySolution( f : StreamPtr; Q : QueryPtr );
+Procedure OutTermBis( f : StreamPtr; y : TSyntax; T : TermPtr; 
+    ArgList,Quotes : Boolean );
+Procedure OutTerm( f : StreamPtr; y : TSyntax; T : TermPtr );
+Procedure OutOneRule( f : StreamPtr; R : RulePtr );
+Procedure OutOneQuery( f : StreamPtr; Q : QueryPtr );
+Procedure OutOneComment( f : StreamPtr; C : CommPtr );
 
 
 Implementation
@@ -133,12 +137,12 @@ Var
 Begin
   CheckCondition(TypeOfTerm(TV)=Variable,
     'GetVarNameAsString(V): V is not a variable');
-  s := StrClone(VariableGetName(V));
+  s := Str_Clone(VariableGetName(V));
   k := ObjectCopyNumber(PV);
   If k > 0 Then
   Begin
     Str(k,ks);
-    StrAppend(s, '_' + ks) { FIXME: make sure it is an invalid variable name }
+    Str_Append(s, '_' + ks) { FIXME: make sure it is an invalid variable name }
   End;
   GetVarNameAsString := s
 End;
@@ -162,7 +166,7 @@ Begin
   T := GetTupleQueue(U,Solution);
   If T <> Nil Then
   Begin
-    StrAppend(s,',');
+    Str_Append(s,',');
     WriteArgument(y,s,T,Solution)
   End
 End;
@@ -170,19 +174,19 @@ End;
 { write the name of a user or temporary variable }
 Procedure WriteVarName( s : StrPtr; V : VarPtr );
 Begin
-  StrConcat(s,GetVarNameAsString(V))
+  Str_Concat(s,GetVarNameAsString(V))
 End;
 
 { write a constant }
 Procedure WriteConst( s : StrPtr; C : ConstPtr; Quote : Boolean );
 Begin
-  StrConcat(s,GetConstAsString(C,Quote))
+  Str_Concat(s,GetConstAsString(C,Quote))
 End;
 
 { write an identifier }
 Procedure WriteIdentifier( s : StrPtr; I : IdPtr; Quotes : Boolean );
 Begin
-  StrConcat(s,GetIdentAsString(I,Quotes))
+  Str_Concat(s,GetIdentAsString(I,Quotes))
 End;
 
 
@@ -191,14 +195,14 @@ Procedure WriteTuple( y : TSyntax; s : StrPtr; U : TermPtr;
     Solution : Boolean );
 Begin
   If y = Edinburgh Then
-    StrAppend(s,'<>(')
+    Str_Append(s,'<>(')
   Else
-    StrAppend(s,'<');
+    Str_Append(s,'<');
   WriteArgument(y,s,U,Solution);
   If y = Edinburgh Then
-    StrAppend(s,')')
+    Str_Append(s,')')
   Else
-    StrAppend(s,'>')
+    Str_Append(s,'>')
 End;
 
 { write a term, possibly as an argument of a predicate, and with quotes; 
@@ -226,9 +230,9 @@ Begin
     Begin
       If IsNil(T) Then
         If y = Edinburgh Then
-          StrAppend(s,'[]')
+          Str_Append(s,'[]')
         Else
-          StrAppend(s,'nil')
+          Str_Append(s,'nil')
       Else
         WriteIdentifier(s,IT,Quotes)
     End;
@@ -256,36 +260,36 @@ Begin
   FuncSymbol:
     Begin
       If IsEmptyTuple(T) Then
-        StrAppend(s,'<>')
+        Str_Append(s,'<>')
       Else If GetList(T,T1,T2,Solution) Then { t is t1.t2 }
       Begin
         If ArgList Then 
-          StrAppend(s,'(');
+          Str_Append(s,'(');
         If (y = Edinburgh) And (Not InList) Then
-          StrAppend(s,'[');
+          Str_Append(s,'[');
         WriteTermBis(y,s,T1,False,True,True,Solution);
         If y <> Edinburgh Then { display as dotted list }
         Begin
-          StrAppend(s,'.');
+          Str_Append(s,'.');
           WriteTermBis(y,s,T2,True,False,True,Solution)
         End
         Else If IsNil(T2) Then { t is t1.nil }
         Begin
-          StrAppend(s,']')
+          Str_Append(s,']')
         End
         Else If IsList(T2,Solution) Then { t = t1.t2 where t2 is a list }
         Begin
-          StrAppend(s,',');
+          Str_Append(s,',');
           WriteTermBis(y,s,T2,True,False,True,Solution)
         End
         Else { t = t1.t2 where t2 is a not list }
         Begin
-          StrAppend(s,'|');
+          Str_Append(s,'|');
           WriteTermBis(y,s,T2,False,False,True,Solution);
-          StrAppend(s,']')
+          Str_Append(s,']')
         End;
         If ArgList Then 
-          StrAppend(s,')')
+          Str_Append(s,')')
       End
       Else { a non-empty tuple that is not a list }
       Begin 
@@ -296,9 +300,9 @@ Begin
           T1 := GetTupleQueue(T,Solution);
           If T1 <> Nil Then { <ident,a,b,...> == ident(a,b,...) }
           Begin
-            StrAppend(s,'(');
+            Str_Append(s,'(');
             WriteArgument(y,s,T1,Solution);
-            StrAppend(s, ')')
+            Str_Append(s, ')')
           End
         End
         Else { <a,b,...> where a not an identifier }
@@ -320,9 +324,9 @@ Begin
   WriteTerm(y,s,E^.EQ_LTER,Solution);
   Case E^.EQ_TYPE Of
   REL_EQUA:
-    StrAppend(s,' = ');
+    Str_Append(s,' = ');
   REL_INEQ:
-    StrAppend(s,' <> ');
+    Str_Append(s,' <> ');
   End;
   WriteTerm(y,s,E^.EQ_RTER,Solution)
 End;
@@ -334,7 +338,7 @@ Procedure WriteEquationsBis( y : TSyntax; s : StrPtr; E : EqPtr;
     Var Comma : Boolean );
 Begin
   If Comma Then 
-    StrAppend(s,', ');
+    Str_Append(s,', ');
   Comma := True;
   WriteOneEquation(y,s,E,False); { not part of a solution }
   If E^.EQ_NEXT <> Nil Then
@@ -352,20 +356,20 @@ End;
 { write a list of equations or inequations; source code only }
 Procedure WriteSourceSystem( s : StrPtr; E : EqPtr );
 Begin
-  StrAppend(s,'{ ');
+  Str_Append(s,'{ ');
   WriteEquations(PrologIIc,s,E);
-  StrAppend(s,' }')
+  Str_Append(s,' }')
 End;
 
 { write a system; source code only; dead code for now }
 Procedure WriteSourceSys( s : StrPtr; Sys : SysPtr );
 Begin
-  StrAppend(s,'{ ');
+  Str_Append(s,'{ ');
   WriteEquations(PrologIIc,s,Sys^.SY_EQUA);
   If (Sys^.SY_EQUA<>Nil) And (Sys^.SY_INEQ<>Nil) Then
-    StrAppend(s,', ');
+    Str_Append(s,', ');
   WriteEquations(PrologIIc,s,Sys^.SY_INEQ);
-  StrAppend(s,' }')
+  Str_Append(s,' }')
 End;
 
 { write all inequations in the stack }
@@ -377,7 +381,7 @@ Begin
   For I := K DownTo 1 Do 
   Begin
     If Before Then
-      StrAppend(s,', ');
+      Str_Append(s,', ');
     WriteOneEquation(y,s,Ineq[I],True);
     Before := True
   End
@@ -400,34 +404,34 @@ Begin
   Begin
     Printed := True;
     If SpaceBeforeCurl Then
-      StrAppend(s,' ');
-    StrAppend(s,'{ ')
+      Str_Append(s,' ');
+    Str_Append(s,'{ ')
   End
 End;
 
-{ write constraints on variables from DV1 to DV2 (excluding DV2); Printed is
+{ write constraints variables in list DV; Printed is
   true if a curly brace has already been printed; Before is true if an equation
   or inequation has already been printed; if Curl then curly braces are 
   always printed, even if there are no equations or inequations to print  }
-Procedure WriteSolutionBis( y : TSyntax; s : StrPtr; DV1,DV2 : DictPtr;
+Procedure WriteSolutionBis( y : TSyntax; s : StrPtr; DV : DictPtr;
     Curl, SpaceBeforeCurl : Boolean; 
     Var Printed, Before : Boolean );
 Var 
   V : VarPtr;
   TV : TermPtr Absolute V;
 Begin
-  If (DV1<>Nil) And (DV1<>DV2) Then
+  If DV <> Nil Then
   Begin
-    WriteSolutionBis(y,s,DV1^.DE_NEXT,DV2,Curl,SpaceBeforeCurl,Printed,Before);
-    TV := DV1^.DE_TERM;
+    WriteSolutionBis(y,s,Dict_GetNext(DV),Curl,SpaceBeforeCurl,Printed,Before);
+    TV := Dict_GetTerm(DV);
     { equation in the reduced system }
     If VRed(V) <> Nil Then
     Begin
       WriteCurlyBrace(s,SpaceBeforeCurl,Printed);
       If Before Then 
-        StrAppend(s,', ');
+        Str_Append(s,', ');
       WriteVarName(s,V);
-      StrAppend(s,' = ');
+      Str_Append(s,' = ');
       Before := True;
       WriteTerm(y,s,VRed(V),True)
     End;
@@ -441,7 +445,7 @@ Begin
 End;
 
 { write a reduced system; see comments about parameters above }
-Procedure WriteSolution( y : TSyntax; s : StrPtr; start, stop : DictPtr;
+Procedure WriteSolution( y : TSyntax; s : StrPtr; DV : DictPtr;
     Curl, SpaceBeforeCurl : Boolean );
 Var
   Printed, Before : Boolean;
@@ -450,16 +454,16 @@ Begin
   Before := False; { no equation printed yet }
   If Curl Then 
     WriteCurlyBrace(s,SpaceBeforeCurl,Printed);
-  WriteSolutionBis(y,s,start,stop,Curl,SpaceBeforeCurl,Printed,Before);
+  WriteSolutionBis(y,s,DV,Curl,SpaceBeforeCurl,Printed,Before);
   WriteStackedInequations(y,s,Before);
   If Printed Then
-    StrAppend(s,' }')
+    Str_Append(s,' }')
 End;
 
 { write BTerm B (as part of a rule's queue or goals) }
 Procedure WriteOneBTerm( y : TSyntax; s : StrPtr; B : BTermPtr );
 Begin
-  WriteTerm(y,s,B^.BT_TERM,False)
+  WriteTerm(y,s,BTerm_GetTerm(B),False)
 End;
 
 { write a list of BTerms (rule's queue or goals) }
@@ -473,12 +477,12 @@ Var
       If Not First Then
       Begin
         If y = Edinburgh Then
-          StrAppend(s,',');
-        StrAppend(s,sep)
+          Str_Append(s,',');
+        Str_Append(s,sep)
       End;
       WriteOneBTerm(y,s,B);
       First := False;
-      DoWriteTerms(B^.BT_NEXT)
+      DoWriteTerms(BTerms_GetNext(B))
     End
   End;
 Begin
@@ -493,55 +497,31 @@ Var
   prefix : TString;
   y : TSyntax;
 Begin
-  y := GetRuleSyntax(R);
+  y := Rule_GetSyntax(R);
   prefix := CRLF + '        ';
   InitIneq;
-  B := R^.RU_FBTR;
+  B := Rule_GetHead(R);
   WriteOneBTerm(y,s,B);
-  StrAppend(s,OSyntax[y].RuleArrow);
-  if B^.BT_NEXT <> Nil Then
+  Str_Append(s,OSyntax[y].RuleArrow);
+  B := Rule_GetQueue(R);
+  if B <> Nil Then
   Begin
-    StrAppend(s,OSyntax[y].GoalArrow);
-    StrAppend(s,prefix)
+    Str_Append(s,OSyntax[y].GoalArrow);
+    Str_Append(s,prefix)
   End;
-  WriteTerms(y,s,B^.BT_NEXT,prefix);
+  WriteTerms(y,s,B,prefix);
   If R^.RU_SYST <> Nil Then
   Begin
-    StrAppend(s,' ');
+    Str_Append(s,' ');
     WriteSourceSystem(s,R^.RU_SYST)
   End;
-  StrAppend(s,OSyntax[y].RuleEnd)
+  Str_Append(s,OSyntax[y].RuleEnd)
 End;
 
-{ write a list of rules }
-Procedure WriteRules( s : StrPtr; R : RulePtr) ;
+{ write a single comment }
+Procedure WriteOneComment( s : StrPtr; C : CommPtr );
 Begin
-  if R <> Nil Then
-  Begin
-    WriteOneRule(s,R);
-    WriteRules(s,NextRule(R))
-  End
-End;
-
-{ write rules between R1 and R2 }
-Procedure WriteRuleRange( s : StrPtr; R1,R2 : RulePtr; RuleType : RuType );
-Var
-  R : RulePtr;
-  Stop : Boolean;
-Begin
-  R := R1;
-  Stop := R = Nil;
-  While Not Stop Do
-  Begin
-    If R^.RU_TYPE = RuleType Then
-    Begin
-      WriteOneRule(s,R);
-      StrAppendCR(s)
-    End;
-    Stop := R = R2;
-    R := NextRule(R);
-    Stop := Stop Or (R = Nil)
-  End
+  WriteConst(s,Comment_GetConst(C),True)
 End;
 
 { write a query }
@@ -549,15 +529,15 @@ Procedure WriteOneQuery( s : StrPtr; Q : QueryPtr );
 Var
   y : TSyntax;
 Begin
-  y := GetQuerySyntax(Q);
-  StrAppend(s,OSyntax[y].QueryStart);
-  WriteTerms(y,s,Q^.QU_FBTR,' ');
-  If Q^.QU_SYST <> Nil Then
+  y := Query_GetSyntax(Q);
+  Str_Append(s,OSyntax[y].QueryStart + ' ');
+  WriteTerms(y,s,Query_GetTerms(Q),' ');
+  If Query_GetSys(Q) <> Nil Then
   Begin
-    StrAppend(s,' ');
-    WriteSourceSystem(s,Q^.QU_SYST)
+    Str_Append(s,' ');
+    WriteSourceSystem(s,Query_GetSys(Q))
   End;
-  StrAppend(s,OSyntax[y].QueryEnd);
+  Str_Append(s,OSyntax[y].QueryEnd);
 End;
 
 { write a list of query }
@@ -566,21 +546,21 @@ Begin
   if Q <> Nil Then
   Begin
     WriteOneQuery(s,Q);
-    WriteQueries(s,NextQuery(Q))
+    WriteQueries(s,Query_GetNext(Q))
   End
 End;
 
-{ write all queries in a program }
-Procedure WriteProgramQueries( s : StrPtr; P : ProgPtr );
-Begin
-  WriteQueries(s,FirstProgramQuery(P))
-End;
-
-
 { write all rules in a program }
 Procedure WriteProgramRules( s : StrPtr; P : ProgPtr );
+Var
+  R : RulePtr;
 Begin
-  WriteRules(s,FirstProgramRule(P))
+  R := FirstRule(P,False);
+  While R <> Nil Do
+  Begin
+    WriteOneRule(s,R);
+    R := NextRule(R,False)
+  End
 End;
 
 
@@ -588,128 +568,136 @@ End;
 { output using long strings                                                  }
 {----------------------------------------------------------------------------}
 
-{ write a string }
-Procedure OutString( s : StrPtr; UseIOStack : Boolean );
+{ write a string to stream f or Crt }
+Procedure OutString( f : StreamPtr; s : StrPtr );
 Begin
-  If Not UseIOStack Or OutputIsTerminal Then
-    StrWrite(s)
+  If (f = Nil) Or StreamIsConsole(f) Then
+    Str_CWrite(s)
   Else
-    StrWriteToCurrentFile(s)
+    Str_Write(f,s)
 End;
 
 { write a string followed by a carriage return; do not alter the
   string passed as parameter }
-Procedure OutStringCR( s : StrPtr; UseIOStack : Boolean );
+Procedure OutStringCR( f : StreamPtr; s : StrPtr );
 Begin
-  OutString(s,UseIOStack);
-  OutString(NewStringFrom(CRLF),UseIOStack)
+  OutString(f,s);
+  OutString(f,Str_NewFromString(CRLF))
 End;
 
 { write a carriage return }
-Procedure OutCR( UseIOStack : Boolean );
-Var s : StrPtr;
+Procedure OutCR( f : StreamPtr );
+Var 
+  s : StrPtr;
 Begin
-  s := NewString;
-  OutStringCR(s,UseIOStack)
+  s := Str_New;
+  OutStringCR(f,s)
 End;
 
-Procedure OutConst( C : ConstPtr; UseIOStack : Boolean );
-Var s : StrPtr;
+Procedure OutConst( f : StreamPtr; C : ConstPtr );
+Var 
+  s : StrPtr;
 Begin
-  s := NewString;
+  s := Str_New;
   WriteConst(s,C,True); { with quotes }
-  OutString(s,UseIOStack)
+  OutString(f,s)
 End;
 
-Procedure OutIdentifier( I : IdPtr; UseIOStack : Boolean );
-Var s : StrPtr;
+Procedure OutIdentifier( f : StreamPtr; I : IdPtr );
+Var 
+  s : StrPtr;
 Begin
-  s := NewString;
+  s := Str_New;
   WriteIdentifier(s,I,True);
-  OutString(s,UseIOStack)
+  OutString(f,s)
 End;
 
-Procedure OutVarName( V : VarPtr; UseIOStack : Boolean );
-Var s : StrPtr;
+Procedure OutVarName( f : StreamPtr; V : VarPtr );
+Var 
+  s : StrPtr;
 Begin
-  s := NewString;
+  s := Str_New;
   WriteVarName(s,V);
-  OutString(s,UseIOStack)
+  OutString(f,s)
 End;
 
 { print one equation (debugging) }
-Procedure OutOneEquation( y : TSyntax; E : EqPtr; UseIOStack : Boolean );
-Var s : StrPtr;
+Procedure OutOneEquation( f : StreamPtr; y : TSyntax; E : EqPtr );
+Var 
+  s : StrPtr;
 Begin
-  s := NewString;
+  s := Str_New;
   WriteOneEquation(y,s,E,False); { source code }
-  OutString(s,UseIOStack)
+  OutString(f,s)
 End;
 
-Procedure OutSolution( y : TSyntax; start,stop : DictPtr; 
-    UseIOStack : Boolean );
-Var s : StrPtr;
+Procedure OutSolution( f : StreamPtr; y : TSyntax; DV : DictPtr );
+Var 
+  s : StrPtr;
 Begin
-  s := NewString;
-  WriteSolution(y,s,start,stop,True,False);
-  OutString(s,UseIOStack)
+  s := Str_New;
+  WriteSolution(y,s,DV,True,False);
+  OutString(f,s)
 End;
 
 { output the reduced system for the variables in the current query }
-Procedure OutQuerySolution( Q : QueryPtr; UseIOStack : Boolean );
+Procedure OutQuerySolution( f : StreamPtr; Q : QueryPtr );
 Begin
   InitIneq;
-  OutSolution(GetQuerySyntax(Q),Q^.QU_FVAR,Q^.QU_LVAR,UseIOStack)
+  OutSolution(f,Query_GetSyntax(Q),Query_GetDict(Q))
 End;
 
 { output a term that is not an argument of a predicate }
-Procedure OutTermBis( y : TSyntax; T : TermPtr; ArgList,Quotes : Boolean; 
-  UseIOStack : Boolean );
-Var s : StrPtr;
+Procedure OutTermBis( f : StreamPtr; y : TSyntax; T : TermPtr; 
+    ArgList,Quotes : Boolean );
+Var 
+  s : StrPtr;
 Begin
-  s := NewString;
+  s := Str_New;
   WriteTermBis(y,s,T,False,ArgList,Quotes,True);
-  OutString(s,UseIOStack)
+  OutString(f,s)
 End;
 
 { output a term }
-Procedure OutTerm( y : TSyntax; T : TermPtr; UseIOStack : Boolean );
+Procedure OutTerm( f : StreamPtr; y : TSyntax; T : TermPtr );
 Begin
-  OutTermBis(y,T,False,True,UseIOStack)
+  OutTermBis(f,y,T,False,True)
 End;
 
-Procedure OutTerms( y : TSyntax; B : BTermPtr; sep : TString; 
-    UseIOStack : Boolean );
-Var s : StrPtr;
+Procedure OutTerms( f : StreamPtr; y : TSyntax; B : BTermPtr; sep : TString );
+Var 
+  s : StrPtr;
 Begin
-  s := NewString;
+  s := Str_New;
   WriteTerms(y,s,B,sep);
-  OutString(s,UseIOStack)
+  OutString(f,s)
 End;
 
-Procedure OutOneRule( R : RulePtr; UseIOStack : Boolean );
-Var s : StrPtr;
+Procedure OutOneRule( f : StreamPtr; R : RulePtr );
+Var 
+  s : StrPtr;
 Begin
-  s := NewString;
+  s := Str_New;
   WriteOneRule(s,R);
-  OutStringCR(s,UseIOStack)
+  OutStringCR(f,s)
 End;
 
-Procedure OutRuleRange( R1,R2 : RulePtr; RuleType : RuType; 
-    UseIOStack : Boolean );
-Var s : StrPtr;
+Procedure OutOneQuery( f : StreamPtr; Q : QueryPtr );
+Var 
+  s : StrPtr;
 Begin
-  s := NewString;
-  WriteRuleRange(s,R1,R2,RuleType);
-  OutString(s,UseIOStack)
-End;
-
-Procedure OutOneQuery( Q : QueryPtr; UseIOStack : Boolean );
-Var s : StrPtr;
-Begin
-  s := NewString;
+  s := Str_New;
   WriteOneQuery(s,Q);
-  OutStringCR(s,UseIOStack)
+  OutStringCR(f,s)
+End;
+
+Procedure OutOneComment( f : StreamPtr; C : CommPtr );
+Var 
+  s : StrPtr;
+Begin
+  s := Str_New;
+  WriteOneComment(s,C);
+  OutStringCR(f,s)
 End;
 
 End.

@@ -59,6 +59,7 @@ Type
 Procedure SetIChar( Var e : TIChar; v : TChar; line : TLineNum; col : TCharPos );
 Procedure NewICharFromPrev( Var e : TIChar; p : TIChar; v : TChar );
 
+Function IsTab( e : TIChar ) : Boolean;
 Function IsEol( e : TIChar ) : Boolean;
 
 Implementation
@@ -93,6 +94,12 @@ Begin
       Pos := Pos + 1;
     Val := v
   End
+End;
+
+{ true if character e is a tab }
+Function IsTab( e : TIChar ) : Boolean;
+Begin
+  IsTab := e.Val = #09
 End;
 
 { true if character e is an end of line }

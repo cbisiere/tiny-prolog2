@@ -23,20 +23,26 @@ Uses
   ShortStr,
   Errs,
   Files,
-  IStream,
-  IStack,
-  OStack,
   Trace,
   Memory,
   PObj,
+  PObjIO,
   PObjOp,
   PObjRest,
   PObjStr,
+  PObjTok,
   PObjDict,
   PObjEq,
   PObjTerm,
+  PObjDef,
+  PObjWrld,
+  PObjBter,
+  PObjRule,
+  PObjQury,
+  PObjHead,
   PObjProg,
   Encoding,
+  Tokenize,
   Unparse,
   Reduc,
   Parse,
@@ -49,9 +55,8 @@ Type
 Const 
   FileExt : TFileExt = ('pro','p2c','p2','p2E'); { TODO: rewrite to handle .pl }
 
-Procedure AnswerQueries( P : ProgPtr; Echo : Boolean );
-Procedure LoadProgram( P : ProgPtr; Q : QueryPtr; 
-    s : StrPtr; TryPath : Boolean );
+Procedure ProcessCommandLine( P : ProgPtr );
+Procedure LoadProgram( P : ProgPtr; s : StrPtr; TryPath : Boolean );
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -66,12 +71,9 @@ Implementation
  this predicate creates a giant dependency / execution loop:
  run -> exec insert -> clock -> exec insert -> run 
  and thus this large Engine unit }
-Function ClearInsert( P : ProgPtr; Q : QueryPtr; T : TermPtr ) : Boolean;
+Function ClearInsert( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   FileNamePtr : StrPtr;
-  Qi, QLast : QueryPtr;
-  HadNoRules : Boolean;
-  Stop : Boolean;
 Begin
   ClearInsert := False;
   { 1: filename (string or identifier, unquoted) }
@@ -79,34 +81,9 @@ Begin
   If FileNamePtr = Nil Then 
     Exit;
   { execute }
-  HadNoRules := FirstProgramRule(P) = Nil;
-  QLast := LastProgramQuery(P);
-  LoadProgram(P,Q,FileNamePtr,True);
+  LoadProgram(P,FileNamePtr,True);
   If Error Then 
     Exit;
-  { TWIST:
-    if the program had no rules before these new rules were inserted,
-    we must update the scopes of the current query and queries that follow, 
-    up to the last query before the program was loaded;
-    indeed, when reading a program *starting* with an insert/1, the scope
-    of this insert will be nil; upon execution, the inserted rules will 
-    not show up in the scope of this goal (and it may thus fail); the 
-    situation is similar for the queries that follow insert/1 and are in 
-    the same file: even if they have a non Nil scope, the first rule in
-    the scope is not what it should be }
-  If HadNoRules Then
-  Begin
-    Qi := Q;
-    Stop := False;
-    While Not Stop Do
-    Begin
-      SetFirstRuleInQueryScope(Qi,FirstProgramRule(P));
-      If LastRuleInQueryScope(Qi) = Nil Then
-        SetLastRuleInQueryScope(Qi,LastRuleInQueryScope(Q));
-      Qi := NextQuery(Qi);
-      Stop := (Qi=Nil) Or (Qi=QLast)
-    End
-  End;
   ClearInsert := True
 End;
 
@@ -122,7 +99,7 @@ Begin
     Exit;
 
   If Predef = PP_INSERT Then
-    Ok := ClearInsert(P,Q,T)
+    Ok := ClearInsert(P,T)
   Else
     Ok := ClearPredef(Predef,P,Q,T);
   ExecutionSysCallOk := Ok
@@ -146,15 +123,15 @@ Var
   s : StrPtr;
 Begin
   CheckCondition(B <> Nil,'WarnNoRuleToClearTerm: B is Nil');
-  I := AccessIdentifier(B^.BT_TERM); { handle dynamic assignment of identifiers }
+  I := AccessIdentifier(BTerm_GetTerm(B)); { handle dynamic assignment of identifiers }
   If I = Nil Then
     Exit;
   s := IdentifierGetStr(I);
-  If StrEqualTo(s,'fail') Then
+  If Str_EqualToString(s,'fail') Then
     Exit;
   CWriteWarning('no rules match goal');
   CWrite(' ''');
-  StrWrite(s);
+  Str_CWrite(s);
   CWrite('''');
   CWriteLn
 End;
@@ -180,86 +157,40 @@ Var
       local head could be used instead }
     Head := P^.PP_HEAD;
     P^.PP_HEAD := Nil;
+    Q^.QU_HEAD := Nil;
   
     EndOfClock := False;
     GCCount := 0
   End;
 
-  { display constraints only about the variables in the query }
+  { display on Crt constraints only about the variables in the query }
   Procedure WriteQuerySolution;
   Begin
-    OutQuerySolution(Q,False);
+    OutQuerySolution(Nil,Q);
     CWriteLn
   End;
 
-  { are two terms possibly unifiable? if not, there is not point in copying
-    a rule, etc.; note that since we make sure that a given constant value 
-    (identifiers, numbers, strings) is represented by exactly one term,
-    comparing pointers is fine even for constants }
-  Function Unifiable( T1,T2 : TermPtr ) : Boolean;
-  Var 
-    Ok : Boolean;
-  Begin
-    CheckCondition((T1<>Nil) Or (T2<>Nil),
-      'Call to Unifiable with two Nil terms'); { FIXME: is it really a problem?}
-    Ok := (T1=T2) Or (T1=Nil) Or (T2=Nil);
-    Unifiable := Ok
-  End;
-
-  { returns the rule following R, or Nil if R is the last rule in the query's
-    scope }
-  Function Next( R : RulePtr ) : RulePtr;
-  Begin
-    CheckCondition(R <> Nil,'cannot call Next on Nil');
-    If R = LastRuleInQueryScope(Q) Then 
-      Next := Nil
-    Else
-      Next := NextRule(R)
-  End;
-
-  { first rule that has a chance to unify with a term, starting with rule R }
-  Function FirstCandidateRule( R : RulePtr; B : BTermPtr; Var isSys : Boolean ; Var isCut : Boolean ) : RulePtr;
+  { first rule that has a chance to unify with a term, starting with rule R;
+   R could be Nil }
+  Function FirstCandidateRule( R : RulePtr; B : BTermPtr; 
+      Var isSys : Boolean ; Var isCut : Boolean ) : RulePtr;
   Var
-    FirstR : RulePtr;
-    I1 : IdPtr;
-    TI1 : TermPtr Absolute I1;
-    I2 : IdPtr;
-    TI2 : TermPtr Absolute I2;
-    Stop : Boolean;
+    I : IdPtr;
   Begin
-    FirstR := Nil;
+    FirstCandidateRule := Nil;
     isSys := False;
     isCut := False;
-    If B <> Nil Then
-    Begin
-      Stop := False;
-      I1 := AccessIdentifier(B^.BT_TERM); { handle dynamic assignment of identifiers }
-      If I1 <> Nil Then
-      Begin
-        If IdentifierIsSyscall(I1) Then
-        Begin
-          isSys := True;
-          Stop := True
-        End
-        Else
-        If IdentifierIsCut(I1) Then
-        Begin
-          isCut := True;
-          Stop := True
-        End
-      End;
-      While (R<>Nil) And Not Stop Do
-      Begin
-        I2 := AccessTerm(R^.RU_FBTR); { FIXME: check ident? Otherwise the rule head is a variable -- not parsable}
-        If Unifiable(TI1,TI2) Then
-        Begin
-          FirstR := R;
-          Stop := True
-        End;
-        R := Next(R)
-      End
-    End;
-    FirstCandidateRule := FirstR
+    If B = Nil Then
+      Exit;
+    I := AccessIdentifier(BTerm_GetTerm(B)); { slow but handle assignment }
+    If I = Nil Then
+      Exit;
+    If IdentifierIsSyscall(I) Then
+      isSys := True
+    Else If IdentifierIsCut(I) Then
+      isCut := True
+    Else 
+      FirstCandidateRule := FindRuleWithHead(R,I,False) 
   End;
 
   {----------------------------------------------------------------------------}
@@ -267,7 +198,8 @@ Var
   { returns the next rule whose head is unifiable with B, and Nil otherwise.   }
   {----------------------------------------------------------------------------}
 
-  Function NextCandidateRule( R : RulePtr; B : BTermPtr; Var isSys : Boolean ; Var isCut : Boolean) : RulePtr;
+  Function NextCandidateRule( R : RulePtr; B : BTermPtr; Var isSys : Boolean; 
+      Var isCut : Boolean) : RulePtr;
   Var NextR : RulePtr;
   Begin
     If (R = Nil) Or (isSys) Or (isCut) Then
@@ -277,7 +209,7 @@ Var
       NextR := Nil
     End
     Else
-      NextR := FirstCandidateRule(Next(R), B, isSys, isCut);
+      NextR := FirstCandidateRule(NextRule(R,False), B, isSys, isCut);
     NextCandidateRule := NextR
   End;
 
@@ -334,7 +266,7 @@ Var
       End
     Until Stop;
     If Not NoMoreChoices Then
-      SetHeaderRule(H,NextR,isSys,isCut)
+      Header_SetRule(H,NextR,isSys,isCut)
 End;
 
 {------------------------------------------------------------------}
@@ -347,8 +279,8 @@ End;
     R : RulePtr;
     isSys, isCut : Boolean;
   Begin
-    R := FirstCandidateRule(FirstRuleInQueryScope(Q),H^.HH_FBCL,isSys,isCut);
-    SetHeaderRule(H,R,isSys,isCut);
+    R := FirstCandidateRule(FirstRule(P,False),H^.HH_FBCL,isSys,isCut);
+    Header_SetRule(H,R,isSys,isCut);
     If (R = Nil) And (Not isSys) And (Not isCut) Then
     Begin
       WarnNoRuleToClearTerm(H^.HH_FBCL);
@@ -379,13 +311,13 @@ End;
     BCopyRuleP : BTermPtr Absolute CopyRuleP;
 
   Begin
-    GetHeaderRule(H,R,isSys,isCut); { rule to apply }
+    Header_GetRule(H,R,isSys,isCut); { rule to apply }
 
     CheckCondition(H^.HH_FBCL <> Nil,'MoveForward: No terms to clear');
     CheckCondition((R <> Nil) Or isSys Or isCut,'MoveForward: No rule to apply');
 
     ClearB := H^.HH_FBCL; { list of terms to clear }
-    ClearT := ClearB^.BT_TERM; { current term to clear }
+    ClearT := BTerm_GetTerm(ClearB); { current term to clear }
 
     { set the backward head pointer in case of a cut }
     If (H <> Nil) And (isCut) Then
@@ -395,19 +327,19 @@ End;
     Hc := H;
 
     { new header; the "cut" indicator propagates }
-    PushNewClockHeader(H,Nil,Nil,False,False);
+    Headers_PushNew(H,Nil,Nil,False,False);
 
     If isCut Then
     Begin
       Solvable := True; { "cut" is always clearable }
-      H^.HH_FBCL := NextTerm(ClearB)
+      H^.HH_FBCL := BTerms_GetNext(ClearB)
     End
     Else
     If isSys Then
     Begin
       Solvable := ExecutionSysCallOk(P,Q,ClearT);
       { remove the term from the list of terms to clear }
-      H^.HH_FBCL := NextTerm(ClearB)
+      H^.HH_FBCL := BTerms_GetNext(ClearB)
     End
     Else
     Begin
@@ -430,22 +362,22 @@ End;
       If Solvable Then
       Begin
         { copy the terms of the target rule }
-        RuleB := R^.RU_FBTR;
+        RuleB := Rule_GetTerms(R);
         CopyRuleP := DeepCopy(PRuleB);
 
         { link each term of the rule to the header pointing to that rule }
-        SetTermsHeader(Hc,BCopyRuleP);
+        BTerms_SetHeader(BCopyRuleP,Hc);
 
         { constraint to reduce: term to clear = rule head }
-        Ss := NewSystemWithEq(ClearT,BCopyRuleP^.BT_TERM);
+        Ss := NewSystemWithEq(ClearT,BTerm_GetTerm(BCopyRuleP));
 
         { new list of terms to clear: rule queue + all previous terms 
           but the first }
         B := BCopyRuleP;
-        While (NextTerm(B)<>Nil) Do
-          B := NextTerm(B);
-        B^.BT_NEXT := NextTerm(ClearB);
-        H^.HH_FBCL := NextTerm(BCopyRuleP);
+        While (BTerms_GetNext(B)<>Nil) Do
+          B := BTerms_GetNext(B);
+        B^.BT_NEXT := BTerms_GetNext(ClearB);
+        H^.HH_FBCL := BTerms_GetNext(BCopyRuleP);
 
         Solvable := ReduceSystem(Ss,True,H^.HH_REST)
       End
@@ -472,11 +404,11 @@ Begin
     no solutions; note that the system is reduced before clearing any 
     goal, including goals that sets global variables; thus a query 
     like "assign(aa,1) { aa = 1 )" will fail right away  }
-  If Q^.QU_SYST <> Nil Then
-    If Not ReduceEquations(Q^.QU_SYST) Then
+  If Query_GetSys(Q) <> Nil Then
+    If Not ReduceEquations(Query_GetSys(Q)) Then
       Exit;
 
-  B := Q^.QU_FBTR; { list of terms to clear }
+  B := Query_GetTerms(Q); { list of terms to clear }
 
   { no terms to clear: success }
   If B = Nil Then
@@ -485,7 +417,7 @@ Begin
     Exit
   End;
 
-  R := FirstCandidateRule(FirstRuleInQueryScope(Q),B,isSys,isCut);
+  R := FirstCandidateRule(FirstRule(P,False),B,isSys,isCut);
 
   { not even a candidate rule to try: fail }
   If (R = Nil) And (Not isSys) And (Not isCut) Then
@@ -494,10 +426,10 @@ Begin
     Exit
   End;
 
-  PushNewClockHeader(P^.PP_HEAD,B,R,isSys,isCut);
+  Headers_PushNew(P^.PP_HEAD,B,R,isSys,isCut);
 
   { terms to clear points to this header }
-  SetTermsHeader(P^.PP_HEAD,B);
+  BTerms_SetHeader(B,P^.PP_HEAD);
 
   Repeat
     MoveForward(P^.PP_HEAD);
@@ -518,99 +450,197 @@ Begin
   P^.PP_HEAD := Head { restore current header }
 End;
 
-
 {----------------------------------------------------------------------------}
 {                                                                            }
-{       L O A D   R U L E S   A N D   E X E C U T E   Q U E R I E S          }
+{                      E X E C U T E   Q U E R I E S                         }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{ reset the input/output system, closing all open files, but preserving the
- input console buffer }
-Procedure ResetIO;
-Begin
-  ResetIFileStack;
-  ResetOFileStack
-End;
 
 { execute query Q }
 Procedure AnswerQuery( P : ProgPtr; Q : QueryPtr; Echo : Boolean );
 Begin
   If Echo Then
-    OutOneQuery(Q,False);
-  Clock(P,Q);
-  ResetIO
+    OutOneQuery(Nil,Q);
+  Clock(P,Q)
 End;
 
-{ execute queries starting at the current insertion level in P }
-Procedure AnswerQueries( P : ProgPtr; Echo : Boolean );
+{----------------------------------------------------------------------------}
+{                                                                            }
+{                                 P A R S E                                  }
+{                                                                            }
+{----------------------------------------------------------------------------}
+
+{ parse and insert a sequence of rules, stopping at a token in StopTokens  }
+Procedure ParseAndInsertRules( f : StreamPtr; P : ProgPtr; Var K : TokenPtr; 
+    StopTokens : TTokenSet );
+Var
+  R : RulePtr;
+Begin
+  While Not (Token_GetType(K) In StopTokens) And (Not Error) Do
+  Begin
+    R := ParseOneRule(f,P,K);
+    If Error Then Exit;
+    ProgInsertRule(P,R)
+  End
+End;
+
+{ process user input typed after the prompt; chars after the end-of-query 
+ mark stay in the input buffer }  
+Procedure ProcessCommandLine( P : ProgPtr );
+Var
+  K : TokenPtr;
+  Q : QueryPtr;
+  f : StreamPtr;
+Begin
+  f := GetInputConsole(P);
+  K := ReadProgramToken(P,f);
+  If Token_GetType(K) <> TOKEN_END_OF_INPUT Then
+  Begin
+    Q := ParseOneQuery(f,P,K,False);
+    If Error Then Exit;
+    AnswerQuery(P,Q,False)
+  End
+End;
+
+{ compile and execute a sequence of queries; if ContTokens is not empty, 
+ each query must start with a token in this set; the sequence ends with a token 
+  in StopTokens }
+Procedure ParseAndExecuteQueries( f : StreamPtr; P : ProgPtr;
+    Var K : TokenPtr; WithArrow : Boolean; 
+    ContTokens, StopTokens : TTokenSet );
 Var
   Q : QueryPtr;
 Begin
-  Q := FirstQueryToExecute(P);
-  While Q <> Nil Do
+  While ((ContTokens=[]) Or (Token_GetType(K) In ContTokens))
+    And (Not (Token_GetType(K) In StopTokens)) And (Not Error) Do
   Begin
-    AnswerQuery(P,Q,Echo);
-    Q := NextQuery(Q)
-  End;
-  RemoveQueries(P)
+    If WithArrow Then
+      VerifyToken(f,P,K,TOKEN_ARROW);
+    If Error Then Exit;
+    Q := ParseOneQuery(f,P,K,True);
+    If Error Then Exit;
+    AnswerQuery(P,Q,World_IsUserLand(GetCurrentWorld(P)))
+  End
 End;
 
-{ return a stream for filename fn, using default program extensions for 
- syntax y;
- NOTE: probably less TOCTOU-prone than looking for the file and then setting it  
- as input }
-Function SetPrologFileForInput( y : TSyntax; fn : TPath; 
-    Var FileDesc : TFileDescriptor ) : TIStreamPtr;
+{ parse and append rules and queries to a program; 
+ top-level strings (that is, when a rule is expected) are taken to have the 
+ value of a comment in all the supported Prolog syntaxes }
+Procedure ProcessRulesAndQueries( f : StreamPtr; P : ProgPtr );
 Var
-  f : TIStreamPtr;
+  Stop : Boolean;
+  K : TokenPtr;
+  StopTokens : TTokenSet;
 Begin
-  f := SetFileForInput(FileDesc,fn,fn,False);
+  K := ReadProgramToken(P,f);
+  If Error Then Exit;
+  Stop := False;
+  { common tokens ending a series of queries or rules }
+  StopTokens := [TOKEN_END_OF_INPUT,TOKEN_STRING];
+  If GetSyntax(P) = PrologII Then
+    StopTokens := StopTokens + [TOKEN_SEMICOLON]; 
+  Repeat
+    Case Token_GetType(K) Of
+    TOKEN_END_OF_INPUT:
+      Stop := True;
+    TOKEN_SEMICOLON:
+      If GetSyntax(P) = PrologII Then { old Prolog II termination }
+        Stop := True
+      Else
+        SyntaxError(TokenStr[TOKEN_SEMICOLON] + ' not expected here');
+    TOKEN_STRING: { a comment }
+      Begin
+        ProgInsertComment(P,Token_GetStr(K));
+        K := ReadProgramToken(P,f);
+      End;
+    TOKEN_ARROW: { a series of queries }
+      Begin
+        ParseAndExecuteQueries(f,P,K,True,[TOKEN_ARROW],StopTokens)
+      End;
+    Else { a series of rules }
+      Begin
+        ParseAndInsertRules(f,P,K,StopTokens + [TOKEN_ARROW]);
+      End
+    End
+  Until Stop Or Error;
+End;
+
+
+{----------------------------------------------------------------------------}
+{                                                                            }
+{                   I N S E R T   P R O L O G   P R O G R A M S              }
+{                                                                            }
+{----------------------------------------------------------------------------}
+
+{ try to set a Prolog file as input, making sure there are no loops }
+Function TryPrologFileForInput( P : ProgPtr; Path : TPath ) : StreamPtr;
+Var
+  f : StreamPtr;
+Begin
+  TryPrologFileForInput := Nil;
+  f := Nil;
+  If GetStreamByPath(P,Path) <> Nil Then
+  Begin
+    RuntimeError('insertion loop: ''' + Path + '''');
+    Exit
+  End;
+  f := NewStream(Path,Path,DEV_FILE,MODE_READ,True,False);
+  PushStream(P,f);
+  TryPrologFileForInput := f
+End;
+
+{ return a stream for filename Path, using default program extensions for 
+ the current syntax; 
+ NOTE: probably less TOCTOU-prone than looking for the file and then 
+ setting it as input }
+Function SetPrologFileForInput( P : ProgPtr; Path : TPath ) : StreamPtr;
+Var
+  f : StreamPtr;
+  y : TSyntax;
+Begin
+  SetPrologFileForInput := Nil;
+  y := GetSyntax(P);
+  f := TryPrologFileForInput(P,Path);
+  If Error Then Exit;
+  If (f = Nil) And (y = Edinburgh) Then
+  Begin
+    f := TryPrologFileForInput(P,Path + '.pl');
+    If Error Then Exit
+  End;
   If f = Nil Then
   Begin
-    If y = Edinburgh Then
-      f := SetFileForInput(FileDesc,fn,fn + '.pl',False);
-    If f = Nil Then
-      f := SetFileForInput(FileDesc,fn,fn + '.' + FileExt[y],False)
+    f := TryPrologFileForInput(P,Path + '.' + FileExt[y]);
+    If Error Then Exit
   End;
   SetPrologFileForInput := f
 End;
 
-{ load rules and queries from a Prolog file, and execute the queries it 
- contains, if any; if TryPath is True, try to use the main program dir first;
+{ load rules and execute queries (if nay) from a Prolog file; if TryPath is 
+ True, try to use the main program dir first;
  Q is the query (if any) that triggered the loading, e.g. due to an "insert" 
  goal }
-Procedure LoadProgram( P : ProgPtr; Q : QueryPtr; s : StrPtr; 
-    TryPath : Boolean );
+Procedure LoadProgram( P : ProgPtr; s : StrPtr; TryPath : Boolean );
 Var 
-  y : TSyntax;
   FileName, Path : TPath;
-  f : TIStreamPtr;
-  FileDesc : TFileDescriptor;
+  f : StreamPtr;
 Begin
-  y := GetSyntax(P);
-  If StrLength(s) <= StringMaxSize Then
+  If Str_Length(s) <= StringMaxSize Then
   Begin
-    FileName := StrGetString(s);
+    FileName := Str_AsString(s);
     Path := GetProgramPath(P);
     f := Nil;
     If TryPath And (path <> '') And 
         (Length(Path) + Length(FileName) <= StringMaxSize) Then
-      f := SetPrologFileForInput(y,Path + FileName,FileDesc);
+      f := SetPrologFileForInput(P,Path + FileName);
     If f = Nil Then
-      f := SetPrologFileForInput(y,FileName,FileDesc);
+      f := SetPrologFileForInput(P,FileName);
     If f <> Nil Then
     Begin
       BeginInsertion(P);
-      ParseRulesAndQueries(f,P,Q,GetRuleType(P));
-      If Error Then Exit;
-      CloseInputByFileDescriptor(FileDesc); { TODO: close(f) }
-      If Error Then Exit;
-      { clearing goals only after closing the input file is the right way to  
-        do it, as calls to input_is, etc. must not consider the program file 
-        as an input file }
-      AnswerQueries(P,GetRuleType(P)=RTYPE_USER);
-      EndInsertion(P)
+      ProcessRulesAndQueries(f,P);
+      StreamClose(f);
+      EndInsertion(P);
+      If Error Then Exit
     End
     Else
       RuntimeError('Cannot open file ')
@@ -619,8 +649,4 @@ Begin
     RuntimeError('filename is too long');
 End;
 
-{ initialize the input/output system }
-Begin
-  InitIFileStack;
-  InitOFileStack
 End.

@@ -78,13 +78,14 @@ Uses
 
 Const 
   CrtScreenMaxWidth = 255;
+  CrtTabSize = 8; { number of spaces per tab char; FIXME: terminal-dependent }
 
 { current row }
 Type
   TCrtRowData = Array[1..CrtScreenMaxWidth] Of TChar;
   TCrtRow = Record
     Len : Byte; { number of chars in the row }
-    Bytes : Integer; { total number of bytes in the current screen row }
+    Wrap : Integer; { Crt will wrap when greater than CrtScreenMaxWidth }
     Row : TCrtRowData
   End;
 
@@ -97,6 +98,7 @@ Var
   CrtScreenHeight : TCrtCoord;
 
 
+Function CrtCharWidthOnScreen( cc : TChar ) : Byte;
 Function CrtFits( cc : TChar ) : Boolean;
 Function CrtChar( R : TCrtRowData; i : TCrtCoord ) : TChar;
 
@@ -147,7 +149,7 @@ Begin
   With CrtRow Do
   Begin
     Len := 0;
-    Bytes := 0
+    Wrap := 0
   End;
 End;
 
@@ -155,12 +157,34 @@ End;
 { get / set                                                                  }
 {----------------------------------------------------------------------------}
 
+{ number of bytes that a char takes when trying to fit in the screen row 
+ without breaking the line; a n-byte UTF-8 char "consumes" n bytes wrt
+ wrapping because the unit Crt does not know anything about multi-byte
+ chars, even if the terminal is able to display the UTF-8 char correctly,
+ taking a single "column" }
+Function CrtCharWrapSize( cc : TChar ) : Byte;
+Begin
+  If cc = #09 Then
+    CrtCharWrapSize := CrtTabSize + 1 { weird, but this is what I observe }
+  Else
+    CrtCharWrapSize := Length(cc)
+End;
+
+{ number of columns the char takes on the screen }
+Function CrtCharWidthOnScreen( cc : TChar ) : Byte;
+Begin
+  If cc = #09 Then
+    CrtCharWidthOnScreen := CrtTabSize + 1 { weird, see above }
+  Else
+    CrtCharWidthOnScreen := 1
+End;
+
 { return true if cc fits into the current screen row; we do not use 
  the last column, as displaying a character here will trigger a line
  break }
 Function CrtFits( cc : TChar ) : Boolean;
 Begin
-  CrtFits := CrtRow.Bytes + Length(cc) < CrtScreenWidth
+  CrtFits := CrtRow.Wrap + CrtCharWrapSize(cc) < CrtScreenWidth
 End;
 
 { get char i in row data R }
@@ -203,7 +227,7 @@ Begin
   Begin
     Len := Len + 1;
     CrtSetChar(Row,Len,cc);
-    Bytes := Bytes + Length(cc)
+    Wrap := Wrap + CrtCharWrapSize(cc)
   End
 End;
 
@@ -237,7 +261,7 @@ Begin
   ClrEol;
   With CrtRow Do
   Begin
-    Bytes := Bytes - Length(CrtChar(Row,Len));
+    Wrap := Wrap - CrtCharWrapSize(CrtChar(Row,Len));
     Len := Len - 1
   End
 End;

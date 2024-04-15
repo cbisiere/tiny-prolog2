@@ -49,6 +49,7 @@ Uses
   Memory,
   PObj,
   PObjTerm,
+  PObjDef,
   PObjProg;
 
 Function NewTuple( T : TermPtr ) : TermPtr;

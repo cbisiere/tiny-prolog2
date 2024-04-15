@@ -40,7 +40,7 @@ Type
   End;
 
 
-Procedure SetMem( Var U : RestorePtr; obj : TObjectPtr; 
+Procedure Restore_SetMem( Var U : RestorePtr; obj : TObjectPtr; 
     Var p : TObjectPtr; V : TObjectPtr; Backtrackable : Boolean);
 Procedure Restore( Var U : RestorePtr );
 
@@ -51,7 +51,7 @@ Implementation
 { constructor                                                           }
 {-----------------------------------------------------------------------}
 
-Function NewRestore : RestorePtr;
+Function Restore_New : RestorePtr;
 Var 
   U : RestorePtr;
   ptr : TObjectPtr Absolute U;
@@ -65,18 +65,18 @@ Begin
     RE_DONE := False;
     RE_NEXT := Nil
   End;
-  NewRestore := U
+  Restore_New := U
 End;
 
 {-----------------------------------------------------------------------}
 { methods                                                               }
 {-----------------------------------------------------------------------}
 
-Procedure PushRestore( Var U : RestorePtr; obj : TObjectPtr; 
+Procedure Restore_Push( Var U : RestorePtr; obj : TObjectPtr; 
     Var p : TObjectPtr );
 Var NewU : RestorePtr;
 Begin
-  NewU := NewRestore;
+  NewU := Restore_New;
   With NewU^ Do
   Begin
     RE_POBJ := obj;
@@ -88,13 +88,13 @@ Begin
 End;
 
 
-Procedure SetMem( Var U : RestorePtr; obj : TObjectPtr; 
+Procedure Restore_SetMem( Var U : RestorePtr; obj : TObjectPtr; 
     Var p : TObjectPtr; V : TObjectPtr; Backtrackable : Boolean);
 Begin
   If p <> V Then
   Begin
     If Backtrackable Then 
-      PushRestore(U,obj,p);
+      Restore_Push(U,obj,p);
     p := V
   End
 End;
