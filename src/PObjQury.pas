@@ -34,12 +34,14 @@ Function Query_New( level : TILevel; y : TSyntax ) : QueryPtr;
 Function Query_GetSyntax( Q : QueryPtr ) : TSyntax;
 Function Query_GetTerms( Q : QueryPtr ) : BTermPtr;
 Procedure Query_SetTerms( Q : QueryPtr; B : BTermPtr );
-Function Query_GetNext( Q : QueryPtr ) : QueryPtr;
-Procedure Query_SetNext( Q,N : QueryPtr );
 Function Query_GetSys( Q : QueryPtr ) : EqPtr;
 Procedure Query_SetSys( Q : QueryPtr; S : EqPtr );
 Function Query_GetDict( Q : QueryPtr ) : DictPtr;
 Procedure Query_SetDict( Q : QueryPtr; D : DictPtr );
+Function Query_GetHead( Q : QueryPtr ) : HeadPtr;
+
+Function Query_GetNext( Q : QueryPtr ) : QueryPtr;
+Procedure Query_SetNext( Q,N : QueryPtr );
 
 Implementation
 
@@ -68,7 +70,7 @@ Begin
 End;
 
 {-----------------------------------------------------------------------}
-{ methods                                                               }
+{ get / set                                                             }
 {-----------------------------------------------------------------------}
 
 { get query's syntax }
@@ -90,20 +92,6 @@ Procedure Query_SetTerms( Q : QueryPtr; B : BTermPtr );
 Begin
   CheckCondition(Q <> Nil,'Query_SetTerms: Nil');
   Q^.QU_FBTR := B
-End;
-
-{ next query }
-Function Query_GetNext( Q : QueryPtr ) : QueryPtr;
-Begin
-  CheckCondition(Q <> Nil,'Query_GetNext: Nil');
-  Query_GetNext := Q^.QU_NEXT
-End;
-
-{ set next query }
-Procedure Query_SetNext( Q,N : QueryPtr );
-Begin
-  CheckCondition(Q <> Nil,'Query_SetNext: Nil');
-  Q^.QU_NEXT := N
 End;
 
 { system of equations }
@@ -132,6 +120,31 @@ Procedure Query_SetDict( Q : QueryPtr; D : DictPtr );
 Begin
   CheckCondition(Q <> Nil,'Query_SetDict: Nil');
   Q^.QU_DVAR := D
+End;
+
+{ clock head }
+Function Query_GetHead( Q : QueryPtr ) : HeadPtr;
+Begin
+  CheckCondition(Q <> Nil,'Query_GetHead: Nil');
+  Query_GetHead := Q^.QU_HEAD
+End;
+
+{-----------------------------------------------------------------------}
+{ list                                                                  }
+{-----------------------------------------------------------------------}
+
+{ next query }
+Function Query_GetNext( Q : QueryPtr ) : QueryPtr;
+Begin
+  CheckCondition(Q <> Nil,'Query_GetNext: Nil');
+  Query_GetNext := Q^.QU_NEXT
+End;
+
+{ set next query }
+Procedure Query_SetNext( Q,N : QueryPtr );
+Begin
+  CheckCondition(Q <> Nil,'Query_SetNext: Nil');
+  Q^.QU_NEXT := N
 End;
 
 End.

@@ -1384,9 +1384,9 @@ Begin
 End;
 
 { bt }
-Function ClearBacktrace : Boolean;
+Function ClearBacktrace( Q : QueryPtr ) : Boolean;
 Begin
-  DumpBacktrace;
+  DumpBacktrace(Q);
   ClearBacktrace := True
 End;
 
@@ -1492,7 +1492,7 @@ Begin
   PP_IN_CHAR_SKIP_SPACES:
     Ok := ClearInChar(P,T,True);
   PP_BACKTRACE:
-    Ok := ClearBacktrace;
+    Ok := ClearBacktrace(Q);
   PP_DUMP:
     Ok := ClearDump
   End;

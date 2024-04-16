@@ -87,7 +87,9 @@ Function EmitShortIdent( P : ProgPtr; ident : TString;
     glob : Boolean ) : TermPtr;
 
 
+Function GetCurrentQuery( P : ProgPtr )  : QueryPtr;
 Function NewProgramQuery( P : ProgPtr ) : QueryPtr;
+
 Function ReadProgramToken( P : ProgPtr; f : StreamPtr ) : TokenPtr; 
 
 Procedure ReleaseMemory( P : ProgPtr );
@@ -138,7 +140,7 @@ Var
   P : ProgPtr;
   ptr : TObjectPtr Absolute P;
 Begin
-  ptr := NewRegisteredPObject(PR,SizeOf(TObjProg),10,True,4);
+  ptr := NewRegisteredPObject(PR,SizeOf(TObjProg),9,True,4);
   With P^ Do
   Begin
     PP_WTOP := World_New(Str_NewFromString('Supervisor'),False);
@@ -146,7 +148,6 @@ Begin
     PP_FILE := CreateDefaultStreams(DEFAULT_PROLOG_SYNTAX);
     PP_TOKE := Nil;
     PP_FQRY := Nil;
-    PP_HEAD := Nil;
     PP_DCON := Nil;
     PP_DIDE := Nil;
     PP_DVAR := Nil;
@@ -442,23 +443,27 @@ Begin
 End;
 
 {-----------------------------------------------------------------------}
-{ methods                                                               }
+{ queries                                                               }
 {-----------------------------------------------------------------------}
 
-{ add a token to the program's list; meant to protect them against GC }
-Procedure AppendProgramToken( P : ProgPtr; K: TokenPtr );
+{ get the most recent query }
+Function GetCurrentQuery( P : ProgPtr )  : QueryPtr;
 Begin
-  If P^.PP_TOKE <> Nil Then
-    Token_SetNext(K,P^.PP_TOKE);
-  P^.PP_TOKE := K
+  GetCurrentQuery := P^.PP_FQRY
+End;
+
+{ set the most recent added query }
+Procedure SetCurrentQuery( P : ProgPtr; Q : QueryPtr );
+Begin
+  P^.PP_FQRY := Q
 End;
 
 { add a query to the program's list; meant to protect them against GC }
 Procedure AppendProgramQuery( P : ProgPtr; Q : QueryPtr );
 Begin
-  If P^.PP_FQRY <> Nil Then
-    Query_SetNext(Q,P^.PP_FQRY);
-  P^.PP_FQRY := Q
+  If GetCurrentQuery(P) <> Nil Then
+    Query_SetNext(Q,GetCurrentQuery(P));
+  SetCurrentQuery(P,Q)
 End;
 
 { create a new query, protected from GC }
@@ -469,6 +474,18 @@ Begin
   Q := Query_New(P^.PP_LEVL,GetSyntax(P));
   AppendProgramQuery(P,Q);
   NewProgramQuery := Q
+End;
+
+{-----------------------------------------------------------------------}
+{ methods                                                               }
+{-----------------------------------------------------------------------}
+
+{ add a token to the program's list; meant to protect them against GC }
+Procedure AppendProgramToken( P : ProgPtr; K: TokenPtr );
+Begin
+  If P^.PP_TOKE <> Nil Then
+    Token_SetNext(K,P^.PP_TOKE);
+  P^.PP_TOKE := K
 End;
 
 { read a token from a stream; protect it from GC }
@@ -485,7 +502,7 @@ End;
 Procedure ReleaseMemory( P : ProgPtr );
 Begin
   P^.PP_TOKE := Nil;
-  P^.PP_FQRY := Nil
+  SetCurrentQuery(P,Nil)
 End;
 
 { a file is about to be inserted }

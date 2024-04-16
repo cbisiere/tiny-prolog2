@@ -152,10 +152,9 @@ Type
     PP_WTOP : WorldPtr; { top world }
     PP_WCUR : WorldPtr; { current world }
     PP_TOKE : TokenPtr; { tokens (GC shield) }
-    PP_FQRY : QueryPtr; { queries (GC shield) }
+    PP_FQRY : QueryPtr; { queries (GC shield and debug) }
     { not deep copied: }
     PP_FILE : StreamPtr; { top of the stack of streams or Nil }
-    PP_HEAD : HeadPtr; { current clock head (during execution of a query); help debugging }
     PP_DCON : DictPtr; { list of all constants }
     PP_DIDE : DictPtr; { list of all identifiers (globals, can be assigned, must not backtrack) }
     PP_DVAR : DictPtr; { local variables when parsing a rule or a query }

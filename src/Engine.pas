@@ -140,7 +140,6 @@ End;
 Procedure Clock( P : ProgPtr; Q : QueryPtr );
 
 Var
-  Head        : HeadPtr;  { backup of the current program head }
   Solvable    : Boolean;  { system has a solution? }
   EndOfClock  : Boolean;
   R           : RulePtr;
@@ -152,11 +151,8 @@ Var
   { init the clock }
   Procedure InitClock;
   Begin
-    { backup the current head: needed because Clock must be reentrant to
-      support "insert/1"; not that using P^.PP_HEAD helps debug, but a
-      local head could be used instead }
-    Head := P^.PP_HEAD;
-    P^.PP_HEAD := Nil;
+    { use a per-query clock: needed because Clock must be reentrant to
+      support "insert/1" }
     Q^.QU_HEAD := Nil;
   
     EndOfClock := False;
@@ -426,19 +422,19 @@ Begin
     Exit
   End;
 
-  Headers_PushNew(P^.PP_HEAD,B,R,isSys,isCut);
+  Headers_PushNew(Q^.QU_HEAD,B,R,isSys,isCut);
 
   { terms to clear points to this header }
-  BTerms_SetHeader(B,P^.PP_HEAD);
+  BTerms_SetHeader(B,Q^.QU_HEAD);
 
   Repeat
-    MoveForward(P^.PP_HEAD);
+    MoveForward(Q^.QU_HEAD);
     If (Not Solvable) Or    { system has no solution }
-        (P^.PP_HEAD^.HH_FBCL = Nil) { no more terms to clear }
+        (Q^.QU_HEAD^.HH_FBCL = Nil) { no more terms to clear }
     Then
-      MoveBackward(P^.PP_HEAD)
+      MoveBackward(Q^.QU_HEAD)
     Else
-      SetFirstCandidateRuleOrBacktrack(P^.PP_HEAD);
+      SetFirstCandidateRuleOrBacktrack(Q^.QU_HEAD);
     { trigger GC after a certain number of steps }
     GCCount := GCCount + 1;
     If GCCount = 100 Then
@@ -446,8 +442,7 @@ Begin
       GarbageCollector;
       GCCount := 0
     End
-  Until EndOfClock;
-  P^.PP_HEAD := Head { restore current header }
+  Until EndOfClock
 End;
 
 {----------------------------------------------------------------------------}

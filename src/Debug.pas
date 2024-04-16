@@ -35,13 +35,14 @@ Uses
   PObjTerm,
   PObjDef,
   PObjBter,
+  PObjQury,
   PObjHead,
   PObjProg,
   PObjRule,
   Unparse;
 
 Procedure SetCurrentProgram( P : ProgPtr );
-Procedure DumpBacktrace;
+Procedure DumpBacktrace( Q : QueryPtr );
 Procedure CoreDump( Message : TString; Trace : Boolean );
 
 Implementation
@@ -288,10 +289,9 @@ Begin
 End;
 
 { display the call stack }
-Procedure DumpBacktrace;
+Procedure DumpBacktrace( Q : QueryPtr );
 Begin
-  If CurrentProgram<>Nil Then
-    Backtrace(CurrentProgram^.PP_HEAD)
+  Backtrace(Query_GetHead(Q))
 End;
 
 { display variable identifiers in a dictionary }
@@ -366,7 +366,7 @@ Begin
       DumpDictConst(P^.PP_DCON,'Constants:');
       DumpDictConst(P^.PP_DIDE,'Identifiers:');
       If Trace Then
-        Backtrace(P^.PP_HEAD)
+        Backtrace(Query_GetHead(GetCurrentQuery(P)))
     End;
     CWrite('End Code Dump: "' + Message + '"');
     CWriteLn;
