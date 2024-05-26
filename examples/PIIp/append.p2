@@ -1,0 +1,7 @@
+append(nil,y,y) ->;
+append(e.x,y,e.z) -> append(x,y,z);
+
+-> append(1.2.nil,3.4.nil,x);
+-> append(x,a.b.nil,1.2.a.b.nil);
+-> append(1.2.nil,x,1.2.a.b.nil);
+-> append(x,y,1.2.3.4.nil);

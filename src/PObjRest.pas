@@ -27,11 +27,11 @@ Uses
 { list of (addr, value) elements, where addr is the address of a pointer,
   and value is a pointer }
 Type
-  RestorePtr = ^TObjRestore;
-  TObjRestore = Record
+  RestPtr = ^TObjRest;
+  TObjRest = Record
     PO_META : TObjMeta;
     { not deep copied: }
-    RE_NEXT : RestorePtr;
+    RE_NEXT : RestPtr;
     RE_POBJ : TObjectPtr; { object whose property is modified }
     RE_PVAL : TObjectPtr; { backup of the pointer value }
     { extra data: }
@@ -40,9 +40,9 @@ Type
   End;
 
 
-Procedure Restore_SetMem( Var U : RestorePtr; obj : TObjectPtr; 
-    Var p : TObjectPtr; V : TObjectPtr; Backtrackable : Boolean);
-Procedure Restore( Var U : RestorePtr );
+Procedure Rest_SetMem( Var U : RestPtr; obj : TObjectPtr; 
+    Var p : TObjectPtr; V : TObjectPtr; Undo : Boolean);
+Procedure Rest_Restore( Var U : RestPtr );
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -51,12 +51,12 @@ Implementation
 { constructor                                                           }
 {-----------------------------------------------------------------------}
 
-Function Restore_New : RestorePtr;
+Function Rest_New : RestPtr;
 Var 
-  U : RestorePtr;
+  U : RestPtr;
   ptr : TObjectPtr Absolute U;
 Begin
-  ptr := NewRegisteredPObject(RE,SizeOf(TObjRestore),3,False,0);
+  ptr := NewRegisteredPObject(RE,SizeOf(TObjRest),3,False,0);
   With U^ Do
   Begin
     RE_POBJ := Nil;
@@ -65,18 +65,18 @@ Begin
     RE_DONE := False;
     RE_NEXT := Nil
   End;
-  Restore_New := U
+  Rest_New := U
 End;
 
 {-----------------------------------------------------------------------}
 { methods                                                               }
 {-----------------------------------------------------------------------}
 
-Procedure Restore_Push( Var U : RestorePtr; obj : TObjectPtr; 
+Procedure Rest_Push( Var U : RestPtr; obj : TObjectPtr; 
     Var p : TObjectPtr );
-Var NewU : RestorePtr;
+Var NewU : RestPtr;
 Begin
-  NewU := Restore_New;
+  NewU := Rest_New;
   With NewU^ Do
   Begin
     RE_POBJ := obj;
@@ -87,30 +87,31 @@ Begin
   U := NewU
 End;
 
-
-Procedure Restore_SetMem( Var U : RestorePtr; obj : TObjectPtr; 
-    Var p : TObjectPtr; V : TObjectPtr; Backtrackable : Boolean);
+{ execute the assignment p := v when p is not equal to v, where p is a property 
+ of an object obj; allows for later restoration if Undo is true;  }
+Procedure Rest_SetMem( Var U : RestPtr; obj : TObjectPtr; 
+    Var p : TObjectPtr; V : TObjectPtr; Undo : Boolean);
 Begin
   If p <> V Then
   Begin
-    If Backtrackable Then 
-      Restore_Push(U,obj,p);
+    If Undo Then 
+      Rest_Push(U,obj,p);
     p := V
   End
 End;
 
-Procedure Restore( Var U : RestorePtr );
+Procedure Rest_Restore( Var U : RestPtr );
 Begin
   If U <> Nil Then
     With U^ Do
     Begin
-      Restore(RE_NEXT);
+      Rest_Restore(RE_NEXT);
       CheckCondition(Not RE_DONE,'double restore');
-      CheckIsObject(RE_POBJ,'Restore/obj');
+      CheckIsObject(RE_POBJ,'Rest_Restore/obj');
       If RE_ADDR^ <> Nil Then 
-        CheckIsObject(RE_ADDR^,'Restore/addr');
+        CheckIsObject(RE_ADDR^,'Rest_Restore/addr');
       If RE_PVAL <> Nil Then 
-        CheckIsObject(RE_PVAL,'Restore/pval');
+        CheckIsObject(RE_PVAL,'Rest_Restore/pval');
       RE_ADDR^ := RE_PVAL;
       RE_DONE := True
     End

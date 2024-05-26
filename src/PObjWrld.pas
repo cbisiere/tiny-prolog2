@@ -31,6 +31,7 @@ Function World_New( Name : StrPtr; UserLand : Boolean ) : WorldPtr;
 Function World_IsUserLand( W : WorldPtr ) : Boolean;
 Function World_GetName( W : WorldPtr ) : StrPtr;
 Function World_GetParent( W : WorldPtr ) : WorldPtr;
+Function World_GetFirstChild( W : WorldPtr ) : WorldPtr;
 Function World_GetFirstStatement( W : WorldPtr ) : StmtPtr;
 Procedure World_SetFirstStatement( W : WorldPtr; S : StmtPtr );
 Function World_GetLastStatement( W : WorldPtr ) : StmtPtr;
@@ -203,7 +204,7 @@ Begin
   End
 End;
 
-{ suppress child Wc of world W }
+{ suppress child Wc of world W, and all the subworlds of Wc }
 Procedure World_SuppressChild( W,Wc : WorldPtr );
 Begin
   If Wc = World_GetFirstChild(W) Then

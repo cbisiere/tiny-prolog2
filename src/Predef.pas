@@ -28,13 +28,17 @@ Uses
   Crt2,
   Files,
   Trace,
+  Common,
+  IChar,
   Memory,
   PObj,
+  PObjTerm,
+  PObjFCVI,
   PObjIO,
   PObjOp,
   PObjStr,
+  PObjTok,
   PObjDict,
-  PObjTerm,
   PObjDef,
   PObjBter,
   PObjRule,
@@ -42,18 +46,19 @@ Uses
   PObjStmt,
   PObjWrld,
   PObjProg,
+  Tuple,
   Encoding,
   Unparse,
   Reduc,
   Expr,
+  Tokenize,
   Parse,
   Debug;
 
 Type
   TPP = (
-    PP_IS_IDENT,
-    PP_IS_INTEGER,
-    PP_IS_STRING,
+    PP_IS_FREE,
+    PP_IS_TYPE,
     PP_CHAR_CODE,
     PP_WORLD,
     PP_PARENT_WORLD,
@@ -77,9 +82,7 @@ Type
     PP_OPEN,
     PP_CLOSE_INPUT,
     PP_CLEAR_INPUT,
-    PP_IN_TERM,
-    PP_IN_CHAR,
-    PP_IN_CHAR_SKIP_SPACES,
+    PP_IN,
     PP_OUTPUT_IS,
     PP_CLOSE_OUTPUT,
     PP_FLUSH,
@@ -94,9 +97,14 @@ Type
     PP_EVAL,
     PP_OP,
     PP_ASSIGN,
+    PP_ECHO,
+    PP_TRACE,
+    PP_DEBUG,
     PP_DUMP,
     PP_DIF,
-    PP_UNIV
+    PP_UNIV,
+    PP_FREEZE,
+    PP_FAIL
   );
 
 Procedure RegisterPredefined( P : ProgPtr );
@@ -107,7 +115,7 @@ Function GetAtomArgAsStr( n : Byte; T : TermPtr;
     Quotes : Boolean ) : StrPtr;
 
 Function ClearPredef( Predef : TPP; P : ProgPtr; Q : QueryPtr; 
-    T : TermPtr ) : Boolean;
+    T : TermPtr; Var V,G : TermPtr ) : Boolean;
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -117,7 +125,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 46;
+  NB_PP = 48;
   MAX_PP_LENGHT = 21; { max string length }
   SYSCALL_IDENT_AS_STRING = 'syscall'; 
 Type
@@ -134,16 +142,15 @@ Type
 
 Const 
   PPArray : TPPArray = (
-    (I:PP_IS_IDENT;S:'sysisdent';N:1),
-    (I:PP_IS_INTEGER;S:'sysisinteger';N:1),
-    (I:PP_IS_STRING;S:'sysisstring';N:1),
+    (I:PP_IS_FREE;S:'sysfree';N:2),
+    (I:PP_IS_TYPE;S:'sysis';N:2),
     (I:PP_CHAR_CODE;S:'syscharcode';N:2),
     (I:PP_WORLD;S:'sysworld';N:1),
     (I:PP_PARENT_WORLD;S:'sysparentworld';N:1),
     (I:PP_NEW_SUBWORLD;S:'sysnewworld';N:1),
-    (I:PP_KILL_SUBWORLD;S:'syskillworld';N:1),
+    (I:PP_KILL_SUBWORLD;S:'syskillworld';N:2),
     (I:PP_CLIMB_WORLD;S:'sysclimbworld';N:1),
-    (I:PP_DOWN_WORLD;S:'sysdownworld';N:1),
+    (I:PP_DOWN_WORLD;S:'sysdownworld';N:2),
     (I:PP_TOP_STATEMENT;S:'systopstatement';N:0),
     (I:PP_BOTTOM_STATEMENT;S:'sysbottomstatement';N:0),
     (I:PP_UP_STATEMENT;S:'sysupstatement';N:1),
@@ -160,9 +167,7 @@ Const
     (I:PP_OPEN;S:'sysopennew';N:4),
     (I:PP_CLOSE_INPUT;S:'syscloseinput';N:1),
     (I:PP_CLEAR_INPUT;S:'sysclearinput';N:0),
-    (I:PP_IN_TERM;S:'sysinterm';N:2),
-    (I:PP_IN_CHAR;S:'sysinchar';N:2),
-    (I:PP_IN_CHAR_SKIP_SPACES;S:'sysincharskipspaces';N:2),
+    (I:PP_IN;S:'sysin';N:5),
     (I:PP_OUTPUT_IS;S:'sysoutputis';N:1),
     (I:PP_CLOSE_OUTPUT;S:'syscloseoutput';N:1),
     (I:PP_FLUSH;S:'sysflush';N:0),
@@ -177,9 +182,14 @@ Const
     (I:PP_EVAL;S:'syseval';N:2),
     (I:PP_OP;S:'sysop';N:4), { TODO: 3-arg version }
     (I:PP_ASSIGN;S:'sysassign';N:2),
+    (I:PP_ECHO;S:'sysecho';N:1),
+    (I:PP_TRACE;S:'systrace';N:1),
+    (I:PP_DEBUG;S:'sysdebug';N:1),
     (I:PP_DUMP;S:'sysdump';N:0),
     (I:PP_DIF;S:'sysdif';N:2),
-    (I:PP_UNIV;S:'sysuniv';N:2) { '=..', Edinburgh only, p.221 }
+    (I:PP_UNIV;S:'sysuniv';N:2), { '=..', Edinburgh only, p.221 }
+    (I:PP_FREEZE;S:'sysfreeze';N:2),
+    (I:PP_FAIL;S:'sysfail';N:0)
   );
 
 { lookup for a predefined predicates; set the found record; 
@@ -207,7 +217,7 @@ End;
 { is an identifier a syscall? }
 Function IdentifierIsSyscall( I : IdPtr ) : Boolean;
 Begin
-  IdentifierIsSyscall := IdentifierEqualTo(I,SYSCALL_IDENT_AS_STRING)
+  IdentifierIsSyscall := IdentifierEqualToShortString(I,SYSCALL_IDENT_AS_STRING)
 End;
 
 { install all predefined, persistent constants }
@@ -215,7 +225,7 @@ Procedure RegisterPredefined( P : ProgPtr );
 Var 
   I : IdPtr;
 Begin
-  I := InstallIdentifier(P^.PP_DCON,Str_NewFromString(SYSCALL_IDENT_AS_STRING),True)
+  I := InstallIdentifier(P^.PP_DCON,Str_NewFromShortString(SYSCALL_IDENT_AS_STRING),True)
 End;
 
 
@@ -235,7 +245,7 @@ Var
   T : TermPtr;
 Begin
   T := GetPArg(n,U);
-  EvalPArg := RepresentativeOf(T)
+  EvalPArg := ProtectedRepOf(T)
 End;
 
 { evaluate an argument as an identifier or Nil }
@@ -256,6 +266,24 @@ Begin
   EvalPArgAsInt := EvaluateToInteger(GetPArg(n,U))
 End;
 
+{ return the goal (or Nil) argument n of a predicate }
+Function GetPArgAsGoal( n : Byte; T : TermPtr ) : TermPtr;
+Var
+  T1 : TermPtr;
+Begin
+  GetPArgAsGoal := Nil;
+  T1 := EvalPArg(n,T);
+  If IsTuple(T1) Then
+  Begin
+    If TypeOfTerm(ProtectedGetTupleHead(T1,True)) <> Identifier Then
+      Exit
+  End
+  Else
+    If TypeOfTerm(T1) <> Identifier Then
+      Exit;
+  GetPArgAsGoal := T1
+End;
+
 { return as a string pointer (or Nil) argument n of a predicate, which can be 
  a string or an identifier; if Quotes is False, identifier is returned 
  unquoted }
@@ -269,12 +297,12 @@ Begin
   s := Nil;
   I := EvalPArgAsIdent(n,T);
   If I <> Nil Then
-    s := GetIdentAsString(I,Quotes)
+    s := GetIdentAsStr(I,Quotes)
   Else
   Begin
     C := EvalPArgAsString(n,T);
     If C <> Nil Then
-      s := GetConstAsString(C,False)
+      s := GetConstAsStr(C,False)
   End;
   GetAtomArgAsStr := s
 End;
@@ -290,7 +318,7 @@ Begin
   s := GetAtomArgAsStr(n,T,Quotes);
   If s = Nil Then
     Exit;
-  str := Str_GetFirstData(s);
+  str := Str_GetShortString(s);
   If Str_Length(s) > StringMaxSize Then
   Begin
     CWriteWarning('string too long: ');
@@ -302,11 +330,89 @@ Begin
   GetAtomArgAsShortStr := True
 End;
 
+{ return in Result the boolean argument passed as true/false in argument n 
+ of a predicate; return false if the argument is not a boolean }
+Function GetBoolean( n : Byte; T : TermPtr; 
+  Var Result : Boolean ) : Boolean;
+Var
+  I : IdPtr;
+  s : TString;
+Begin
+  GetBoolean := False;
+  I := EvalPArgAsIdent(n,T);
+  If I = Nil Then
+  Begin
+    CWriteLnWarning('incorrect argument: boolean expected');
+    Exit
+  End;
+  s := IdentifierGetShortString(I);
+  If s = 'true' Then
+    Result := True
+  Else If s = 'false' Then
+    Result := False
+  Else
+  Begin
+    CWriteWarning('invalid boolean argument: ''');
+    CWrite(s);
+    CWrite('''');
+    CWriteLn;
+    Exit
+  End;
+  GetBoolean := True
+End;
+
+Type
+  TPrologDataType = (TYPE_CHAR,TYPE_INTEGER,TYPE_IDENT,TYPE_REAL,TYPE_STRING,
+      TYPE_TERM,TYPE_DOT,TYPE_TUPLE);
+
+{ return in Result the type argument passed as an identifier in argument n 
+ of a predicate; return false if the argument is not a type identifier }
+Function GetType( n : Byte; T : TermPtr; 
+  Var Result : TPrologDataType ) : Boolean;
+Var
+  I : IdPtr;
+  s : TString;
+Begin
+  GetType := False;
+  I := EvalPArgAsIdent(n,T);
+  If I = Nil Then
+  Begin
+    CWriteLnWarning('incorrect argument: type expected');
+    Exit
+  End;
+  s := IdentifierGetShortString(I);
+  If s = 'term' Then
+    Result := TYPE_TERM
+  Else If s = 'char' Then
+    Result := TYPE_CHAR
+  Else If s = 'ident' Then
+    Result := TYPE_IDENT
+  Else If s = 'integer' Then
+    Result := TYPE_INTEGER
+  Else If s = 'real' Then
+    Result := TYPE_REAL
+  Else If s = 'string' Then
+    Result := TYPE_STRING
+  Else If s = 'dot' Then
+    Result := TYPE_DOT
+  Else If s = 'tuple' Then
+    Result := TYPE_TUPLE
+  Else
+  Begin
+    CWriteWarning('invalid type argument: ''');
+    CWrite(s);
+    CWrite('''');
+    CWriteLn;
+    Exit
+  End;
+  GetType := True
+End;
+
 { return True if argument n of a predicate can be path  }
-Function GetPathArgAsString( n : Byte; T : TermPtr; 
+Function GetPathArgAsShortString( n : Byte; T : TermPtr; 
     Var str : TString ) : Boolean;
 Begin
-  GetPathArgAsString := GetAtomArgAsShortStr(n,T,False,str)
+  GetPathArgAsShortString := GetAtomArgAsShortStr(n,T,False,str)
 End;
 
 { get a positive integer argument n }
@@ -320,7 +426,7 @@ Begin
   C := EvalPArgAsInt(n,T);
   If C = Nil Then
     Exit;
-  str := ConstGetPStr(C);
+  str := ConstGetShortString(C);
   Val(str,v,code);
   GetPosIntArg := code = 0
 End;
@@ -363,7 +469,7 @@ Begin
   CheckCondition(TypeOfTerm(T1) = Identifier,
       'PredefCallIsOk: constant expected');
   SysCallCode := IdentifierGetStr(IdPtr(T1));
-  CheckCondition(Str_EqualToString(SysCallCode,SYSCALL_IDENT_AS_STRING),
+  CheckCondition(Str_EqualToShortString(SysCallCode,SYSCALL_IDENT_AS_STRING),
       'PredefCallIsOk: Not a syscall');
 
   { there are at least two arguments: 'syscall' and the identifier }
@@ -380,7 +486,7 @@ Begin
     Exit;
 
   { predicate is known }
-  str := Str_AsString(Ident);
+  str := Str_AsShortString(Ident);
   If Not LookupPP(str,rec) Then
     Exit;
 
@@ -400,25 +506,64 @@ End;
 {----------------------------------------------------------------------------}
 
 {----------------------------------------------------------------------------}
-{ types                                                                      }
+{ terms                                                                      }
 {----------------------------------------------------------------------------}
 
-{ ident(T)}
-Function ClearIsIdent( T : TermPtr ) : Boolean;
+{ free(x), bound(y) }
+Function ClearIsFree( T : TermPtr ) : Boolean;
+Var
+  T1 : TermPtr;
+  Free : Boolean;
 Begin
-  ClearIsIdent := EvalPArgAsIdent(1,T) <> Nil
+  ClearIsFree := False;
+  { 1: term }
+  T1 := GetPArg(1,T);
+  { 2: true/false }
+  If Not GetBoolean(2,T,Free) Then
+    Exit;
+  ClearIsFree := Free And IsFree(T1) Or Not Free And IsBound(T1)
 End;
 
-{ integer(T)}
-Function ClearIsInteger( T : TermPtr ) : Boolean;
+{ ident(T), integer(T), string(T), real(T), dot(T), tuple(T) }
+Function ClearIsType( T : TermPtr ) : Boolean;
+Var
+  T1 : TermPtr;
+  What : TPrologDataType;
+  TypeOK : Boolean;
 Begin
-  ClearIsInteger := EvalPArgAsInt(1,T) <> Nil
-End;
-
-{ string(T)}
-Function ClearIsString( T : TermPtr ) : Boolean;
-Begin
-  ClearIsString := EvalPArgAsString(1,T) <> Nil
+  ClearIsType := False;
+  { 1: variable; should be a get as ident() is special in terms of rep }
+  T1 := GetPArg(1,T);
+  { 2: type of data to check for }
+  If Not GetType(2,T,What) Then
+    Exit;
+  { check }
+  Case What Of
+  TYPE_INTEGER:
+    TypeOK := EvaluateToInteger(T1) <> Nil;
+  TYPE_REAL:
+    TypeOK := EvaluateToReal(T1) <> Nil;
+  TYPE_STRING:
+    TypeOK := EvaluateToString(T1) <> Nil;
+  TYPE_IDENT: { an assigned ident is still an ident (tested on PII+) }
+    TypeOK := EvaluateToIdentifierIgnoreAssign(T1) <> Nil;
+  TYPE_DOT: { list: 'nil' is not a list (tested on PII+) }
+    Begin
+      T1 := ProtectedRepOf(T1);
+      TypeOK := ProtectedIsList(T1,True)
+    End;
+  TYPE_TUPLE: { tuple: a list is *not* a tuple (tested on PII+) }
+    Begin
+      T1 := ProtectedRepOf(T1);
+      TypeOK := IsTuple(T1) And Not ProtectedIsList(T1,True)
+    End;
+  Else
+    Begin
+      CWriteLnWarning('unsupported check data type');
+      Exit
+    End
+  End;
+  ClearIsType := TypeOK
 End;
 
 {----------------------------------------------------------------------------}
@@ -449,9 +594,9 @@ Begin
     s := ConstGetStr(C);
     If Str_Length(s) <> 1 Then
       Exit;
-    ch := Str_AsString(s);
-    Tn := EmitConst(P,Str_NewFromString(PosIntToStr(Ord(ch[1]))),CI,False);
-    ClearCharCode := ReduceOneEq(T2,Tn);
+    ch := Str_AsShortString(s);
+    Tn := EmitConst(P,Str_NewFromShortString(PosIntToShortString(Ord(ch[1]))),CI,False);
+    ClearCharCode := ReduceOneEq(T2,Tn,GetDebug(P));
     Exit
   End;
 
@@ -460,8 +605,8 @@ Begin
     Exit;
   If val > 255 Then
     Exit;
-  Tc := EmitConst(P,Str_NewFromString(Chr(val)),CS,False);
-  ClearCharCode := ReduceOneEq(T1,Tc)
+  Tc := EmitConst(P,Str_NewFromShortString(Chr(val)),CS,False);
+  ClearCharCode := ReduceOneEq(T1,Tc,GetDebug(P))
 End;
 
 {----------------------------------------------------------------------------}
@@ -478,7 +623,7 @@ Begin
   T1 := GetPArg(1,T);
   { create a constant string from the name of the current world }
   T2 := EmitConst(P,World_GetName(GetCurrentWorld(P)),CS,False);
-  ClearWorld := ReduceOneEq(T1,T2)
+  ClearWorld := ReduceOneEq(T1,T2,GetDebug(P))
 End;
 
 { parent-world(V) }
@@ -496,7 +641,7 @@ Begin
     Exit;
   { create a constant string from the name of parent of the current world }
   T2 := EmitConst(P,World_GetName(W),CS,False);
-  ClearParentWorld := ReduceOneEq(T1,T2)
+  ClearParentWorld := ReduceOneEq(T1,T2,GetDebug(P))
 End;
 
 { new-subworld("Facts") 
@@ -524,12 +669,13 @@ Begin
     ClearNewSubWorld := CreateNewSubWorld(P,Name,True) { OPT: par to check for dup }
 End;
 
-{ new-subworld("Facts") }
+{ kill-subworld("Facts"), purge("Facts") }
 Function ClearKillSubWorld( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   C : ConstPtr;
   Name : StrPtr;
   W : WorldPtr;
+  CheckLeaf : Boolean;
 Begin
   ClearKillSubWorld := False;
   { 1: the world's name (string) }
@@ -543,6 +689,18 @@ Begin
     CWriteWarning('no subworld with name "');
     Str_CWrite(Name);
     CWrite('"');
+    CWriteLn;
+    Exit
+  End;
+  { 2: should we test for the subworld being a leaf? }
+  If Not GetBoolean(2,T,CheckLeaf) Then
+    Exit;
+  { when requested, check the subworld is a leaf }
+  If CheckLeaf And (World_GetFirstChild(W) <> Nil) then
+  Begin
+    CWriteWarning('cannot kill subworld "');
+    Str_CWrite(Name);
+    CWrite('", as it has itself one or more subworlds');
     CWriteLn;
     Exit
   End;
@@ -573,12 +731,13 @@ Begin
   ClearClimbWorld := True
 End;
 
-{ down("Facts") }
+{ down("Facts"); optionally create the subworld if it does not exist }
 Function ClearDownWorld( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   C : ConstPtr;
   Name : StrPtr;
   W : WorldPtr;
+  Create : Boolean;
 Begin
   ClearDownWorld := False;
   { 1: the world's name (string) }
@@ -586,17 +745,29 @@ Begin
   If C = Nil Then
     Exit;
   Name := ConstGetStr(C);
-  { go down to this world if it exists }
+  { 2: should we create it if it does not exist? }
+  If Not GetBoolean(2,T,Create) Then
+    Exit;
   W := World_FindChildByName(GetCurrentWorld(P),Name);
-  If W = Nil Then
+  If W <> Nil Then { this subworld exists }
+    SetCurrentWorld(P,W)
+  Else If Not Create Then 
   Begin
     CWriteWarning('no subworld with name "');
     Str_CWrite(Name);
     CWrite('"');
     CWriteLn;
     Exit
-  End;
-  SetCurrentWorld(P,W);
+  End
+  Else { create this subworld }
+    If Not CreateNewSubWorld(P,Name,True) Then
+    Begin
+      CWriteWarning('fails to create subworld with name "');
+      Str_CWrite(Name);
+      CWrite('"');
+      CWriteLn;
+      Exit
+    End;
   ClearDownWorld := True
 End;
 
@@ -697,7 +868,7 @@ Begin
 End;
 
 { list(10) or list }
-Function ClearList( P : ProgPtr; Q : QueryPtr; T : TermPtr ) : Boolean;
+Function ClearList( P : ProgPtr; T : TermPtr ) : Boolean;
 Var 
   n : PosInt;
   W : WorldPtr;
@@ -752,7 +923,7 @@ Begin
   T1 := GetPArg(1,T);
 
   { deep copy with eval }
-  T1 := CopyTerm(T1);
+  T1 := CopyTerm(T1,False); { TO CHECK on PII+: should assignments be ignored? }
 
   { get the head }
   Ih := AccessIdentifier(T1);
@@ -799,54 +970,43 @@ Begin
 End;
 
 { dif(T1,T2) }
-Function ClearDif( T : TermPtr ) : Boolean;
+Function ClearDif( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   T1,T2 : TermPtr;
 Begin
   T1 := GetPArg(1,T);
   T2 := GetPArg(2,T);
-  ClearDif := ReduceOneIneq(T1,T2)
+  ClearDif := ReduceOneIneq(T1,T2,GetDebug(P))
 End;
 
-{ assign(file_name, "myfile.txt") }
-Function ClearAssign( T : TermPtr ) : Boolean;
+{ assign(file_name, "myfile.txt")
+ note: re-assignments are tricky to handle, as the reduced system, after
+ e.g. "assign(test,1)", contains i=1 (w/o any remaining reference to the 
+ identifier) }
+Function ClearAssign( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   T1,T2 : TermPtr;
   I : IdPtr;
 Begin
   ClearAssign := False;
-  { note: re-assignments are tricky to handle, as the reduced system, after
-    e.g. "assign(test,1)", contains i=1 (w/o any remaining reference to the 
-    identifier) }
-  { get the identifier }
+  { 1: identifier; do not eval as assignments must be ignored }
   T1 := GetPArg(1,T);
-  Case TypeOfTerm(T1) Of
-  Identifier: { an identifier, thus unbound (first assignment) }
-    Begin
-      Dict_SetGlobal(IdPtr(T1)^.TV_DVAR,True); { dict entry is now persistent }
-      I := IdPtr(T1)
-    End;
-  Variable:
-    Begin
-      I := VarPtr(T1)^.TV_IRED;
-      If I = Nil Then { variable has never been bound to an identifier }
-        I := EvaluateToIdentifier(T1);
-      If I = Nil Then
-        Exit;
-      { unbound the variable (which was bounded to the term) }
-      UnbindVar(VarPtr(T1))
-    End;
-  Else
-    Exit
-  End;
+  I := EvaluateToIdentifierIgnoreAssign(T1);
+  If I = Nil Then
+    Exit;
+  { identifier's dict entry is persistent }
+  Dict_SetGlobal(I^.TV_DVAR,True);
   { neutralize its role (if any) in the reduced system as variable-like, 
     assigned identifier }
   UnbindVar(I);
   I^.TV_ASSI := True;
-  { second parameter }
+  { 2: assigned term }
   T2 := GetPArg(2,T);
-  { assign }
-  ClearAssign := ReduceOneEq(TermPtr(I),T2) { "ident = term" }
+  { make a clean copy, using the reduced system to eliminate intermediate 
+   variables, and getting rid of bindings }
+  T2 := CopyTerm(T2,False);
+  { do the assignment }
+  ClearAssign := ReduceOneEq(TermPtr(I),T2,GetDebug(P)) { "ident = term" }
 End;
 
 { val(100,x) }
@@ -858,12 +1018,14 @@ Begin
   { evaluate the term; it may includes variables and constraints;
     thus, our assign is similar to "cassign(i,t)";
     see p113 of the PrologII+ documentation }
-  T1 := EvaluateExpression(GetPArg(1,T),P); { FIXME: do a copy and unbound variables? }
+  { 1: value to assign (usually contains things like add(1,2)) }
+  T1 := GetPArg(1,T);
+  T1 := EvaluateExpression(T1,P); { FIXME: do a copy and unbound variables? }
   If T1 = Nil Then
     Exit;
-
+  { 2: term this value is equal to (usually a variable) }
   T2 := GetPArg(2,T);
-  ClearEval := ReduceOneEq(T2,T1) { FIXME: shouldn't it be backtrackable? }
+  ClearEval := ReduceOneEq(T2,T1,GetDebug(P)) { FIXME: shouldn't it be backtrackable? }
 End;
 
 { '=..'(foo(a,b),[foo,a,b]) }
@@ -891,7 +1053,7 @@ Begin
   Else
     T := T2
   End;
-  ClearUniv := ReduceOneEq(T,L) { TODO: backtrackable? }
+  ClearUniv := ReduceOneEq(T,L,GetDebug(P)) { TODO: backtrackable? }
 End;
 
 { op(700,xfx,"<",inf) } { TODO: implement full specs PII+ p137 }
@@ -910,7 +1072,7 @@ Begin
   C1 := EvalPArgAsInt(1,T);
   If C1 = Nil Then
     Exit;
-  str := ConstGetPStr(C1);
+  str := ConstGetShortString(C1);
   If Length(str) > 4 Then
     Exit;
   Val(str,v,code);
@@ -922,26 +1084,26 @@ Begin
   I2 := EvalPArgAsIdent(2,T);
   If I2 = Nil Then
     Exit;
-  Id2 := IdentifierGetPStr(I2);
+  Id2 := IdentifierGetShortString(I2);
   If Not IsOpTypeString(Id2) Then
     Exit;
   ot := PStrToOpType(Id2);
   { 3: operator (string or identifier) }
   I3 := EvalPArgAsIdent(3,T);
   If I3 <> Nil Then
-    Id3 := IdentifierGetPStr(I3)
+    Id3 := IdentifierGetShortString(I3)
   Else
   Begin
     C3 := EvalPArgAsString(3,T);
     If C3 = Nil Then
       Exit;
-    Id3 := ConstGetPStr(C3) { limits to StringMaxSize chars }
+    Id3 := ConstGetShortString(C3) { limits to StringMaxSize chars }
   End;
   { 4: functional symbol (identifier) }
   I4 := EvalPArgAsIdent(4,T);
   If I4 = Nil Then
     Exit;
-  Id4 := IdentifierGetPStr(I4);
+  Id4 := IdentifierGetShortString(I4);
   { not allowed: existing function with same number of parameters }
   o := Op_Lookup(P^.PP_OPER,'',Id4,[],TOpTypeToArity(ot),1200);
   If o <> Nil Then { TODO: do not fail when both declarations match }
@@ -974,7 +1136,7 @@ Var
   DirInfo: SearchRec;
 Begin
   ClearExpandFileName := False;
-  If Not GetPathArgAsString(1,T,Pattern) Then 
+  If Not GetPathArgAsShortString(1,T,Pattern) Then 
     Exit;
   Pattern := OSFilename(Pattern); { handle ~ }
   Path := ExtractPath(Pattern); { path part, with training sep }
@@ -982,7 +1144,7 @@ Begin
   FindFirst(Pattern, AnyFile, DirInfo);
   While DosError = 0 do
   Begin
-    s := Str_NewFromString(Path);
+    s := Str_NewFromShortString(Path);
     Str_Append(s,DirInfo.Name);
     If GetSyntax(P) = Edinburgh Then { Edinburgh uses quoted ident }
     Begin
@@ -994,7 +1156,7 @@ Begin
     L := NewList2(P,T1,L);
     FindNext(DirInfo)
   End;
-  ClearExpandFileName := ReduceOneEq(L,GetPArg(2,T))
+  ClearExpandFileName := ReduceOneEq(L,GetPArg(2,T),GetDebug(P))
 End;
 
 {----------------------------------------------------------------------------}
@@ -1006,20 +1168,22 @@ End;
 Function ClearNewBuffer( P : ProgPtr ) : Boolean;
 Var
   f : StreamPtr;
+  y : TSyntax;
 Begin
   ClearNewBuffer := False;
-  If GetSyntax(P) = Edinburgh Then
+  y := GetSyntax(P);
+  If y = Edinburgh Then
   Begin
     CWriteLnWarning('not supported in Edinburgh mode');
     Exit
   End;
-  f := NewBuffer;
+  f := Stream_NewBuffer(BufferAlias(y));
   If f = Nil Then
   Begin
     CWriteLnWarning('fail to create a new buffer');
     Exit
   End;
-  SetStreamAsCurrent(P,f);
+  PushStream(P,f);
   ClearNewBuffer := True
 End;
 
@@ -1058,21 +1222,21 @@ Begin
   f := GetStreamArg(P,1,T);
   If f = Nil Then
     Exit;
-  If StreamIsLocked(f) Then
+  If Stream_IsLocked(f) Then
   Begin
     CWriteWarning('file already in use: ''');
-    CWrite(StreamAlias(f));
+    CWrite(Stream_GetAlias(f));
     CWrite('''');
     CWriteLn;
     Exit
   End;
   SetStreamAsCurrent(P,f);
   { if target mode is different from the file's current mode, switch it }
-  If (StreamDeviceType(f) In [DEV_FILE,DEV_BUFFER]) 
-      And (StreamMode(f) <> Mode) Then
+  If (Stream_GetDeviceType(f) In [DEV_FILE,DEV_BUFFER]) 
+      And (Stream_GetMode(f) <> Mode) Then
   Begin
-    StreamClose(f);
-    StreamSetMode(f,Mode)
+    Stream_Close(f);
+    Stream_SetMode(f,Mode)
   End;
   ClearSelectStream := True
 End;
@@ -1093,20 +1257,20 @@ Begin
     Exit
   End;
   { close user files; do nothing for consoles and buffers }
-  If StreamDeviceType(f) = DEV_FILE Then
+  If Stream_GetDeviceType(f) = DEV_FILE Then
   Begin
-    If StreamIsLocked(f) Then
+    If Stream_IsLocked(f) Then
     Begin
       CWriteWarning('file already in use: ''');
-      CWrite(StreamAlias(f));
+      CWrite(Stream_GetAlias(f));
       CWrite('''');
       CWriteLn;
       Exit
     End;
-    If StreamMode(f) <> Mode Then
+    If Stream_GetMode(f) <> Mode Then
     Begin
       CWriteWarning('file not opened in this mode: ''');
-      CWrite(StreamAlias(f));
+      CWrite(Stream_GetAlias(f));
       CWrite('''');
       CWriteLn;
       Exit
@@ -1137,7 +1301,7 @@ Begin
   ClearOpenNewUserStream := False;
   
   { 1: file name }
-  If Not GetPathArgAsString(1,T,Path) Then 
+  If Not GetPathArgAsShortString(1,T,Path) Then 
   Begin
     CWriteLnWarning('incorrect file path argument');
     Exit
@@ -1149,7 +1313,7 @@ Begin
     CWriteLnWarning('incorrect file mode argument');
     Exit
   End;
-  OpenMode := IdentifierGetPStr(I2);
+  OpenMode := IdentifierGetShortString(I2);
   If OpenMode = 'read' Then
     Mode := MODE_READ
   Else If OpenMode = 'write' Then
@@ -1174,7 +1338,7 @@ Begin
   T4 := EvalPArg(4,T);
   If Not IsNil(T4) Then { [] }
   Begin
-    If Not GetList(T4,P1,P2,True) Then
+    If Not ProtectedGetList(T4,P1,P2,True) Then
     Begin
       CWriteLnWarning('file option must be a list');
       Exit
@@ -1184,7 +1348,7 @@ Begin
       CWriteLnWarning('two many options, as only ''alias'' is supported');
       Exit
     End;
-    If Not GetFunc1(P1,'alias',Ta,True) Then
+    If Not ProtectedGetFunc1(P1,'alias',Ta,True) Then
     Begin
       CWriteLnWarning('''alias'' is the only supported option');
       Exit
@@ -1195,7 +1359,7 @@ Begin
       CWriteLnWarning('alias must be an identifier');
       Exit
     End;
-    Alias := IdentifierGetPStr(IdPtr(Ta))
+    Alias := IdentifierGetShortString(IdPtr(Ta))
   End;
 
   { ok, we have Filename, Mode, Td (free var for file descriptor), Alias }
@@ -1221,7 +1385,7 @@ Begin
   End;
 
   { create the new user stream }
-  f := NewStream(Alias,Path,DEV_FILE,Mode,False,True);
+  f := Stream_New(Alias,Path,DEV_FILE,Mode,False,True);
   If f = Nil Then
   Begin
     CWriteWarning('fail to create stream: ''');
@@ -1230,7 +1394,7 @@ Begin
     CWriteLn;
     Exit
   End;
-  If Not StreamIsOpen(f) Then
+  If Not Stream_IsOpen(f) Then
   Begin
     CWriteWarning('fail to open: ''');
     CWrite(Alias);
@@ -1240,8 +1404,8 @@ Begin
   End;
 
   { bind the free variable with the file descriptor }
-  Td := EmitConst(P,Str_NewFromString(PosIntToStr(StreamDescriptor(f))),CI,True);
-  If Not ReduceOneEq(T3,Td) Then
+  Td := EmitConst(P,Str_NewFromShortString(PosIntToShortString(Stream_GetDescriptor(f))),CI,True);
+  If Not ReduceOneEq(T3,Td,GetDebug(P)) Then
   Begin
     CWriteWarning('failed to bind the file descriptor: ''');
     CWrite(Alias);
@@ -1268,22 +1432,22 @@ Begin
   f := GetStreamByMode(P,Mode);
   If Error Then
     Exit;
-  Alias := StreamAlias(f);
-  T1 := EmitConst(P,Str_NewFromString(Alias),CS,False);
-  ClearStreamIs := ReduceOneEq(GetPArg(1,T),T1)
+  Alias := Stream_GetAlias(f);
+  T1 := EmitConst(P,Str_NewFromShortString(Alias),CS,False);
+  ClearStreamIs := ReduceOneEq(GetPArg(1,T),T1,GetDebug(P))
 End;
 
 { clear_input }
 Function ClearClearInput( P : ProgPtr ) : Boolean;
 Begin
-  ClearInputFromStream(CurrentInput(P));
+  Stream_ClearInput(CurrentInput(P));
   ClearClearInput := True
 End;
 
 { flush }
 Function ClearFlush( P : ProgPtr ) : Boolean;
 Begin
-  StreamFlush(CurrentOutput(P));
+  Stream_Flush(CurrentOutput(P));
   ClearFlush := True
 End;
 
@@ -1304,7 +1468,7 @@ End;
 { line }
 Function ClearLine( P : ProgPtr ) : Boolean;
 Begin
-  OutCR(CurrentOutput(P));
+  Outln(CurrentOutput(P));
   ClearLine := True
 End;
 
@@ -1316,71 +1480,162 @@ Begin
   ClearClrScr := True
 End;
 
-{ read_term(Stream,T) }
-Function ClearInTerm( P : ProgPtr; T : TermPtr ) : Boolean;
+
+{----------------------------------------------------------------------------}
+{ in                                                                         }
+{----------------------------------------------------------------------------}
+
+{ read_term(Stream,T), get_char(Stream,C), next_char(Stream,C)... }
+Function ClearIn( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
-  f : StreamPtr;
   T2,Tr : TermPtr;
-Begin
-  ClearInTerm := False;
-  { 1: stream }
-  f := GetStreamArg(P,1,T);
-  If f = Nil Then
-    Exit;
-  If StreamMode(f) <> MODE_READ Then
-  Begin
-    CWriteWarning('stream not open for read: ''');
-    CWrite(StreamAlias(f));
-    CWrite('''');
-    CWriteLn;
-    Exit
-  End;
-  { 2: term variable }
-  T2 := GetPArg(2,T);
-
-  { buffer in console input, when necessary; skip leading spaces }
-  CheckConsoleInputStream(f,True);
-  { read the term }
-  Tr := ParseOneTerm(f,P);
-  If Error Then
-    Exit;
-  ClearInTerm := ReduceOneEq(T2,Tr)
-End;
-
-{ get_char(Stream,C) }
-Function ClearInChar( P : ProgPtr; T : TermPtr; SkipSpaces : Boolean ) : Boolean;
-Var
-  T2,Tc : TermPtr;
-  c : TChar;
+  What : TPrologDataType;
+  SkipSpaces : Boolean;
+  LookAhead : Boolean; { advance read requested, undo all the reads }
   f : StreamPtr;
+  c : TChar;
+  K : TokenPtr;
+  e : TIChar;
+  Success : Boolean;
 Begin
-  ClearInChar := False;
+  ClearIn := False;
   { 1: stream }
   f := GetStreamArg(P,1,T);
   If f = Nil Then
     Exit;
-  If StreamMode(f) <> MODE_READ Then
+  If Stream_GetMode(f) <> MODE_READ Then
   Begin
     CWriteWarning('stream not open for read: ''');
-    CWrite(StreamAlias(f));
+    CWrite(Stream_GetAlias(f));
     CWrite('''');
     CWriteLn;
     Exit
   End;
-  { 2: char variable }
+  { 2: variable }
   T2 := GetPArg(2,T);
+  { 3: what type of data to read }
+  If Not GetType(3,T,What) Then
+    Exit;
+  { 4: skip spaces? (true/false) }
+  If Not GetBoolean(4,T,SkipSpaces) Then
+    Exit;
+  { 5: push back all the characters read? (true/false) }
+  If Not GetBoolean(5,T,LookAhead) Then
+    Exit;
 
   { buffer in console input, when necessary }
-  CheckConsoleInputStream(f,SkipSpaces);
-  { get the char }
+  Stream_CheckConsoleInput(f,SkipSpaces);
+
+  { skip blank characters when requested; even if a lookahead is requested, 
+   leading spaces are not unread (PII+ p.126 reads: "Reads all blank 
+   characters, if any, and then behaves like next_char(t)") }
   If SkipSpaces Then
-    c := GetCharNbFromStream(f,c)
+    ReadBlanks(f);
+
+  { undo point  }
+  Stream_NextIChar(f,e);
+
+  { read target in Tr}
+  Case What Of
+  TYPE_CHAR:
+    Begin
+      c := Stream_GetChar(f,c);
+      Success := (Not Error) And (c <> '');
+      If Success Then
+        Tr := EmitConst(P,Str_NewFromShortString(c),CS,False)
+    End;
+  TYPE_INTEGER:
+    Begin
+      K := ReadInteger(f);
+      Success := (Not Error) And (K <> Nil);
+      If Success Then
+        Tr := EmitConst(P,Token_GetStr(K),CI,False)
+    End;
+  TYPE_REAL:
+    Begin
+      K := ReadNumber(f,GetSyntax(P));
+      Success := (Not Error) And (K <> Nil) And (Token_GetType(K) = TOKEN_REAL);
+      If Success Then
+        Tr := EmitConst(P,Token_GetStr(K),CR,False)
+    End;
+  TYPE_STRING: { FIXME: PII+ p127 }
+    Begin
+      K := ReadString(f);
+      Success := (Not Error) And (K <> Nil);
+      If Success Then
+        Tr := EmitConst(P,Token_GetStr(K),CS,False)
+    End;
+  TYPE_IDENT:
+    Begin
+      K := ReadVariableOrIdentifier(f,GetSyntax(P));
+      Success := (Not Error) And (K <> Nil) And (Token_GetType(K) = TOKEN_IDENT);
+      If Success Then
+        Tr := EmitIdent(P,Token_GetStr(K),False)
+    End;
+  TYPE_TERM:
+    Begin
+      Tr := ParseOneTerm(f,P);
+      Success := Not Error
+    End;
   Else
-    c := GetCharFromStream(f,c);
-  If Error Then
+    Begin
+      CWriteLnWarning('unsupported read data type');
+      Success := False
+    End
+  End;
+
+  { try to bound the variable to the term read }
+  If Success Then
+    Success := ReduceOneEq(T2,Tr,GetDebug(P));
+
+  { undo read when requested or in case of failure }
+  If LookAhead Or Not Success Then
+    Stream_UngetChars(f,e.Lnb,e.Pos);
+
+  ClearIn := Success
+End;
+
+{----------------------------------------------------------------------------}
+{ trace, debug                                                               }
+{----------------------------------------------------------------------------}
+
+{ echo; no-echo }
+Function ClearEcho( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  State : Boolean;
+Begin
+  ClearEcho := False;
+  { 1: true/false }
+  If Not GetBoolean(1,T,State) Then
     Exit;
-  Tc := EmitConst(P,Str_NewFromString(c),CS,False);
-  ClearInChar := ReduceOneEq(T2,Tc)
+  SetEcho(P,State);
+  ClearEcho := True
+End;
+
+{ trace; no-trace }
+Function ClearTrace( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  State : Boolean;
+Begin
+  ClearTrace := False;
+  { 1: true/false }
+  If Not GetBoolean(1,T,State) Then
+    Exit;
+  SetTrace(P,State);
+  ClearTrace := True
+End;
+
+{ debug; no-debug }
+Function ClearDebug( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  State : Boolean;
+Begin
+  ClearDebug := False;
+  { 1: true/false }
+  If Not GetBoolean(1,T,State) Then
+    Exit;
+  SetDebug(P,State);
+  ClearDebug := True
 End;
 
 { bt }
@@ -1391,32 +1646,62 @@ Begin
 End;
 
 { dump }
-Function ClearDump : Boolean;
+Function ClearDump( P : ProgPtr ) : Boolean;
 Begin
-  DumpRegisteredObject;
+  CoreDumpProg(P,'CORE DUMP:',False);
   ClearDump := True
 End;
 
-{ clear a predefined predicate syscall(Code,Arg1,...ArgN), 
- meaning Code(Arg1,...,ArgN), except insert }
+{----------------------------------------------------------------------------}
+{ control                                                                    }
+{----------------------------------------------------------------------------}
+
+{ freeze(x,goal) }
+Function ClearFreeze( P : ProgPtr; T : TermPtr; 
+    Var V,G : TermPtr ) : Boolean;
+Var
+  T1,T2 : TermPtr;
+Begin
+  ClearFreeze := False;
+  V := Nil;
+  G := Nil;
+  { 1: variable on which to freeze (actually, any term is accepted) }
+  T1 := GetPArg(1,T);
+  { 2: goal (identifier or predicate) }
+  T2 := GetPArgAsGoal(2,T);
+  If T2 = Nil Then
+  Begin
+    CWritelnWarning('freeze: second argument must be a goal');
+    Exit
+  End;
+  { returned values }
+  V := T1; { term (usually a variable) controlling the frozen term }
+  G := T2; { term that must be either cleared or frozen }
+  ClearFreeze := True
+End;
+
+{----------------------------------------------------------------------------}
+{ dispatch                                                                   }
+{----------------------------------------------------------------------------}
+
+{ clear a predefined predicate syscall(Code,Arg1,...ArgN), meaning 
+ Code(Arg1,...,ArgN), except insert; G returns the new goal to freeze or clear }
 Function ClearPredef( Predef : TPP; P : ProgPtr; Q : QueryPtr; 
-    T : TermPtr ) : Boolean;
+    T : TermPtr; Var V,G : TermPtr ) : Boolean;
 Var
   Ok : Boolean;
 Begin
   Case Predef Of
-  PP_IS_IDENT:
-    Ok := ClearIsIdent(T);
-  PP_IS_INTEGER:
-    Ok := ClearIsInteger(T);
-  PP_IS_STRING:
-    Ok := ClearIsString(T);
+  PP_IS_FREE:
+    Ok := ClearIsFree(T);
+  PP_IS_TYPE:
+    Ok := ClearIsType(T);
   PP_CHAR_CODE:
     Ok := ClearCharCode(P,T);
   PP_DIF:
-    Ok := ClearDif(T);
+    Ok := ClearDif(P,T);
   PP_ASSIGN:
-    Ok := ClearAssign(T);
+    Ok := ClearAssign(P,T);
   PP_EVAL:
     Ok := ClearEval(P,T);
   PP_UNIV:
@@ -1476,7 +1761,7 @@ Begin
   PP_FLUSH:
     Ok := ClearFlush(P);
   PP_LIST:
-    Ok := ClearList(P,Q,T);
+    Ok := ClearList(P,T);
   PP_OUT:
     Ok := ClearOut(P,T);
   PP_OUTM:
@@ -1485,18 +1770,24 @@ Begin
     Ok := ClearLine(P);
   PP_CLRSRC:
     Ok := ClearClrScr(P);
-  PP_IN_TERM:
-    Ok := ClearInTerm(P,T);
-  PP_IN_CHAR:
-    Ok := ClearInChar(P,T,False);
-  PP_IN_CHAR_SKIP_SPACES:
-    Ok := ClearInChar(P,T,True);
+  PP_IN:
+    Ok := ClearIn(P,T);
+  PP_ECHO:
+    Ok := ClearEcho(P,T);
+  PP_TRACE:
+    Ok := ClearTrace(P,T);
+  PP_DEBUG:
+    Ok := ClearDebug(P,T);
   PP_BACKTRACE:
     Ok := ClearBacktrace(Q);
   PP_DUMP:
-    Ok := ClearDump
+    Ok := ClearDump(P);
+  PP_FREEZE:
+    Ok := ClearFreeze(P,T,V,G);
+  PP_FAIL:
+    Ok := False
   End;
-    
+
   ClearPredef := Ok
 End;
 

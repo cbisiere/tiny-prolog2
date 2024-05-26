@@ -1,4 +1,4 @@
-"Prolog II+ Edinburgh predefined rules"
+"Prolog II+ Edinburgh and ISO predefined rules"
 
 "session"
 
@@ -13,11 +13,11 @@ open(File,Mode,Stream,Opt) :- syscall(sysopennew,File,Mode,Stream,Opt).
 open(File,Mode,Stream) :- syscall(sysopennew,File,Mode,Stream,[]).
 close(Stream) :- syscall(syscloseinput,Stream), !.
 close(Stream) :- syscall(syscloseoutput,Stream).
-get_char(Stream,Char) :- syscall(sysinchar,Stream,Char).
-get_char(Char) :- syscall(sysinputis,Stream) syscall(sysinchar,Stream,Char).
+get_char(Stream,Char) :- syscall(sysin,Stream,Char,char,false,false);
+get_char(Char) :- input_is(Stream) get_char(Stream,Char).
 put_char(Char) :- syscall(sysoutm,Char).
 read(Stream,Term) :- syscall(sysinterm,Stream,Term).
-read(Term) :- syscall(sysinputis,Stream) syscall(sysinterm,Stream,Term).
+read(Term) :- input_is(Stream) syscall(sysin,Stream,Term,term,true,false).
 asserta(Term) :- syscall(sysasserta,Term).
 assertz(Term) :- syscall(sysassertz,Term).
 
@@ -31,14 +31,17 @@ clear_input :- syscall(sysclearinput).
 
 output_is(F) :- syscall(sysoutputis,F).
 output(F) :- syscall(sysopennew,F,write,S,[]).
-close_output :- syscall(sysclosecurrentoutput).
+close_output :- output_is(F) close_output(F).
 close_output(F) :- syscall(syscloseoutput,F).
 flush :- syscall(sysflush).
 
+echo :- syscall(sysecho,true).
+no_echo :- syscall(sysecho,false).
+
 "in: PII+"
 
-in(T) :- input_is(S) syscall(sysinterm,S,T).
-in_char(C) :- input_is(S) syscall(sysinchar,S,C).
+in(T) :- read(T).
+in_char(C) :- get_char(C).
 
 "out: PII+"
 

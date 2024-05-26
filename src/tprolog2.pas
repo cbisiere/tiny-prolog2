@@ -12,24 +12,17 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-{$U-} { TP3: Ctrl-C does not interrupt program execution }
+{$U-} { TP: Ctrl-C does not interrupt program execution }
 
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
-
-{ TP4: set stack size to the maximum instead of the 16k default }
-{$IFDEF MSDOS}
-{$M 65520,0,655360 }
-{$ENDIF}
+{$S+} { Stack checking on }
+{$R+} { Range checking on }
+{$V-} { No strict type checking for strings }
 
 Program TProlog2;
 
 Uses 
   Crt, 
   Dos,
-{$IFDEF MSDOS}
-  Turbo3,
-{$ENDIF}
   ShortStr,
   Num,
   Errs,
@@ -43,6 +36,8 @@ Uses
   Buffer,
   Memory,
   PObj,
+  PObjLisA,
+  PObjList,
   PObjIO,
   PObjRest,
   PObjOp,
@@ -50,7 +45,9 @@ Uses
   PObjTok,
   PObjDict,
   PObjEq,
+  PObjSys,
   PObjTerm,
+  PObjFCVI,
   PObjDef,
   PObjBter,
   PObjRule,
@@ -60,6 +57,7 @@ Uses
   PObjWrld,
   PObjStmt,
   PObjProg,
+  Tuple,
   Encoding,
   Unparse,
   Reduc,
@@ -79,8 +77,8 @@ Begin
   If Error Then
   Begin
     f := CurrentInput(P);
-    StreamDisplayErrorMessage(f,GetErrorMessage);
-    StreamClose(f)
+    Stream_DisplayErrorMessage(f,GetErrorMessage);
+    Stream_Close(f)
   End;
   If QuitRequested Then
   Begin
@@ -100,10 +98,10 @@ Begin
     ResetIO(P);
     ReleaseMemory(P);
     Case GetSyntax(P) Of
-    PrologII:
-      Prompt := '> ';
     PrologIIc:
       Prompt := 'c> ';
+    PrologII:
+      Prompt := '> ';
     PrologIIp:
       Prompt := '+> ';
     Edinburgh:
@@ -121,6 +119,5 @@ Var
 { main }
 Begin
   P := CreateProgram;
-  ProcessParameters(P);
   REPL(P)
 End.

@@ -50,7 +50,8 @@ Type
     TOKEN_DOT,
     TOKEN_COMMA,
     TOKEN_SEMICOLON,
-    TOKEN_EQUAL,       { equal sign in pIIc constraints }
+    TOKEN_EQUAL,      { equal sign in PIIv1 constraints }
+    TOKEN_DIFF,       { diff sign in PIIv1 constraints }
     TOKEN_PIPE,
     TOKEN_END_OF_INPUT
   );
@@ -80,13 +81,12 @@ Const TokenStr : TypeTokenStr = (
     'comma',
     'semicolon',
     'equal sign',
+    'diff sign',
     'pipe',
     'end of input'
   );
 
 { token object; 
- - the linked list structure may be used to implement a first (tokenization) 
-  pass; we opt for a single compilation pass, though; 
  - we register the location (line and column) of the start of the 
   token *including any preceding blank spaces*, in order to be able to "unread" 
   the token; this is required to correctly handle goals like "in(t) in_char(c)"
@@ -100,7 +100,6 @@ Type
   TObjToken = Record
     PO_META : TObjMeta;
     { not deep copied: }
-    TK_NEXT : TokenPtr;
     TK_STRI : StrPtr; { string object representing the token or Nil }
     { extra data: }
     TK_TYPE : TTokenType;
@@ -111,14 +110,11 @@ Type
 
 Function Token_New( typ : TTokenType ) : TokenPtr;
 
-Function Token_GetNext( K : TokenPtr ) : TokenPtr;
-Procedure Token_SetNext( K,N : TokenPtr );
 Function Token_GetStr( K : TokenPtr ) : StrPtr;
 Procedure Token_GetLocation( K : TokenPtr; Var line : TLineNum; Var col : TCharPos); 
 Procedure Token_SetLocation( K : TokenPtr; line : TLineNum; col : TCharPos );
 Function Token_GetType( K : TokenPtr ) : TTokenType;
-Function Token_GetTypeAsString( K : TokenPtr ) : TString;
-
+Function Token_GetTypeAsShortString( K : TokenPtr ) : TString;
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -133,10 +129,9 @@ Var
   K : TokenPtr;
   ptr : TObjectPtr Absolute K;
 Begin
-  ptr := NewRegisteredPObject(TK,SizeOf(TObjToken),2,False,0);
+  ptr := NewRegisteredPObject(TK,SizeOf(TObjToken),1,False,0);
   With K^ Do
   Begin
-    TK_NEXT := Nil;
     TK_STRI := Nil;
     TK_TYPE := typ;
     TK_LINE := 0;
@@ -148,20 +143,6 @@ End;
 {-----------------------------------------------------------------------}
 { get / set                                                             }
 {-----------------------------------------------------------------------}
-
-{ get next token }
-Function Token_GetNext( K : TokenPtr ) : TokenPtr;
-Begin
-  CheckCondition(K <> Nil,'Token_GetNext: Nil');
-  Token_GetNext := K^.TK_NEXT
-End;
-
-{ set next token }
-Procedure Token_SetNext( K,N : TokenPtr );
-Begin
-  CheckCondition(K <> Nil,'Token_SetNext: Nil');
-  K^.TK_NEXT := N
-End;
 
 { get a token's str }
 Function Token_GetStr( K : TokenPtr ) : StrPtr;
@@ -204,9 +185,9 @@ End;
 {-----------------------------------------------------------------------}
 
 { get token type as a string }
-Function Token_GetTypeAsString( K : TokenPtr ) : TString;
+Function Token_GetTypeAsShortString( K : TokenPtr ) : TString;
 Begin
-  Token_GetTypeAsString := TokenStr[Token_GetType(K)]
+  Token_GetTypeAsShortString := TokenStr[Token_GetType(K)]
 End;
 
 End.

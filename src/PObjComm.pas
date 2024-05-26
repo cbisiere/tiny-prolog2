@@ -24,6 +24,7 @@ Uses
   PObj,
   PObjStr,
   PObjTerm,
+  PObjFCVI,
   PObjDef;
 
 Function Comment_New( C : ConstPtr ) : CommPtr;

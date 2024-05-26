@@ -33,13 +33,13 @@ Type
   TStringSize = 0..StringMaxSize;
 
 Const
-  { 'end of line' sequence used for output text files }
+  { 'end of line' in MSDOS text files }
   CRLF : Array[1..2] Of Char = (#13,#10);
 
 Function TrimLeftSpaces( s : TString ) : TString;
 Function RAlign( s : TString; width : TStringSize ) : TString;
-Function IntToStr( v : Integer ) : TString;
-Function BoolToStr( b : Boolean ) : TString;
+Function IntToShortString( v : Integer ) : TString;
+Function BoolToShortString( b : Boolean ) : TString;
 Function StartsWith( s,b : TString ) : Boolean;
 Function EndsWith( s,b : TString ) : Boolean;
 Function StartsCount( s : TString; E : CharSet ) : TStringSize;
@@ -90,16 +90,16 @@ Begin
 End;
 
 { convert a byte or an integer to a string }
-Function IntToStr( v : Integer ) : TString;
+Function IntToShortString( v : Integer ) : TString;
 Var
   s : TString;
 Begin
   Str(v,s);
-  IntToStr := s
+  IntToShortString := s
 End;
 
 { convert a boolean to a string }
-Function BoolToStr( b : Boolean ) : TString;
+Function BoolToShortString( b : Boolean ) : TString;
 Var
   s : TString;
 Begin
@@ -107,7 +107,7 @@ Begin
     s := 'TRUE'
   Else
     s := 'FALSE';
-  BoolToStr := s
+  BoolToShortString := s
 End;
 
 { push a char at the end of a string }

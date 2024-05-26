@@ -1,0 +1,127 @@
+"Prolog II version 1 (1982) predefined rules"
+
+"worlds"
+
+monde(W) -> syscall(sysworld,W);
+tuer-monde(W) -> syscall(syskillworld,W,true);
+purger(W) -> syscall(syskillworld,W,false);
+monter(W) -> syscall(sysclimbworld,W);
+monter -> syscall(sysparentworld,W) syscall(sysclimbworld,W);
+descendre(W) -> chaine(W) syscall(sysdownworld,W,true);
+
+"statements"
+
+descendre(N) -> entier(N) syscall(sysdownstatement,N);
+descendre -> descendre(1);
+monter(N) -> entier(N) syscall(sysupstatement,N);
+haut -> syscall(systopstatement);
+bas -> syscall(sysbottomstatement);
+
+"rules"
+
+rule(T,Q) -> syscall(sysrule,T,Q);
+
+inserer(F) -> syscall(sysinsert,F);
+inserer -> syscall(sysinputis,F) syscall(sysinsert,F);
+
+lister(N) -> syscall(syslist,N);
+lister -> lister(0);
+assert(<T,Q>) -> syscall(sysasserta,T,Q);
+
+"session"
+
+bonsoir -> exm("bye!") ligne syscall(sysquit);
+
+"is"
+
+ident(T) -> syscall(sysis,T,ident);
+entier(T) -> syscall(sysis,T,integer);
+chaine(T) -> syscall(sysis,T,string);
+dot(T) -> syscall(sysis,T,dot);
+tuple(T) -> syscall(sysis,T,tuple);
+
+libre(T) -> syscall(sysfree,T,true);
+pris(T) -> syscall(sysfree,T,false);
+
+"string"
+
+no-car(C,N) -> syscall(syscharcode,C,N);
+
+"i/o"
+
+entree(F) -> syscall(sysfree,T,true) / syscall(sysinputis,F);
+entree(F) -> syscall(sysselectinput,F) /;
+entree(F) -> syscall(sysopennew,F,read,S,nil);
+fermer-entree -> syscall(sysinputis,F) syscall(syscloseinput,F);
+
+sortie(F) -> syscall(sysfree,T,true) / syscall(sysoutputis,F) /;
+sortie(F) -> syscall(sysselectoutput,F) /;
+sortie(F) -> syscall(sysopennew,F,write,S,nil);
+fermer-sortie -> syscall(sysoutputis,F) syscall(syscloseoutput,F);
+
+tampon-neuf(T) -> syscall(sysnewbuffer) T syscall(sysdelbuffer);
+
+echo -> syscall(sysecho,true);
+sourd -> syscall(sysecho,false);
+
+"in"
+
+in-car(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,false,false);
+in-car'(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,true,false);
+car-apres(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,false,true);
+car-apres'(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,true,true);
+in(T) -> syscall(sysinputis,S) syscall(sysin,S,T,term,true,false);
+in-entier(T) -> syscall(sysinputis,S) syscall(sysin,S,T,integer,true,false);
+in-ident(T) -> syscall(sysinputis,S) syscall(sysin,S,T,ident,true,false);
+in-chaine(T) -> syscall(sysinputis,S) syscall(sysin,S,T,string,true,false);
+
+"out"
+
+ex(T) -> syscall(sysout,T);
+exm(S) -> syscall(sysoutm,S);
+ligne -> syscall(sysline);
+page -> syscall(sysclrsrc);
+clear -> page impasse;
+
+"assign and eval"
+
+affecter(I,T) -> syscall(sysassign,I,T);
+val(T1,T2) -> syscall(syseval,T1,T2);
+
+"control"
+
+geler(V,G) -> syscall(sysfreeze,V,G);
+impasse -> syscall(sysfail);
+
+"trace"
+
+trace -> syscall(systrace,true);
+sans-trace -> syscall(systrace,false);
+
+"helpers"
+
+eg(X,X) ->;
+dif(X,Y) -> syscall(sysdif,X,Y);
+
+"evaluable functions; see Giannesini et al. 1985, p 144 \
+Note that expressions (e.g., 3 + 2) are not supported in Prolog II syntax; \
+these declarations are used to evaluate val(T1,T2) predicates. \
+TODO: eq, si"
+->
+    syscall(sysop,700,xfx,inf,inf)
+    syscall(sysop,500,yfx,add,add)
+    syscall(sysop,500,yfx,sub,sub)
+    syscall(sysop,400,yfx,mul,mul)
+    syscall(sysop,400,yfx,div,div)
+    syscall(sysop,200,fx,add,add)
+    syscall(sysop,200,fx,sub,sub)
+    impasse;
+
+"debug: additional rules (not in PII)"
+
+debug -> syscall(sysdebug,true);
+no-debug -> syscall(sysdebug,false);
+
+bt -> syscall(sysbacktrace);
+dump -> syscall(sysdump);
+

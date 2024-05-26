@@ -27,6 +27,7 @@ Uses
 
 Function Header_New : HeadPtr;
 
+Function Header_GetClock( H : HeadPtr ) : LongInt;
 Procedure Header_GetRule( H : HeadPtr; Var R : RulePtr; Var isSys : Boolean; 
     Var isCut : Boolean );
 Procedure Header_SetRule( H : HeadPtr; R : RulePtr; isSys, isCut : Boolean);
@@ -65,6 +66,12 @@ End;
 {-----------------------------------------------------------------------}
 { get / set                                                             }
 {-----------------------------------------------------------------------}
+
+{ get clock time }
+Function Header_GetClock( H : HeadPtr ) : LongInt;
+Begin
+  Header_GetClock := H^.HH_CLOC
+End;
 
 { get the rule data of a clock header }
 Procedure Header_GetRule( H : HeadPtr; Var R : RulePtr; Var isSys : Boolean; 

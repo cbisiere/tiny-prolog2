@@ -36,6 +36,9 @@ Type
 Function ExtractPath( fn : TPath ) : TPath;
 Function OSFilename( Filename : TPath ) : TPath;
 
+{ file info }
+Function FileExistsOnDisk( Filename : TPath ): Boolean;
+
 { input files: }
 Function OpenForRead( Filename : TPath; Var TxtFile : TIFile ) : Boolean;
 Function OpenForWrite( Filename : TPath; Var TxtFile : TOFile ) : Boolean;
@@ -45,6 +48,7 @@ Procedure CloseIFile( Filename : TPath; Var TxtFile : TIFile );
 { output files: }
 Procedure CloseOFile( Filename : TPath; Var TxtFile : TOFile );
 Procedure WriteToFile( Filename : TPath; Var TxtFile : TOFile; s : TString );
+Procedure WritelnToFile( Filename : TPath; Var TxtFile : TOFile; s : TString );
 Function ReadFromFile( Filename : TPath; Var TxtFile : TIFile; 
     Var c : Char ) : Boolean;
 
@@ -89,6 +93,23 @@ Begin
   GetUserDir := s { FIXME: check length? }
 End;
 
+{ return True if a file exists; warning: if the file was already open, it 
+ is reset }
+Function FileExists( Filename : TPath ): Boolean;
+Var
+ f : File;
+Begin 
+  FileExists := False;
+  If Filename = '' Then
+    Exit;
+  {$I-}
+  Assign(f, Filename); 
+  Reset(f);
+  Close(f);
+  {$I+}
+  FileExists := (IOResult = 0) 
+End;
+
 {$ENDIF}
 {-----------------------------------------------------------------------------}
  
@@ -131,6 +152,12 @@ Begin
     if Filename[i] = '/' Then
       Filename[i] := sep;
   OSFilename := Filename
+End;
+
+{ return True if a file exists }
+Function FileExistsOnDisk( Filename : TPath ): Boolean;
+Begin
+  FileExistsOnDisk := FileExists(Filename)
 End;
 
 { open a text file: read mode }
@@ -182,6 +209,15 @@ Procedure WriteToFile( Filename : TPath; Var TxtFile : TOFile; s : TString );
 Begin
   {$I-}
   Write(TxtFile,s);
+  Flush(TxtFile) { FIXME: this should not be needed }
+  {$I+}
+End;
+
+{ writeln a string to a file }
+Procedure WritelnToFile( Filename : TPath; Var TxtFile : TOFile; s : TString );
+Begin
+  {$I-}
+  Writeln(TxtFile,s);
   Flush(TxtFile) { FIXME: this should not be needed }
   {$I+}
 End;

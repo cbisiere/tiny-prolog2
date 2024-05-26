@@ -105,7 +105,7 @@ Function CrtChar( R : TCrtRowData; i : TCrtCoord ) : TChar;
 Procedure CrtWriteLn;
 Procedure CrtWriteCharThatFits( cc : TChar );
 Procedure CrtWriteChar( cc : TChar );
-Procedure CrtWriteString( s : TString );
+Procedure CrtWriteShortString( s : TString );
 
 Procedure CrtBackspace;
 Procedure CrtClrLines( y : TCrtCoord; n : Byte );
@@ -232,20 +232,25 @@ Begin
 End;
 
 { write a char on screen, breaking the line when the screen is full or when
- the char itself if CRLF; 
+ the char itself if NewLine; remember that the input subsystem replaces CR, LF, 
+ and CRLF with (NewLine) (LF), so CR should only appear when we add it 
+ ourselves, which we avoid doing
  FIXME: StrPtr must use TChar instead of 1-byte chars }
 Procedure CrtWriteChar( cc : TChar );
 Begin
-  If cc = #10 Then { LF part of a CRLF sequence: do nothing }
-    Exit;
-  If (cc = #13) Or (Not CrtFits(cc)) Then
-    CrtWriteLn;
-  CrtWriteCharThatFits(cc)
+  If cc = NewLine Then
+    CrtWriteLn
+  Else
+  Begin
+    If Not CrtFits(cc) Then
+      CrtWriteLn;
+    CrtWriteCharThatFits(cc)
+  End
 End;
 
 { write a string of 1-byte characters on screen; the string char is assumed 
  to fit into the screen row }
-Procedure CrtWriteString( s : TString );
+Procedure CrtWriteShortString( s : TString );
 Var
   i : TStringSize;
 Begin

@@ -25,17 +25,20 @@ Uses
   IChar,
   Memory,
   PObj,
+  PObjTerm,
+  PObjFCVI,
   PObjIO,
   PObjOp,
   PObjStr,
   PObjTok,
   PObjEq,
-  PObjTerm,
+  PObjSys,
   PObjDef,
   PObjBter,
   PObjRule,
   PObjQury,
   PObjProg,
+  Tuple,
   Encoding,
   Tokenize;
 
@@ -45,7 +48,7 @@ Procedure VerifyToken( f : StreamPtr; P : ProgPtr; Var K : TokenPtr;
 Function ParseOneRule( f : StreamPtr; P : ProgPtr; Var K : TokenPtr ) : RulePtr;
 Function ParseOneTerm( f : StreamPtr; P : ProgPtr ) : TermPtr;
 Function ParseOneQuery( f : StreamPtr; P : ProgPtr;
-    Var K : TokenPtr; ReadNextToken : Boolean ) : QueryPtr;
+    Var K : TokenPtr ) : QueryPtr;
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -59,7 +62,7 @@ Type
   End;
 Const
   Syntax : TSyntaxElement = (
-    (RuleEnd:TOKEN_SEMICOLON;PromptEnd:TOKEN_SEMICOLON;AcceptSys:False),
+    (RuleEnd:TOKEN_SEMICOLON;PromptEnd:TOKEN_SEMICOLON;AcceptSys:True),
     (RuleEnd:TOKEN_SEMICOLON;PromptEnd:TOKEN_SEMICOLON;AcceptSys:True),
     (RuleEnd:TOKEN_SEMICOLON;PromptEnd:TOKEN_SEMICOLON;AcceptSys:False),
     (RuleEnd:TOKEN_DOT;PromptEnd:TOKEN_DOT;AcceptSys:False)
@@ -302,7 +305,7 @@ Begin
   o := Nil;
   If Token_GetType(K) = TOKEN_IDENT Then
   Begin
-    oper := Str_GetFirstData(Token_GetStr(K));
+    oper := Str_GetShortString(Token_GetStr(K));
     o := Op_Lookup(P^.PP_OPER,oper,'',OpTypes,0,MaxPred)
   End;
   NextOp := o
@@ -330,6 +333,9 @@ Begin
     Found := False;
 
     { rule 6.1: prefixed (unary) operator }
+    { FIXME: is it legal in PII+ to use op's identifiers without arguments? 
+     as, e.g, op_add("+",add) ->; As such, this code triggers a syntax error 
+     on the right parenthesis }
     o := NextOp(P,K,[fx,fy],MaxPred);
     If (o <> Nil) And (Not HasTerm(TBottom)) Then 
     Begin
@@ -346,7 +352,7 @@ Begin
         If Error Then Exit;
         If Op_GetOperator(o) = '-' Then
         Begin
-          s := Str_NewFromString('-');
+          s := Str_NewFromShortString('-');
           Str_Concat(s,ConstGetStr(CT));
           T := EmitConst(P,s,CI,True)
         End;
@@ -418,7 +424,7 @@ Var
   y : TSyntax;
 Begin
   y := GetSyntax(P);
-  If y = PrologII Then { expressions are part of the old PrologII syntax }
+  If y In [PrologIIc,PrologII] Then { no expressions in old PrologII syntax }
     ReadOneExpr := ReadTerm(f,P,K,glob,Cut)
   Else
     ReadOneExpr := ReadExpr(f,P,K,TStackTop,OpStackTop,MaxPred,glob,Cut)
@@ -470,10 +476,11 @@ Begin
   If Token_GetType(K) = TOKEN_COMMA Then
   Begin
     K := ReadProgramToken(P,f);
+    If Error Then Exit;
     T2 := ReadTermList(f,P,K,glob);
     If Error Then Exit
   End;
-  ReadTermList := NewF(T,T2)
+  ReadTermList := Func_NewAsTerm(T,T2)
 End;
 
 { read a []-style list expression
@@ -608,7 +615,7 @@ Begin
         If Error Then Exit;
         VerifyToken(f,P,K,TOKEN_RIGHT_PAR);
         If Error Then Exit;
-        T := NewF(T,L)
+        T := Func_NewAsTerm(T,L)
       End
     End;
   TOKEN_LEFT_PAR: { (modified) rule 7.8: parenthesized expression }
@@ -665,13 +672,13 @@ Begin
         SyntaxError('[]-style list not allowed in the current syntax');
     End;
   Else
-    SyntaxError(Token_GetTypeAsString(K) + ' not allowed here')
+    SyntaxError(Token_GetTypeAsShortString(K) + ' not allowed here')
   End;
   If Error Then Exit;
   ReadPTerm := T
 End;
 
-{ read an equations or inequation (PrologIIc only) }
+{ read an equations or inequation (PrologIIv1 only) }
 Function ReadEquation( f : StreamPtr; P : ProgPtr; Var K : TokenPtr; 
     glob : Boolean ) : EqPtr;
 Var
@@ -689,13 +696,10 @@ Begin
       Code := REL_EQUA;
       K := ReadProgramToken(P,f)
     End;
-  TOKEN_LEFT_CHE:
+  TOKEN_DIFF:
     Begin
-      K := ReadProgramToken(P,f);
-      If Error Then Exit;
-      VerifyToken(f,P,K,TOKEN_RIGHT_CHE);
-      If Error Then Exit;
-      Code := REL_INEQ
+      Code := REL_INEQ;
+      K := ReadProgramToken(P,f)
     End;
   Else
     SyntaxError('comparison symbol expected')
@@ -703,11 +707,11 @@ Begin
   If Error Then Exit;
   T2 := ReadTerm(f,P,K,glob,False);  { right term }
   If Error Then Exit;
-  E := NewEquation(Code,T1,T2);
+  E := Eq_New(Code,T1,T2);
   ReadEquation := E
 End;
 
-{ read a system of equations or inequations (PrologIIc only) }
+{ read a system of equations or inequations (PrologIIv1 only) }
 Function ReadSystem( f : StreamPtr; P : ProgPtr; Var K : TokenPtr; 
     glob : Boolean ) : EqPtr;
 Var
@@ -732,7 +736,7 @@ Begin
       First := False
     End
     Else
-      PrevE^.EQ_NEXT := E;
+      Eqs_SetNext(PrevE,E);
     PrevE := E
   Until (Token_GetType(K) <> TOKEN_COMMA) Or Error;
   If Error Then Exit;
@@ -827,12 +831,6 @@ Begin
   P^.PP_DVAR := Nil
 End;
 
-{ close this local variable context }
-Procedure CloseLocalContextForRule( P : ProgPtr; R : RulePtr );
-Begin
-  R^.RU_DVAR := P^.PP_DVAR
-End;
-
 { parse a rule; 
  Note: the system cannot be reduced right away as the reduction may depends 
  on global assignments;
@@ -854,7 +852,7 @@ Begin
   y := GetSyntax(P);
   StopTokens := [Syntax[y].RuleEnd];
   If Syntax[y].AcceptSys Then
-    StopTokens := StopTokens + [TOKEN_LEFT_CUR];
+    StopTokens := StopTokens + [TOKEN_COMMA];
   R := Rule_New(y);
   OpenLocalContextForRule(P,R);
   With R^ Do
@@ -874,14 +872,16 @@ Begin
         If B^.BT_NEXT = Nil Then
           SyntaxError('term expected after ' + TokenStr[TOKEN_ARROW]);
       If Error Then Exit;
-      If (Syntax[y].AcceptSys) And (Token_GetType(K) = TOKEN_LEFT_CUR) Then
-        RU_SYST := CompileSystem(f,P,K,True);
+      If (Syntax[y].AcceptSys) And (Token_GetType(K) = TOKEN_COMMA) Then
+      Begin
+        K := ReadProgramToken(P,f);
+        RU_SYST := CompileSystem(f,P,K,True)
+      End;
       If Error Then Exit;
       VerifyToken(f,P,K,Syntax[y].RuleEnd)
     End
   End;
   If Error Then Exit;
-  CloseLocalContextForRule(P,R);
   ParseOneRule := R
 End;
 
@@ -904,12 +904,15 @@ End;
 { parse a query, including a system of equations and equations if any;
  - note that this system cannot be reduced right away, as its 
    solution (or lack thereof) may depend on global variables;
- - read the token after the end-of-query mark only if ReadNextToken is true;
-   setting this parameter to false is useful when reading a goal typed at
-   the prompt, as the char following the end-of-query mark is supposed to be 
-   returned when the goal is in_char(c) }
+ - do *not* read the next token after the end-of-query mark; Indeed:
+   1) when reading a goal from a file while echo mode is on, the answer must be
+   displayed *before* reading the next token, otherwise the output will be 
+   mangled; in that situation the caller must take care of reading the next
+   token after clearing the goal
+   2) when reading a goal typed at the prompt, the char following the 
+   end-of-query mark is supposed to be returned when the goal is in_char(c) }
 Function ParseOneQuery( f : StreamPtr; P : ProgPtr;  
-    Var K : TokenPtr; ReadNextToken : Boolean ) : QueryPtr;
+    Var K : TokenPtr ) : QueryPtr;
 Var
   Q : QueryPtr;
   y : TSyntax;
@@ -921,27 +924,28 @@ Begin
   OpenLocalContextForQuery(P,Q);
   StopTokens := [Syntax[y].PromptEnd,TOKEN_END_OF_INPUT];
   If Syntax[y].AcceptSys Then
-    StopTokens := StopTokens + [TOKEN_LEFT_CUR];
+    StopTokens := StopTokens + [TOKEN_LEFT_CUR,TOKEN_COMMA];
   Query_SetTerms(Q,CompileGoals(f,P,K,False,StopTokens));
   With Q^ Do
   Begin
     If Error Then Exit;
-    If (Syntax[y].AcceptSys) And (Token_GetType(K) = TOKEN_LEFT_CUR) Then
-      Query_SetSys(Q,CompileSystem(f,P,K,False));
+    If (Syntax[y].AcceptSys) And 
+        (Token_GetType(K) In [TOKEN_LEFT_CUR,TOKEN_COMMA]) Then
+    Begin
+      If Query_GetTerms(Q) <> Nil Then
+        VerifyToken(f,P,K,TOKEN_COMMA);
+      Query_SetSys(Q,CompileSystem(f,P,K,False))
+    End;
     If Error Then Exit;
     { verify end-of-query mark }
     If Token_GetType(K) <> Syntax[y].PromptEnd Then
-      SyntaxError(TokenStr[Syntax[y].PromptEnd] + ' expected');
-    { read the next token only when requested; beware of infinite loops :) }
-    If ReadNextToken Then
-      K := ReadProgramToken(P,f);
-    If Error Then Exit
+      SyntaxError(TokenStr[Syntax[y].PromptEnd] + ' expected')
   End;
   CloseLocalContextForQuery(P,Q);
   ParseOneQuery := Q
 End;
 
-{ these high-level entry points must start with reading one token }
+{ this high-level entry point starts with reading one token }
 
 { parse a term from an input stream; stop token chars stay in the 
  input buffer }
@@ -962,7 +966,7 @@ Begin
    (and all the spaces before) so that in_char will read the first char after 
    the term }
   Token_GetLocation(K,line,col);
-  UngetCharsFromStream(f,line,col)
+  Stream_UngetChars(f,line,col)
 End;
 
 

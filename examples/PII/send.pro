@@ -5,7 +5,7 @@ solution(S.E.N.D,M.O.R.E,M.O.N.E.Y) ->
   admissible(r2,S,M,O,r1)
   admissible(r3,E,O,N,r2)
   admissible(r4,N,R,E,r3)
-  admissible( 0,D,E,Y,r4)  { S <> 0 , M <> 0 } ;
+  admissible( 0,D,E,Y,r4),  { S # 0 , M # 0 } ;
 
 admissible(0,u1,u2,u3,r) -> plus(0.u1,0.u2,r.u3);
 admissible(1,u1,u2,u3,r) -> plus(0.u1,0.u2,x)
@@ -16,7 +16,7 @@ sans-repetition(u.l) -> hors-de(u,l)
                         sans-repetition(l);
 
 hors-de(u,vide) ->;
-hors-de(u,v.l)  -> hors-de(u,l)  { u <> v } ;
+hors-de(u,v.l)  -> hors-de(u,l),  { u # v } ;
 
 plus(0.0,x,x) -> inferieur-a-vingt(x);
 plus(x',y,z') -> plus-un(x,x')

@@ -1,0 +1,10 @@
+reverse(nil,l,l) -> !;
+reverse(x.y,l,r) ->
+    reverse(y,x.l,r);
+
+reverse(l1,l2) ->
+    reverse(l1,nil,l2);
+
+-> reverse(1.2.3.nil,l);
+-> reverse(l,1.2.3.nil);
+-> reverse(1.2.3.nil,x.y.1.nil);

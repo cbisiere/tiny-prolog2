@@ -4,7 +4,7 @@ sans-repetition(u.l) -> hors-de(u,l)
                         sans-repetition(l);
 
 hors-de(u,vide) ->;
-hors-de(u,v.l)  -> hors-de(u,l)  { u <> v } ;
+hors-de(u,v.l)  -> hors-de(u,l), { u # v } ;
 
 -> hors-de(3,1.2.3.vide);
 -> hors-de(4,9.9.8.7.1.0.vide);

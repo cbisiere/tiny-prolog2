@@ -21,11 +21,14 @@ Interface
 
 Uses
   ShortStr,
+  Num,
   Errs,
   Files,
   Trace,
   Memory,
   PObj,
+  PObjTerm,
+  PObjFCVI,
   PObjTok,
   Tokenize,
   PObjRest,
@@ -34,7 +37,7 @@ Uses
   PObjIO,
   PObjDict,
   PObjEq,
-  PObjTerm,
+  PObjSys,
   PObjDef,
   PObjBter,
   PObjRule,
@@ -44,7 +47,32 @@ Uses
   PObjWrld,
   PObjStmt;
 
-Function Prog_New : ProgPtr;
+{ default worlds }
+Type
+  TWorldSetup = Array[TSyntax] Of Record
+    Base: String[10];
+    Supervisor: String[10];
+    User: String[10]
+  End;
+Const
+  WorldSetup : TWorldSetup = (
+    (Base:'origine';Supervisor:'?????';User:'ordinaire'),
+    (Base:'Base';Supervisor:'Supervisor';User:'Normal'),
+    (Base:'Base';Supervisor:'Supervisor';User:'Normal'),
+    (Base:'Base';Supervisor:'Supervisor';User:'Normal')
+  );
+
+Function Prog_New( y : TSyntax ) : ProgPtr;
+
+Procedure SetEcho( P : ProgPtr; state : Boolean );
+Function GetEcho( P : ProgPtr ) : Boolean;
+Procedure SetTrace( P : ProgPtr; state : Boolean );
+Function GetTrace( P : ProgPtr ) : Boolean;
+Procedure SetDebug( P : ProgPtr; state : Boolean );
+Function GetDebug( P : ProgPtr ) : Boolean;
+
+Function BufferAlias( y : TSyntax ) : TAlias;
+Function ConsoleAlias( y : TSyntax ) : TAlias;
 
 Function CurrentInput( P : ProgPtr ) : StreamPtr;
 Function CurrentOutput( P : ProgPtr ) : StreamPtr;
@@ -79,6 +107,8 @@ Function NextRule( R : RulePtr; Local : Boolean ) : RulePtr;
 Function FirstRuleWithHead( P : ProgPtr; I : IdPtr; Local : Boolean ) : RulePtr;
 Function LastRuleWithHead( P : ProgPtr; I : IdPtr; Local : Boolean ) : RulePtr;
 Function FindRuleWithHead( R : RulePtr; I : IdPtr; Local : Boolean ) : RulePtr;
+Function FindRuleWithHeadAndArity( R : RulePtr; I : IdPtr; a : PosInt; 
+    Local : Boolean ) : RulePtr;
 
 Function EmitConst( P : ProgPtr; s : StrPtr; ty : TypePrologObj; 
     glob : Boolean ) : TermPtr;
@@ -103,12 +133,25 @@ Procedure SetSyntax( P : ProgPtr; y : TSyntax );
 Implementation
 {-----------------------------------------------------------------------------}
 
-Const
-  DEFAULT_PROLOG_SYNTAX : TSyntax = PrologIIc;
-
 {-----------------------------------------------------------------------}
 { helpers                                                               }
 {-----------------------------------------------------------------------}
+
+{ return the alias for a buffer }
+Function BufferAlias( y : TSyntax ) : TAlias;
+Begin
+  If y = PrologIIc Then
+    BufferAlias := 'tampon'
+  Else
+    BufferAlias := 'buffer'
+End;
+
+{ return the alias for a console }
+Function ConsoleAlias( y : TSyntax ) : TAlias;
+Begin
+  ConsoleAlias := 'console'
+End;
+
 
 { create the default streams for a Prolog engine using syntax y }
 Function CreateDefaultStreams( y : TSyntax ) : StreamPtr;
@@ -116,15 +159,18 @@ Var
   f,f2,f3 : StreamPtr;
 Begin
   f := Nil;
-  If y in [PrologII,PrologIIc,PrologIIp] Then
+  If y in [PrologIIc,PrologII,PrologIIp] Then
   Begin
-    f := NewConsole(MODE_READ); { top read: default input }
-    f2 := NewConsole(MODE_WRITE); { top write: default output }
-    StreamChain(f,f2);
+    { top read: default input }
+    f := Stream_NewConsole(ConsoleAlias(y),MODE_READ);
+    { top write: default output }
+    f2 := Stream_NewConsole(ConsoleAlias(y),MODE_WRITE); 
+    Streams_Chain(f,f2);
     If y In [PrologII,PrologIIc] Then
     Begin
-      f3 := NewBuffer; { new-buffer is not mandatory to use a buffer (TBC)}
-      StreamChain(f2,f3)
+      { new-buffer not mandatory (TBC)}
+      f3 := Stream_NewBuffer(BufferAlias(y)); 
+      Streams_Chain(f2,f3)
     End
   End;
   CreateDefaultStreams := f
@@ -135,7 +181,7 @@ End;
 {-----------------------------------------------------------------------}
 
 { new program }
-Function Prog_New : ProgPtr;
+Function Prog_New( y : TSyntax ) : ProgPtr;
 Var 
   P : ProgPtr;
   ptr : TObjectPtr Absolute P;
@@ -143,20 +189,58 @@ Begin
   ptr := NewRegisteredPObject(PR,SizeOf(TObjProg),9,True,4);
   With P^ Do
   Begin
-    PP_WTOP := World_New(Str_NewFromString('Supervisor'),False);
+    PP_WTOP := World_New(Str_NewFromShortString(WorldSetup[y].Base),False);
     PP_WCUR := PP_WTOP;
-    PP_FILE := CreateDefaultStreams(DEFAULT_PROLOG_SYNTAX);
+    PP_FILE := CreateDefaultStreams(y);
     PP_TOKE := Nil;
     PP_FQRY := Nil;
     PP_DCON := Nil;
     PP_DIDE := Nil;
-    PP_DVAR := Nil;
+    PP_DVAR := Nil; { TODO: get rid of it }
     PP_OPER := Nil;
     PP_LEVL := 0;
     PP_PATH := '';
-    PP_SYNT := DEFAULT_PROLOG_SYNTAX
+    PP_SYNT := y;
+    PP_ECHO := Stream_GetEcho;
+    PP_TRAC := False;
+    PP_DEBG := False
   End;
   Prog_New := P
+End;
+
+{-----------------------------------------------------------------------}
+{ debug                                                                 }
+{-----------------------------------------------------------------------}
+
+Procedure SetEcho( P : ProgPtr; state : Boolean );
+Begin
+  Stream_SetEcho(state);
+  P^.PP_ECHO := Stream_GetEcho
+End;
+
+Function GetEcho( P : ProgPtr ) : Boolean;
+Begin
+  GetEcho := Stream_GetEcho
+End;
+
+Procedure SetTrace( P : ProgPtr; state : Boolean );
+Begin
+  P^.PP_TRAC := state
+End;
+
+Function GetTrace( P : ProgPtr ) : Boolean;
+Begin
+  GetTrace := P^.PP_TRAC
+End;
+
+Procedure SetDebug( P : ProgPtr; state : Boolean );
+Begin
+  P^.PP_DEBG := state
+End;
+
+Function GetDebug( P : ProgPtr ) : Boolean;
+Begin
+  GetDebug := P^.PP_DEBG
 End;
 
 {-----------------------------------------------------------------------}
@@ -166,71 +250,71 @@ End;
 { return the current input stream }
 Function CurrentInput( P : ProgPtr ) : StreamPtr;
 Begin
-  CurrentInput := StreamStackCurrentInput(P^.PP_FILE)
+  CurrentInput := Streams_CurrentInput(P^.PP_FILE)
 End;
 
 { return the current output stream }
 Function CurrentOutput( P : ProgPtr ) : StreamPtr;
 Begin
-  CurrentOutput := StreamStackCurrentOutput(P^.PP_FILE)
+  CurrentOutput := Streams_CurrentOutput(P^.PP_FILE)
 End;
 
 { return true if the current output is the terminal }
 Function OutputIsConsole( P : ProgPtr ) : Boolean;
 Begin
-  OutputIsConsole := StreamIsConsole(CurrentOutput(P))
+  OutputIsConsole := Stream_IsConsole(CurrentOutput(P))
 End;
 
 { return the input console as a stream }
 Function GetInputConsole( P : ProgPtr )  : StreamPtr;
 Begin
-  GetInputConsole := StreamStackInputConsole(P^.PP_FILE)
+  GetInputConsole := Streams_InputConsole(P^.PP_FILE)
 End;
 
 { return a stream having path Path, or Nil }
 Function GetStreamByPath( P : ProgPtr; Path : TPath ) : StreamPtr;
 Begin
-  GetStreamByPath := StreamStackLookupByPath(P^.PP_FILE,Path)
+  GetStreamByPath := Streams_LookupByPath(P^.PP_FILE,Path)
 End;
 
 { return a stream having mode Mode, or Nil }
 Function GetStreamByMode( P : ProgPtr; Mode : TStreamMode ) : StreamPtr;
 Begin
-  GetStreamByMode := StreamStackLookupByMode(P^.PP_FILE,Mode)
+  GetStreamByMode := Streams_LookupByMode(P^.PP_FILE,Mode)
 End;
 
 { return a stream having file descriptor Desc, or Nil }
 Function GetStreamByDescriptor( P : ProgPtr; 
     Desc : TFileDescriptor ) : StreamPtr;
 Begin
-  GetStreamByDescriptor := StreamStackLookupByDescriptor(P^.PP_FILE,Desc)
+  GetStreamByDescriptor := Streams_LookupByDescriptor(P^.PP_FILE,Desc)
 End;
 
 { return a stream having alias Alias, or Nil }
 Function GetStreamByAlias( P : ProgPtr; Alias : TAlias ) : StreamPtr;
 Begin
-  GetStreamByAlias := StreamStackLookupByAlias(P^.PP_FILE,Alias)
+  GetStreamByAlias := Streams_LookupByAlias(P^.PP_FILE,Alias)
 End;
 
-{ push a stream at the top of the stack }
+{ push stream f (not yet in the stack) at the top of the stack }
 Procedure PushStream( P : ProgPtr; f : StreamPtr );
 Begin
-  StreamStackPush(P^.PP_FILE,f)
+  Streams_Push(P^.PP_FILE,f)
 End;
 
 { close and remove a stream from the stack }
 Procedure CloseAndDeleteStream( P : ProgPtr; f : StreamPtr );
 Begin
-  CheckCondition(Not StreamIsConsole(f),
+  CheckCondition(Not Stream_IsConsole(f),
       'CloseAndDeleteStream: attempt to delete a console');
-  StreamClose(f);
-  StreamStackUnchain(P^.PP_FILE,f)
+  Stream_Close(f);
+  Streams_Unchain(P^.PP_FILE,f)
 End;
 
-{ set stream f as current (read or write) }
+{ set stream f (already in the stack) as current (read or write) }
 Procedure SetStreamAsCurrent( P : ProgPtr; f : StreamPtr );
 Begin
-  StreamStackMoveToTop(P^.PP_FILE,f)
+  Streams_MoveToTop(P^.PP_FILE,f)
 End;
 
 { delete the highest buffer in the stack }
@@ -238,7 +322,7 @@ Procedure DeleteTopBuffer( P : ProgPtr );
 Var
   f : StreamPtr;
 Begin
-  f := StreamStackLookupByDevice(P^.PP_FILE,DEV_BUFFER);
+  f := Streams_LookupByDevice(P^.PP_FILE,DEV_BUFFER);
   CheckCondition(f <> Nil,'DelBuffer: no buffer');
   CloseAndDeleteStream(P,f)
 End;
@@ -246,14 +330,14 @@ End;
 { reset the program stream set }
 Procedure ResetIO( P : ProgPtr );
 Begin
-  StreamStackCloseAll(P^.PP_FILE);
+  Streams_CloseAll(P^.PP_FILE);
   P^.PP_FILE := CreateDefaultStreams(GetSyntax(P))
 End;
 
 { read a line from the keyboard }
 Procedure ReadFromConsole( P : ProgPtr );
 Begin
-  ReadLineFromKeyboard(GetInputConsole(P))
+  Stream_ReadLineFromKeyboard(GetInputConsole(P))
 End;
 
 
@@ -329,7 +413,7 @@ End;
 Function EmitShortIdent( P : ProgPtr; ident : TString; 
     glob : Boolean ) : TermPtr;
 Begin
-  EmitShortIdent := EmitIdent(P,Str_NewFromString(ident),glob)
+  EmitShortIdent := EmitIdent(P,Str_NewFromShortString(ident),glob)
 End;
 
 {-----------------------------------------------------------------------}
@@ -386,13 +470,35 @@ Begin
     NextRule := RulePtr(Statement_GetObject(St))
 End;
 
+{ does the head of R matches identifier I? }
+Function RuleHeadMatches( R : RulePtr; I : IdPtr ) : Boolean;
+Begin
+  RuleHeadMatches := Term_UnifiableWith(TermPtr(Rule_Access(R)),TermPtr(I))
+End;
+
+{ ditto, with arity }
+Function RuleHeadMatchesWithArity( R : RulePtr; I : IdPtr; 
+    a : PosInt ) : Boolean;
+Begin
+  RuleHeadMatchesWithArity := RuleHeadMatches(R,I) And (Rule_Arity(R) = a)
+End;
+
 { find the first rule whose head is a given identifier, starting on
- a given rule, or Nil; if the starting rule is Nil, return Nil }
+ a given rule R, or Nil; if the starting rule R is Nil, return Nil }
 Function FindRuleWithHead( R : RulePtr; I : IdPtr; Local : Boolean ) : RulePtr;
 Begin
-  While (R <> Nil) And (Not Unifiable(TermPtr(Rule_Access(R)),TermPtr(I))) Do
+  While (R <> Nil) And (Not RuleHeadMatches(R,I)) Do
     R := NextRule(R,Local);
   FindRuleWithHead := R
+End;
+
+{ ditto but with a given arity }
+Function FindRuleWithHeadAndArity( R : RulePtr; I : IdPtr; a : PosInt; 
+    Local : Boolean ) : RulePtr;
+Begin
+  While (R <> Nil) And (Not RuleHeadMatchesWithArity(R,I,a)) Do
+    R := NextRule(R,Local);
+  FindRuleWithHeadAndArity := R
 End;
 
 { first rule whose head is a given identifier, or Nil }
@@ -462,7 +568,7 @@ End;
 Procedure AppendProgramQuery( P : ProgPtr; Q : QueryPtr );
 Begin
   If GetCurrentQuery(P) <> Nil Then
-    Query_SetNext(Q,GetCurrentQuery(P));
+    Queries_SetNext(Q,GetCurrentQuery(P));
   SetCurrentQuery(P,Q)
 End;
 
@@ -480,11 +586,9 @@ End;
 { methods                                                               }
 {-----------------------------------------------------------------------}
 
-{ add a token to the program's list; meant to protect them against GC }
-Procedure AppendProgramToken( P : ProgPtr; K: TokenPtr );
+{ attach a token to the program; meant to protect it against GC }
+Procedure SetProgramCurrentToken( P : ProgPtr; K: TokenPtr );
 Begin
-  If P^.PP_TOKE <> Nil Then
-    Token_SetNext(K,P^.PP_TOKE);
   P^.PP_TOKE := K
 End;
 
@@ -493,8 +597,10 @@ Function ReadProgramToken( P : ProgPtr; f : StreamPtr ) : TokenPtr;
 Var
   K : TokenPtr;
 Begin
+  ReadProgramToken := Nil;
   K := ReadToken(f,GetSyntax(P));
-  AppendProgramToken(P,K);
+  If Error Then Exit;
+  SetProgramCurrentToken(P,K);
   ReadProgramToken := K
 End;
 

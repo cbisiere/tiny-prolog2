@@ -23,6 +23,7 @@ Uses
   ShortStr,
   Memory,
   PObj,
+  PObjTerm,
   PObjStr;
 
 {-----------------------------------------------------------------------}
@@ -50,12 +51,13 @@ Function Dict_IsGlobal( D : DictPtr) : Boolean;
 Procedure Dict_SetGlobal( D : DictPtr; glob : Boolean );
 Function Dict_GetTerm( D : DictPtr) : TermPtr;
 
-Function Dict_Lookup( D : DictPtr; str : StrPtr; glob : Boolean ) : DictPtr;
+Function Dict_Lookup( D : DictPtr; str : StrPtr; types : SetOfTypePrologObj; 
+    glob : Boolean ) : DictPtr;
 Function Dict_Append( Var D : DictPtr; str : StrPtr; T : TermPtr; 
-  ty : TypePrologObj; glob : Boolean ) : DictPtr;
+    ty : TypePrologObj; glob : Boolean ) : DictPtr;
 
-Function Dict_StrStartsWith( D : DictPtr; E : CharSet ) : Boolean;
-Function Dict_StrIsEqualTo( D : DictPtr; ps : TString ) : Boolean;
+Function Dict_StrStartsWithShortString( D : DictPtr; E : CharSet ) : Boolean;
+Function Dict_StrIsEqualToShortString( D : DictPtr; ps : TString ) : Boolean;
 
 
 Implementation
@@ -128,20 +130,23 @@ End;
 { methods                                                               }
 {-----------------------------------------------------------------------}
 
-{ look in a dictionary D for a string; 
-  return a pointer to the dictionary entry, or Nil; when found, makes the 
-  entry global if global is True (as a consequence this entry will not be
-  discarded during the post-clearing cleanup) }
-Function Dict_Lookup( D : DictPtr; str : StrPtr; glob : Boolean ) : DictPtr;
+{ look in a dictionary D for a term of a type in a set and whose string 
+ representation is str; 
+ return a pointer to the dictionary entry, or Nil; when found, makes the 
+ entry global if global is True (as a consequence this entry will not be
+ discarded during the post-clearing cleanup) }
+Function Dict_Lookup( D : DictPtr; str : StrPtr; types : SetOfTypePrologObj; 
+    glob : Boolean ) : DictPtr;
 Var
   e : DictPtr;
   Found : Boolean;
 Begin
   e := D;
   Found := False;
-  While (e<>Nil) And Not Found Do
+  While (e <> Nil) And Not Found Do
   Begin
-    If Str_Equal(Dict_GetStr(e),str) Then
+    If (Dict_GetType(e) In types) And 
+        Str_Equal(Dict_GetStr(e),str) Then
       Found := True
     Else
       e := Dict_GetNext(e)
@@ -171,15 +176,15 @@ End;
 
 { does the string in a dictionary entry start with a char in a given set? 
   not UTF-8 aware }
-Function Dict_StrStartsWith( D : DictPtr; E : CharSet ) : Boolean;
+Function Dict_StrStartsWithShortString( D : DictPtr; E : CharSet ) : Boolean;
 Begin
-  Dict_StrStartsWith := Str_StartsWith(Dict_GetStr(D),E)
+  Dict_StrStartsWithShortString := Str_StartsWith(Dict_GetStr(D),E)
 End;
 
 { is the string in a dictionary entry equal to a Pascal string? }
-Function Dict_StrIsEqualTo( D : DictPtr; ps : TString ) : Boolean;
+Function Dict_StrIsEqualToShortString( D : DictPtr; ps : TString ) : Boolean;
 Begin
-  Dict_StrIsEqualTo := Str_EqualToString(Dict_GetStr(D),ps)
+  Dict_StrIsEqualToShortString := Str_EqualToShortString(Dict_GetStr(D),ps)
 End;
 
 End.

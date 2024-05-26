@@ -16,8 +16,7 @@
 {$V-} { No strict type checking for strings. }
 
 
-{ encode and decode tuples, predicates, lists, etc., using the functional 
- symbol F }
+{ encode and decode predicates, lists, etc., using the functional symbol F }
 
 {-----------------------------------------------------------------------}
 {                                                                       }
@@ -45,20 +44,15 @@ Interface
 
 Uses
   ShortStr,
+  Num,
   Errs,
   Memory,
   PObj,
   PObjTerm,
+  PObjFCVI,
   PObjDef,
-  PObjProg;
-
-Function NewTuple( T : TermPtr ) : TermPtr;
-Function NewEmptyTuple : TermPtr;
-Function TupleQueue( U : TermPtr ) : TermPtr;
-Procedure SetTupleQueueTerm( U,T : TermPtr );
-Function IsEmptyTuple( U : TermPtr ) : Boolean;
-Function TupleArgCount( U : TermPtr ) : Integer;
-Function TupleArgN( N : Integer; U : TermPtr ) : TermPtr;
+  PObjProg,
+  Tuple;
 
 Function NewFunc2( P : ProgPtr; ident : TString; T1,T2 : TermPtr; 
     glob : Boolean ) : TermPtr;
@@ -69,116 +63,18 @@ Function IsNil( T : TermPtr ) : Boolean;
 Function TupleToList( P : ProgPtr; U : TermPtr ) : TermPtr;
 Function ListToTuple( L : TermPtr ) : TermPtr;
 
-Function GetTupleHead( T : TermPtr; Reduce : Boolean ) : TermPtr;
-Function GetTupleQueue( T : TermPtr; Reduce : Boolean ) : TermPtr;
-Function GetTupleArg( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
-
-Function GetFunc1( T : TermPtr; ident : TString; 
-    Var T1 : TermPtr; Reduce : Boolean ) : Boolean;
-
-Function GetList( T : TermPtr; Var T1,T2 : TermPtr; 
+Function ProtectedGetTupleHead( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
+Function ProtectedGetTupleQueue( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
+Function ProtectedGetTupleArg( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
+Function ProtectedGetFunc1( T : TermPtr; ident : TString; Var T1 : TermPtr; 
     Reduce : Boolean ) : Boolean;
-Function IsList( T : TermPtr; Reduce : Boolean ) : Boolean;
+
+Function ProtectedGetList( T : TermPtr; Var T1,T2 : TermPtr; 
+    Reduce : Boolean ) : Boolean;
+Function ProtectedIsList( T : TermPtr; Reduce : Boolean ) : Boolean;
 
 Implementation
 {-----------------------------------------------------------------------------}
-
-{----------------------------------------------------------------------------}
-{ tuples                                                                     }
-{----------------------------------------------------------------------------}
-
-{ create a new tuple containing a single term T: <a> }
-Function NewTuple( T : TermPtr ) : TermPtr;
-Begin
-  NewTuple := NewF(T,Nil)
-End;
-
-{ create the empty tuple: <> }
-Function NewEmptyTuple : TermPtr;
-Begin
-  NewEmptyTuple := NewTuple(Nil)
-End;
-
-{ return true if U is a tuple }
-Function IsTuple( U : TermPtr ) : Boolean;
-Begin
-  IsTuple := TypeOfTerm(U) = FuncSymbol
-End;
-
-{ return the first element of a tuple: <a,b,c> => a; <> => Nil }
-Function TupleHead( U : TermPtr ) : TermPtr;
-Var 
-  FU : FuncPtr Absolute U;
-Begin
-  TupleHead := FLeftArg(FU)
-End;
-
-{ return a tuple containing all the elements in the tuple but the first:
- <a,b,c> => <b,c>, <a,b> => <b>, <a> => Nil, <> => error }
-Function TupleQueue( U : TermPtr ) : TermPtr;
-Var 
-  FU : FuncPtr Absolute U;
-Begin
-  TupleQueue := FRightArg(FU)
-End;
-
-{ replace the queue of tuple U1 with tuple U2: <a,b,c> + <d,e,f> => <a,d,e,f>; 
- mostly used to add an single element to a tuple: <a> + <b> => <a,b> }
-Procedure SetTupleQueue( U1,U2 : TermPtr );
-Var 
-  FU : FuncPtr Absolute U1;
-Begin
-  FSetRightArg(FU,U2)
-End;
-
-{ replace the queue of tuple U with term T }
-Procedure SetTupleQueueTerm( U,T : TermPtr );
-Begin
-  SetTupleQueue(U,NewTuple(T))
-End;
-
-{ create a new tuple <T1,T2>, or <T1> if T2 is Nil }
-Function NewTuple2( T1,T2 : TermPtr ) : TermPtr;
-Var
-  U : TermPtr;
-Begin
-  U := NewTuple(T1);
-  If T2 <> Nil Then
-    SetTupleQueueTerm(U,T2);
-  NewTuple2 := U
-End;
-
-{ return true if U is the empty tuple }
-Function IsEmptyTuple( U : TermPtr ) : Boolean;
-Begin
-  IsEmptyTuple := (TupleHead(U) = Nil) And (TupleQueue(U) = Nil)
-End;
-
-{ return the number of elements of a tuple }
-Function TupleArgCount( U : TermPtr ) : Integer;
-Begin
-  If TupleQueue(U) = Nil  Then
-    TupleArgCount := 1
-  Else
-    TupleArgCount := TupleArgCount(TupleQueue(U)) + 1
-End;
-
-{ return the N-th element of a tuple U }
-Function TupleArgN( N : Integer; U : TermPtr ) : TermPtr;
-Begin
-  If N = 1 Then
-    TupleArgN := TupleHead(U)
-  Else
-    TupleArgN := TupleArgN(N-1,TupleQueue(U))
-End;
-
-{ return the first element of a tuple U, setting U to the tuple queue, which 
- will be Nil if there are no more elements) }
-Function TupleArg( Var U : TermPtr ) : TermPtr;
-Begin
-  TupleArg := TupleHead(U);
-  U := TupleQueue(U)
-End;
 
 {----------------------------------------------------------------------------}
 { functions                                                                  }
@@ -240,7 +136,7 @@ End;
 { return True if term T is 'nil' }
 Function IsNil( T : TermPtr ) : Boolean;
 Begin
-  IsNil := TermIsIdentifierEqualTo(T,'nil')
+  IsNil := TermIsIdentifierEqualToShortString(T,'nil')
 End;
 
 
@@ -278,92 +174,123 @@ End;
 
 
 {----------------------------------------------------------------------------}
-{ navigating the term tree, possibly through the reduced system              }
+{ navigate the term tree, possibly through the reduced system                }
 {----------------------------------------------------------------------------}
 
 { tuple head }
-Function GetTupleHead( T : TermPtr; Reduce : Boolean ) : TermPtr;
+Function GetTupleHead( T : TermPtr; 
+    Reduce : Boolean; g : TSerial ) : TermPtr;
 Begin
   T := TupleHead(T);
-  If Reduce Then
-    T := RepresentativeOf(T);
+  T := RepresentativeOf(T,True,Reduce,g);
   GetTupleHead := T
 End;
 
 { tuple queue }
-Function GetTupleQueue( T : TermPtr; Reduce : Boolean ) : TermPtr;
+Function GetTupleQueue( T : TermPtr; 
+    Reduce : Boolean; g : TSerial ) : TermPtr;
 Begin
   T := TupleQueue(T);
-  If Reduce Then
-    T := RepresentativeOf(T);
+  T := RepresentativeOf(T,True,Reduce,g);
   GetTupleQueue := T
 End;
 
 { tuple first arg, advancing U to the queue }
-Function GetTupleArg( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
+Function GetTupleArg( Var U : TermPtr; 
+    Reduce : Boolean; g : TSerial ) : TermPtr;
 Begin
-  GetTupleArg := GetTupleHead(U,Reduce);
-  U := GetTupleQueue(U,Reduce)
+  GetTupleArg := GetTupleHead(U,Reduce,g);
+  U := GetTupleQueue(U,Reduce,g)
+End;
+
+
+{----------------------------------------------------------------------------}
+{ loop-protected functions, which uses their own serial number               }
+{----------------------------------------------------------------------------}
+
+{ tuple head }
+Function ProtectedGetTupleHead( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
+Begin
+  ProtectedGetTupleHead := GetTupleHead(U,Reduce,NewSerial)
+End;
+
+{ tuple queue }
+Function ProtectedGetTupleQueue( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
+Begin
+  ProtectedGetTupleQueue := GetTupleQueue(U,Reduce,NewSerial)
+End;
+
+{ tuple first arg, advancing U to the queue }
+Function ProtectedGetTupleArg( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
+Begin
+  ProtectedGetTupleArg := GetTupleArg(U,Reduce,NewSerial)
 End;
 
 { return True if term T is a 1-argument predicate with name ident, that is,
- a tuple "<ident,t1>"; retrieve the argument }
-Function GetFunc1( T : TermPtr; ident : TString; 
-    Var T1 : TermPtr; Reduce : Boolean ) : Boolean;
+ a tuple "<ident,t1>"; retrieve the argument; Reduce means reducing
+ the children, not the term itself }
+Function ProtectedGetFunc1( T : TermPtr; ident : TString; Var T1 : TermPtr; 
+    Reduce : Boolean ) : Boolean;
 Var
+  g : TSerial;
   T0 : TermPtr;
 Begin
-  GetFunc1 := False;
+  ProtectedGetFunc1 := False;
   If Not IsTuple(T) Then
     Exit;
-  T0 := GetTupleArg(T,Reduce);
+  g := NewSerial;
+  T0 := GetTupleArg(T,Reduce,g);
   If Not IsTuple(T) Then
     Exit;
-  If Not TermIsIdentifierEqualTo(T0,ident) Then
+  If Not TermIsIdentifierEqualToShortString(T0,ident) Then
     Exit;
-  T1 := GetTupleArg(T,Reduce);
+  T1 := GetTupleArg(T,Reduce,g);
   If T <> Nil Then
     Exit;
-  GetFunc1 := True
+  ProtectedGetFunc1 := True
 End;
 
 { return True if term T is a 2-argument predicate with name ident, that is,
- a tuple "<ident,t1,t2>"; retrieve the two arguments }
-Function GetFunc2( T : TermPtr; ident : TString; 
-    Var T1,T2 : TermPtr; Reduce : Boolean ) : Boolean;
+ a tuple "<ident,t1,t2>"; retrieve the two arguments; Reduce means reducing
+ the children, not the term itself }
+Function ProtectedGetFunc2( T : TermPtr; ident : TString; 
+    Var T1,T2 : TermPtr; 
+    Reduce : Boolean ) : Boolean;
 Var
+  g : TSerial;
   T0 : TermPtr;
 Begin
-  GetFunc2 := False;
+  ProtectedGetFunc2 := False;
   If Not IsTuple(T) Then
     Exit;
-  T0 := GetTupleArg(T,Reduce);
+  g := NewSerial;
+  T0 := GetTupleArg(T,Reduce,g);
   If Not IsTuple(T) Then
     Exit;
-  If Not TermIsIdentifierEqualTo(T0,ident) Then
+  If Not TermIsIdentifierEqualToShortString(T0,ident) Then
     Exit;
-  T1 := GetTupleArg(T,Reduce);
+  T1 := GetTupleArg(T,Reduce,g);
   If Not IsTuple(T) Then
     Exit;
-  T2 := GetTupleArg(T,Reduce);
+  T2 := GetTupleArg(T,Reduce,g);
   If T <> Nil Then
     Exit;
-  GetFunc2 := True
+  ProtectedGetFunc2 := True
 End;
 
 { return True if term T is a non-empty list: "a.b"; retrieve both arguments }
-Function GetList( T : TermPtr; Var T1,T2 : TermPtr; 
+Function ProtectedGetList( T : TermPtr; Var T1,T2 : TermPtr; 
     Reduce : Boolean ) : Boolean;
 Begin
-  GetList := GetFunc2(T,'.',T1,T2,Reduce)
+  ProtectedGetList := ProtectedGetFunc2(T,'.',T1,T2,Reduce)
 End;
 
 { return True if term T is a non-empty list: "a.b" }
-Function IsList( T : TermPtr; Reduce : Boolean ) : Boolean;
+Function ProtectedIsList( T : TermPtr; Reduce : Boolean ) : Boolean;
 Var 
   T1,T2 : TermPtr;
 Begin
-  IsList := GetList(T,T1,T2,Reduce)
+  ProtectedIsList := ProtectedGetList(T,T1,T2,Reduce)
 End;
 
 End.

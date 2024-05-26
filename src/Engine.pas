@@ -21,11 +21,15 @@ Interface
 
 Uses
   ShortStr,
+  Num,
   Errs,
   Files,
   Trace,
   Memory,
   PObj,
+  PObjList,
+  PObjTerm,
+  PObjFCVI,
   PObjIO,
   PObjOp,
   PObjRest,
@@ -33,7 +37,7 @@ Uses
   PObjTok,
   PObjDict,
   PObjEq,
-  PObjTerm,
+  PObjSys,
   PObjDef,
   PObjWrld,
   PObjBter,
@@ -53,7 +57,7 @@ Uses
 Type 
   TFileExt = Array[TSyntax] Of String[3];
 Const 
-  FileExt : TFileExt = ('pro','p2c','p2','p2E'); { TODO: rewrite to handle .pl }
+  FileExt : TFileExt = ('p2c','pro','p2','p2E'); { TODO: rewrite to handle .pl cleanly }
 
 Procedure ProcessCommandLine( P : ProgPtr );
 Procedure LoadProgram( P : ProgPtr; s : StrPtr; TryPath : Boolean );
@@ -87,8 +91,11 @@ Begin
   ClearInsert := True
 End;
 
-{ execute a system call syscall(Code,Arg1,...ArgN), meaning Code(Arg1,...,ArgN) }
-Function ExecutionSysCallOk( P : ProgPtr; Q : QueryPtr; T : TermPtr ) : Boolean;
+{ execute a system call syscall(Code,Arg1,...ArgN), meaning 
+ Code(Arg1,...,ArgN); if the syscall is freeze, set the frozen variable V and
+ the frozen goal G }
+Function ExecutionSysCallOk( P : ProgPtr; Q : QueryPtr; T : TermPtr; 
+    Var V,G : TermPtr ) : Boolean;
 Var
   Ok : Boolean;
   Predef : TPP;
@@ -101,7 +108,7 @@ Begin
   If Predef = PP_INSERT Then
     Ok := ClearInsert(P,T)
   Else
-    Ok := ClearPredef(Predef,P,Q,T);
+    Ok := ClearPredef(Predef,P,Q,T,V,G);
   ExecutionSysCallOk := Ok
 End;
 
@@ -116,29 +123,8 @@ End;
 { warning during execution                                                   }
 {----------------------------------------------------------------------------}
 
-{ warn user when a goal other than 'fail' fails }
-Procedure WarnNoRuleToClearTerm( B : BTermPtr );
-Var
-  I : IdPtr;
-  s : StrPtr;
-Begin
-  CheckCondition(B <> Nil,'WarnNoRuleToClearTerm: B is Nil');
-  I := AccessIdentifier(BTerm_GetTerm(B)); { handle dynamic assignment of identifiers }
-  If I = Nil Then
-    Exit;
-  s := IdentifierGetStr(I);
-  If Str_EqualToString(s,'fail') Then
-    Exit;
-  CWriteWarning('no rules match goal');
-  CWrite(' ''');
-  Str_CWrite(s);
-  CWrite('''');
-  CWriteLn
-End;
-
 { clear a query }
 Procedure Clock( P : ProgPtr; Q : QueryPtr );
-
 Var
   Solvable    : Boolean;  { system has a solution? }
   EndOfClock  : Boolean;
@@ -166,27 +152,52 @@ Var
     CWriteLn
   End;
 
-  { first rule that has a chance to unify with a term, starting with rule R;
-   R could be Nil }
-  Function FirstCandidateRule( R : RulePtr; B : BTermPtr; 
-      Var isSys : Boolean ; Var isCut : Boolean ) : RulePtr;
+  { access whether B has a chance to be cleared, that is, 1) there is a rule Rc 
+   that has a chance to unify with a term B, starting with rule R; R could be 
+   Nil; or 2) B is a cut; or 3) B is the system call syscall;
+   if WarnNone is True, print a warning if the goal is impossible to clear }
+  Function PossibleToClear( R : RulePtr; B : BTermPtr; 
+      Var Rc : RulePtr; Var isSys : Boolean ; Var isCut : Boolean; 
+      WarnNone : Boolean ) : Boolean;
   Var
-    I : IdPtr;
+    Possible : Boolean;
+    Tc : TermPtr; { term to clear }
+    I : IdPtr; { access of Tc }
+    a : PosInt; { arity of Tc }
+    s : StrPtr;
   Begin
-    FirstCandidateRule := Nil;
+    Rc := Nil;
     isSys := False;
     isCut := False;
-    If B = Nil Then
+    If B = Nil Then { FIXME: ? }
       Exit;
-    I := AccessIdentifier(BTerm_GetTerm(B)); { slow but handle assignment }
-    If I = Nil Then
-      Exit;
-    If IdentifierIsSyscall(I) Then
-      isSys := True
-    Else If IdentifierIsCut(I) Then
-      isCut := True
-    Else 
-      FirstCandidateRule := FindRuleWithHead(R,I,False) 
+    Tc := BTerm_GetTerm(B);
+    I := AccessIdentifier(Tc); { slow but handle assignment }
+    a := Arity(Tc);
+    If I <> Nil Then
+    Begin
+      If IdentifierIsSyscall(I) Then
+        isSys := True
+      Else If IdentifierIsCut(I) Then
+        isCut := True
+      Else
+        Rc := FindRuleWithHeadAndArity(R,I,a,False)
+    End;
+    Possible := (Rc <> Nil) Or isSys Or isCut;
+    If WarnNone And Not Possible Then
+    Begin
+      CWriteWarning('no rules to clear goal');
+      If I <> Nil Then
+      Begin
+        s := IdentifierGetStr(I);
+        CWrite(': ');
+        Str_CWrite(s);
+        CWrite('/');
+        CWritePosInt(a)
+      End;
+      CWriteLn
+    End;
+    PossibleToClear := Possible
   End;
 
   {----------------------------------------------------------------------------}
@@ -196,16 +207,18 @@ Var
 
   Function NextCandidateRule( R : RulePtr; B : BTermPtr; Var isSys : Boolean; 
       Var isCut : Boolean) : RulePtr;
-  Var NextR : RulePtr;
+  Var 
+    NextR : RulePtr;
+    Possible : Boolean;
   Begin
-    If (R = Nil) Or (isSys) Or (isCut) Then
+    If (R = Nil) Or (isSys) Or (isCut) Then { no "next" rule }
     Begin
       isSys := False;
       isCut := False;
       NextR := Nil
     End
     Else
-      NextR := FirstCandidateRule(NextRule(R,False), B, isSys, isCut);
+      Possible := PossibleToClear(NextRule(R,False),B,NextR,isSys,isCut,False);
     NextCandidateRule := NextR
   End;
 
@@ -247,7 +260,7 @@ Var
 
         { backtracks one step }
         NextH := H^.HH_NEXT;
-        Restore(H^.HH_REST); { restore and free restore list }
+        Rest_Restore(H^.HH_REST); { restore and free restore list }
         H^.HH_REST := Nil;
         H := NextH;
 
@@ -272,16 +285,14 @@ End;
 
   Procedure SetFirstCandidateRuleOrBacktrack( Var H : HeadPtr );
   Var
+    Possible : Boolean;
     R : RulePtr;
     isSys, isCut : Boolean;
   Begin
-    R := FirstCandidateRule(FirstRule(P,False),H^.HH_FBCL,isSys,isCut);
+    Possible := PossibleToClear(FirstRule(P,False),H^.HH_FBCL,R,isSys,isCut,True);
     Header_SetRule(H,R,isSys,isCut);
-    If (R = Nil) And (Not isSys) And (Not isCut) Then
-    Begin
-      WarnNoRuleToClearTerm(H^.HH_FBCL);
+    If Not Possible Then
       Backtracking(H,EndOfClock)
-    End
   End;
 
 {------------------------------------------------------------------}
@@ -305,7 +316,9 @@ End;
     PRuleB : TObjectPtr Absolute RuleB;
     CopyRuleP : TObjectPtr;
     BCopyRuleP : BTermPtr Absolute CopyRuleP;
-
+    FrozenV,FrozenT : TermPtr; { frozen variable and goal }
+    FrozenB : BTermPtr;
+    FrozenM : TermsPtr;
   Begin
     Header_GetRule(H,R,isSys,isCut); { rule to apply }
 
@@ -317,7 +330,7 @@ End;
 
     { set the backward head pointer in case of a cut }
     If (H <> Nil) And (isCut) Then
-      H^.HH_BACK := ClearB^.BT_HEAD;
+      H^.HH_BACK := BTerm_GetHeader(ClearB);
 
     { backup pointer to current header }
     Hc := H;
@@ -325,17 +338,46 @@ End;
     { new header; the "cut" indicator propagates }
     Headers_PushNew(H,Nil,Nil,False,False);
 
-    If isCut Then
+    If isCut Then { cut }
     Begin
       Solvable := True; { "cut" is always clearable }
       H^.HH_FBCL := BTerms_GetNext(ClearB)
     End
     Else
-    If isSys Then
+    If isSys Then { system call }
     Begin
-      Solvable := ExecutionSysCallOk(P,Q,ClearT);
-      { remove the term from the list of terms to clear }
-      H^.HH_FBCL := BTerms_GetNext(ClearB)
+      FrozenV := Nil;
+      FrozenT := Nil;
+      Solvable := ExecutionSysCallOk(P,Q,ClearT,FrozenV,FrozenT);
+
+      If Solvable Then
+      Begin
+        { handle freeze }
+        If FrozenV <> Nil Then { syscall was 'freeze' }
+        Begin
+          CheckCondition(FrozenT <> Nil,'missing frozen term');
+          If IsFree(FrozenV) Then { free var: goal clearing must be delayed }
+          Begin
+            { create the list element }
+            FrozenM := List_New(TObjectPtr(FrozenT));
+            { prepend the frozen term to the existing list, which may be Nil }
+            List_SetNext(FrozenM,GetFrozenTerms(VarPtr(FrozenV)));
+            { attach to the frozen variable the updated list of frozen terms }
+            SetFrozenTerms(VarPtr(FrozenV),FrozenM)
+          End
+          Else { bounded term: goal must be cleared right now }
+          Begin
+            { insert the goal after the cleared one, that will be removed 
+             below }
+            FrozenB := BTerm_New(FrozenT);
+            BTerms_SetNext(FrozenB,BTerms_GetNext(ClearB));
+            BTerms_SetNext(ClearB,FrozenB)
+          End
+        End;
+
+        { remove the cleared term from the list of terms to clear }
+        H^.HH_FBCL := BTerms_GetNext(ClearB)
+      End
     End
     Else
     Begin
@@ -350,9 +392,9 @@ End;
         the liaisons are copied as part of the rule itself }
       If R^.RU_SYST <> Nil Then
       Begin
-        Ss := NewSystem;
-        CopyAllEqInSys(Ss,R^.RU_SYST);
-        Solvable := ReduceSystem(Ss,True,H^.HH_REST)
+        Ss := Sys_New;
+        Sys_CopyEqs(Ss,R^.RU_SYST);
+        Solvable := ReduceSystem(Ss,True,H^.HH_REST,FrozenM,GetDebug(P))
       End;
 
       If Solvable Then
@@ -365,18 +407,47 @@ End;
         BTerms_SetHeader(BCopyRuleP,Hc);
 
         { constraint to reduce: term to clear = rule head }
-        Ss := NewSystemWithEq(ClearT,BTerm_GetTerm(BCopyRuleP));
+        Ss := Sys_NewWithEq(ClearT,BTerm_GetTerm(BCopyRuleP));
 
         { new list of terms to clear: rule queue + all previous terms 
           but the first }
-        B := BCopyRuleP;
-        While (BTerms_GetNext(B)<>Nil) Do
-          B := BTerms_GetNext(B);
+        B := BTerms_GetLast(BCopyRuleP);
         B^.BT_NEXT := BTerms_GetNext(ClearB);
         H^.HH_FBCL := BTerms_GetNext(BCopyRuleP);
 
-        Solvable := ReduceSystem(Ss,True,H^.HH_REST)
+        FrozenM := Nil;
+        Solvable := ReduceSystem(Ss,True,H^.HH_REST,FrozenM,GetDebug(P));
+
+        { insert unfrozen goals if any }
+        If Solvable And (FrozenM <> Nil) Then
+        Begin
+          While FrozenM <> Nil Do { loop through all terms to unfreeze}
+          Begin
+            FrozenT := TermPtr(List_GetObject(FrozenM));
+            If GetDebug(P) Then
+            Begin
+              CWrite('UNFROZEN: ');
+              OutTerm(Nil,GetSyntax(P),FrozenT); { FIXME: syntax }
+              CWriteLn
+            End;
+            { build and insert the goal in the list of goals to clear }
+            FrozenB := BTerm_New(FrozenT);
+            BTerms_SetNext(FrozenB,H^.HH_FBCL);
+            H^.HH_FBCL := FrozenB;
+            { next unfrozen term }
+            FrozenM := List_GetNext(FrozenM)
+          End
+        End
       End
+    End;
+
+    { trace; print goal that has been cleared }
+    If Solvable And GetTrace(P) Then
+    Begin
+      CWriteLongInt(Header_GetClock(H));
+      CWrite(': ');
+      OutTerm(Nil,GetSyntax(P),ClearT); { FIXME: syntax }
+      CWriteLn
     End
   End;
 
@@ -401,7 +472,7 @@ Begin
     goal, including goals that sets global variables; thus a query 
     like "assign(aa,1) { aa = 1 )" will fail right away  }
   If Query_GetSys(Q) <> Nil Then
-    If Not ReduceEquations(Query_GetSys(Q)) Then
+    If Not ReduceEquations(Query_GetSys(Q),GetDebug(P)) Then
       Exit;
 
   B := Query_GetTerms(Q); { list of terms to clear }
@@ -413,14 +484,9 @@ Begin
     Exit
   End;
 
-  R := FirstCandidateRule(FirstRule(P,False),B,isSys,isCut);
-
-  { not even a candidate rule to try: fail }
-  If (R = Nil) And (Not isSys) And (Not isCut) Then
-  Begin
-    WarnNoRuleToClearTerm(B);
-    Exit
-  End;
+  { fail when there is no chance to clear B }
+  If Not PossibleToClear(FirstRule(P,False),B,R,isSys,isCut,True) Then
+    Exit;
 
   Headers_PushNew(Q^.QU_HEAD,B,R,isSys,isCut);
 
@@ -489,9 +555,10 @@ Var
 Begin
   f := GetInputConsole(P);
   K := ReadProgramToken(P,f);
+  If Error Then Exit;
   If Token_GetType(K) <> TOKEN_END_OF_INPUT Then
   Begin
-    Q := ParseOneQuery(f,P,K,False);
+    Q := ParseOneQuery(f,P,K);
     If Error Then Exit;
     AnswerQuery(P,Q,False)
   End
@@ -505,6 +572,7 @@ Procedure ParseAndExecuteQueries( f : StreamPtr; P : ProgPtr;
     ContTokens, StopTokens : TTokenSet );
 Var
   Q : QueryPtr;
+  EchoQuery : Boolean;
 Begin
   While ((ContTokens=[]) Or (Token_GetType(K) In ContTokens))
     And (Not (Token_GetType(K) In StopTokens)) And (Not Error) Do
@@ -512,9 +580,16 @@ Begin
     If WithArrow Then
       VerifyToken(f,P,K,TOKEN_ARROW);
     If Error Then Exit;
-    Q := ParseOneQuery(f,P,K,True);
+    Q := ParseOneQuery(f,P,K);
     If Error Then Exit;
-    AnswerQuery(P,Q,World_IsUserLand(GetCurrentWorld(P)))
+    EchoQuery := Not Stream_IsConsole(f) And Not Stream_GetEcho 
+        And World_IsUserLand(GetCurrentWorld(P));
+    AnswerQuery(P,Q,EchoQuery);
+    If Error Then Exit;
+    { now that the solution has been displayed, read the next token; this 
+     sequencing is required to avoid the echo mode to mangle the output by
+     e.g. displaying the arrow of the next goal before displaying the solution }
+    K := ReadProgramToken(P,f)
   End
 End;
 
@@ -532,14 +607,14 @@ Begin
   Stop := False;
   { common tokens ending a series of queries or rules }
   StopTokens := [TOKEN_END_OF_INPUT,TOKEN_STRING];
-  If GetSyntax(P) = PrologII Then
+  If GetSyntax(P) In [PrologIIc,PrologII] Then
     StopTokens := StopTokens + [TOKEN_SEMICOLON]; 
   Repeat
     Case Token_GetType(K) Of
     TOKEN_END_OF_INPUT:
       Stop := True;
     TOKEN_SEMICOLON:
-      If GetSyntax(P) = PrologII Then { old Prolog II termination }
+      If GetSyntax(P) In [PrologIIc,PrologII] Then { Prolog II termination }
         Stop := True
       Else
         SyntaxError(TokenStr[TOKEN_SEMICOLON] + ' not expected here');
@@ -574,71 +649,109 @@ Var
 Begin
   TryPrologFileForInput := Nil;
   f := Nil;
+  { just return Nil if the file does not exist }
+  If Not FileExistsOnDisk(Path) Then
+    Exit;
+  { the file exists: check for errors }
   If GetStreamByPath(P,Path) <> Nil Then
   Begin
     RuntimeError('insertion loop: ''' + Path + '''');
     Exit
   End;
-  f := NewStream(Path,Path,DEV_FILE,MODE_READ,True,False);
+  f := Stream_New(Path,Path,DEV_FILE,MODE_READ,True,False);
+  If Not Stream_IsOpen(f) Then
+  Begin
+    f := Nil;
+    RuntimeError('unable to open: ''' + Path + '''');
+    Exit
+  End;
   PushStream(P,f);
   TryPrologFileForInput := f
 End;
 
-{ return a stream for filename Path, using default program extensions for 
- the current syntax; 
+{ return a stream for filename Path in base directory BaseDir, using default 
+ program extensions for the current syntax; BaseDir can be ''. If it is not ''
+ it must end with a directory separator;
  NOTE: probably less TOCTOU-prone than looking for the file and then 
  setting it as input }
-Function SetPrologFileForInput( P : ProgPtr; Path : TPath ) : StreamPtr;
+Function SetPrologFileForInput( P : ProgPtr; BaseDir,Path : TPath ) : StreamPtr;
 Var
   f : StreamPtr;
   y : TSyntax;
+  Ext : TPath;
 Begin
   SetPrologFileForInput := Nil;
+  If Length(BaseDir) + Length(Path) > StringMaxSize Then
+    Exit;
   y := GetSyntax(P);
-  f := TryPrologFileForInput(P,Path);
+  f := TryPrologFileForInput(P,BaseDir + Path);
   If Error Then Exit;
   If (f = Nil) And (y = Edinburgh) Then
   Begin
-    f := TryPrologFileForInput(P,Path + '.pl');
+    Ext := '.pl';
+    If Length(BaseDir) + Length(Path) + Length(Ext) <= StringMaxSize Then
+      f := TryPrologFileForInput(P,BaseDir + Path + Ext);
     If Error Then Exit
   End;
   If f = Nil Then
   Begin
-    f := TryPrologFileForInput(P,Path + '.' + FileExt[y]);
+    Ext := '.' + FileExt[y];
+    If Length(BaseDir) + Length(Path) + Length(Ext) <= StringMaxSize Then
+      f := TryPrologFileForInput(P,BaseDir + Path + Ext);
     If Error Then Exit
   End;
   SetPrologFileForInput := f
 End;
 
 { load rules and execute queries (if nay) from a Prolog file; if TryPath is 
- True, try to use the main program dir first;
+ True, try to use 1) if any, the directory of the program that contains this 
+ insert; 2) the main program directory;
  Q is the query (if any) that triggered the loading, e.g. due to an "insert" 
  goal }
 Procedure LoadProgram( P : ProgPtr; s : StrPtr; TryPath : Boolean );
 Var 
-  FileName, Path : TPath;
+  Filename,BaseDir : TPath;
   f : StreamPtr;
 Begin
   If Str_Length(s) <= StringMaxSize Then
   Begin
-    FileName := Str_AsString(s);
-    Path := GetProgramPath(P);
+    Filename := Str_AsShortString(s);
     f := Nil;
-    If TryPath And (path <> '') And 
-        (Length(Path) + Length(FileName) <= StringMaxSize) Then
-      f := SetPrologFileForInput(P,Path + FileName);
+    If TryPath Then
+    Begin
+      { try the directory of the parent Prolog file, if any }
+      BaseDir := ExtractPath(Stream_GetPath(CurrentInput(P)));
+      If BaseDir <> '' Then
+        f := SetPrologFileForInput(P,BaseDir,Filename);
+      { try the directory of the Prolog file passed as parameter }
+      If f = Nil Then
+      Begin
+        BaseDir := GetProgramPath(P);
+        If BaseDir <> '' Then
+          f := SetPrologFileForInput(P,BaseDir,Filename)
+      End
+    End;
+    If Error Then Exit;
+    { last attempt: OS's current directory }
     If f = Nil Then
-      f := SetPrologFileForInput(P,FileName);
+      f := SetPrologFileForInput(P,'',Filename);
+    If Error Then Exit;
     If f <> Nil Then
     Begin
+      { reading a Prolog file can consume a lot of memory; we clean up before
+       starting }
+      GarbageCollector;
+      { do insert }
       BeginInsertion(P);
       ProcessRulesAndQueries(f,P);
-      StreamClose(f);
       EndInsertion(P);
-      If Error Then Exit
+      { do not close the input file in case of error, as the error handler 
+       needs it to display an excerpt of the input data }
+      If Error Then Exit;
+      CloseAndDeleteStream(P,f)
     End
     Else
-      RuntimeError('Cannot open file ')
+      RuntimeError('cannot open file: ''' + Filename + '''')
   End
   Else
     RuntimeError('filename is too long');

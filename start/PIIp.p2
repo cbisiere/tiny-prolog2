@@ -1,29 +1,66 @@
 "Prolog II+ predefined operators and rules"
 
+"rules"
+
+rule(T,Q) -> syscall(sysrule,T,Q);
+
+insert(F) -> syscall(sysinsert,F);
+insert -> syscall(sysinputis,F) syscall(sysinsert,F);
+
+list(N) -> syscall(syslist,N);
+list -> list(0);
+assert(<T,Q>) -> syscall(sysasserta,T,Q);
+
 "session"
 
 quit -> outml("bye!") syscall(sysquit);
-list -> syscall(syslist,0);
-insert(F) -> syscall(sysinsert,F);
 
-"i/o: PII+"
+"is"
+
+ident(T) -> syscall(sysis,T,ident);
+integer(T) -> syscall(sysis,T,integer);
+real(T) -> syscall(sysis,T,real);
+string(T) -> syscall(sysis,T,string);
+dot(T) -> syscall(sysis,T,dot);
+tuple(T) -> syscall(sysis,T,tuple);
+
+free(T) -> syscall(sysfree,T,true);
+bound(T) -> syscall(sysfree,T,false);
+
+"string"
+
+char_code(C,N) -> syscall(syscharcode,C,N);
+
+"i/o"
 
 input_is(F) -> syscall(sysinputis,F);
+input(F) -> syscall(sysselectinput,F) /;
 input(F) -> syscall(sysopennew,F,read,S,nil);
-close_input -> syscall(sysclosecurrentinput);
+close_input -> syscall(sysinputis,F) close_input(F);
 close_input(F) -> syscall(syscloseinput,F);
 clear_input -> syscall(sysclearinput);
 
 output_is(F) -> syscall(sysoutputis,F);
+output(F) -> syscall(sysselectoutput,F) /;
 output(F) -> syscall(sysopennew,F,write,S,nil);
-close_output -> syscall(sysclosecurrentoutput);
+close_output -> syscall(sysoutputis,F) close_output(F);
 close_output(F) -> syscall(syscloseoutput,F);
 flush -> syscall(sysflush);
 
+echo -> syscall(sysecho,true);
+no_echo -> syscall(sysecho,false);
+
 "in"
 
-in(T) -> input_is(S) syscall(sysinterm,S,T);
-in_char(C) -> input_is(S) syscall(sysinchar,S,C);
+in_char(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,false,false);
+in_char'(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,true,false);
+next_char(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,false,true);
+next_char'(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,true,true);
+in(T) -> syscall(sysinputis,S) syscall(sysin,S,T,term,true,false);
+in_integer(T) -> syscall(sysinputis,S) syscall(sysin,S,T,integer,true,false);
+in_ident(T) -> syscall(sysinputis,S) syscall(sysin,S,T,ident,true,false);
+in_string(T) -> syscall(sysinputis,S) syscall(sysin,S,T,string,true,false);
+in_real(T) -> syscall(sysinputis,S) syscall(sysin,S,T,real,true,false);
 
 "out"
 
@@ -42,7 +79,17 @@ val(T1,T2) -> syscall(syseval,T1,T2);
 op(N,I1,S,I2) -> syscall(sysop,N,I1,S,I2);
 op(N,I,S) -> syscall(sysop,N,I,S,S);
 
+"control"
+
+freeze(V,G) -> syscall(sysfreeze,V,G);
+fail -> syscall(sysfail);
+
 "debug"
+
+trace -> syscall(systrace,true);
+no_trace -> syscall(systrace,false);
+debug -> syscall(sysdebug,true);
+no_debug -> syscall(sysdebug,false);
 
 bt -> syscall(sysbacktrace);
 dump -> syscall(sysdump);
@@ -71,4 +118,3 @@ not(X) ->;
     op(200,fx,"+",add)
     op(200,fx,"-",sub)
     op(200,xfy,"^",'^');
-

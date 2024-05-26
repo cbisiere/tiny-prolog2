@@ -22,15 +22,19 @@ Interface
 Uses
   Chars,
   ShortStr,
+  Num,
   Errs,
   Files,
   Crt2;
 
 Procedure TerminateTrace;
 Procedure WriteToEchoFile( s : TString );
+Procedure WritelnToEchoFile( s : TString );
 Procedure CWrite( s : TString );
 Procedure CWriteLn;
 Procedure CWriteInt( v : Integer );
+Procedure CWritePosInt( v : PosInt );
+Procedure CWriteLongInt( v : LongInt );
 Procedure CWriteBool( b : Boolean );
 Procedure CWriteWarning( s : TString );
 Procedure CWriteLnWarning( s : TString );
@@ -59,6 +63,13 @@ Begin
     WriteToFile(ECHO_FILE,EchoFile,s)
 End;
 
+{ writeln to the echo file if trace is on }
+Procedure WritelnToEchoFile( s : TString );
+Begin
+  If Echo Then
+    WritelnToFile(ECHO_FILE,EchoFile,s)
+End;
+
 { write a char to the terminal }
 Procedure CWriteChar( cc : TChar );
 Begin
@@ -70,26 +81,38 @@ End;
 Procedure CWrite( s : TString );
 Begin
   WriteToEchoFile(s);
-  CrtWriteString(s)
+  CrtWriteShortString(s)
 End;
 
 { write a new line to the terminal }
 Procedure CWriteLn;
 Begin
-  WriteToEchoFile(CRLF);
+  WritelnToEchoFile('');
   CrtWriteLn
 End;
 
 { write a byte or an integer }
 Procedure CWriteInt( v : Integer );
 Begin
-  CWrite(IntToStr(v))
+  CWrite(IntToShortString(v))
+End;
+
+{ write a byte or a positive integer }
+Procedure CWritePosInt( v : PosInt );
+Begin
+  CWrite(PosIntToShortString(v))
+End;
+
+{ write a long integer }
+Procedure CWriteLongInt( v : LongInt );
+Begin
+  CWrite(LongIntToShortString(v))
 End;
 
 { write a byte or an integer }
 Procedure CWriteBool( b : Boolean );
 Begin
-  CWrite(BoolToStr(b))
+  CWrite(BoolToShortString(b))
 End;
 
 { display a string content as an array of char codes }

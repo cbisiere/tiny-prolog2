@@ -22,9 +22,11 @@ Unit PObjRule;
 Interface
 
 Uses
+  Num,
   Memory,
   PObj,
   PObjTerm,
+  PObjFCVI,
   PObjDef,
   PObjBter;
 
@@ -39,6 +41,7 @@ Function Rule_GetTerms( R : RulePtr ) : BTermPtr;
 Procedure Rule_SetTerms( R : RulePtr; B : BTermPtr );
 
 Function Rule_Access( R : RulePtr ) : IdPtr;
+Function Rule_Arity( R : RulePtr ) : PosInt;
 
 Implementation
 
@@ -52,13 +55,12 @@ Var
   R : RulePtr;
   ptr : TObjectPtr Absolute R;
 Begin
-  ptr := NewRegisteredPObject(RU,SizeOf(TObjRule),4,True,2);
+  ptr := NewRegisteredPObject(RU,SizeOf(TObjRule),3,True,2);
   With R^ Do
   Begin
     RU_FBTR := Nil;
     RU_SYST := Nil;
     RU_STMT := Nil;
-    RU_DVAR := Nil;
     RU_ACUT := False;
     RU_SYNT := y
   End;
@@ -118,6 +120,11 @@ End;
 Function Rule_Access( R : RulePtr ) : IdPtr;
 Begin
   Rule_Access := BTerm_GetAccessTerm(Rule_GetHead(R))
+End;
+
+Function Rule_Arity( R : RulePtr ) : PosInt;
+Begin
+  Rule_Arity := BTerm_GetArity(Rule_GetHead(R))
 End;
 
 End.

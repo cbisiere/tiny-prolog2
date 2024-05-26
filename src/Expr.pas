@@ -4,7 +4,7 @@
 {   File        : Expr.pas                                                   }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2023                                                       }
+{   Updated     : 2022,2023,2024                                             }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -28,11 +28,13 @@ Uses
   Common,
   Memory,
   PObj,
+  PObjFCVI,
   PObjOp,
   PObjStr,
   PObjTerm,
   PObjDef,
   PObjProg,
+  Tuple,
   Encoding;
 
 Function EvaluateExpression( T : TermPtr; P : ProgPtr ) : TermPtr;
@@ -74,14 +76,14 @@ Begin
   CheckCondition(CT1 In [IntegerNumber,RealNumber],'CompNum: C1 not a number');
   CheckCondition(CT2 In [IntegerNumber,RealNumber],'CompNum: C2 not a number');
   If CT1 = IntegerNumber Then
-    Val1 := StrToLongInt(ConstGetPStr(C1),code)
+    Val1 := ShortStringToLongInt(ConstGetShortString(C1),code)
   Else
-    Val1 := StrToLongReal(ConstGetPStr(C1),code);
+    Val1 := ShortStringToLongReal(ConstGetShortString(C1),code);
   If code <> 0 Then Exit;
   If CT2 = IntegerNumber Then
-    Val2 := StrToLongInt(ConstGetPStr(C2),code)
+    Val2 := ShortStringToLongInt(ConstGetShortString(C2),code)
   Else
-    Val2 := StrToLongReal(ConstGetPStr(C2),code);
+    Val2 := ShortStringToLongReal(ConstGetShortString(C2),code);
   If code <> 0 Then Exit;
   Cmp := CompVal(Val1,Val2);
   If Cmp = CompEqual Then
@@ -155,8 +157,8 @@ Begin
       Cmp := CompVal(TupleArgCount(T1),TupleArgCount(T2));
       If Cmp = CompEqual Then
       Begin
-        H1 := GetTupleArg(T1,True);
-        H2 := GetTupleArg(T2,True);
+        H1 := ProtectedGetTupleArg(T1,True);
+        H2 := ProtectedGetTupleArg(T2,True);
         Cmp := StandardOrderOfTerms(H1,H2);
         If Cmp = CompEqual Then
           Cmp := StandardOrderOfTerms(T1,T2)
@@ -179,6 +181,8 @@ Type
     Val : LongReal
   End;
   TParArray = Array[1..MaxFuncNbParams] Of TParVal; { parameter value }
+
+{ TODO: ugliest code ever below this point, please cleanup }
 
 { evaluate a term T; The expression to be evaluated is constructed 
   recursively from constants, identifiers and evaluable functions;
@@ -210,7 +214,7 @@ Var
   Cmp : TComp;
 Begin
   y := GetSyntax(P); 
-  T := RepresentativeOf(T);
+  T := UnprotectedRepOf(T);
   e := T; { by default, the term evaluates to itself }
   If T <> Nil Then
   Begin
@@ -228,7 +232,7 @@ Begin
           If TypeOfTerm(Ident) = Identifier Then
           Begin
             { function is known and has the correct number of parameters }
-            func := IdentifierGetPStr(IIdent);
+            func := IdentifierGetShortString(IIdent);
             n := TupleArgCount(T) - 1;
             o := Op_Lookup(P^.PP_OPER,'',func,[],n,1200);
             Ok := o <> Nil;
@@ -284,12 +288,12 @@ Begin
                       If ConstType(CT1) = IntegerNumber Then
                       Begin
                         IsReal := False;
-                        Val := StrToLongInt(ConstGetPStr(CT1),code)
+                        Val := ShortStringToLongInt(ConstGetShortString(CT1),code)
                       End
                       Else
                       Begin
                         IsReal := True;
-                        Val := StrToLongReal(ConstGetPStr(CT1),code)
+                        Val := ShortStringToLongReal(ConstGetShortString(CT1),code)
                       End
                     End;
                     If Ok Then
@@ -414,19 +418,19 @@ Begin
                   Ok := (r > -1.0*MaxLongInt) And (r < 1.0*MaxLongInt);
                   If Ok Then
                   Begin
-                    rs := LongIntToStr(LongRealToLongInt(r));
+                    rs := LongIntToShortString(LongRealToLongInt(r));
                     cot := CI
                   End
                   { overflow: keep the term; TODO: emit a warning? }
                 End
                 Else
                 Begin
-                  rs := LongRealToStr(r);
+                  rs := LongRealToShortString(r);
                   cot := CR
                 End;
                 If Ok Then
                 Begin
-                  s := Str_NewFromString(rs);
+                  s := Str_NewFromShortString(rs);
                   e := EmitConst(P,s,cot,False) { FIXME: not glob? }
                 End
               End

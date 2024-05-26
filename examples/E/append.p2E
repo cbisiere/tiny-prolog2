@@ -1,0 +1,12 @@
+append([],Y,Y).
+append([E|X],Y,[E|Z]) :- append(X,Y,Z).
+
+/* see https://www.swi-prolog.org/pldoc/doc_for?object=append/3 */
+
+/*
+:- list.
+:- append([1,2],[3],List).
+:- append([a,b], [c], X).
+:- append(X, [Last], [a,b,c]).
+:- append([a,b], More, List).
+*/

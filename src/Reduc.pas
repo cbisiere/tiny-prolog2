@@ -30,16 +30,24 @@ Interface
 Uses
   Errs,
   Memory,
+  Trace,
   PObj,
+  PObjList,
+  PObjFCVI,
   PObjRest,
   PObjEq,
-  PObjTerm;
+  PObjSys,
+  PObjTerm,
+  PObjDef,
+  PObjBter,
+  Unparse;
 
 Function ReduceSystem( S : SysPtr;
-    Backtrackable : Boolean; Var L : RestorePtr ) : Boolean;
-Function ReduceEquations( E : EqPtr ) : Boolean;
-Function ReduceOneEq( T1,T2 : TermPtr ) : Boolean;
-Function ReduceOneIneq( T1,T2 : TermPtr ) : Boolean;
+     Undo : Boolean; Var L : RestPtr; 
+     Var M : TermsPtr; Debug : Boolean  ) : Boolean;
+Function ReduceEquations( E : EqPtr; Debug : Boolean ) : Boolean;
+Function ReduceOneEq( T1,T2 : TermPtr; Debug : Boolean ) : Boolean;
+Function ReduceOneIneq( T1,T2 : TermPtr; Debug : Boolean ) : Boolean;
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -61,15 +69,15 @@ Implementation
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-Function Reduce(S : SysPtr;
-                      BreakIt       : Boolean;
-                  Var VarProd       : VarPtr;
-                      Backtrackable : Boolean;
-                  Var L : RestorePtr) : Boolean;
+Function ReduceSystemOfEquations( S : SysPtr; 
+    BreakIt : Boolean; Var VarProd : VarPtr; { stop when "var = term" produced }
+    Undo : Boolean; Var L : RestPtr; { will undo? }
+    Var M : TermsPtr; { list of goals to freeze or clear }
+    Debug : Boolean) : Boolean;
 
 Var
   Abnormal : Boolean;
-  Uf : RestorePtr; { to undo "f = g" equations in the reduced system }
+  Uf : RestPtr; { to undo "f = g" equations in the reduced system }
 
         {---------------------------------------------------------}
         {                                                         }
@@ -115,39 +123,61 @@ Var
       Var
         OV1 : TObjectPtr Absolute V1;
       Begin
-        Restore_SetMem(L,OV1,V1^.TV_TRED,T2,Backtrackable);  { add v=t in the reduced system }
+        { add v=t in the reduced system }
+        Rest_SetMem(L,TObjectPtr(OV1),TObjectPtr(V1^.TV_TRED),TObjectPtr(T2),Undo);
 
         { step 2 of system solving is handled here}
         If WatchIneq(V1) <> Nil Then { x already watched a liaison }
         Begin
-          CopyAllEqInSys(S,WatchIneq(V1));
-          SetMemEq(L,OV1,V1^.TV_FWAT,Nil,Backtrackable)
+          Sys_CopyEqs(S,WatchIneq(V1));
+          Eq_SetMem(L,OV1,V1^.TV_FWAT,Nil,Undo)
         End;
 
         { assigned identifier feature: keep track of var = ident unification }
-        TrackAssignment(Tg,Td)
+        TrackAssignment(Tg,Td) { FIXME: Tg,Td might not be properly ordered!}
       End;
 
       { create a liaison "x = term" in the reduced system }
       Procedure Production( V1 : VarPtr; T2 : TermPtr );
+      Var
+        M1 : TermsPtr;
       Begin
         If BreakIt Then  { break the reduction when a liaison "x = term" is created }
           VarProd := V1
         Else
-          CreateLiaison(V1,T2)
+        Begin
+          CreateLiaison(V1,T2);
+          
+          { handle frozen goals }
+          If GetFrozenTerms(V1) <> Nil Then
+          Begin
+            If IsFree(T2) Then
+            Begin { x = free variable, => transfer the frozen terms }
+              SetFrozenTermsWithUndo(VarPtr(T2),GetFrozenTerms(V1),Undo,L);
+              SetFrozenTermsWithUndo(V1,Nil,Undo,L)
+            End
+            Else
+            Begin { x = bound term, => prepend all the unfrozen terms to M }
+              M1 := GetFrozenTerms(V1);
+              List_SetNext(List_Last(M1),M);
+              M := M1;
+              SetFrozenTermsWithUndo(V1,Nil,Undo,L)
+            End
+          End
+        End
       End;
 
-    Begin     { Unify }
-      T1 := RepresentativeOf(Tg);
-      T2 := RepresentativeOf(Td);
-      If Not SameTerms(T1,T2) Then 
+    Begin { Unify }
+      T1 := UnprotectedRepOf(Tg);
+      T2 := UnprotectedRepOf(Td);
+      If Not Term_SameAs(T1,T2) Then { so might be abnormal }
       Begin
-        { ordering: variables always first; for two variables, an arbitrary order is 
-          given by the memory management system }
+        { ordering: variables always first; for two variables, an arbitrary 
+         order is given by the memory management system }
         OrderTerms(T1,T2);
 
         { left term is a variable, thus at least one of the terms is a variable 
-          (thanks to sorting) }
+         (thanks to sorting) }
         If IsVariable(T1) Then
         Begin
           Production(VT1,T2)
@@ -155,22 +185,23 @@ Var
         { two functional symbols }
         Else If (TypeOfTerm(T1)=FuncSymbol) And (TypeOfTerm(T2)=FuncSymbol) Then 
         Begin
-          If OneIsNil(FRightArg(FT1),FRightArg(FT2)) Or OneIsNil(FLeftArg(FT1),FLeftArg(FT2)) Then
+          If Term_OneIsNil(Func_GetRight(FT1),Func_GetRight(FT2)) 
+              Or Term_OneIsNil(Func_GetLeft(FT1),Func_GetLeft(FT2)) Then
               Abnormal := True
           Else
           Begin
             { add "f = f" to the reduced system; must always be undone }
-            Restore_SetMem(Uf,OT1,FT1^.TF_TRED,T2,True);
+            Rest_SetMem(Uf,TObjectPtr(OT1),TObjectPtr(FT1^.TF_TRED),TObjectPtr(T2),True);
             { insert in the unreduced system l1=l2 and r1=r2 }
-            If (FRightArg(FT1) <> Nil) And (FRightArg(FT2) <> Nil) Then
+            If (Func_GetRight(FT1) <> Nil) And (Func_GetRight(FT2) <> Nil) Then
             Begin
-              E := NewEquation(REL_EQUA,FRightArg(FT1),FRightArg(FT2));
-              InsertOneEqInSys(S,E)
+              E := Eq_New(REL_EQUA,Func_GetRight(FT1),Func_GetRight(FT2));
+              Sys_InsertOneEq(S,E)
             End;
-            If (FLeftArg(FT1) <> Nil) And (FLeftArg(FT2) <> Nil) Then
+            If (Func_GetLeft(FT1) <> Nil) And (Func_GetLeft(FT2) <> Nil) Then
             Begin
-              E := NewEquation(REL_EQUA,FLeftArg(FT1),FLeftArg(FT2));
-              InsertOneEqInSys(S,E)
+              E := Eq_New(REL_EQUA,Func_GetLeft(FT1),Func_GetLeft(FT2));
+              Sys_InsertOneEq(S,E)
             End
           End
         End
@@ -179,26 +210,44 @@ Var
           { cannot be unified }
           Abnormal := True
         End
+      End;
+
+      If Debug And Not Abnormal Then
+      Begin
+        CWrite('TRY: ');
+        CWrite(PtrToName(TObjectPtr(Tg))+' ('+ TypeOfTermAsShortString(Tg) +')');
+        CWrite(' = ');
+        CWrite(PtrToName(TObjectPtr(Td))+' ('+ TypeOfTermAsShortString(Td) +')');
+        CWriteln;
+        If Not Abnormal Then
+        Begin
+          CWrite('UNIFIED: ');
+          OutTerm(Nil,PrologII,Tg); { FIXME: syntax }
+          CWrite(' = '); 
+          OutTerm(Nil,PrologII,Td); 
+          CWriteln
+        End
       End
     End; { Unify }
 
   Begin { BasicOperation }
-    E := RemoveOneEqFromSys(S,REL_EQUA);
-    CheckCondition(E<>Nil,'Object of type REL_EQUA expected');
-    Unify(E^.EQ_LTER,E^.EQ_RTER)
+    E := Sys_RemoveOne(S,REL_EQUA);
+    CheckCondition(E <> Nil,'Object of type REL_EQUA expected');
+    Unify(Eq_GetLhs(E),Eq_GetRhs(E))
   End; { BasicOperation }
 
-Begin { Reduce }
+Begin { ReduceSystemOfEquations }
   VarProd := Nil;
   Uf := Nil;
   Abnormal := False;
-  While (Not Abnormal) And HasEqInSys(S,REL_EQUA) And Not (BreakIt And (VarProd<>Nil)) Do
+  While (Not Abnormal) And Sys_Has(S,REL_EQUA) And 
+      Not (BreakIt And (VarProd <> Nil)) Do
     BasicOperation;
   { remove "f = f" equations from the reduced system }
-  Restore(Uf);
+  Rest_Restore(Uf);
   Uf := Nil; { free this restoration stack }
-  Reduce := Not Abnormal;
-End; { Reduce }
+  ReduceSystemOfEquations := Not Abnormal;
+End; { ReduceSystemOfEquations }
 
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -214,9 +263,13 @@ End; { Reduce }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-Function ReduceSystem( S : SysPtr; Backtrackable : Boolean; 
-    Var L : RestorePtr ) : Boolean;
-Var Fails : Boolean;
+{ Unfrozen is the list on which to append *new* unfrozen goals, and therefore
+ must be initialized before calling this function }
+Function ReduceSystem( S : SysPtr; 
+    Undo : Boolean; Var L : RestPtr;
+    Var M : TermsPtr; Debug : Boolean ) : Boolean;
+Var 
+  Fails : Boolean;
 
 {---------------------------------------------------------}
 {                                                         }
@@ -233,9 +286,10 @@ Var Fails : Boolean;
 {---------------------------------------------------------}
 
   Procedure Step1;
-  Var DummyVar : VarPtr;
+  Var 
+    DummyVar : VarPtr;
   Begin
-    If Not Reduce(S,False,DummyVar,Backtrackable,L) Then
+    If Not ReduceSystemOfEquations(S,False,DummyVar,Undo,L,M,Debug) Then
       Fails := True
   End;
 
@@ -278,7 +332,8 @@ Var Fails : Boolean;
 {---------------------------------------------------------}
 
   Procedure Step3;
-  Var Abnormal   : Boolean;
+  Var 
+    Abnormal   : Boolean;
 
       {---------------------------------------------------------}
       {                                                         }
@@ -310,21 +365,26 @@ Var Fails : Boolean;
         VarProd : VarPtr;
         Ok : Boolean;
         Ss : SysPtr;
+        DummyM : TermsPtr;
     Begin
       { extract from Z an inequation s<>t }
-      E := RemoveOneEqFromSys(S,REL_INEQ);
+      E := Sys_RemoveOne(S,REL_INEQ);
       CheckCondition(E<>Nil,'Object of type REL_INEQ expected');
 
       { check whether the corresponding equation s=t can be 
         inserted into S}
-      Ss := NewSystemWithEq(E^.EQ_LTER,E^.EQ_RTER);
-      Ok := Reduce(Ss,True,VarProd,Backtrackable,L);
+      DummyM := Nil;
+      Ss := Sys_NewWithEq(Eq_GetLhs(E),Eq_GetRhs(E));
+      Ok := ReduceSystemOfEquations(Ss,True,VarProd,Undo,L,DummyM,Debug);
 
       If Ok Then
       Begin
-        If VarProd<>Nil Then
+        If VarProd <> Nil Then
+        Begin
           { this variable now watches this inequation }
-          AddWatch(VarProd,E,Backtrackable,L)
+          If Not IsWatching(VarProd,E) Then
+            AddWatchWithUndo(VarProd,E,Undo,L)
+        End
         Else
           Abnormal := True
       End
@@ -332,7 +392,7 @@ Var Fails : Boolean;
 
   Begin
     Abnormal := False;
-    While HasEqInSys(S,REL_INEQ) And Not Abnormal Do
+    While Sys_Has(S,REL_INEQ) And Not Abnormal Do
       BasicOperation;
     Fails := Abnormal;
   End;
@@ -349,37 +409,39 @@ Begin
 End;
 
 { reduce a list of equations and inequations E; non backtrackable }
-Function ReduceEquations( E : EqPtr ) : Boolean;
+Function ReduceEquations( E : EqPtr; Debug : Boolean ) : Boolean;
 Var
   S : SysPtr;
-  U : RestorePtr;
+  U : RestPtr;
+  DummyM : TermsPtr;
 Begin
-  S := NewSystem;
-  CopyAllEqInSys(S,E);
+  S := Sys_New;
+  Sys_CopyEqs(S,E);
   U := Nil;
-  ReduceEquations := ReduceSystem(S,False,U)
+  DummyM := Nil;
+  ReduceEquations := ReduceSystem(S,False,U,DummyM,Debug)
 End;
 
 { reduce a single equation or inequation; reduced equations may be 
   already attached to elements in T1 or T2; non backtrackable }
-Function ReduceOne( EType : EqType; T1,T2 : TermPtr ) : Boolean;
+Function ReduceOne( EType : EqType; T1,T2 : TermPtr; Debug : Boolean ) : Boolean;
 Var   
   E : EqPtr;
 Begin
-  E := NewEquation(EType,T1,T2);
-  ReduceOne := ReduceEquations(E)
+  E := Eq_New(EType,T1,T2);
+  ReduceOne := ReduceEquations(E,Debug)
 End;
 
 { reduce a single equation }
-Function ReduceOneEq( T1,T2 : TermPtr ) : Boolean;
+Function ReduceOneEq( T1,T2 : TermPtr; Debug : Boolean ) : Boolean;
 Begin
-  ReduceOneEq := ReduceOne(REL_EQUA,T1,T2)
+  ReduceOneEq := ReduceOne(REL_EQUA,T1,T2,Debug)
 End;
 
 { reduce a single inequation }
-Function ReduceOneIneq( T1,T2 : TermPtr ) : Boolean;
+Function ReduceOneIneq( T1,T2 : TermPtr; Debug : Boolean ) : Boolean;
 Begin
-  ReduceOneIneq := ReduceOne(REL_INEQ,T1,T2)
+  ReduceOneIneq := ReduceOne(REL_INEQ,T1,T2,Debug)
 End;
 
 End.

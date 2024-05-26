@@ -27,6 +27,7 @@ Uses
   PObj,
   PObjDict,
   PObjEq,
+  PObjSys,
   PObjDef;
 
 Function Query_New( level : TILevel; y : TSyntax ) : QueryPtr;
@@ -40,8 +41,8 @@ Function Query_GetDict( Q : QueryPtr ) : DictPtr;
 Procedure Query_SetDict( Q : QueryPtr; D : DictPtr );
 Function Query_GetHead( Q : QueryPtr ) : HeadPtr;
 
-Function Query_GetNext( Q : QueryPtr ) : QueryPtr;
-Procedure Query_SetNext( Q,N : QueryPtr );
+Function Queries_GetNext( Q : QueryPtr ) : QueryPtr;
+Procedure Queries_SetNext( Q,N : QueryPtr );
 
 Implementation
 
@@ -130,20 +131,20 @@ Begin
 End;
 
 {-----------------------------------------------------------------------}
-{ list                                                                  }
+{ list of queries                                                       }
 {-----------------------------------------------------------------------}
 
 { next query }
-Function Query_GetNext( Q : QueryPtr ) : QueryPtr;
+Function Queries_GetNext( Q : QueryPtr ) : QueryPtr;
 Begin
-  CheckCondition(Q <> Nil,'Query_GetNext: Nil');
-  Query_GetNext := Q^.QU_NEXT
+  CheckCondition(Q <> Nil,'Queries_GetNext: Nil');
+  Queries_GetNext := Q^.QU_NEXT
 End;
 
 { set next query }
-Procedure Query_SetNext( Q,N : QueryPtr );
+Procedure Queries_SetNext( Q,N : QueryPtr );
 Begin
-  CheckCondition(Q <> Nil,'Query_SetNext: Nil');
+  CheckCondition(Q <> Nil,'Queries_SetNext: Nil');
   Q^.QU_NEXT := N
 End;
 

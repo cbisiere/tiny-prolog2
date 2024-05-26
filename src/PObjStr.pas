@@ -21,7 +21,9 @@ Interface
 
 Uses
   ShortStr,
+  Num,
   Errs,
+  Chars,
   Trace,
   Common,
   Memory,
@@ -32,10 +34,13 @@ Uses
 { type                                                                  }
 {-----------------------------------------------------------------------}
 
-{ TODO: allows for shorter storage string }
-
+{ maximum number of characters in a chunk; must be at most 255; since most
+ strings are very short, we set a small value to save space }
+Const
+  StrDataMaxSize = 15;
 Type 
-  TStrLength = 0..StringMaxSize; { maximum number of characters in a chunk }
+  TStrDataLength = 0..StrDataMaxSize;
+  TStrData = String[StrDataMaxSize];
 
 { GC-managed string that can grow; 
   invariants: 1) all chunks but the last are full; 2) no chunks are empty, 
@@ -51,8 +56,8 @@ Type
     ST_FDAT: StrDataPtr; { first chunk }
     ST_LDAT: StrDataPtr; { last chunk }
     { extra data: }
-    ST_NDAT: longint; { number of chunks }
-    ST_TLEN: longint { total length }
+    ST_NDAT: Longint; { number of chunks }
+    ST_TLEN: Longint { total length }
   End;
 
   TObjStrData = Record
@@ -61,30 +66,31 @@ Type
     SD_PREV: StrDataPtr; { previous chunk or Nil }
     SD_NEXT: StrDataPtr; { next chunk or Nil }
     { extra data: }
-    SD_DATA: TString { storage: Pascal string }
+    SD_DATA: TStrData { storage }
   End;
 
 
 Function Str_New: StrPtr;
 Function Str_Length(s: StrPtr): longint;
-Function Str_GetFirstData(s: StrPtr): TString;
-Function Str_AsString(s: StrPtr): TString;
-Procedure Str_Append(s: StrPtr; c: TString);
-Function Str_NewFromString(ps: TString): StrPtr;
-Procedure Str_AppendCR(s: StrPtr);
+Function Str_GetShortString(s: StrPtr): TString;
+Function Str_AsShortString(s: StrPtr): TString;
+Procedure Str_Append( s : StrPtr; ps : TString );
+Function Str_NewFromShortString(ps: TString): StrPtr;
 Procedure Str_Concat(s1, s2: StrPtr);
 Function Str_Clone(s: StrPtr): StrPtr;
 Procedure Str_Enclose( s : StrPtr; QStart,QEnd : TString );
 Procedure Str_Quote( s : StrPtr );
+Procedure Str_DoubleQuoteAndEscape( s : StrPtr );
 Procedure Str_DeleteLastChar(s: StrPtr);
 Procedure Str_DeleteFirstChar(s: StrPtr);
 Function Str_Comp(s1, S2: StrPtr): TComp;
 Function Str_Equal(s1, s2: StrPtr): boolean;
-Function Str_EqualToString(s: StrPtr; c: TString): boolean;
+Function Str_EqualToShortString(s: StrPtr; c: TString): boolean;
 Function Str_StartsWith(s: StrPtr; E: CharSet): boolean;
 Function Str_EndsWith(s: StrPtr; E: CharSet): boolean;
 Procedure Str_CWrite(s: StrPtr);
 Procedure Str_Write( f : StreamPtr; s : StrPtr) ;
+Procedure Str_Writeln( f : StreamPtr; s : StrPtr) ;
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -94,7 +100,7 @@ Implementation
 {-----------------------------------------------------------------------}
 
 { new string data }
-Function StrData_New( ps : TString ) : StrDataPtr;
+Function StrData_New( ps : TStrData ) : StrDataPtr;
 Var 
   sda: StrDataPtr;
   ptr: TObjectPtr Absolute sda;
@@ -109,7 +115,7 @@ Begin
   StrData_New := sda
 End;
 
-{ set or reset a string to be an empty string }
+{ set or reset a string to be an empty string; old string data will be GC'ed }
 Procedure Str_Zap( s : StrPtr );
 Begin
   With s^ Do
@@ -143,19 +149,36 @@ Begin
   Str_Length := s^.ST_TLEN
 End;
 
-{ return the value of the first short string in a string }
-Function Str_GetFirstData( s : StrPtr ) : TString;
+{ return the value of the first chunk in a string }
+Function Str_GetFirstData( s : StrPtr ) : TStrData;
 Begin
   Str_GetFirstData := s^.ST_FDAT^.SD_DATA
 End;
 
-{ return the value of a string as a Pascal string }
+{ return the (possibly truncated) value of a str as a Pascal string }
+Function Str_GetShortString( s : StrPtr ) : TString;
+Var
+  ps : TString;
+  sd : StrDataPtr;
+  n : TStrDataLength;
+Begin
+  ps := '';
+  sd := s^.ST_FDAT;
+  While (Length(ps) < StringMaxSize) And (sd <> Nil) Do
+  Begin
+    n := Min(Length(sd^.SD_DATA),StringMaxSize-Length(ps));
+    ps := ps + Copy(sd^.SD_DATA,1,n);
+    sd := sd^.SD_NEXT
+  End;
+  Str_GetShortString := ps
+End;
 
-Function Str_AsString( s : StrPtr ) : TString;
+{ return the value of a string as a Pascal string }
+Function Str_AsShortString( s : StrPtr ) : TString;
 Begin
   CheckCondition(Str_Length(s) <= StringMaxSize,
     'string is too long to fit in a Pascal string');
-  Str_AsString := Str_GetFirstData(s)
+  Str_AsShortString := Str_GetShortString(s)
 End;
 
 { append a chunk to a string }
@@ -172,40 +195,47 @@ Begin
 End;
 
 { append a Pascal string to a string }
-Procedure Str_Append( s : StrPtr; c : TString );
+Procedure Str_Append( s : StrPtr; ps : TString );
 Var 
-  n: TStrLength; { number of free chars in the current chunk }
-  sd: StrDataPtr; { additional chunk when necessary }
-  c1: TString; { part of c that can be stored in the current chunk }
+  n : TStrDataLength; { number of free chars in the current chunk }
+  sd : StrDataPtr; { additional chunk when necessary }
+  c : TStrData;
 Begin
   CheckCondition(s <> Nil, 'Cannot append to a Nil string');
-  If Length(c) > 0 Then
+  If Length(ps) > 0 Then
   Begin
     With s^.ST_LDAT^ Do
     Begin
       { fill the last chunk as much as possible }
-      n := StringMaxSize - Length(SD_DATA);
-      c1 := Copy(c, 1, n);
-      SD_DATA := SD_DATA + c1;
-      s^.ST_TLEN := s^.ST_TLEN + Length(c1);
-      { append a new chunk with the remaining part if any }
-      If Length(c) > n Then
+      n := Min(Length(ps),StrDataMaxSize-Length(SD_DATA));
+      If n > 0 Then
       Begin
-        sd := StrData_New(Copy(c, n + 1, StringMaxSize));
-        Str_AppendData(s, sd)
+        c := Copy(ps,1,n);
+        SD_DATA := SD_DATA + c;
+        s^.ST_TLEN := s^.ST_TLEN + Length(c);
+        Delete(ps,1,n)
+      End;
+      { append new chunks with the remaining part of the Pascal string if any }
+      While Length(ps) > 0 Do
+      Begin
+        n := Min(Length(ps),StrDataMaxSize);
+        c := Copy(ps,1,n);
+        Delete(ps,1,n);
+        sd := StrData_New(c);
+        Str_AppendData(s,sd)
       End
     End
   End
 End;
 
 { new string with a Pascal string as an initial value }
-Function Str_NewFromString( ps : TString ) : StrPtr;
+Function Str_NewFromShortString( ps : TString ) : StrPtr;
 Var 
-  s: StrPtr;
+  s : StrPtr;
 Begin
   s := Str_New;
   Str_Append(s, ps);
-  Str_NewFromString := s
+  Str_NewFromShortString := s
 End;
 
 { append a char to a string }
@@ -214,16 +244,10 @@ Begin
   Str_Append(s, c)
 End;
 
-{ append a carriage return to a string }
-Procedure Str_AppendCR( s : StrPtr );
-Begin
-  Str_Append(s, CRLF)
-End;
-
 { concatenate two strings into the first one }
 Procedure Str_Concat( s1,s2 : StrPtr );
 Var 
-  sd: StrDataPtr;
+  sd : StrDataPtr;
 Begin
   sd := s2^.ST_FDAT;
   While sd <> Nil Do
@@ -236,24 +260,53 @@ End;
 { clone a string }
 Function Str_Clone( s : StrPtr ) : StrPtr;
 Var 
-  so: TObjectPtr Absolute s;
-  r: StrPtr;
-  ro: TObjectPtr Absolute r;
+  so : TObjectPtr Absolute s;
+  r : StrPtr;
+  ro : TObjectPtr Absolute r;
 Begin
   ro := DeepCopy(so);
   Str_Clone := r
 End;
 
-{ enclose a string within an opening and ending Pascal string }
+{ in-place enclose a string within an opening and ending Pascal string }
 Procedure Str_Enclose( s : StrPtr; QStart,QEnd : TString );
 Var 
-  s2: StrPtr;
+  s2 : StrPtr;
 Begin
   s2 := Str_Clone(s);
   Str_Zap(s);
   Str_Append(s,QStart);
   Str_Concat(s,s2);
   Str_Append(s,QEnd)
+End;
+
+{ in-place escape a string }
+Procedure Str_DoubleQuoteAndEscape( s : StrPtr );
+Var 
+  s2 : StrPtr;
+  sd : StrDataPtr;
+  i : TStringSize;
+  cc : TChar;
+Begin
+  s2 := Str_Clone(s);
+  Str_Zap(s);
+  Str_Append(s,'"');
+  sd := s2^.ST_FDAT;
+  While sd <> Nil Do
+  Begin
+    For i := 1 To Length(sd^.SD_DATA) Do
+    Begin
+      Case sd^.SD_DATA[i] Of { TBC }
+      NewLine:
+        cc := '\n';
+      Else
+        cc := sd^.SD_DATA[i]
+      End;
+      Str_Append(s,cc);
+    End;
+    sd := sd^.SD_NEXT
+  End;
+  Str_Append(s,'"');
 End;
 
 { single quote a string }
@@ -266,7 +319,7 @@ End;
 { delete the last char from a string; removed chunk, if any, will be GC'ed }
 Procedure Str_DeleteLastChar( s : StrPtr );
 Var 
-  len: TStrLength;
+  len : TStrDataLength;
 Begin
   CheckCondition(Str_Length(s) > 0,
     'Cannot delete the last char of an empty string');
@@ -291,9 +344,9 @@ End;
 { delete the first char from a string }
 Procedure Str_DeleteFirstChar( s : StrPtr );
 Var 
-  s2: StrPtr;
-  sd: StrDataPtr;
-  chunk: TString;
+  s2 : StrPtr;
+  sd : StrDataPtr;
+  chunk : TStrData;
 Begin
   CheckCondition(Str_Length(s) > 0,
     'Cannot delete the first char of an empty string');
@@ -303,13 +356,13 @@ Begin
   Str_Zap(s);
   { copy the first chunk without its first char }
   chunk := Str_GetFirstData(s2);
-  Delete(chunk, 1, 1);
-  Str_Append(s, chunk);
+  Delete(chunk,1,1);
+  Str_Append(s,chunk);
   { append the other chunks }
   sd := s2^.ST_FDAT^.SD_NEXT;
   While sd <> Nil Do
   Begin
-    Str_Append(s, sd^.SD_DATA); { append, compacting }
+    Str_Append(s,sd^.SD_DATA); { append, compacting }
     sd := sd^.SD_NEXT
   End;
 End;
@@ -317,7 +370,7 @@ End;
 { compare two string data; TODO: UTF8 }
 Function Str_DataComp( sd1,sd2 : StrDataPtr ) : TComp;
 Var 
-  Cmp: TComp;
+  Cmp : TComp;
 Begin
   If (sd1 = Nil) And (sd2 = Nil) Then
     Cmp := CompEqual
@@ -347,17 +400,18 @@ Begin
 End;
 
 { is a string equal to a Pascal string? }
-Function Str_EqualToString( s : StrPtr; c : TString ) : Boolean;
+Function Str_EqualToShortString( s : StrPtr; c : TString ) : Boolean;
 Begin
-  Str_EqualToString := (Str_GetFirstData(s) = c) And (s^.ST_NDAT = 1)
+  Str_EqualToShortString := (Str_Length(s) = Length(c)) 
+      And (Str_GetShortString(s) = c)
 End;
 
 { string starts with a char in a set; not UTF-8 aware }
 
 Function Str_StartsWith( s : StrPtr; E : CharSet ) : Boolean;
 Var 
-  b: Boolean;
-  c: TString;
+  b : Boolean;
+  c : TStrData;
 Begin
   c := Str_GetFirstData(s);
   b := Length(c) > 0;
@@ -369,7 +423,7 @@ End;
 { string ends with a char in a set; not UTF-8 aware }
 Function Str_EndsWith( s : StrPtr; E : CharSet ) : Boolean;
 Var 
-  b: Boolean;
+  b : Boolean;
 Begin
   b := Str_Length(s) > 0;
   If b Then
@@ -379,7 +433,7 @@ Begin
 End;
 
 {-----------------------------------------------------------------------}
-{ methods: print                                                        }
+{ methods: display on screen (and to echo file)                         }
 {-----------------------------------------------------------------------}
 
 { write all string data to Crt }
@@ -395,6 +449,16 @@ Begin
   End
 End;
 
+{ write a string to Crt }
+Procedure Str_CWrite( s : StrPtr );
+Begin
+  Str_CWriteData(s^.ST_FDAT)
+End;
+
+{-----------------------------------------------------------------------}
+{ methods: write to file                                                }
+{-----------------------------------------------------------------------}
+
 { write all string data to output file f }
 Procedure Str_WriteData( f : StreamPtr; sd : StrDataPtr );
 Begin
@@ -402,22 +466,23 @@ Begin
   Begin
     With sd^ Do
     Begin
-      StreamWriteShortString(f,SD_DATA);
+      Stream_WriteShortString(f,SD_DATA);
       Str_WriteData(f,SD_NEXT)
     End
   End
 End;
 
-{ write a string to Crt }
-Procedure Str_CWrite( s : StrPtr );
-Begin
-  Str_CWriteData(s^.ST_FDAT)
-End;
-
 { write a string to a stream }
-Procedure Str_Write( f : StreamPtr; s : StrPtr) ;
+Procedure Str_Write( f : StreamPtr; s : StrPtr ) ;
 Begin
   Str_WriteData(f,s^.ST_FDAT)
+End;
+
+{ writeln a string to a stream }
+Procedure Str_Writeln( f : StreamPtr; s : StrPtr ) ;
+Begin
+  Str_Write(f,s);
+  Stream_WritelnShortString(f,'')
 End;
 
 End.

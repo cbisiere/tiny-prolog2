@@ -528,7 +528,7 @@ End;
 
 
 {----------------------------------------------------------------------------}
-{ DEBUG                                                                      }
+{ Debug                                                                      }
 {----------------------------------------------------------------------------}
 
 { dump the content of char cc }
@@ -540,7 +540,7 @@ Begin
   s := '<';
   For i := 1 to Length(cc) Do
   Begin
-    s := s + IntToStr(Ord(cc[i]));
+    s := s + IntToShortString(Ord(cc[i]));
     If i < Length(cc) Then
       s := s + ','
   End;
@@ -556,12 +556,12 @@ Begin
   i := FirstIdx(B);
   While i <> 0 Do
   Begin
-    WriteToEchoFile(IntToStr(i) + ':');
+    WriteToEchoFile(IntToShortString(i) + ':');
     CharDump(B.Buf[i].Val);
     WriteToEchoFile(' ');
     i := NextIdx(B,i)
   End;
-  WriteToEchoFile(' IdxR=' + IntToStr(B.IdxR))
+  WriteToEchoFile(' IdxR=' + IntToShortString(B.IdxR))
 End;
 
 { dump Crt state }
@@ -571,7 +571,7 @@ Var
 Begin
   With CrtRow Do
   Begin
-    WriteToEchoFile(IntToStr(Len) + ' ' + IntToStr(Wrap) + ' ');
+    WriteToEchoFile(IntToShortString(Len) + ' ' + IntToShortString(Wrap) + ' ');
     For i := 1 to Len Do
       CharDump(CrtChar(Row,i))
   End

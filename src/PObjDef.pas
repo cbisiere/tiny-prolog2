@@ -23,9 +23,12 @@ Unit PObjDef;
 Interface
 
 Uses
+  Num,
   ShortStr,
   Memory,
   PObj,
+  PObjTerm,
+  PObjFCVI,
   PObjIO,
   PObjRest,
   PObjOp,
@@ -33,15 +36,15 @@ Uses
   PObjTok,
   PObjDict,
   PObjEq,
-  PObjTerm;
+  PObjSys;
 
 Type 
   TILevel = Integer; { file insertion level (0 is command line) }
   TSyntax = (
-    PrologII,   { Prolog II: second Prolog developed by the GIA }
-    PrologIIc,  { Tiny Prolog II: Prolog II with constraints (my version) }
-    PrologIIp,  { Prolog II+ }
-    Edinburgh   { Edinburgh syntax as defined in Prolog II+ }
+    PrologIIc,  { Prolog II version 1 (with constraints) }
+    PrologII,   { Prolog II version 2 }
+    PrologIIp,  { Prolog II+ Marseille syntax }
+    Edinburgh   { Prolog II+ Edinburgh syntax }
   );
 
 Type 
@@ -62,7 +65,9 @@ Type
     BT_TERM : TermPtr; { term }
     BT_ACCE : IdPtr; { access identifier or Nil }
     { not deep copied: }
-    BT_HEAD : HeadPtr { clock header point to the rule containing this term }
+    BT_HEAD : HeadPtr; { clock header point to the rule containing this term }
+    { extra data }
+    BT_ARIT : PosInt { arity or the access identifier if any, otherwise zero }
   End;
 
   { rule }
@@ -73,7 +78,6 @@ Type
     RU_SYST : EqPtr; { list of equation or inequation in the rule; Warning: not GC }
     { not deep copied: }
     RU_STMT : StmtPtr; { statement of this rule }
-    RU_DVAR : DictPtr; { dictionary of local variables }
     { extra data: }
     RU_ACUT : Boolean; { rule queue contains a cut }
     RU_SYNT : TSyntax { syntax the rule is written in }
@@ -86,7 +90,7 @@ Type
       HH_NEXT : HeadPtr; { previous clock header or Nil }
       HH_RULE : RulePtr; { rule to apply }
       HH_FBCL : BTermPtr; { terms to clear }
-      HH_REST : RestorePtr; { restoration stack }
+      HH_REST : RestPtr; { restoration stack }
       HH_BACK : HeadPtr; { where to backtrack (cut) }
       { extra data: }
       HH_CLOC : LongInt; { clock time (unlikely to overflow)}
@@ -133,7 +137,7 @@ Type
   End;
 
   { statement }
-  TStmt = (StatementStart,Comment,Rule,Query,StatementEnd);
+  TStmt = (StatementStart,Comment,Rule,StatementEnd);
   TObjStmt = Record
     PO_META : TObjMeta;
     { deep copied: }
@@ -162,7 +166,10 @@ Type
     { extra data: }
     PP_LEVL : TILevel; { current file insertion level (0 is command-line) }
     PP_PATH : TString; { path (dir) of the file passed as parameter in the CL }
-    PP_SYNT : TSyntax  { current active syntax }
+    PP_SYNT : TSyntax; { current active syntax }
+    PP_ECHO : Boolean; { echo is on/off }
+    PP_TRAC : Boolean; { trace is on/off }
+    PP_DEBG : Boolean { debug is on/off }
   End;
 
 

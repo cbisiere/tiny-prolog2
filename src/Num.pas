@@ -29,9 +29,8 @@ Type
   PosInt = Word;
 {$IFDEF MSDOS}
 Type 
-  LongInt = Real; { simulate a LongInt }
   LongLongInt = Real; { simulate a very LongInt }
-  LongReal = Real; { high precision real }
+  LongReal = Extended; { high precision real }
   Pointer = ^Integer; { generic pointer }
 {$ELSE}
  Type
@@ -41,13 +40,13 @@ Type
 
 Function Max( a,b : Integer ) : Integer;
 Function Min( a,b : Integer ) : Integer;
-Function PosIntToStr( v : PosInt ) : TString;
+Function PosIntToShortString( v : PosInt ) : TString;
 Function LongRealToLongInt( v : LongReal ) : LongInt;
-Function LongIntToStr( v : LongInt ) : TString;
-Function LongLongIntToStr( v : LongLongInt ) : TString;
-Function LongRealToStr( v : LongReal ) : TString;
-Function StrToLongInt( s : TString; Var code : Integer ) : LongInt;
-Function StrToLongReal( s : TString; Var code : Integer ) : LongReal;
+Function LongIntToShortString( v : LongInt ) : TString;
+Function LongLongIntToShortString( v : LongLongInt ) : TString;
+Function LongRealToShortString( v : LongReal ) : TString;
+Function ShortStringToLongInt( s : TString; Var code : Integer ) : LongInt;
+Function ShortStringToLongReal( s : TString; Var code : Integer ) : LongReal;
 Function LongIntDiv( x,y : LongInt ) : LongInt;
 
 Implementation
@@ -72,88 +71,93 @@ Begin
 End;
 
 { format a positive integer for display }
-Function PosIntToStr( v : PosInt ) : TString;
+Function PosIntToShortString( v : PosInt ) : TString;
 Var 
   s : TString;
 Begin
   Str(v,s);
-  PosIntToStr := s
+  PosIntToShortString := s
 End;
 
 { round a long real to a long integer value; may crash }
 Function LongRealToLongInt( v : LongReal ) : LongInt;
 Begin
-{$IFDEF MSDOS}
-  LongRealToLongInt := v
-{$ELSE}
   LongRealToLongInt := Round(v)
-{$ENDIF}
 End;
 
 { format a LongInt for display }
-Function LongIntToStr( v : LongInt ) : TString;
+Function LongIntToShortString( v : LongInt ) : TString;
 Var 
   s : TString;
 Begin
-{$IFDEF MSDOS}
-  Str(v:StringMaxSize:0,s);
-  LongIntToStr := TrimLeftSpaces(s);
-{$ELSE}
   Str(v,s);
-  LongIntToStr := s
-{$ENDIF}
+  LongIntToShortString := s
 End;
 
 { format a LongLongInt for display }
-Function LongLongIntToStr( v : LongLongInt ) : TString;
-{$IFDEF MSDOS}
-Begin
-  LongLongIntToStr := LongIntToStr(v)
-{$ELSE}
+Function LongLongIntToShortString( v : LongLongInt ) : TString;
 Var 
   s : TString;
 Begin
   Str(v:StringMaxSize:0,s);
-  LongLongIntToStr := TrimLeftSpaces(s)
-{$ENDIF}
+  LongLongIntToShortString := TrimLeftSpaces(s)
 End;
 
-{ format a LongReal for display }
-Function LongRealToStr( v : LongReal ) : TString;
+{ format a LongReal for display; makes it look nice, and like a Prolog real 
+ constant; '1.20000000000000000000E+0002' => '1.2e+2' }
+Function LongRealToShortString( v : LongReal ) : TString;
 Var 
   s : TString;
+  man, exp : TString; { mantissa, exponent }
+  e,dot : Byte;
 Begin
   Str(v,s);
-  LongRealToStr := TrimLeftSpaces(s)
+  s := TrimLeftSpaces(s);
+  e := Pos('E',s);
+  If e > 0 Then
+  Begin
+    man := Copy(s,1,e-1);
+    exp := Copy(s,e+1,Length(s));
+    { remove useless trailing zeros from the mantissa, keeping one zero after 
+     the dot }
+    dot := Pos('.',man);
+    If dot > 0 Then
+      While (Length(man) > dot+1) And (man[Length(man)] = '0') Do
+        Delete(man,Length(man),1);
+    { remove leading zeros from the exponent }
+    If (Length(exp) > 0) And (exp[1] In ['+','-']) Then
+      While (Length(exp) > 2) And (exp[2] = '0') Do
+        Delete(exp,2,1);
+    { reconstruct the string representation }
+    s := man + 'e' + exp
+  End;
+  LongRealToShortString := s
 End;
 
 { convert a Pascal string to a LongInt; code is 0 if the operation succeeds,
   or the index of the character preventing the conversion }
-Function StrToLongInt( s : TString; Var code : Integer ) : LongInt;
-Var v : LongInt;
+Function ShortStringToLongInt( s : TString; Var code : Integer ) : LongInt;
+Var 
+  v : LongInt;
 Begin
   Val(s,v,code);
-  StrToLongInt := v
+  ShortStringToLongInt := v
 End;
 
 { convert a Pascal string to a high precision Real; code is 0 if the operation 
  succeeds, or the index of the character preventing the conversion }
-Function StrToLongReal( s : TString; Var code : Integer ) : LongReal;
+Function ShortStringToLongReal( s : TString; Var code : Integer ) : LongReal;
 Var 
   v : LongReal;
 Begin
   Val(s,v,code);
-  StrToLongReal := v
+  ShortStringToLongReal := v
 End;
 
 { integer division of two LongInt values }
 Function LongIntDiv( x,y : LongInt ) : LongInt;
 Begin
-{$IFDEF MSDOS}
-  LongIntDiv := Int(x/y)
-{$ELSE}
   LongIntDiv := x Div y
-{$ENDIF}
 End;
 
 End.

@@ -1,5 +1,5 @@
 
-egal(x,y) -> { x = y };
+egal(x,y) ->, { x = y };
 
 -> egal(1,2);
 -> egal(toto(2),toto(x));

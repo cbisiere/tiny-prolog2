@@ -15,6 +15,7 @@ not(p) ->;
 man(Michel) ->;
 woman(x) -> not(man(x));
 
--> woman(Cristina);         
--> woman(Michel);           
--> woman(x) eq(x,Cristina); 
+-> woman(Cristina);
+-> woman(Michel);
+-> woman(x) eq(x,Cristina);
+

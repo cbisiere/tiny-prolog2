@@ -4,7 +4,7 @@
 {   File        : Init.pas                                                   }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2023                                                       }
+{   Updated     : 2022,2023,2024                                             }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -31,34 +31,34 @@ Uses
   Predef,
   Engine;
 
-Procedure ProcessParameters( P : ProgPtr );
 Function CreateProgram : ProgPtr;
 
 Implementation
 {-----------------------------------------------------------------------------}
 
-{ syntax switches; each switch is also the filename part of the start program }
+{ syntax switches; each switch is also the Filename part of the start program }
 Type 
-  TStartFile = Array[TSyntax] Of String[4];
+  TStartFile = Array[TSyntax] Of String[5];
 Const 
-  StartFile : TStartFile = ('PII','PIIc','PIIp','E');
+  StartFile : TStartFile = ('PIIv1','PII','PIIp','E');
 
-{ parse and process command line parameters }
-Procedure ProcessParameters( P : ProgPtr );
+Const
+  DEFAULT_PROLOG_SYNTAX : TSyntax = PrologII;
+
+
+{ parse the command line parameters }
+Procedure ParseCL( Var Syntax : TSyntax; Var SkipStartFile : Boolean;
+    Var HasUserFilePar : Boolean; Var Filename : TPath );
 Var  
+  y : TSyntax;
   i : Byte;
   par : TString;
-  filename : TPath;
-  y : TSyntax;
-  s : StrPtr;
-  os : TObjectPtr Absolute s;
-  KnownPar, HasFilePar, HasSyntaxPar, SkipStartFile : Boolean;
-  DummyOk : Boolean;
+  KnownPar, HasSyntaxPar : Boolean;
 Begin
-
+  Syntax := DEFAULT_PROLOG_SYNTAX;
   HasSyntaxPar := False;
   SkipStartFile := False;
-  HasFilePar := False;
+  HasUserFilePar := False;
 
   For i := 1 To ParamCount Do
   Begin
@@ -68,13 +68,13 @@ Begin
       KnownPar := False;
       Delete(par,1,1);
       { syntax parameter }
-      For y := PrologII To Edinburgh Do
+      For y := PrologIIc To Edinburgh Do
       Begin
         If StartFile[y] = par Then
         Begin
           If HasSyntaxPar Then
             RaiseError('Syntax parameter cannot be used more than once');
-          SetSyntax(P,y);
+          Syntax := y;
           HasSyntaxPar := True;
           KnownPar := True
         End
@@ -92,56 +92,77 @@ Begin
     Else
     Begin
       { user file }
-      If HasFilePar Then
+      If HasUserFilePar Then
         RaiseError('Parameter: file already set');
-      HasFilePar := True;
-      filename := par;
+      HasUserFilePar := True;
+      Filename := par;
     End
   End;
 
   { detect syntax from file ext if no syntax parameter is set }
-  If Not Error And HasFilePar And Not HasSyntaxPar Then
+  If Not Error And HasUserFilePar And Not HasSyntaxPar Then
   Begin
-    If EndsWith(filename,'.pl') Then
-      SetSyntax(P,Edinburgh)
+    If EndsWith(Filename,'.pl') Then
+      Syntax := Edinburgh
     Else
-    For y := PrologII To Edinburgh Do
-      If EndsWith(filename,'.' + FileExt[y]) Then
-        SetSyntax(P,y)
-  End;
-
-  { load the startup file into the current world }
-  If Not Error And Not SkipStartFile Then
-  Begin
-    y := GetSyntax(P);
-    s := Str_NewFromString('start/' + StartFile[y] + '.' + FileExt[y]);
-    AddGCRoot(os); { protect this string from GC }
-    LoadProgram(P,s,False)
-  End;
-
-  { create the default user world below the current world }
-  DummyOk := CreateNewSubWorld(P,Str_NewFromString('Normal'),True);
-
-  { load the user file }
-  If Not Error And HasFilePar Then
-  Begin
-    SetProgramPath(P,ExtractPath(filename));
-    s := Str_NewFromString(filename);
-    AddGCRoot(os); { protect this string from GC }
-    LoadProgram(P,s,False)
+    For y := PrologIIc To Edinburgh Do
+      If EndsWith(Filename,'.' + FileExt[y]) Then
+        Syntax := y
   End
 End;
 
-{ reset the Prolog engine }
+{ load the startup file into the current world }
+Procedure LoadStartFile( P : ProgPtr );
+Var  
+  y : TSyntax;
+  s : StrPtr;
+  os : TObjectPtr Absolute s;
+Begin
+  y := GetSyntax(P);
+  s := Str_NewFromShortString('start/' + StartFile[y] + '.' + FileExt[y]);
+  AddGCRoot(os); { protect this string from GC }
+  LoadProgram(P,s,False)
+End;
+
+{ create the default user world below the current world }
+Procedure LoadUserFile( P : ProgPtr; Filename : TPath );
+Var  
+  s : StrPtr;
+  os : TObjectPtr Absolute s;
+Begin
+  SetProgramPath(P,ExtractPath(Filename));
+  s := Str_NewFromShortString(Filename);
+  AddGCRoot(os); { protect this string from GC }
+  LoadProgram(P,s,False)
+End;
+
+{ create the Prolog engine }
 Function CreateProgram : ProgPtr;
 Var 
   P : ProgPtr;
   OP : TObjectPtr Absolute P;
+  Syntax : TSyntax; 
+  SkipStartFile : Boolean;
+  HasUserFilePar : Boolean; 
+  UserFilename : TPath;
+  DummyOk : Boolean;
+  UserWorldName : StrPtr;
 Begin
-  P := Prog_New;
+  ParseCL(Syntax,SkipStartFile,HasUserFilePar,UserFilename);
+  If Error Then Exit;
+  P := Prog_New(Syntax);
   AddGCRoot(OP);
-  SetCurrentProgram(P); 
+  SetCurrentProgram(P);
   RegisterPredefined(P);
+  { load the start file }
+  If Not Error And Not SkipStartFile Then
+    LoadStartFile(P);
+  { create the default user world below the current world and move to it }
+  UserWorldName := Str_NewFromShortString(WorldSetup[GetSyntax(P)].User);
+  DummyOk := CreateNewSubWorld(P,UserWorldName,True);
+  { load the user file }
+  If Not Error And HasUserFilePar Then
+    LoadUserFile(P,UserFilename);
   CreateProgram := P
 End;
 

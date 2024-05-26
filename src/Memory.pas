@@ -37,6 +37,8 @@ Type
 
   TypeMark = Boolean;
 
+  TSerial = PosInt; { serial number to support object marking } 
+
 { object's metadata for object management (cloning, debugging, etc.) }
 Type
   TObjectPtr = ^TObject;
@@ -57,7 +59,9 @@ Type
     PO_NDEE : Byte;             { number of pointers of objects to deep copy (must be less of equal than PO_NPTR) }
     { garbage collection }
     PO_MARK : TypeMark;         { GC mark }
-    PO_NEXT : TObjectPtr        { GC list of allocated objects }
+    PO_NEXT : TObjectPtr;       { GC list of allocated objects }
+    { misc }
+    PO_SEEN : TSerial           { generic 'seen' indicator; used to detect loops }
   End;
   TObject = Record
     PO_META : TObjMeta;
@@ -76,6 +80,7 @@ Function ObjectGuid( p : TObjectPtr ) : LongInt;
 Procedure CheckIsObject( p : TObjectPtr; prompt : TString );
 Function ObjectCopyNumber( p : TObjectPtr ) : Integer;
 Function PtrToName( p : TObjectPtr ) : TString;
+Procedure DumpObject( p : TObjectPtr; extra : Boolean );
 
 { object creation and accounting }
 Function GetRegistrationState : Boolean;
@@ -89,6 +94,10 @@ Procedure PrepareDeepCopy( p : TObjectPtr );
 Function DeepCopyObject( p : TObjectPtr; CopyChildren : Boolean ) : TObjectPtr;
 Function DeepCopy( p : TObjectPtr ) : TObjectPtr;
 
+{ helpers for marking }
+Function ObjectSeen( p : TObjectPtr; g : TSerial ) : Boolean;
+Procedure SetObjectSeen( p : TObjectPtr; g : TSerial );
+
 { GC }
 Procedure AddGCRoot( r : TObjectPtr );
 Procedure GarbageCollector;
@@ -97,11 +106,11 @@ Procedure DumpGCRoots;
 
 Implementation
 {-----------------------------------------------------------------------------}
-{ TP4/FPC compatibility code }
+{ TP4/FPC compatibility code to ensure that failed heap allocations 
+ returns Nil }
 
-{ set out-of-memory allocations to return nil }
 {$IFDEF MSDOS}
-{$F+} Function HeapFunc(Size: word) : Integer; {$F-} 
+{$F+} Function HeapFunc( Size : Word) : Integer; {$F-} 
 Begin
   HeapFunc := 1
 End;
@@ -195,13 +204,14 @@ Procedure PrintMemoryStats;
 Var 
   t : TObjectTypeIndex;
 Begin
-  CWrite('Bytes allocated: ' + LongLongIntToStr(TotalMemSize));
+  CWrite('Bytes allocated: ' + LongLongIntToShortString(TotalMemSize));
   CWriteLn;
   For t := 1 To MaxNbObjectTypes Do
     With MemObjects[t] Do
       If IsSet Then
       Begin
-        CWrite(' ' + Name + ': ' + RAlign(LongIntToStr(Count),5));
+        CWrite(' ' + Name + ': ' + RAlign(LongIntToShortString(Count),5));
+        CWrite(' ' + RAlign(LongLongIntToShortString(Mem),8));
         CWriteLn
       End
 End;
@@ -213,8 +223,9 @@ Begin
   Begin
     CheckCondition(IsSet,'IncMemoryStats: entry not set');
     Count := Count + 1;
-    TotalMemSize := TotalMemSize + b
-  End
+    Mem := Mem + b
+  End;
+  TotalMemSize := TotalMemSize + b
 End;
 
 { decrease by one the number of objects of type t, with actual size size }
@@ -225,8 +236,9 @@ Begin
     CheckCondition(IsSet,'DecMemoryStats: entry not set');
     CheckCondition(Count > 0,'DecMemoryStats: count is already zero');
     Count := Count - 1;
-    TotalMemSize := TotalMemSize - size
-  End
+    Mem := Mem - size
+  End;
+  TotalMemSize := TotalMemSize - size
 End;
 
 
@@ -265,12 +277,12 @@ Begin
     m := Not IsMarked
 End;
 
-Function MarkToStr( m : TypeMark ) : TString;
+Function MarkToShortString( m : TypeMark ) : TString;
 Begin
   If IsMark(m) Then
-    MarkToStr := '*'
+    MarkToShortString := '*'
   Else
-    MarkToStr := '.'
+    MarkToShortString := '.'
 End;
 
 
@@ -385,6 +397,16 @@ Begin
   p^.PO_META.PO_NEXT := nxt
 End;
 
+Function ObjectSeen( p : TObjectPtr; g : TSerial ) : Boolean;
+Begin
+  ObjectSeen := p^.PO_META.PO_SEEN = g
+End;
+
+Procedure SetObjectSeen( p : TObjectPtr; g : TSerial );
+Begin
+  p^.PO_META.PO_SEEN := g
+End;
+
 {----------------------------------------------------------------------------}
 { debug / dump                                                               }
 {----------------------------------------------------------------------------}
@@ -392,9 +414,9 @@ End;
 Function FindObjectById( guid : LongInt ) : TObjectPtr; Forward;
 
 { global object ID to string }
-Function GuidToStr( guid : LongInt ) : TString;
+Function GuidToShortString( guid : LongInt ) : TString;
 Begin
-  GuidToStr := '#' + LongIntToStr(guid)
+  GuidToShortString := '#' + LongIntToShortString(guid)
 End;
 
 { object pointer to object name }
@@ -412,7 +434,7 @@ Begin
   Else
   Begin
     guid := ObjectGuid(p);
-    s := GuidToStr(guid);
+    s := GuidToShortString(guid);
     { mark unregistered objects }
     If FindObjectById(guid) = Nil Then { Warning: time consuming }
       s := s + '(!)'
@@ -427,12 +449,12 @@ Var
   child : TObjectPtr;
 Begin
   CWrite(RAlign(PtrToName(p),5) + ' : ');
-  CWrite(RAlign(IntToStr(ObjectSize(p)),3) + ' ');
+  CWrite(RAlign(IntToShortString(ObjectSize(p)),3) + ' ');
   With p^.PO_META Do
   Begin
-    CWrite(GetObjectName(PO_TYPE) + ' ' + MarkToStr(PO_MARK) + ' ');
-    CWrite(IntToStr(PO_NCOP) + ' ' + IntToStr(Ord(PO_DEEP)) + ' ');
-    CWrite(RAlign(GuidToStr(PO_CUID),5))
+    CWrite(GetObjectName(PO_TYPE) + ' ' + MarkToShortString(PO_MARK) + ' ');
+    CWrite(IntToShortString(PO_NCOP) + ' ' + IntToShortString(Ord(PO_DEEP)) + ' ');
+    CWrite(RAlign(GuidToShortString(PO_CUID),5))
   End;
   CWrite(' [');
   For i := 1 To ObjectNbChildren(p) Do
@@ -443,8 +465,8 @@ Begin
   CWrite(' ]');
   If extra Then
   Begin
-    CWrite(' ');
-    {//}{WriteExtraData(p)}
+    CWrite(' ')
+    {//}{//;WriteExtraData(p)}
   End;
   CWriteLn
 End;
@@ -566,7 +588,15 @@ Var
 Begin
   GetMem(p,b);
   { cannot GC here, so in case of OOM we just abort }
-  CheckCondition(p<>Nil,'Memory exhausted');
+  If p = Nil Then
+  Begin
+    CWrite('Runtime Error: Memory exhausted');
+    CWriteln;
+    PrintMemoryStats;
+    CWrite('Halting');
+    CWriteln;
+    HaltProgram
+  End;
   GetMemForObject := p
 End;
 
@@ -642,6 +672,7 @@ Function NewRegisteredObject( t : TObjectTypeIndex; b: TObjectSize; n: Byte;
 Var 
   p : TObjectPtr;
 Begin
+  CheckCondition(d <= n,'NewRegisteredObject: d > n');
   p := NewObject(t,b);
   With p^.PO_META Do
   Begin
@@ -652,7 +683,9 @@ Begin
     PO_COPY := Nil;
     PO_CUID := 0;
     PO_NCOP := 0;
-    PO_NDEE := d
+    PO_NDEE := d;
+    { misc }
+    PO_SEEN := 0
   End;
   RegisterObject(p);
   NewRegisteredObject := p
@@ -676,7 +709,8 @@ Begin
     PO_DEEP := True;
     PO_COPY := Nil;
     PO_CUID := 0;
-    PO_NCOP := PO_NCOP + 1 { note it is an additional copy }
+    PO_NCOP := PO_NCOP + 1; { note it is an additional copy }
+    PO_SEEN := 0 { the copy has not been seen yet }
   End;
   With p^.PO_META Do { old object has been copied }
   Begin
@@ -831,7 +865,7 @@ Begin
   CWriteLn;
   For i := 1 To NbRoots Do
   Begin
-    CWrite(RAlign(IntToStr(i),3) + ' ' + RAlign(PtrToName(Roots[i]),5));
+    CWrite(RAlign(IntToShortString(i),3) + ' ' + RAlign(PtrToName(Roots[i]),5));
     CWriteLn
   End
 End;
@@ -886,6 +920,9 @@ End;
 { initialize the memory management unit                                      }
 {----------------------------------------------------------------------------}
 Begin
+{$IFDEF MSDOS}
+HeapError:=@HeapFunc;
+{$ENDIF}
   InitMalloc;
   InitMemObjects;
   InitMemoryStats;

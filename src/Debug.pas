@@ -26,13 +26,15 @@ Uses
   Trace,
   Memory,
   PObj,
+  PObjTerm,
+  PObjFCVI,
   PObjRest,
   PObjOp,
   PObjStr,
   PObjTok,
   PObjDict,
   PObjEq,
-  PObjTerm,
+  PObjSys,
   PObjDef,
   PObjBter,
   PObjQury,
@@ -43,6 +45,8 @@ Uses
 
 Procedure SetCurrentProgram( P : ProgPtr );
 Procedure DumpBacktrace( Q : QueryPtr );
+Procedure DumpDictConst( e : DictPtr; title : TString );
+Procedure CoreDumpProg( P : ProgPtr; Message : TString; Trace : Boolean );
 Procedure CoreDump( Message : TString; Trace : Boolean );
 
 Implementation
@@ -68,23 +72,12 @@ Begin
   CWrite(',');
   CWriteInt(K^.TK_CHAR);
   CWrite(') ');
-  CWrite(Token_GetTypeAsString(K));
+  CWrite(Token_GetTypeAsShortString(K));
   If Token_GetStr(K) <> Nil Then
   Begin
     CWrite(': ');
     OutString(Nil,Token_GetStr(K))
   End
-End;
-
-Procedure DumpTokens( K : TokenPtr );
-Begin
-  While K <> Nil Do
-  Begin
-    DumpToken(K);
-    CWriteLn;
-    K := Token_GetNext(K)
-  End;
-  CWriteLn
 End;
 
 { Write extra data in a Prolog object }
@@ -100,7 +93,7 @@ Var
   E : EqPtr Absolute p;
   Sda : StrDataPtr Absolute p;
   S : StrPtr Absolute p;
-  Rp : RestorePtr Absolute p;
+  Rp : RestPtr Absolute p;
   Hp : HeadPtr Absolute p;
   Bp : BTermPtr Absolute p;
   Rup : RulePtr Absolute p;
@@ -116,10 +109,10 @@ Begin
       CWriteInt(PRp^.PP_LEVL);
       CWrite(' ');
       y := GetSyntax(PRp);
-      If y = PrologII Then
-        CWrite('PrologII')
-      Else If y = PrologIIc Then
-        CWrite('PrologII w/ constraints')
+      If y = PrologIIc Then
+        CWrite('PrologII version 1')
+      Else If y = PrologII Then
+        CWrite('PrologII version 2')
       Else If y = PrologIIp Then
         CWrite('PrologII+')
       Else If y = Edinburgh Then
@@ -183,7 +176,7 @@ Begin
     End;
   HE:
     Begin
-      CWrite(LongIntToStr(Hp^.HH_CLOC));
+      CWrite(LongIntToShortString(Hp^.HH_CLOC));
       CWrite(' Sys:');
       CWriteBool(Hp^.HH_ISYS);
       CWrite(' Cut:');
@@ -192,12 +185,12 @@ Begin
   ST:
     Begin
       OutString(Nil,s);
-      CWrite(' (' + LongIntToStr(Str_Length(s)) + ')')
+      CWrite(' (' + LongIntToShortString(Str_Length(s)) + ')')
     End;
   SD:
     Begin
       CWrite('"' + Sda^.SD_DATA + '"');
-      CWrite(' (' + IntToStr(Length(Sda^.SD_DATA)) + ')')
+      CWrite(' (' + IntToShortString(Length(Sda^.SD_DATA)) + ')')
     End;
   RE:
     Begin
@@ -222,15 +215,15 @@ Var
   R : RulePtr;
   isSys : Boolean;
   isCut : Boolean;
-  U : RestorePtr;
+  U : RestPtr;
   B : BTermPtr;
 Begin
   y := PrologIIc; { syntax for header output }
-  CWrite('*** Header level ' + LongIntToStr(H^.HH_CLOC) + ' ***');
+  CWrite('*** Header level ' + LongIntToShortString(H^.HH_CLOC) + ' ***');
   CWriteLn;
   If H^.HH_BACK <> Nil Then
   Begin
-    CWrite(' Back: ' + LongIntToStr(H^.HH_BACK^.HH_CLOC));
+    CWrite(' Back: ' + LongIntToShortString(H^.HH_BACK^.HH_CLOC));
     CWriteLn
   End;
   CWrite('  Terms: ');
@@ -238,8 +231,8 @@ Begin
   While B <> Nil Do
   Begin
     OutTerm(Nil,y,BTerm_GetTerm(B));
-    If B^.BT_HEAD <> Nil Then
-      CWrite('[' + LongIntToStr(B^.BT_HEAD^.HH_CLOC) + ']');
+    If BTerm_GetHeader(B) <> Nil Then
+      CWrite('[' + LongIntToShortString(BTerm_GetHeader(B)^.HH_CLOC) + ']');
     CWrite(' ');
     B := BTerms_GetNext(B)
   End;
@@ -260,14 +253,8 @@ Begin
   Begin
     CWrite('Nil');
     CWriteLn
-  End
-  Else
-  Begin
-    CWrite('Rule has cut? ' + BoolToStr(R^.RU_ACUT));
-    CWriteLn;
-    OutOneRule(Nil,R);
   End;
-  CWrite('  Restore: ');
+  CWrite('  Rest_Restore: ');
   U := H^.HH_REST;
   While U<>Nil Do
     With U^ Do
@@ -339,7 +326,7 @@ Begin
       CWrite('*')
     Else
       CWrite(' ');
-    OutStringCR(Nil,Dict_GetStr(e));
+    OutlnString(Nil,Dict_GetStr(e));
     e := Dict_GetNext(e)
   End
 End;
