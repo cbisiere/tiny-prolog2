@@ -157,7 +157,7 @@ End;
 { return True if a file exists }
 Function FileExistsOnDisk( Filename : TPath ): Boolean;
 Begin
-  FileExistsOnDisk := FileExists(Filename)
+  FileExistsOnDisk := FileExists(OSFilename(Filename))
 End;
 
 { open a text file: read mode }
