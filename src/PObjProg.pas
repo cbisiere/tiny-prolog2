@@ -159,19 +159,16 @@ Var
   f,f2,f3 : StreamPtr;
 Begin
   f := Nil;
-  If y in [PrologIIc,PrologII,PrologIIp] Then
+  { top read: default input }
+  f := Stream_NewConsole(ConsoleAlias(y),MODE_READ);
+  { top write: default output }
+  f2 := Stream_NewConsole(ConsoleAlias(y),MODE_WRITE); 
+  Streams_Chain(f,f2);
+  If y In [PrologII,PrologIIc] Then
   Begin
-    { top read: default input }
-    f := Stream_NewConsole(ConsoleAlias(y),MODE_READ);
-    { top write: default output }
-    f2 := Stream_NewConsole(ConsoleAlias(y),MODE_WRITE); 
-    Streams_Chain(f,f2);
-    If y In [PrologII,PrologIIc] Then
-    Begin
-      { new-buffer not mandatory (TBC)}
-      f3 := Stream_NewBuffer(BufferAlias(y)); 
-      Streams_Chain(f2,f3)
-    End
+    { new-buffer not mandatory (TBC)}
+    f3 := Stream_NewBuffer(BufferAlias(y)); 
+    Streams_Chain(f2,f3)
   End;
   CreateDefaultStreams := f
 End;

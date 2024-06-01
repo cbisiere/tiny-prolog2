@@ -13,7 +13,7 @@ open(File,Mode,Stream,Opt) :- syscall(sysopennew,File,Mode,Stream,Opt).
 open(File,Mode,Stream) :- syscall(sysopennew,File,Mode,Stream,[]).
 close(Stream) :- syscall(syscloseinput,Stream), !.
 close(Stream) :- syscall(syscloseoutput,Stream).
-get_char(Stream,Char) :- syscall(sysin,Stream,Char,char,false,false);
+get_char(Stream,Char) :- syscall(sysin,Stream,Char,char,false,false).
 get_char(Char) :- input_is(Stream) get_char(Stream,Char).
 put_char(Char) :- syscall(sysoutm,Char).
 read(Stream,Term) :- syscall(sysinterm,Stream,Term).

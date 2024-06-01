@@ -802,7 +802,8 @@ End;
 { push a stream to new top; update top }
 Procedure Streams_Push( Var top : StreamPtr; f : StreamPtr );
 Begin
-  Streams_Chain(f,top);
+  If top <> Nil Then
+    Streams_Chain(f,top);
   top := f
 End;
 
