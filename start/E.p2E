@@ -18,8 +18,8 @@ get_char(Char) :- input_is(Stream) get_char(Stream,Char).
 put_char(Char) :- syscall(sysoutm,Char).
 read(Stream,Term) :- syscall(sysinterm,Stream,Term).
 read(Term) :- input_is(Stream) syscall(sysin,Stream,Term,term,true,false).
-asserta(Term) :- syscall(sysasserta,Term).
-assertz(Term) :- syscall(sysassertz,Term).
+asserta(Term) :- syscall(sysasserta,Term,[]).
+assertz(Term) :- syscall(sysassertz,Term,[]).
 
 "i/o: PII+"
 
@@ -37,6 +37,8 @@ flush :- syscall(sysflush).
 
 echo :- syscall(sysecho,true).
 no_echo :- syscall(sysecho,false).
+trace :- syscall(systrace,true).
+no_trace :- syscall(systrace,false).
 
 "in: PII+"
 
@@ -52,6 +54,10 @@ outl(T) :- out(T), line.
 outml(S) :- outm(S), line.
 page :- syscall(sysclrsrc).
 clear :- page, fail.
+
+"string"
+
+char_code(C,N) :- syscall(syscharcode,C,N).
 
 "assign, eval, operators"
 
