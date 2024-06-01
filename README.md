@@ -5,33 +5,33 @@ A simple Prolog II interpreter written in Pascal
 
 This is a simple Prolog interpreter, for Linux, macOS, and Windows. It compiles under Turbo Pascal 4 and Free Pascal.
 
-Regarding syntax, it (almost fully) handles the following flavours of the language: Prolog II, Prolog II+ and Prolog Edinburgh. It also supports a "Prolog II with equalities and inequalities" flavour, which was the primary purpose of this interpreter.
+Regarding syntax, it (almost fully) handles the following flavours of the language: Prolog II (version 1 and version 2), Prolog II+ and Prolog Edinburgh.
 
 This whole programme started as an academic exercice, without any consideration for efficiency. In particular, memory consumption is high. Nonetheless, the interpreter is able to solve the "send more money" classical exercice in a low-end computer.
 
 ## Why?
-2022 was [the 50th anniversary of Prolog](http://prologyear.logicprogramming.org/). As a modest tribute for this anniversary, I decided to dig up a Prolog interpreter I wrote almost 35 years ago, clean it a bit, add a few missing features (e.g., the cut, garbage collection), and push it online. As this program remains a toy program, this serves no real purpose other than to celebrate this anniversary.
+2022 was [the 50th anniversary of Prolog](http://prologyear.logicprogramming.org/). As a modest tribute for this anniversary, I decided to dig up a Prolog interpreter I wrote almost 35 years ago, clean it a bit, add a few missing features (e.g., cut, freeze, garbage collection), and push it online. As this program remains a toy program, this serves no real purpose other than to celebrate this anniversary. 
 
-I wrote this program as a course assignment, back in 1988, when I was a student at the University of Aix-Marseille II, pursuing a MSc in Computer Science and Mathematics ("Diplôme d'Études Approfondies en Informatique et Mathématique"). The course, entitled "Prolog II", was taught by the late [Alain Colmerauer](https://en.wikipedia.org/wiki/Alain_Colmerauer), creator of the Prolog language.
+Nonetheless, if you are old enough to have some old Prolog II programs stored in an old backup unit, you may use the interpreter to run them. Please report a bug if something does not work.  
 
-One of the courses I also took in this MSc was Henri Méloni's course on speech recognition. As my Prolog II interpreter gained additional features, executing the Prolog programs I wrote for this course is now possible.
+I wrote this interpreter as a course assignment, back in 1988, when I was a student at the University of Aix-Marseille II, pursuing a MSc in Computer Science and Mathematics ("Diplôme d'Études Approfondies en Informatique et Mathématique"). The course, entitled "Prolog II", was taught by the late [Alain Colmerauer](https://en.wikipedia.org/wiki/Alain_Colmerauer), creator of the Prolog language. The assignment was to create a Prolog II interpreter, without any predefined predicates, but capable of running some basic Prolog programs such as repetition, permutation, as well as the traditional "menu" or "send more money" examples.
 
-A more ambitious goal is to run some of the demo programs written by Alain Colmeraurer (see [Alain Colmerauer's website](http://alain.colmerauer.free.fr/)). At this point, the interpreter is able to read the entire Orbis program, but fails to run it as many built-ins have not been implemented yet.
+One of the courses I also took in this MSc was Henri Méloni's course on speech recognition. As my Prolog II interpreter gained additional features, executing the Prolog II programs I wrote for this course is now possible. Ditto for a Prolog program to query a database of Nobel Prize winners.
 
-## References
-Basically, the program implements two algorithms described in the following paper: 
+A more ambitious goal is to run some of the demo programs written by Alain Colmeraurer (see [Alain Colmerauer's website](http://alain.colmerauer.free.fr/)). At this point, the interpreter is able to read the entire Orbis program, but fails to run it as many built-in predicates have not been implemented yet.
 
-* Alain Colmerauer (1984). [Equations and Inequations on Finite and Infinite Trees](https://www.ueda.info.waseda.ac.jp/AITEC_ICOT_ARCHIVES/ICOT/Museum/FGCS/FGCS84en-proc/84eILEC-1.pdf). FGCS 1984: 85-99. 
+## Status
 
-Here are two additional interesting papers:
+*As of May 2024:*
 
-+ Alain Colmerauer (1985). [Prolog in 10 Figures](https://dl.acm.org/doi/pdf/10.1145/214956.214958). Communications of the ACM, vol. 28, num. 12, December.
+Support for Prolog II (both versions) and Prolog II+ (both Marseille and Edinburgh) syntaxes is (I believe) complete.
 
-* Philippe Körner et al. (2022). [Fifty Years of Prolog and Beyond](https://www.cambridge.org/core/journals/theory-and-practice-of-logic-programming/article/fifty-years-of-prolog-and-beyond/3A5329B6E3639879301A6D44346FD1DD). Theory and Practice of Logic Programming, 1-83.
+The interpreter offers (partial) support for UTF-8 input and output. 
 
+Support for Prolog II's predefined predicates is almost complete, and should be completed soon. Prolog II+ has a much larger set of predefined predicates. Only the bare minimum will be implemented, so as to run some examples I found interesting. The module system will not be implemented.
 
 ## Overview
-Being a simple implementation exercice, the interpreter offers only a few built-in functions and no advanced features (e.g., freeze). 
+Being a simple implementation exercice, the interpreter offers only a few [built-in predicates](PREDEF.md) and no advanced features. 
 
 Nonetheless, the interpreter is fully garbage collected and has almost no hard-coded limits, thanks to its garbage collector and dynamic string manager.
 
@@ -51,12 +51,12 @@ Inserting an element in a list of four items gives three different solutions:
 
 ```
 -> insertion(0,1.2.nil,x);
-{ x = 0.1.2.nil }
-{ x = 1.0.2.nil }
-{ x = 1.2.0.nil }
+{ x=0.1.2.nil }
+{ x=1.0.2.nil }
+{ x=1.2.0.nil }
 ```
 
-Edinburgh-style lists are also supported. In PrologII+ mode, both syntaxes  can be mixed, and satisfy the five equivalences listed on page 45 of the Prolog II+ documentation, and an additional sixth listed in the French documentation on page 48:
+Edinburgh-style lists are also supported. In PrologII+ mode, both syntaxes can be mixed, and satisfy the five equivalences listed on page 45 of the Prolog II+ documentation, and an additional sixth listed in the French documentation on page 48:
 
 ```
 $ ./tprolog2 -PIIp
@@ -77,13 +77,15 @@ $ ./tprolog2 -PIIp
 
 ### Constraints
 
-The interpreter also handles constraints on trees, expressed as equalities (`=`) or inequalities (`<>`). 
+When running in Prolog II mode, the interpreter handles constraints on trees, expressed as equalities (`=`) or inequalities (`#`). 
 
 For instance, one can write a simple `dif` rule as:
 
 ```
-dif(x,y) -> { x <> y };
+dif(x,y) ->, { x # y };
 ```
+
+This comma looks weird when the rule's queue is empty, but this is part of the syntax described in Colmerauer (1982.)
 
 Then, the following query gives no results, as there is no `x` satisfying the constraint:
 
@@ -95,9 +97,9 @@ while the following query displays the resulting constraints:
 
 ```
 -> dif(x,1);
-{ x = x_1 , x_1 <> 1 }
+{ x#1 }
 ```
-(Note that the interpreter has created an additional variable `x_1`, and does not try to get rid of it when displaying the resulting constraint set.)
+In Prolog II+, constraints are not part of the syntax anymore. Instead, `dif` is implemented as a predefined predicate.
 
 ### Strings
 
@@ -158,38 +160,71 @@ The following executions show that what the engine forgets after executing a cut
 
 ```
 -> choice1(u);
-{ u = red.big }
-{ u = red.small }
-{ u = blue.big }
-{ u = blue.small }
-{ u = "that's all" }
+{ u=red.big }
+{ u=red.small }
+{ u=blue.big }
+{ u=blue.small }
+{ u="that's all" }
 -> choice2(u);
-{ u = red.big }
-{ u = red.small }
-{ u = blue.big }
-{ u = blue.small }
+{ u=red.big }
+{ u=red.small }
+{ u=blue.big }
+{ u=blue.small }
 -> choice3(u);
-{ u = red.big }
-{ u = red.small }
+{ u=red.big }
+{ u=red.small }
 -> choice4(u) ;
-{ u = red.big }
+{ u=red.big }
 -> choice1(u) !;
-{ u = red.big }
+{ u=red.big }
 ```
+
+### Freeze
+
+The `freeze/2` built-in predicate delays the clearing of goals until some variables are bound:
+
+```
+plus(x,y,z) -> freeze(x,freeze(y,sum(x,y,z)));
+sum(x,y,z) -> val(add(x,y),z);
+
+-> plus(x,y,z) eq(x,1) eq(y,2);
+{ x=1, y=2, z=3 }
+```
+
+Variables that are both free and frozen are displayed using a special notation showing the associated frozen term: 
+
+```
+-> freeze(x,out(1));
+{ x?out(1) }
+```
+
+### Infinite trees
+
+Infinite trees are not integrated in the unification engine yet, but can be displayed using the `*n` notation:
+
+```
+-> eq(x,ff(x)) outl(x);
+ff(*1)
+{ x=ff(x) }
+-> eq(x,ff(y,x)) eq(y,gg(x,y)) outl(x) outl(y);
+ff(gg(*2,*1),*1)
+gg(ff(*2,*1),*1)
+{ x=ff(y,x), y=gg(x,y) }
+``` 
 
 ### Assignments
 
-Identifiers can be assigned using the predicate `assign(i,t)`. The identifier `i` then becomes a global, "static" (resist backtracking) variable, whose value is equal to the term `t`. It can be further reassigned to a different term. Its value can be read using the predicate `val(i,v)`. 
+Identifiers can be assigned using the predicate `assign(i,t)`. The identifier `i` then becomes a global, "static" (it resists backtracking) variable, whose value is equal to the term `t`. It can be further reassigned to a different term. Its value can be read using the predicate `val(i,v)`. 
 
 ```
 -> assign(file_name,"file.txt");
 {  }
 -> val(file_name,x);
-{ x = "file.txt" }
+{ x="file.txt" }
 -> assign(file_name,"another_file.txt");
 {  }
 -> val(file_name,x);
-{ x = "another_file.txt" }
+{ x="another_file.txt" }
 >
 ```
 The value of a non assigned identifier is the identifier itself:
@@ -198,25 +233,25 @@ The value of a non assigned identifier is the identifier itself:
 -> assign(un,1);
 {  }
 -> val(un,x) val(deux,y);
-{ x = 1, y = deux }
+{ x=1, y=deux }
 >
 ```
 
 ### Evaluable functions
 
-Evaluable functions `add(x,y)`,`sub(x,y)`,`mul(x,y)`,`div(x,y)`, and `inf(x,y)` are recusivelly evaluated when they appear in the first argument of `val`. Arguments `x` and `y ` must evaluate to integer values.
+Evaluable functions such as `add(x,y)`,`sub(x,y)`,`mul(x,y)`,`div(x,y)`, or `inf(x,y)` are recusivelly evaluated when they appear in the first argument of `val`. Arguments `x` and `y ` must evaluate to integer values.
 
 ```
 -> val(add(123456789,1),x);
-{ x = 123456790 }
+{ x=123456790 }
 -> val(sub(9,10),x);
-{ x = -1 }
+{ x=-1 }
 -> val(div(100,9),x);
-{ x = 11 }
+{ x=11 }
 -> val(inf(10,9),x);
-{ x = 0 }
+{ x=0 }
 -> val(add(mul(2,add(3,4)),1000),x);
-{ x = 1014 }
+{ x=1014 }
 >
 ```
 
@@ -226,7 +261,7 @@ Unary operators `+`,`-` and binary operators `+`,`-`,`*`,`/`,`^`,`<`,`>`,`>=`,`=
 
 ```
 -> eq(f(x,y),1'<'2);
-{ f = inf, x = 1, y = 2 }
+{ f=inf, x=1, y=2 }
 ```
 Additional operators are available in Edinburgh mode: `is`,`=`,`//`, the standard order of terms operators `@<`,`@>`,`@=<`,`@>=`, and the "Univ" operator `=..`.
 
@@ -235,7 +270,7 @@ The "Univ" operator matches a predicate and a list as follows:
 
 ```
 :- foo(X,Y) =.. L.
-{ L = [foo,X,Y] }
+{ L=[foo,X,Y] }
 ```
 
 New operators can be declared using `op/3` and `op/4` (see PrologII+ documentation page 137).
@@ -246,7 +281,16 @@ New operators can be declared using `op/3` and `op/4` (see PrologII+ documentati
 
 The program was initially developed in [Turbo Pascal 3](https://en.wikipedia.org/wiki/Turbo_Pascal#Version_3) (TP3). Turbo Pascal 3.02A is [provided](https://web.archive.org/web/20101124092418/http://edn.embarcadero.com/article/20792) to the Borland community free of charge, as a [zip file](https://web.archive.org/web/20110815014726/http://altd.embarcadero.com/download/museum/tp302.zip).
 
-I initially tried to maintain compatibility with TP3. So, no classes, and a few restrictions on the syntax (e.g., no type cast) or semantic (e.g., no lazy evaluation). Workarounds had to be implemented for the most annoying limitations, namely 16-bit integers and 255-char strings. As the program grew, TP3 started overflowing memory during compilation. Consequently, Turbo Pascal 4.0 compatibility is the current target.  
+I initially tried to maintain compatibility with TP3. So, no classes, and a few restrictions on the syntax (e.g., no type cast) or semantic (e.g., no lazy evaluation). Workarounds had to be implemented for the most annoying limitations, namely 16-bit integers and 255-char strings. 
+
+However, as the program grew, TP3 started overflowing memory during compilation. Consequently, Turbo Pascal 4.0 compatibility is the current target. A math coprocessor is required, be it real or virtual.
+
+To build the interpreter with TP4, uses:
+
+```
+C:\src> TPC /B /$N+ tprolog2
+```
+The `/$N+` directive specifies that a 8087 maths coprocessor is present and must be used. 
 
 ### Free Pascal Compiler
 
@@ -258,7 +302,7 @@ $ fpc -Mtp -FE. src/tprolog2.pas
 
 ## Execution
 
-A Prolog program to execute is a (UTF8 or ISO/IEC 8859-1) text file containing both the program rules and the queries. When using the default syntax, rules must be written using the Marseille syntax. Each query starts with a `->`and ends with a `;`. The end of the text file, or, alternatively, an additional `;`, ends the program. Lines in the input file can have any length.
+A Prolog program to execute is a (UTF8 or ISO/IEC 8859-1) text file containing both program rules and queries. When using the default syntax, rules must be written using the Marseille syntax. Each query starts with an arrow `->`and ends with a semicolon `;`. The end of the text file, or, alternatively, an additional `;`, ends the program. Lines in the input file can have any length.
 
 For instance, the file `examples/ProII/permu.pro` contains four rules and two queries:
 
@@ -274,51 +318,49 @@ insertion(e,f.x,f.y) -> insertion(e,x,y);
 -> permutation(3.a.1.b.nil,2.4.c.d.nil);
 
 ```
-(Note the `nil` has no special meaning in the language. In this example, `nil` is just an identifier used as an end-of-list mark.)
+(Note the `nil` has no special meaning in Prolog II. In this example, `nil` is just an identifier used as an end-of-list mark.)
 
 To execute a program stored in a file `$file` use the command line `tprolog2 -$syntax $file` where `$syntax` is one of the four supported language flavours. When the `$syntax` parameter is omitted, the syntax is inferred from the file extension.  
 
-Value of `$syntax` | File extension | Prompt | Prolog flavour
+Value of `$syntax` | File extension | Prompt | Prolog flavour (and main changes from earlier versions)
 --- | --- | --- | ---
-`PII`  | `.pro` | `>` | old Marseille syntax (with dashes in identifiers)
-`PIIc` | `.p2c` | `c>` | Prolog II with equalities and inequalities (Tiny-Prolog specific; default syntax)
-`PIIp` | `.p2` | `+>` | Prolog II+
-`E` | `.p2E` or `.pl` | `?-` | Prolog II+ Edinburgh
+`PIIv1` | `.p2c` | `c>` | Prolog II version 1: old Marseille syntax with dashes in identifiers and `/` as cut symbol; identifiers of built-in predicates are written in French; rules with an optional constraint part
+`PII`  | `.pro` | `>` | Prolog II version 2: identifiers of built-in predicates are written in English; a few more built-in predicates; this is the default syntax of our interpreter
+`PIIp` | `.p2` | `+>` | Prolog II+: no more dashes in identifiers; operators
+`E` | `.p2E`, `.pl` | `?-` | Prolog II+: Edinburgh syntax; Marseille-style lists still supported
 
-For instance, to run the tiny-prolog programme `permu.p2c`, just do:
+For instance, to run the Prolog programme `permu.pro`, just do:
 
 ```
-$ ./tprolog2 examples/ProII/permu.p2c
+$ ./tprolog2 examples/ProII/permu.pro
 -> permutation(1.2.3.nil,x);
-{ x = 1.2.3.nil }
-{ x = 2.1.3.nil }
-{ x = 2.3.1.nil }
-{ x = 1.3.2.nil }
-{ x = 3.1.2.nil }
-{ x = 3.2.1.nil }
+{ x=1.2.3.nil }
+{ x=2.1.3.nil }
+{ x=2.3.1.nil }
+{ x=1.3.2.nil }
+{ x=3.1.2.nil }
+{ x=3.2.1.nil }
 -> permutation(3.a.1.b.nil,2.4.c.d.nil);
-{ a = 2, b = 4, c = 3, d = 1 }
-{ a = 2, b = 4, c = 1, d = 3 }
-{ a = 4, b = 2, c = 3, d = 1 }
-{ a = 4, b = 2, c = 1, d = 3 }
-c>
+{ a=2, b=4, c=3, d=1 }
+{ a=2, b=4, c=1, d=3 }
+{ a=4, b=2, c=3, d=1 }
+{ a=4, b=2, c=1, d=3 }
+>
 ```
 
 The final `>`is a prompt, inviting you to type in other queries to execute, e.g.:
 
 ```
-c> permutation(1.2.3.nil,3.x.y.nil);
--> permutation(1.2.3.nil,3.x.y.nil);
-{ x = 1, y = 2 }
-{ x = 2, y = 1 }
-c>
+> permutation(1.2.3.nil,3.x.y.nil);
+{ x=1, y=2 }
+{ x=2, y=1 }
+>
 ```
 
 Predefined commands include `list` to list the current user rules:
 
 ```
-c> list fail;
--> list fail ;
+> list fail;
 permutation(nil,nil) ->;
 permutation(e.x,z) ->
         permutation(x,y)
@@ -326,7 +368,7 @@ permutation(e.x,z) ->
 insertion(e,x,e.x) ->;
 insertion(e,f.x,f.y) ->
         insertion(e,x,y);
-c>
+>
 ```
 
 and `insert(f)` to insert rules and queries from a file with file path `f`. 
@@ -336,84 +378,14 @@ You can navigate into the history of previous queries using the up and down arro
 When you are done, use `quit` or hit `Ctrl+C` to quit the interpreter.
 
 ```
-c> quit;
--> quit;
+> quit;
 Bye!
 $
 ```
 
-## List of predefined predicates
+## Predefined predicates
 
-### Session
-
-Predicate | Syntax | Meaning | Example
---- | --- | --- | ---
-`quit` | | quit the interpreter | `> quit;`
-`list` | | display the current rules | `> list;`
-`listing` | E | display the current rules | `?- listing.`
-`insert(f)` | | insert a Prolog file | `> insert("examples/menu.pro");`
-`consult(f)` | E | insert a Prolog file | `?- consult('examples/menu.pl').`
-
-### Input and output
-
-#### Edinburgh
-
-Predicate | Meaning | Example
---- | --- | ---
-`expand_file_name(F,L)`| list files using a pattern | `?- expand_file_name('~/bin/*',L).`
-`open(F,M,D,O)`, `open(F,M,D)`| open a stream, setting a descriptor `D` | `?- open('~/data.txt',read,D,alias(data)).`
-`close(S)`| close a stream `S` | `?- close(data).`
-`get_char(S,C)`, `get_char(C)`| read a character from stream `S` or from the current stream | `?- get_char(data,C).`
-`put_char(C)` | write a character to the current stream | `?- put_char('a').`
-`read(S,T)`, `read(T)`| read a term from stream `S` or from the current stream | `?- read(data,T).`
-`asserta(T)`, `assertz(T)`| insert a fact at the beginning or end of a group of rules | `?- asserta(animal(cat)).`
-
-#### All syntaxes
-
-Predicate | Meaning | Example
---- | --- | ---
-`input_is(f)`| return the current input | `> input_is(f);` `{ f = "console" }`
-`input(f)` | set the current input | `>input("infile.txt");`
-`close_input` | close the current input |
-`close_input(f)` | close input file `f` |
-`clear_input` | ignore all remaining characters in the current input line |
-`output_is(f)` | return the current output | `> output_is(f);` `{ f = "console" }`
-`output(f)` | set the current output | `> output("outfile.txt");`
-`close_output` | close the current output |
-`close_output(f)` | close output file `f` |
-`flush` | flush the output buffer |
-`in(t)` | input a term in `t` |
-`in_char(c)` | input a character in `c` |
-`out(t)` | display term `t` |
-`outm(s)` | display string `s` unquoted |
-`line ` | line break |
-`outl(t)` | display term `t` and then go to next line |
-`outml(s)` | display string `s` unquoted and then go to next line |
-`page` | go to the next page |
-`clear` | clear the screen |
-
-### Assignment and evaluation
-
-Predicate | Meaning | Example
---- | --- | ---
-`assign(i,t)` | assign identifier `i` with term `t` |
-`val(t1,t2)` | evaluate expression `t1` and unify the result with term `t2` | 
-`op(n,ib,i1,i2)` | declare an operator `i1` (identifier or string) with precedence `n`, bracketing type `ib`, and functional symbol `i2` | `> op(700,xfx,"=",eq);`
-
-### Equations and inequations
-
-Predicate | Meaning | Example
---- | --- | ---
-`eq(x,y)` | unify `x` and `y` |
-`dif(x,y)` | add the constraint that `x` is different from `y` |
-
-### Debug
-
-Predicate | Meaning | Example
---- | --- | ---
-`bt` | display a backtrace of the current choice points |
-`dump` | display information about the state of the Prolog engine |
-
+Predefined predicates available in each of the supported syntaxes are listed on [that page](PREDEF.md).
 
 ## BNF Syntax
 
@@ -475,14 +447,9 @@ A `pterm` is a term that can appear at the highest level, that is, as a goal in 
 
 The "old" Prolog II syntax uses Marseille syntax, allowing for dashes in identifiers. 
 
-Unsurprisingly, this possibility had to be reversed in a later version, called _Prolog II+_, to allows for arithmetic expressions. For instance, `x1-y2` is a valid name for a _single_ variable in Prolog II, which would create ambiguities if arithmetic expressions were to be allowed. 
+Unsurprisingly, this possibility had to be reversed in a later version, called Prolog II+, to allows for arithmetic expressions. For instance, `x1-y2` is a valid name for a _single_ variable in Prolog II, which would create ambiguities if arithmetic expressions were to be allowed. 
 
-The Prolog II syntax is described in these two books (still on my bookshelf): 
-
-* Francis Giannesini, Henry Kanoui, Robert Pasero, and Michel Van Caneghem, _Prolog_, InterÉditions, 1985. 
-* Michel Van Caneghem, _L'Anatomie de Prolog_, InterÉditions, 1986. 
-
-During my graduation year, in 1988, I believe I did all my Prolog programming homework using the MS-DOS implementation of Prolog II. IIRC we had access to SunOS workstations. A version of Prolog might have been available on these machines, but I just do not remember using it.
+During my graduation year, in 1988, I believe I did all my Prolog programming homework using workstations that were available in a lab at the Groupe d'Intelligence Artificielle (G.I.A.), the research group that ran the graduation program. Some SunOS workstations, maybe.
 
 To be able to run the Prolog programs I wrote during the academic year, the Tiny Prolog interpreter must fully support the Prolog II syntax.
 
@@ -503,20 +470,20 @@ long-word = letter, word ;
 ```
 
 
-### Tiny Prolog
-
-This Prolog is based on the Prolog II syntax above, and adds optional contraints to rules and queries:
+As shown in Colmerauer (1982), Prolog II (version 1) accepts optional contraints to rules and queries:
 
 ```
-constraint = term, ("=" | "<>"), term ;          
+constraint = term, ("=" | "#"), term ;          
 
 system = "{", constraint, { ",", constraint }, "}" ;                         
 
-rule = term, "->", { term | cut }, [system], ";" ;
+rule = term, "->", { term | cut }, ["," system], ";" ;
 
-query = "->", { term | cut }, [system], ";" ;
+query = "->", (term | cut) { term | cut }, [",", system], ";" ;
+query = "->", [system], ";" ;
 
 ```
+I allow it in Prolog II version 2 mode as well, for convenience.
 
 ### Prolog II+
 
@@ -593,21 +560,61 @@ Since dotted lists are not allowed in Edinburgh mode, `1.2` is unambiguously rea
 
 ## Screenshots
 
-_11 June 2023:_ [repet.pro](examples/ProIIc/repet.pro), one of the original demo Prolog programs written for the interpreter back in 1988, running in a FreeDOS box with the new interpreter compiled with Turbo Pascal 4: 
+_11 June 2023:_ [repet.pro](examples/PIIv1/repet.pro), one of the original demo Prolog programs written for the interpreter back in 1988, running in a FreeDOS box with the new interpreter compiled with Turbo Pascal 4: 
 
-![Tiny Prolog running the repetition program in a FreeDOS box](examples/ProIIc/repet.png)
+![Tiny Prolog running the repetition program in a FreeDOS box](examples/PIIv1/repet.png)
 
-_11 June 2023:_ [phonemes.pro](examples/homework/phonemes/phonemes.pro), a homework Prolog II program written for Henri Méloni's course on speech recognition:
+_11 June 2023:_ [phonemes.pro](examples/PII/phonemes/phonemes.pro), a homework Prolog II program written for Henri Méloni's course on speech recognition:
 
-![Tiny Prolog running the phoneme program on macOS](examples/homework/phonemes/out.png)
+![Tiny Prolog running the phoneme program on macOS](examples/PII/phonemes/out.png)
 
-_11 June 2023:_ [nobel.pro](examples/homework/nobel/nobel.pro), a homework Prolog II program. I do not remember the course, though:
+_11 June 2023:_ [nobel.pro](examples/PII/nobel/nobel.pro), a homework Prolog II program. I do not remember the course, though:
 
-![Tiny Prolog running the Nobel program on macOS](examples/homework/nobel/out.png)
+![Tiny Prolog running the Nobel program on macOS](examples/PII/nobel/out.png)
 
 _23 February 2024:_ Tiny Prolog successfully running [Turing Completeness](https://en.wikipedia.org/wiki/Prolog#Turing_completeness), an example Edinburgh program of the [Prolog's Wikipedia page](https://en.wikipedia.org/wiki/Prolog):
 
-![Tiny Prolog running the Turing program on macOS](examples/ProEdin/turing.png)
+![Tiny Prolog running the Turing program on macOS](examples/E/turing.png)
+
+## References
+
+### Articles
+
+Basically, our interpreter implements two algorithms described in the following paper: 
+
+* Alain Colmerauer (1984). [Equations and Inequations on Finite and Infinite Trees](https://www.ueda.info.waseda.ac.jp/AITEC_ICOT_ARCHIVES/ICOT/Museum/FGCS/FGCS84en-proc/84eILEC-1.pdf). FGCS 1984: 85-99. 
+
+Here are two additional interesting papers:
+
++ Alain Colmerauer (1985). [Prolog in 10 Figures](https://dl.acm.org/doi/pdf/10.1145/214956.214958). Communications of the ACM, vol. 28, num. 12, December.
+
+* Philippe Körner et al. (2022). [Fifty Years of Prolog and Beyond](https://www.cambridge.org/core/journals/theory-and-practice-of-logic-programming/article/fifty-years-of-prolog-and-beyond/3A5329B6E3639879301A6D44346FD1DD). Theory and Practice of Logic Programming, 1-83.
+
+### Manuals
+
+#### Prolog II (version 1)
+
+Prolog II version 1 ran on Apple II. The complete documentation is made of three documents below. Note that while the three documents above are supposed to describe the same version of Prolog II, that is, version 1, the syntax described in Colmerauer (1982) allows for explicit constraints at the end of rules. This is not the case in Van Caneghem (1982) and Kanoui (1982). If you know more about this, please let me know.
+
+* Alain Colmerauer (1982). [Prolog II: Manuel de référence et modèle théorique.](https://mirrors.apple2.org.za/ftp.apple.asimov.net/documentation/non_english/french/cnrs_prologii_manueldereference_ocr.pdf) Rapport Interne. Groupe d'Intelligence Artificielle. Université d'Aix-Marseille II. Mars. 
+
+* Michel Van Caneghem (1982). [Prolog II: Manuel d'utilisation.](https://mirrors.apple2.org.za/ftp.apple.asimov.net/documentation/non_english/french/cnrs_prologii_manueldutilisation_ocr.pdf) Rapport Interne. Groupe d'Intelligence Artificielle. Université d'Aix-Marseille II. Mars. 
+
+* Henry Kanoui (1982). [Prolog II: Manuel d'exemples.](https://mirrors.apple2.org.za/ftp.apple.asimov.net/documentation/non_english/french/cnrs_prologii_manueldexemples_ocr.pdf) Rapport Interne. Groupe d'Intelligence Artificielle.  Université d'Aix-Marseille II. Mars.
+
+
+#### Prolog II (version 2) 
+
+The Prolog II version 2 syntax is described in these two books (still on my bookshelf):
+
+* Francis Giannesini, Henry Kanoui, Robert Pasero, and Michel Van Caneghem (1985). _Prolog_, InterÉditions. 
+
+* Michel Van Caneghem (1866). _L'Anatomie de Prolog_, InterÉditions. 
+
+#### Prolog II+
+
+Manuals and Windows binary are available on the [download page of the Prolog Heritage website](https://www.prolog-heritage.org/fr/ph234.html)
+
 
 ## Author
 

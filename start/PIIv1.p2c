@@ -19,18 +19,18 @@ bas -> syscall(sysbottomstatement);
 
 "rules"
 
-rule(T,Q) -> syscall(sysrule,T,Q);
+tete(I) -> syscall(sysfindrule,I);
 
 inserer(F) -> syscall(sysinsert,F);
 inserer -> syscall(sysinputis,F) syscall(sysinsert,F);
+regle(T,Q) -> syscall(sysasserta,T,Q);
 
 lister(N) -> syscall(syslist,N);
 lister -> lister(0);
-assert(<T,Q>) -> syscall(sysasserta,T,Q);
 
 "session"
 
-bonsoir -> exm("bye!") ligne syscall(sysquit);
+adieu -> exm("bye!") ligne syscall(sysquit);
 
 "is"
 
@@ -52,6 +52,7 @@ no-car(C,N) -> syscall(syscharcode,C,N);
 entree(F) -> syscall(sysfree,T,true) / syscall(sysinputis,F);
 entree(F) -> syscall(sysselectinput,F) /;
 entree(F) -> syscall(sysopennew,F,read,S,nil);
+fermer-entree(F) -> syscall(syscloseinput,F);
 fermer-entree -> syscall(sysinputis,F) syscall(syscloseinput,F);
 
 sortie(F) -> syscall(sysfree,T,true) / syscall(sysoutputis,F) /;
@@ -78,7 +79,9 @@ in-chaine(T) -> syscall(sysinputis,S) syscall(sysin,S,T,string,true,false);
 "out"
 
 ex(T) -> syscall(sysout,T);
+exl(T) -> syscall(sysout,T) ligne;
 exm(S) -> syscall(sysoutm,S);
+exml(S) -> syscall(sysoutm,S) ligne;
 ligne -> syscall(sysline);
 page -> syscall(sysclrsrc);
 clear -> page impasse;

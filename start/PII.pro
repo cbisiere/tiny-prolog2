@@ -21,14 +21,14 @@ bottom -> syscall(sysbottomstatement);
 
 "rules"
 
-rule(T,Q) -> syscall(sysrule,T,Q);
+find-rule(I) -> syscall(sysfindrule,I);
 
 insert(F) -> syscall(sysinsert,F);
 insert -> syscall(sysinputis,F) syscall(sysinsert,F);
+assert(T,Q) -> syscall(sysasserta,T,Q);
 
 list(N) -> syscall(syslist,N);
 list -> list(0);
-assert(<T,Q>) -> syscall(sysasserta,T,Q);
 
 "session"
 

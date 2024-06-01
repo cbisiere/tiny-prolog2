@@ -9,7 +9,7 @@ insert -> syscall(sysinputis,F) syscall(sysinsert,F);
 
 list(N) -> syscall(syslist,N);
 list -> list(0);
-assert(<T,Q>) -> syscall(sysasserta,T,Q);
+assert(H,Q) -> syscall(sysasserta,H,Q);
 
 "session"
 
