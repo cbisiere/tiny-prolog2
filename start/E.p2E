@@ -6,6 +6,10 @@ quit :- outml("bye!"), syscall(sysquit).
 list :- syscall(syslist,0).
 insert(F) :- syscall(sysinsert,F).
 
+"is"
+
+atom(T) :- syscall(sysis,T,ident).
+
 "i/o: ISO/SWI"
 
 expand_file_name(F,L) :- syscall(sysexpandfilename,F,L).
@@ -66,10 +70,17 @@ val(T1,T2) :- syscall(syseval,T1,T2).
 op(N,I1,S,I2) :- syscall(sysop,N,I1,S,I2).
 op(N,I,S) :- syscall(sysop,N,I,S,S).
 
+"control"
+
+freeze(V,G) :- syscall(sysfreeze,V,G).
+fail :- syscall(sysfail).
+
 "debug"
 
 bt :- syscall(sysbacktrace).
 dump :- syscall(sysdump).
+debug :- syscall(sysdebug,true).
+no_debug :- syscall(sysdebug,false).
 
 "helpers"
 
@@ -92,6 +103,7 @@ consult(F) :- insert(F).
 
 listing :- list.
 
+nl :- line.
 
 "operators"
 
@@ -125,6 +137,7 @@ listing :- list.
 "Composition and decomposition of objects, pII+ p.222"
 
 '=..'(X,Y) :- syscall(sysuniv,X,Y).
+atom_chars(A,L) :- syscall(sysatomchars,A,L).
 
 "expressions used as term to erase, see pII+ p.221"
 

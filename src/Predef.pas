@@ -103,6 +103,7 @@ Type
     PP_DUMP,
     PP_DIF,
     PP_UNIV,
+    PP_ATOM_CHARS,
     PP_FREEZE,
     PP_FAIL
   );
@@ -125,7 +126,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 48;
+  NB_PP = 49;
   MAX_PP_LENGHT = 21; { max string length }
   SYSCALL_IDENT_AS_STRING = 'syscall'; 
 Type
@@ -188,6 +189,7 @@ Const
     (I:PP_DUMP;S:'sysdump';N:0),
     (I:PP_DIF;S:'sysdif';N:2),
     (I:PP_UNIV;S:'sysuniv';N:2), { '=..', Edinburgh only, p.221 }
+    (I:PP_ATOM_CHARS;S:'sysatomchars';N:2), { '=..', Edinburgh only, p.222 }
     (I:PP_FREEZE;S:'sysfreeze';N:2),
     (I:PP_FAIL;S:'sysfail';N:0)
   );
@@ -577,6 +579,7 @@ Var
   T1,T2 : TermPtr;
   Tc,Tn : TermPtr;
   C : ConstPtr;
+  I : IdPtr;
   s : StrPtr;
   ch : TString;
   val : PosInt;
@@ -587,11 +590,20 @@ Begin
   { 2: char code variable or value }
   T2 := GetPArg(2,T);
 
-  { char-code("A",n) }
+  { case 1: char is known: char-code("A",n), char_code('A',65) }
+  { get the char as a string }
+  s := Nil;
   C := EvalPArgAsString(1,T);
   If C <> Nil Then
+    s := ConstGetStr(C)
+  Else If GetSyntax(P) = Edinburgh Then { Edinburgh: one-char atom }
+    Begin
+      I := EvalPArgAsIdent(1,T);
+      If I <> Nil Then
+        s := GetIdentAsStr(I,False)
+    End;
+  If s <> Nil Then
   Begin
-    s := ConstGetStr(C);
     If Str_Length(s) <> 1 Then
       Exit;
     ch := Str_AsShortString(s);
@@ -600,7 +612,7 @@ Begin
     Exit
   End;
 
-  { char-code(c,65) }
+  { case 2: char is free: char-code(c,65), char_code(c,65) }
   If Not GetPosIntArg(2,T,val) Then
     Exit;
   If val > 255 Then
@@ -1029,6 +1041,7 @@ Begin
 End;
 
 { '=..'(foo(a,b),[foo,a,b]) }
+{ FIXME: check the logic when both arguments are set }
 Function ClearUniv( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   T1,T2 : TermPtr;
@@ -1054,6 +1067,27 @@ Begin
     T := T2
   End;
   ClearUniv := ReduceOneEq(T,L,GetDebug(P)) { TODO: backtrackable? }
+End;
+
+{ atom_chars('hello',['h','e','l','l','o']) }
+Function ClearAtomChars( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  T1,T2 : TermPtr;
+Begin
+  ClearAtomChars := False;
+  T1 := EvalPArg(1,T);
+  T2 := EvalPArg(2,T);
+  { T1 known }
+  If TypeOfTerm(T1) = Identifier Then
+  Begin
+    ClearAtomChars := ReduceOneEq(IdentifierToList(P,IdPtr(T1)),T2,GetDebug(P));
+    Exit
+  End;
+  { T1 unknown }
+  T2 := ListToIdentifier(P,T2);
+  If T2 = Nil Then
+    Exit;
+  ClearAtomChars := ReduceOneEq(T1,T2,GetDebug(P))
 End;
 
 { op(700,xfx,"<",inf) } { TODO: implement full specs PII+ p137 }
@@ -1542,7 +1576,10 @@ Begin
       c := Stream_GetChar(f,c);
       Success := (Not Error) And (c <> '');
       If Success Then
-        Tr := EmitConst(P,Str_NewFromShortString(c),CS,False)
+        If GetSyntax(P) = Edinburgh Then { Edinburgh: return a one-char atom }
+          Tr := EmitIdent(P,Str_NewFromShortString('''' + c + ''''),False)
+        Else
+          Tr := EmitConst(P,Str_NewFromShortString(c),CS,False)
     End;
   TYPE_INTEGER:
     Begin
@@ -1706,6 +1743,8 @@ Begin
     Ok := ClearEval(P,T);
   PP_UNIV:
     Ok := ClearUniv(P,T);
+  PP_ATOM_CHARS:
+    Ok := ClearAtomChars(P,T);
   PP_OP:
     Ok := ClearOp(P,T);
   PP_QUIT:

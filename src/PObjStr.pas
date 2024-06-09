@@ -69,6 +69,12 @@ Type
     SD_DATA: TStrData { storage }
   End;
 
+  { char iterator within a string }
+  StrIter = Record
+    Data : StrDataPtr; { current data chunk }
+    LastRead : TStrDataLength { index of the last char read }
+  End;
+
 
 Function Str_New: StrPtr;
 Function Str_Length(s: StrPtr): longint;
@@ -91,6 +97,11 @@ Function Str_EndsWith(s: StrPtr; E: CharSet): boolean;
 Procedure Str_CWrite(s: StrPtr);
 Procedure Str_Write( f : StreamPtr; s : StrPtr) ;
 Procedure Str_Writeln( f : StreamPtr; s : StrPtr) ;
+
+Procedure StrIter_ToStart( Var Iter : StrIter; s : StrPtr );
+Procedure StrIter_ToEnd( Var Iter : StrIter; s : StrPtr );
+Function StrIter_NextChar( Var Iter : StrIter; Var cc : TChar ) : Boolean;
+Function StrIter_PrevChar( Var Iter : StrIter; Var cc : TChar ) : Boolean;
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -483,6 +494,74 @@ Procedure Str_Writeln( f : StreamPtr; s : StrPtr ) ;
 Begin
   Str_Write(f,s);
   Stream_WritelnShortString(f,'')
+End;
+
+{-----------------------------------------------------------------------}
+{ iterators                                                             }
+{-----------------------------------------------------------------------}
+
+{ initialize a forward iterator to iterate on a string's characters }
+Procedure StrIter_ToStart( Var Iter : StrIter; s : StrPtr );
+Begin
+  Iter.Data := s^.ST_FDAT;
+  Iter.LastRead := 0
+End;
+
+{ initialize a backward iterator to iterate on a string's characters }
+Procedure StrIter_ToEnd( Var Iter : StrIter; s : StrPtr );
+Begin
+  Iter.Data := s^.ST_LDAT;
+  Iter.LastRead := 0 { means: "nothing read yet" }
+End;
+
+{ get the next char (if any) in a string; return False if the iterator has 
+ reached the end of the string }
+Function StrIter_NextChar( Var Iter : StrIter; Var cc : TChar ) : Boolean;
+Begin
+  StrIter_NextChar := False;
+  With Iter Do
+  Begin
+    If LastRead >= Length(Data^.SD_DATA) Then
+    Begin
+      Data := Data^.SD_NEXT;
+      LastRead := 0;
+      If Data = Nil Then
+        Exit
+    End;
+    LastRead := LastRead + 1;
+    cc := Data^.SD_DATA[LastRead] { FIXME: handle UTF8 }
+  End;
+  StrIter_NextChar := True
+End;
+
+
+{ get the previous char (if any) in a string; return False if the iterator has 
+ reached the beginning of the string }
+Function StrIter_PrevChar( Var Iter : StrIter; Var cc : TChar ) : Boolean;
+Begin
+  StrIter_PrevChar := False;
+  With Iter Do
+  Begin
+    Case LastRead Of
+    0: { first iteration; the string might be empty }
+      Begin
+        LastRead := Length(Data^.SD_DATA);
+        If LastRead = 0 Then
+          Exit
+      End;
+    1: { current data chunk was fully iterated }
+      Begin
+        Data := Data^.SD_PREV;
+        If Data = Nil Then
+          Exit;
+        LastRead := Length(Data^.SD_DATA)
+      End;
+    Else { in the 'middle' of the current data chunk: previous character }
+      LastRead := LastRead - 1
+    End;
+    cc := Data^.SD_DATA[LastRead] { FIXME: handle UTF8 }
+  End;
+  StrIter_PrevChar := True
 End;
 
 End.

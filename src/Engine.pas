@@ -441,9 +441,14 @@ End;
       End
     End;
 
-    { trace; print goal that has been cleared }
-    If Solvable And GetTrace(P) Then
+    { trace: print goal that has been cleared }
+    If GetTrace(P) And (Solvable Or GetDebug(P)) Then
     Begin
+      If GetDebug(P) Then 
+        If Solvable Then 
+          CWrite('+') 
+        Else 
+          CWrite('-');
       CWriteLongInt(Header_GetClock(H));
       CWrite(': ');
       OutTerm(Nil,GetSyntax(P),ClearT); { FIXME: syntax }

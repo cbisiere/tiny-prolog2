@@ -46,8 +46,10 @@ Uses
   ShortStr,
   Num,
   Errs,
+  Chars,
   Memory,
   PObj,
+  PObjStr,
   PObjTerm,
   PObjFCVI,
   PObjDef,
@@ -62,6 +64,8 @@ Function NewList2( P : ProgPtr; T1,T2 : TermPtr ) : TermPtr;
 Function IsNil( T : TermPtr ) : Boolean;
 Function TupleToList( P : ProgPtr; U : TermPtr ) : TermPtr;
 Function ListToTuple( L : TermPtr ) : TermPtr;
+Function IdentifierToList( P : ProgPtr; I : IdPtr ) : TermPtr;
+Function ListToIdentifier( P : ProgPtr; T : TermPtr ) : TermPtr;
 
 Function ProtectedGetTupleHead( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
 Function ProtectedGetTupleQueue( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
@@ -172,6 +176,42 @@ Begin
   End
 End;
 
+{ create a list of chars 'a'.'b'.'c'.nil from an identifier 'abc' }
+Function IdentifierToList( P : ProgPtr; I : IdPtr ) : TermPtr;
+Var
+  s : StrPtr;
+  L : TermPtr;
+  Iter : StrIter;
+  cc : TChar;
+Begin
+  s := GetIdentAsStr(I,False); { FIXME: this creates a copy; should use IdentifierGetStr instead; fix the single quote issue }
+  L := NewEmptyList(P);
+  StrIter_ToEnd(Iter,s);
+  While StrIter_PrevChar(Iter,cc) Do
+    L := NewList2(P,EmitShortIdent(P,'''' + cc + '''' ,True),L);
+  IdentifierToList := L
+End;
+
+{ create an identifier concatenating each character in a list; return Nil if 
+ the term is not a list of characters }
+Function ListToIdentifier( P : ProgPtr; T : TermPtr ) : TermPtr;
+Var
+  s : StrPtr;
+  Th,Tq : TermPtr;
+Begin
+  ListToIdentifier := Nil;
+  s := Str_New;
+  While Not IsNil(T) Do
+  Begin
+    If Not ProtectedGetList(T,Th,Tq,True) Then
+      Exit;
+    If TypeOfTerm(Th) <> Identifier Then
+      Exit;
+    Str_Concat(s,GetIdentAsStr(IdPtr(Th),False));
+    T := Tq
+  End;
+  ListToIdentifier := EmitIdent(P,s,False)
+End;
 
 {----------------------------------------------------------------------------}
 { navigate the term tree, possibly through the reduced system                }
