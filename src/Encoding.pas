@@ -210,6 +210,8 @@ Begin
     Str_Concat(s,GetIdentAsStr(IdPtr(Th),False));
     T := Tq
   End;
+  If Str_Length(s) = 0 Then { atom_chars(A,[]) -> A = ''}
+    Str_Append(s,'''''');
   ListToIdentifier := EmitIdent(P,s,False)
 End;
 
