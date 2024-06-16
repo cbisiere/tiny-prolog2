@@ -259,7 +259,7 @@ Begin
               Else
               Begin
                 { evaluate the function's parameters, building a new term }
-                U := NewTuple(EmitShortIdent(P,func,False));
+                U := NewTuple(EmitShortIdent(P,func,False)); { FIXME: UTF-8 }
                 e := U; { we may return the term with its args evaluated }
                 U1 := U;
                 For i := 1 to n Do
@@ -430,7 +430,7 @@ Begin
                 End;
                 If Ok Then
                 Begin
-                  s := Str_NewFromShortString(rs);
+                  s := Str_NewFromShortString(rs); { TODO: UTF-8 user ops }
                   e := EmitConst(P,s,cot,False) { FIXME: not glob? }
                 End
               End

@@ -119,7 +119,7 @@ Var
   os : TObjectPtr Absolute s;
 Begin
   y := GetSyntax(P);
-  s := Str_NewFromShortString('start/' + StartFile[y] + '.' + FileExt[y]);
+  s := Str_NewFromBytes('start/' + StartFile[y] + '.' + FileExt[y]);
   AddGCRoot(os); { protect this string from GC }
   LoadProgram(P,s,False)
 End;
@@ -131,7 +131,7 @@ Var
   os : TObjectPtr Absolute s;
 Begin
   SetProgramPath(P,ExtractPath(Filename));
-  s := Str_NewFromShortString(Filename);
+  s := Str_NewFromBytes(Filename);
   AddGCRoot(os); { protect this string from GC }
   LoadProgram(P,s,False)
 End;

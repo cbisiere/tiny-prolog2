@@ -62,11 +62,11 @@ Implementation
 {-----------------------------------------------------------------------------}
 
 {----------------------------------------------------------------------------}
-{ codepoint                                                                  }
+{ TChars                                                                     }
 {----------------------------------------------------------------------------}
 
-{ append to a string codepoints while their first letter belongs to a 
- certain set; return the number of codepoints appended }
+{ append TChars to a string while their first letter belongs to a 
+ certain set; return the number of TChars appended }
 Function GetCharWhile( f : StreamPtr; Ch : StrPtr; E : CharSet ) : LongInt;
 Var 
   c : TChar;
@@ -83,15 +83,15 @@ Begin
       Stream_UngetChar(f)
     Else
     Begin
-      Str_Append(Ch,c);
+      Str_AppendChar(Ch,c);
       n := n + 1
     End
   Until Not Found Or Error;
   GetCharWhile := n
 End;
 
-{ append to a string codepoints until a codepoint has its first letter 
- in a certain set; return that codepoint }
+{ append TChars to a string until a TChar has its first letter 
+ in a certain set; return that TChar }
 Function GetCharUntil( f : StreamPtr; Ch : StrPtr; E : CharSet ) : TChar;
 Var 
   c : TChar;
@@ -105,12 +105,12 @@ Begin
     If Found Then
       Stream_UngetChar(f)
     Else
-      Str_Append(Ch,c)
+      Str_AppendChar(Ch,c)
   Until Found Or Error;
   GetCharUntil := c
 End;
 
-{ return the next non-blank codepoint without consuming it }
+{ return the next non-blank TChar without consuming it }
 Function NextCharNb( f : StreamPtr; Var c : TChar ) : TChar;
 Begin
   NextCharNb := Stream_GetCharNb(f,c);
@@ -178,7 +178,7 @@ Var
   Begin
     c := Stream_GetChar(f,c);
     If Error Then Exit;
-    Str_Append(Ch,c);
+    Str_AppendChar(Ch,c);
     Stream_SetEncoding(f,Enc);
     GrabOneLetter := True
   End;
@@ -316,7 +316,7 @@ Begin
         Begin
           c := Stream_GetChar(f,c);
           If Error Then Exit;
-          Str_Append(TK_STRI,c);
+          Str_AppendChar(TK_STRI,c);
           If keep Then
             Str_Append(TK_STRI,quote) { keep both only if no enclosing quotes }
         End
@@ -341,7 +341,7 @@ Begin
         Begin
           c := Stream_GetChar(f,c);
           If Error Then Exit;
-          Str_Append(TK_STRI,c) { append '\' }
+          Str_AppendChar(TK_STRI,c) { append '\' }
         End
       End
       Else If quiet Then 
@@ -523,7 +523,8 @@ Begin
           If (c = '-') Or (c = '+') Then
           Begin
             Stream_GetIChar(f,e2); { another undo point: the exp sign }
-            s2 := Str_NewFromShortString(c);
+            s2 := Str_New;
+            Str_AppendChar(s2,c);
             n := GetCharWhile(f,s2,Digits);
             If n > 0 Then
               Str_Concat(s,s2)
@@ -602,7 +603,7 @@ Begin
           Begin
             c := Stream_GetChar(f,c);
             If Error Then Exit;
-            Str_Append(TK_STRI,c)
+            Str_AppendChar(TK_STRI,c)
           End;
           n := GrabLetters(f,TK_STRI);
           If Error Then Exit;

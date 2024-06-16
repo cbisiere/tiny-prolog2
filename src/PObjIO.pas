@@ -279,8 +279,12 @@ End;
 
 { create a new console in mode Mode }
 Function Stream_NewConsole( Alias : TAlias; Mode : TStreamMode ) : StreamPtr;
+Var
+  f : StreamPtr;
 Begin
-  Stream_NewConsole := Stream_New(Alias,Alias,DEV_TERMINAL,Mode,False,False)
+  f := Stream_New(Alias,Alias,DEV_TERMINAL,Mode,False,False);
+  Stream_SetEncoding(f,GetSystemCEncoding);
+  Stream_NewConsole := f
 End;
 
 {-----------------------------------------------------------------------}
@@ -536,22 +540,22 @@ Begin
   End
 End;
 
-{ read a codepoint; if the end of the file has been reached or the codepoint 
+{ read a TChar; if the end of the file has been reached or the TChar 
  cannot be set, return EndOfInput; to test for the later case, the caller must 
  check Error; replace CR, LF, and CRLF with NewLine; return EndOfInput when
- the stream cannot return additional codepoints; Note to self: make sure all
+ the stream cannot return additional TChars; Note to self: make sure all
  the code paths end with a call to BufRead, otherwise a subsequent call to 
- BufUnread with create a bug, as it will unread a different codepoint }
+ BufUnread with create a bug, as it will unread a different TChar }
 Procedure Stream_ReadCodepoint( f : StreamPtr; Var e : TIChar );
 Var
   cc : TChar;
 Begin
   With f^ Do
   Begin
-    { no more unread codepoints available: try to replenish the buffer }
+    { no more unread TChars available: try to replenish the buffer }
     If BufNbUnread(FI_IBUF) = 0 Then
     Begin
-      { make room for one additional codepoint }
+      { make room for one additional TChar }
       If BufNbFree(FI_IBUF) = 0 Then
         BufDiscard(FI_IBUF,1);
       Case FI_TYPE Of
@@ -560,7 +564,7 @@ Begin
           Stream_GetChars(f); { fill up FI_CBUF }
           cc := EndOfInput;
           If Length(FI_CBUF) > 0 Then
-            If CodePointWithNewLine(FI_CBUF,cc,FI_ENCO) Then
+            If GetOneTCharNL(FI_CBUF,cc,FI_ENCO) Then
               If Stream_GetEcho Then
                 CWrite(cc);
           BufAppendTChar(FI_IBUF,cc)
@@ -570,19 +574,19 @@ Begin
       End
     End;
 
-    { read the next codepoint }
+    { read the next TChar }
     BufRead(e,FI_IBUF)
   End
 End;
 
-{ read one codepoint with position }
+{ read one TChar with position }
 Procedure Stream_GetIChar( f : StreamPtr; Var e : TIChar );
 Begin
   SetIChar(e,'',0,0);
   Stream_ReadCodepoint(f,e)
 End;
 
-{ read one codepoint }
+{ read one TChar }
 Function Stream_GetChar( f : StreamPtr; Var c : TChar ) : TChar;
 Var
   e : TIChar;
@@ -595,7 +599,7 @@ Begin
   Stream_GetChar := c
 End;
 
-{ read the next non-blank codepoint }
+{ read the next non-blank TChar }
 Function Stream_GetCharNb( f : StreamPtr; Var c : TChar ) : TChar;
 Begin
   Stream_GetCharNb := '';
@@ -607,7 +611,7 @@ Begin
   Stream_GetCharNb := c
 End;
 
-{ return the next codepoint with position, without consuming it }
+{ return the next TChar with position, without consuming it }
 Procedure Stream_NextIChar( f : StreamPtr; Var e : TIChar );
 Begin
   Stream_GetIChar(f,e);
@@ -615,7 +619,7 @@ Begin
   Stream_UngetChar(f)
 End;
 
-{ return the next codepoint without consuming it }
+{ return the next TChar without consuming it }
 Function Stream_NextChar( f : StreamPtr; Var c : TChar ) : TChar;
 Var
   e : TIChar;
@@ -628,7 +632,7 @@ Begin
   Stream_NextChar := c
 End;
 
-{ ditto but two codepoints in advance }
+{ ditto but two TChar in advance }
 Function Stream_NextNextChar( f : StreamPtr; Var c : TChar ) : TChar;
 Begin
   Stream_NextNextChar := '';

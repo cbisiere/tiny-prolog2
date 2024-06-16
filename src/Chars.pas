@@ -39,7 +39,11 @@ Unit Chars;
 Interface
 
 Uses
+{$IFNDEF MSDOS}
+  Unixcp,
+{$ENDIF}
   ShortStr,
+  Num,
   Errs;
 
 Const
@@ -58,16 +62,112 @@ Const
 Type 
   { supported encodings }
   TEncoding = (UNDECIDED,SINGLE_BYTE,CP437,CP850,ISO8859,UTF8);
-  { a single, possible multi-byte character }
+  { encoding of a single, possible multi-byte character }
   TChar = String[MaxBytesPerChar];
+  TCodePoint = PosInt;
 
-Function CodePointWithNewLine( Var s : TString; Var cc : TChar;
+Function GetSystemCEncoding: TEncoding;
+Function CodePointToShortString( v : TCodePoint ) : TString;
+Function TCharToCodePoint( cc : TChar; Enc : TEncoding; 
+    Var cp : TCodePoint ) : Boolean;
+Function CodePointToTChar( cp : TCodePoint; Var cc : TChar; 
+    Enc : TEncoding ) : Boolean;
+Function GetOneTCharNL( Var s : TString; Var cc : TChar;
     Var Encoding : TEncoding ) : Boolean;
 
 Implementation
 {-----------------------------------------------------------------------------}
 
-{ extract one code point cc at the beginning of string s, assuming a
+{$IFDEF MSDOS}
+Type TSystemCodePage = Word;
+Function GetSystemCodepage: TSystemCodePage;
+Begin
+  GetSystemCodepage := 28591
+End;
+{$ENDIF}
+
+Function GetSystemCEncoding: TEncoding;
+Var
+  Enc : TEncoding;
+Begin
+  Case GetSystemCodepage Of
+  437: 
+    Enc := CP437;
+  850: 
+    Enc := CP850;
+  28591: 
+    Enc := ISO8859;
+  0,65001: 
+    Enc := UTF8;
+  Else
+    Enc := SINGLE_BYTE
+  End;
+  GetSystemCEncoding := Enc
+End;
+
+
+{ return a string representation of a codepoint }
+Function CodePointToShortString( v : TCodePoint ) : TString;
+Begin
+  CodePointToShortString := PosIntToShortString(v)
+End;
+
+{ return True if cc is a valid TChar in encoding End, and if so set cp to this 
+ codepoint of a character; do not throw errors  
+ see https://en.wikipedia.org/wiki/UTF-8 }
+Function TCharToCodePoint( cc : TChar; Enc : TEncoding; 
+    Var cp : TCodePoint ) : Boolean;
+Begin
+  TCharToCodePoint := False;
+  If (Length(cc) = 0) Or (Enc <> UTF8) And (Length(cc) <> 1) Or 
+      (Length(cc) > MaxBytesPerChar) Then
+    Exit;
+  Case Length(cc) Of
+  1: { works for all encoding }
+    cp := Byte(cc[1]) And $EF;
+  2:
+    cp := (((Byte(cc[1]) And $1F) Shl 8) Shr 2) Or 
+      (Byte(cc[2]) And $3F);
+  3:
+    cp := (((Byte(cc[1]) And $0F) Shl 8) Shl 4) Or 
+      (((Byte(cc[2]) And $3F) Shl 8) Shr 2) Or 
+      (Byte(cc[3]) And $3F);
+  4:
+    cp := (((Byte(cc[1]) And $07) Shl 16) Shl 2) Or 
+      (((Byte(cc[2]) And $3F) Shl 8) Shl 4) Or 
+      (((Byte(cc[3]) And $3F) Shl 8) Shr 2) Or 
+      (Byte(cc[4]) And $3F);
+  End;
+  TCharToCodePoint := True
+End;
+
+{ return True if codepoint cp is a valid codepoint in encoding Enc, and if so 
+ set TChar cc to be this encoding; do not throw errors 
+ see https://en.wikipedia.org/wiki/UTF-8 }
+Function CodePointToTChar( cp : TCodePoint; Var cc : TChar; 
+    Enc : TEncoding ) : Boolean;
+Begin
+  CodePointToTChar := False;
+  If (Enc <> UTF8) And (cp > $FF) Or (cp > $10FFFF) Then
+    Exit;
+  If (Enc <> UTF8) Or (cp < $80) Then { 1-byte encoding }
+    cc := Chr(cp)
+  Else If cp < $0800 Then { 2-byte UTF-8 encoding; cp has 2 significant bytes }
+    cc := Char(($C000 Or ((cp And $0700) Shl 2) Or ((cp And $00C0) Shl 2)) Shr 8) +
+      Char($0080 Or (cp And $0030) Or (cp And $000F))
+  Else If cp < $010000 Then { 3-byte UTF-8 encoding; cp has 2 significant bytes  }
+    cc := Chr(($E00000 Or ((cp And $F000) Shl 4)) Shr 16) +
+      Char(($8000 Or ((cp And $0F00) Shl 2) Or ((cp And $00C0) Shl 2)) Shr 8) +
+      Char($0080 Or (cp And $0030) Or (cp And $000F))
+  Else { 4-byte UTF-8 encoding; cp has 3 significant bytes  }
+    cc := Char(($F0000000 Or ((cp And $100000) Shl 6) Or ((cp And $0C0000) Shl 6)) Shr 24) +
+      Char(($00800000 Or ((cp And $030000) Shl 4) Or ((cp And $00F000) Shl 4)) Shr 16) +
+      Char(($00008000 Or ((cp And $000F00) Shl 2) Or ((cp And $0000C0) Shl 2)) Shr 8) +
+      Char($00000080 Or (cp And $0030) Or (cp And $000F));
+  CodePointToTChar := True
+End;
+
+{ extract one TChar cc at the beginning of string s, assuming a
  certain encoding enc 
  - if cc is set, delete cc from the beginning of s and return True
    (since SyntaxError halts the program, this should always be the case)
@@ -84,7 +184,7 @@ Implementation
    https://en.wikipedia.org/wiki/Code_page_437#Characters
    https://en.wikipedia.org/wiki/Code_page_850#Character_set
    }
-Function CodePoint( 
+Function GetOneTChar( 
   Var s : TString; 
   Var cc : TChar;
   Var Encoding : TEncoding ) : Boolean;
@@ -92,15 +192,15 @@ Var
   c : Char;
   n,m : 0..MaxBytesPerChar; { expected / actual length of UTF-8 sequence }
 
-  { cc is indeed a codepoint }
+  { cc is indeed a valid TChar }
   Procedure Success;
   Begin
     Delete(s,1,Length(cc));
-    CodePoint := True
+    GetOneTChar := True
   End;
 
 Begin
-  CheckCondition(Length(s) > 0,'CodePoint: empty input');
+  CheckCondition(Length(s) > 0,'GetOneTChar: empty input');
   
   { recognize CRLF as a single entity }
   If StartsWith(s,CRLF) Then
@@ -130,7 +230,7 @@ Begin
       If Encoding = UTF8 Then
       Begin
         SyntaxError('broken UTF-8 encoding');
-        CodePoint := False;
+        GetOneTChar := False;
         Exit
       End;
       Encoding := SINGLE_BYTE
@@ -155,7 +255,7 @@ Begin
           If m <> n-1 Then
           Begin
             SyntaxError('broken UTF-8 encoding');
-            CodePoint := False;
+            GetOneTChar := False;
             Exit
           End;
           cc := cc + Copy(s,2,m)
@@ -178,16 +278,16 @@ End;
 
 { same as above but transform CR, LF and CRLF into NewLine; return true
  if cc is set by the function }
-Function CodePointWithNewLine( Var s : TString; Var cc : TChar; 
+Function GetOneTCharNL( Var s : TString; Var cc : TChar; 
     Var Encoding : TEncoding ) : Boolean;
 Var
   res : Boolean;
 Begin
-  res := CodePoint(s,cc,Encoding);
+  res := GetOneTChar(s,cc,Encoding);
   If res Then
     If (cc = #13) Or (cc = #10) Or (cc = CRLF) Then
       cc := NewLine;
-  CodePointWithNewLine := res
+  GetOneTCharNL := res
 End;
 
 End.

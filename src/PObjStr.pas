@@ -81,7 +81,9 @@ Function Str_Length(s: StrPtr): longint;
 Function Str_GetShortString(s: StrPtr): TString;
 Function Str_AsShortString(s: StrPtr): TString;
 Procedure Str_Append( s : StrPtr; ps : TString );
+Procedure Str_AppendChar( s : StrPtr; cc : TChar );
 Function Str_NewFromShortString(ps: TString): StrPtr;
+Function Str_NewFromBytes( bytes : TString ) : StrPtr;
 Procedure Str_Concat(s1, s2: StrPtr);
 Function Str_Clone(s: StrPtr): StrPtr;
 Procedure Str_Enclose( s : StrPtr; QStart,QEnd : TString );
@@ -205,7 +207,8 @@ Begin
   End
 End;
 
-{ append a Pascal string to a string }
+{ append a Pascal string to a string; in the Pascal string, each 1-byte char is 
+ assumed to be a valid TChar }
 Procedure Str_Append( s : StrPtr; ps : TString );
 Var 
   n : TStrDataLength; { number of free chars in the current chunk }
@@ -239,20 +242,38 @@ Begin
   End
 End;
 
-{ new string with a Pascal string as an initial value }
+{ append a TChar to a string }
+Procedure Str_AppendChar( s : StrPtr; cc : TChar );
+Begin
+  Str_Append(s,cc)
+End;
+
+{ new string with a Pascal string (made of 1-byte TChars) as an initial 
+ value }
 Function Str_NewFromShortString( ps : TString ) : StrPtr;
 Var 
   s : StrPtr;
+  i : TStringSize;
 Begin
   s := Str_New;
-  Str_Append(s, ps);
+  For i := 1 To Length(ps) Do
+    Str_AppendChar(s,ps[i]);
   Str_NewFromShortString := s
 End;
 
-{ append a char to a string }
-Procedure Str_AppendChar( s : StrPtr; c : char );
+{ create a new string from a series of bytes stored into a Pascal string; the
+ function decomposes the bytes into TChars }
+Function Str_NewFromBytes( bytes : TString ) : StrPtr;
+Var 
+  s : StrPtr;
+  cc : TChar;
+  Enc : TEncoding;
 Begin
-  Str_Append(s, c)
+  s := Str_New;
+  Enc := UNDECIDED;
+  While (Length(bytes) > 0) And GetOneTCharNL(bytes,cc,Enc) And Not Error Do
+    Str_AppendChar(s,cc);
+  Str_NewFromBytes := s
 End;
 
 { concatenate two strings into the first one }

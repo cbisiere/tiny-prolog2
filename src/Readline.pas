@@ -109,7 +109,7 @@ Begin
     If Not Done Then
       If BufNbFree(B) > 0 Then
         { get one code point }
-        If CodePointWithNewLine(s,cc,Encoding) Then
+        If GetOneTCharNL(s,cc,Encoding) Then
           BufAppendTChar(B,cc)
         Else
           SyntaxError('code point not recognized')

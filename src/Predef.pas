@@ -429,8 +429,14 @@ Begin
   If C = Nil Then
     Exit;
   str := ConstGetShortString(C);
-  Val(str,v,code);
+  v := ShortStringToPosInt(str,code);
   GetPosIntArg := code = 0
+End;
+
+{ get a codepoint argument n }
+Function GetCodePointArg( n : Byte; T : TermPtr; Var cp : TCodePoint ) : Boolean;
+Begin
+  GetCodePointArg := GetPosIntArg(n,T,cp)
 End;
 
 { get a stream from argument n, or Nil }
@@ -582,7 +588,9 @@ Var
   I : IdPtr;
   s : StrPtr;
   ch : TString;
-  val : PosInt;
+  cc : TChar;
+  cp :  TCodePoint;
+  Enc : TEncoding;
 Begin
   ClearCharCode := False;
   { 1: char variable or value }
@@ -604,20 +612,49 @@ Begin
     End;
   If s <> Nil Then
   Begin
-    If Str_Length(s) <> 1 Then
-      Exit;
     ch := Str_AsShortString(s);
-    Tn := EmitConst(P,Str_NewFromShortString(PosIntToShortString(Ord(ch[1]))),CI,False);
+    If Length(ch) = 0 Then
+    Begin
+      CWriteLnWarning('a character is expected');
+      Exit
+    End;
+    Enc := Stream_GetEncoding(CurrentInput(P));
+    If Not GetOneTCharNL(ch,cc,Enc) Then
+    Begin
+      ResetError;
+      CWriteLnWarning('not a character');
+      Exit
+    End;
+    If Length(ch) > 0 Then
+    Begin
+      CWriteLnWarning('a single character is expected');
+      Exit
+    End;
+    If Not TCharToCodePoint(cc,Enc,cp) Then
+    Begin
+      CWriteLnWarning('invalid codepoint');
+      Exit
+    End;
+    Tn := EmitConst(P,Str_NewFromShortString(CodePointToShortString(cp)),CI,False);
     ClearCharCode := ReduceOneEq(T2,Tn,GetDebug(P));
     Exit
   End;
 
   { case 2: char is free: char-code(c,65), char_code(c,65) }
-  If Not GetPosIntArg(2,T,val) Then
+  If Not GetCodePointArg(2,T,cp) Then
     Exit;
-  If val > 255 Then
-    Exit;
-  Tc := EmitConst(P,Str_NewFromShortString(Chr(val)),CS,False);
+  { get the TChar; we use the current output encoding }
+  Enc := Stream_GetEncoding(CurrentOutput(P));
+  If Not CodePointToTChar(cp,cc,Enc) Then
+  Begin
+    CWriteLnWarning('invalid codepoint');
+    Exit
+  End;
+  { create a constant from this TChar }
+  s := Str_New;
+  Str_AppendChar(s,cc);
+  Tc := EmitConst(P,s,CS,False);
+  { unify the term c with this constant }
   ClearCharCode := ReduceOneEq(T1,Tc,GetDebug(P))
 End;
 
@@ -1165,7 +1202,7 @@ Function ClearExpandFileName( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   T1 : TermPtr;
   Pattern,Path : TPath;
-  s : StrPtr;
+  s,s2 : StrPtr;
   L : TermPtr;
   DirInfo: SearchRec;
 Begin
@@ -1178,8 +1215,11 @@ Begin
   FindFirst(Pattern, AnyFile, DirInfo);
   While DosError = 0 do
   Begin
-    s := Str_NewFromShortString(Path);
-    Str_Append(s,DirInfo.Name);
+    { build the full path using two Str, as using "+" on two Pascal string 
+     would limit the length of the full path to 255 characters }
+    s := Str_NewFromBytes(Path);
+    s2 := Str_NewFromBytes(DirInfo.Name);
+    Str_Concat(s,s2);
     If GetSyntax(P) = Edinburgh Then { Edinburgh uses quoted ident }
     Begin
       Str_Quote(s);
@@ -1467,7 +1507,7 @@ Begin
   If Error Then
     Exit;
   Alias := Stream_GetAlias(f);
-  T1 := EmitConst(P,Str_NewFromShortString(Alias),CS,False);
+  T1 := EmitConst(P,Str_NewFromBytes(Alias),CS,False);
   ClearStreamIs := ReduceOneEq(GetPArg(1,T),T1,GetDebug(P))
 End;
 
@@ -1531,6 +1571,7 @@ Var
   K : TokenPtr;
   e : TIChar;
   Success : Boolean;
+  s : StrPtr;
 Begin
   ClearIn := False;
   { 1: stream }
@@ -1576,10 +1617,21 @@ Begin
       c := Stream_GetChar(f,c);
       Success := (Not Error) And (c <> '');
       If Success Then
+      Begin
+        s := Str_New;
         If GetSyntax(P) = Edinburgh Then { Edinburgh: return a one-char atom }
-          Tr := EmitIdent(P,Str_NewFromShortString('''' + c + ''''),False)
+        Begin
+          Str_AppendChar(s,'''');
+          Str_AppendChar(s,c);
+          Str_AppendChar(s,'''');
+          Tr := EmitIdent(P,s,False)
+        End
         Else
-          Tr := EmitConst(P,Str_NewFromShortString(c),CS,False)
+        Begin
+          Str_AppendChar(s,c);
+          Tr := EmitConst(P,s,CS,False)
+        End
+      End
     End;
   TYPE_INTEGER:
     Begin

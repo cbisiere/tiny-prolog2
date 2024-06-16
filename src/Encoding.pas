@@ -85,7 +85,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 { return a new 1 or 2-argument predicate with identifier given as a Pascal 
- string: "ident: "ident(T1)" or "ident(T1,T2)" }
+ string made of 1-byte TChar: "ident: "ident(T1)" or "ident(T1,T2)" }
 Function NewFunc2( P : ProgPtr; ident : TString; T1,T2 : TermPtr; 
     glob : Boolean ) : TermPtr;
 Var
@@ -179,7 +179,7 @@ End;
 { create a list of chars 'a'.'b'.'c'.nil from an identifier 'abc' }
 Function IdentifierToList( P : ProgPtr; I : IdPtr ) : TermPtr;
 Var
-  s : StrPtr;
+  s,sc : StrPtr;
   L : TermPtr;
   Iter : StrIter;
   cc : TChar;
@@ -188,7 +188,13 @@ Begin
   L := NewEmptyList(P);
   StrIter_ToEnd(Iter,s);
   While StrIter_PrevChar(Iter,cc) Do
-    L := NewList2(P,EmitShortIdent(P,'''' + cc + '''' ,True),L);
+  Begin
+    sc := Str_New;
+    Str_AppendChar(sc,'''');
+    Str_AppendChar(sc,cc);
+    Str_AppendChar(sc,'''');
+    L := NewList2(P,EmitIdent(P,sc,True),L)
+  End;
   IdentifierToList := L
 End;
 
@@ -212,7 +218,7 @@ Begin
   End;
   If Str_Length(s) = 0 Then { atom_chars(A,[]) -> A = ''}
     Str_Append(s,'''''');
-  ListToIdentifier := EmitIdent(P,s,False)
+  ListToIdentifier := EmitIdent(P,s,False) { FIXME: True if invalid unquoted }
 End;
 
 {----------------------------------------------------------------------------}
