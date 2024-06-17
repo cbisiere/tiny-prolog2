@@ -562,7 +562,7 @@ Since dotted lists are not allowed in Edinburgh mode, `1.2` is unambiguously rea
 
 _11 June 2023:_ [repet.pro](examples/PIIv1/repet.pro), one of the original demo Prolog programs written for the interpreter back in 1988, running in a FreeDOS box with the new interpreter compiled with Turbo Pascal 4: 
 
-![Tiny Prolog running the repetition program in a FreeDOS box](examples/PIIv1/repet.png)
+![Tiny Prolog running the repetition program in a FreeDOS box](examples/PII/repet.png)
 
 _11 June 2023:_ [phonemes.pro](examples/PII/phonemes/phonemes.pro), a homework Prolog II program written for Henri Méloni's course on speech recognition:
 
