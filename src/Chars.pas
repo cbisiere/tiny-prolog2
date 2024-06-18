@@ -60,8 +60,19 @@ Const
   MaxBytesPerChar = 4;
 
 Type 
-  { supported encodings }
-  TEncoding = (UNDECIDED,SINGLE_BYTE,CP437,CP850,ISO8859,UTF8);
+  { supported encodings; when analyzing a stream of characters, we can be more
+   precise as we collect more evidence, moving e.g. from UNDECIDED to ASCII and
+   then to UTF8; some transitions are impossible and trigger an error, as e.g.
+   switching from UTF8 to any single-byte encoding }
+  TEncoding = (
+    UNDECIDED, { waiting to be set based on any evidence we might collect }
+    ASCII, { 7-bit chars so far; might be any encoding below }
+    UTF8,
+    SINGLE_BYTE, { not UTF8; might be any encoding below }
+    CP437,
+    CP850,
+    ISO8859
+  );
   { encoding of a single, possible multi-byte character }
   TChar = String[MaxBytesPerChar];
   TCodePoint = PosInt;
@@ -95,6 +106,8 @@ Begin
     Enc := CP437;
   850: 
     Enc := CP850;
+  20127:
+    Enc := ASCII;
   28591: 
     Enc := ISO8859;
   0,65001: 
@@ -214,15 +227,20 @@ Begin
   c := s[1];
   cc := c;
 
-  { input is a stream of 1-byte chars }
-  If Not (Encoding In [UNDECIDED,UTF8]) Then
+  { input is known to be a stream of 1-byte chars:  }
+  If Not (Encoding In [UNDECIDED,ASCII,UTF8]) Then
   Begin
     Success;
     Exit
   End;
 
-  { encoding is either undecided or UTF-8 } 
+  { encoding is either undecided, ASCII or UTF-8 } 
   Case c Of 
+  #$00..#$7F:
+    Begin
+      If Encoding = UNDECIDED Then
+        Encoding := ASCII
+    End;
   #$80..#$BF, { continuation bytes: cannot start a sequence }
   #$C0,#$C1,#$F5..#$FF: { invalid in any sequence }
     Begin
@@ -260,7 +278,7 @@ Begin
           End;
           cc := cc + Copy(s,2,m)
         End;
-      UNDECIDED: { detect encoding }
+      UNDECIDED,ASCII: { refine encoding }
         Begin 
           If m = n-1 Then
           Begin

@@ -190,7 +190,7 @@ Begin
   IsUpper := False;
   Enc := Stream_GetEncoding(f);
 
-  { simplest case: ASCII letter }
+  { simplest case: 7-bit letter; valid in all encodings }
   Found := (Length(c) = 1) And (c[1] In Letters);
   If Found Then
   Begin

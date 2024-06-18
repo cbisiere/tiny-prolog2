@@ -85,16 +85,16 @@ Begin
   ReadOneKey := c
 End;
 
-{ read a series of code points from the keyboard; it is assumed that a code  
- point made of several bytes is sent quickly, at least faster than a  
- human can type; as a result, no multi-byte code points will be split between 
+{ read a series of code points from the keyboard; it is assumed that a  
+ TChar made of several bytes is sent quickly, at least faster than a  
+ human can type; as a result, no multi-byte characters will be split between 
  different calls to that function; note that when the user paste text at the 
- prompt, this function might return several code points;
+ prompt, this function might return several chars;
  replace CR, LF, and CRLF with NewLine }
 Procedure ReadRunOfTChars( Var B : TBuf; Var Encoding : TEncoding );
 Var
   s : TChar; { small read buffer }
-  cc : TChar; { recognized code point }
+  cc : TChar; { recognized TChar }
   Done : Boolean;
 Begin
   BufInit(B);
@@ -108,13 +108,13 @@ Begin
     Done := Length(s) = 0;
     If Not Done Then
       If BufNbFree(B) > 0 Then
-        { get one code point }
+        { get one TChar }
         If GetOneTCharNL(s,cc,Encoding) Then
           BufAppendTChar(B,cc)
         Else
-          SyntaxError('code point not recognized')
+          SyntaxError('character not recognized')
       Else
-        RuntimeError('Too many chars')
+        RuntimeError('Too many characters')
   End
 End;
 

@@ -546,7 +546,7 @@ End;
  the stream cannot return additional TChars; Note to self: make sure all
  the code paths end with a call to BufRead, otherwise a subsequent call to 
  BufUnread with create a bug, as it will unread a different TChar }
-Procedure Stream_ReadCodepoint( f : StreamPtr; Var e : TIChar );
+Procedure Stream_ReadTChar( f : StreamPtr; Var e : TIChar );
 Var
   cc : TChar;
 Begin
@@ -583,7 +583,7 @@ End;
 Procedure Stream_GetIChar( f : StreamPtr; Var e : TIChar );
 Begin
   SetIChar(e,'',0,0);
-  Stream_ReadCodepoint(f,e)
+  Stream_ReadTChar(f,e)
 End;
 
 { read one TChar }
