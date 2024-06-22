@@ -85,7 +85,7 @@ Begin
   ReadOneKey := c
 End;
 
-{ read a series of code points from the keyboard; it is assumed that a  
+{ read a series of TChars from the keyboard; it is assumed that a  
  TChar made of several bytes is sent quickly, at least faster than a  
  human can type; as a result, no multi-byte characters will be split between 
  different calls to that function; note that when the user paste text at the 

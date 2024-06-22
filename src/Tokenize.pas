@@ -293,6 +293,14 @@ Var
   Done : Boolean;
 Begin
   ReadQuotedRunOfChars := Nil;
+  c := Stream_NextChar(f,c);
+  If Error Then Exit;
+  If c <> quote Then 
+  Begin
+    If Not quiet Then
+      SyntaxError(quote + ' expected');
+    Exit
+  End;
   c := Stream_GetChar(f,c);
   If Error Then Exit;
   K := Token_New(tt);
@@ -306,7 +314,7 @@ Begin
       { look for the next char with special meaning inside a string }
       c := GetCharUntil(f,TK_STRI, [quote,'\',NewLine,EndOfInput]);
       If Error Then Exit;
-      If c = quote Then { doubled double quote or end of string }
+      If c = quote Then { doubled quote or end of run }
       Begin
         c := Stream_GetChar(f,c); { discard it }
         If Error Then Exit;
@@ -318,7 +326,7 @@ Begin
           If Error Then Exit;
           Str_AppendChar(TK_STRI,c);
           If keep Then
-            Str_Append(TK_STRI,quote) { keep both only if no enclosing quotes }
+            Str_Append(TK_STRI,quote) { keep both only if enclosing quotes }
         End
         Else
         Begin
@@ -565,7 +573,7 @@ Begin
   GrabToken := K
 End;
 
-{ read a variable or an identifier }
+{ read a variable or an identifier (including single-quoted identifier) }
 Function ReadVariableOrIdentifier( f : StreamPtr; y : TSyntax ) : TokenPtr;
 Var
   K : TokenPtr;
@@ -574,60 +582,65 @@ Var
   n,m : LongInt;
 Begin 
   ReadVariableOrIdentifier := Nil;
-  K := Token_New(TOKEN_UNKNOWN);
-  With K^ Do
+  { single-quoted identifier? }
+  K := ReadQuotedRunOfChars(f,'''',TOKEN_IDENT,True,True);
+  If K = Nil Then { nope }
   Begin
-    TK_STRI := Str_New;
-    If GrabOneLetter(f,TK_STRI,IsUpper) Then
+    K := Token_New(TOKEN_UNKNOWN);
+    With K^ Do
     Begin
-      { Edinburgh variables start with a "big letter"; Marseille variables 
-        start with a single letter }
-      If y = Edinburgh Then
-        If IsUpper Then
-          TK_TYPE := TOKEN_VARIABLE
+      TK_STRI := Str_New;
+      If GrabOneLetter(f,TK_STRI,IsUpper) Then
+      Begin
+        { Edinburgh variables start with a "big letter"; Marseille variables 
+          start with a single letter }
+        If y = Edinburgh Then
+          If IsUpper Then
+            TK_TYPE := TOKEN_VARIABLE
+          Else
+            TK_TYPE := TOKEN_IDENT
         Else
-          TK_TYPE := TOKEN_IDENT
-      Else
-        If Not GrabOneLetter(f,TK_STRI,IsUpper) Then
-          TK_TYPE := TOKEN_VARIABLE
-        Else
-          TK_TYPE := TOKEN_IDENT;
+          If Not GrabOneLetter(f,TK_STRI,IsUpper) Then
+            TK_TYPE := TOKEN_VARIABLE
+          Else
+            TK_TYPE := TOKEN_IDENT;
 
-      If Error Then Exit;
-      If y In [PrologIIc,PrologII] Then { old Prolog II syntax, w/ accented letters }
-      Begin
-        Repeat
-          c := Stream_NextChar(f,c);
-          If Error Then Exit;
-          If c = '-' Then { "-"<word> continuation }
-          Begin
-            c := Stream_GetChar(f,c);
-            If Error Then Exit;
-            Str_AppendChar(TK_STRI,c)
-          End;
-          n := GrabLetters(f,TK_STRI);
-          If Error Then Exit;
-          m := GetCharWhile(f,TK_STRI,Digits);
-          If Error Then Exit;
-          m := GetCharWhile(f,TK_STRI,['''']);
-          If Error Then Exit;
-          If (c = '-') And (n = 0) Then
-            SyntaxError('dash must be followed by a letter');
-          If Error Then Exit;
-          c := Stream_NextChar(f,c);
-          If Error Then Exit
-        Until (c <> '-') Or Error;
-      End
-      Else { PrologII+ and Edinburgh extended syntax }
-      Begin
-        n := GrabAlpha(f,TK_STRI);
         If Error Then Exit;
-        If y <> Edinburgh Then
-          n := GetCharWhile(f,TK_STRI,[''''])
+        If y In [PrologIIc,PrologII] Then { old Prolog II syntax, w/ accented letters }
+        Begin
+          Repeat
+            c := Stream_NextChar(f,c);
+            If Error Then Exit;
+            If c = '-' Then { "-"<word> continuation }
+            Begin
+              c := Stream_GetChar(f,c);
+              If Error Then Exit;
+              Str_AppendChar(TK_STRI,c)
+            End;
+            n := GrabLetters(f,TK_STRI);
+            If Error Then Exit;
+            m := GetCharWhile(f,TK_STRI,Digits);
+            If Error Then Exit;
+            m := GetCharWhile(f,TK_STRI,['''']);
+            If Error Then Exit;
+            If (c = '-') And (n = 0) Then
+              SyntaxError('dash must be followed by a letter');
+            If Error Then Exit;
+            c := Stream_NextChar(f,c);
+            If Error Then Exit
+          Until (c <> '-') Or Error;
+        End
+        Else { PrologII+ and Edinburgh extended syntax }
+        Begin
+          n := GrabAlpha(f,TK_STRI);
+          If Error Then Exit;
+          If y <> Edinburgh Then
+            n := GetCharWhile(f,TK_STRI,[''''])
+        End
       End
+      Else
+        K := Nil { not a letter: error }
     End
-    Else
-      K := Nil { not a letter: error }
   End;
   ReadVariableOrIdentifier := K
 End;
@@ -696,8 +709,6 @@ Begin
     End;
   '"':
     K := ReadQuotedRunOfChars(f,'"',TOKEN_STRING,False,False);
-  '''':
-    K := ReadQuotedRunOfChars(f,'''',TOKEN_IDENT,True,False); { quoted ident }
   '!':
     If y In [PrologIIp,Edinburgh] Then
       K := GrabToken(f,TOKEN_CUT,c);

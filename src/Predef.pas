@@ -579,7 +579,6 @@ End;
 {----------------------------------------------------------------------------}
 
 { char-code(c,12) }
-{ FIXME: does not work with UTF-8 }
 Function ClearCharCode( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   T1,T2 : TermPtr;
