@@ -61,8 +61,14 @@ Function Op_GetOperator( o : OpPtr ) : TString;
 Function Op_GetFunction( o : OpPtr ) : TString;
 Function Op_GetPrecedence( o : OpPtr ) : TPrecedence;
 
-Function Op_Lookup( start : OpPtr; ope,func : TString; 
+{ operator lookup fields }
+Type
+  TOpField = (OP_OPERATOR,OP_FUNCTION,OP_TYPES,OP_ARITY,OP_PRECEDENCE);
+  TSetOfOpField = Set Of TOpField;
+
+Function Op_Lookup( start : OpPtr; Fields : TSetOfOpField; ope,func : TString; 
     OpTypes : TOpTypes; Arity: Byte; MaxPred : TPrecedence ) : OpPtr;
+
 Function Op_Append( Var list : OpPtr; ope,func : TString; ot : TOpType; 
     pred : TPrecedence ) : OpPtr;
 
@@ -205,15 +211,9 @@ End;
 {-----------------------------------------------------------------------}
 
 { look up an operator object by operator, function, type, arity, max precedence; 
- search criteria are active when:
- ope: different from ''
- func: different from '' 
- OpTypes: different from []
- Arity: different from 0
- MaxPred: 1200 as no precedence is larger
  return a pointer to the operator object found, or Nil if not found }
-Function Op_Lookup( start : OpPtr; ope,func : TString; OpTypes : TOpTypes; 
-    Arity: Byte; MaxPred : TPrecedence ) : OpPtr;
+Function Op_Lookup( start : OpPtr; Fields : TSetOfOpField; ope,func : TString; 
+    OpTypes : TOpTypes; Arity: Byte; MaxPred : TPrecedence ) : OpPtr;
 Var
   o : OpPtr;
   Found, OpMatch : Boolean;
@@ -222,23 +222,11 @@ Begin
   Found := False;
   While (o<>Nil) And Not Found Do
   Begin
-    { identifiers match? An op declared without quotes only match unquoted 
-     operators, while an op declared with quotes match both quoted and
-     unquoted operators; we do this to solve an issue spotted while 
-     reading the Orbis program, which contains op(400,fy,'#') used as e.g. #N, 
-     and also '-' used as a character; declaring op(200,fx,-,sub) fix it. }
-    If ope = '' Then
-      OpMatch := True
-    Else If IsSingleQuoted(Op_GetOperator(o)) Then { FIXME: inefficient }
-      OpMatch := SameAs(Op_GetOperator(o),ope)
-    Else
-      OpMatch := Op_GetOperator(o) = ope;
-    { search criteria all ok }
-    If (OpMatch)
-        And ((func = '') Or (Op_GetFunction(o) = func)) 
-        And ((OpTypes = []) Or (Op_GetType(o) In OpTypes)) 
-        And ((Arity = 0) Or (Op_GetArity(o) = Arity))
-        And (Op_GetPrecedence(o) <= MaxPred) Then
+    If ((Not (OP_OPERATOR In Fields)) Or (Op_GetOperator(o) = ope))
+        And ((Not (OP_FUNCTION In Fields)) Or (Op_GetFunction(o) = func)) 
+        And ((Not (OP_TYPES In Fields)) Or (Op_GetType(o) In OpTypes)) 
+        And ((Not (OP_ARITY In Fields)) Or (Op_GetArity(o) = Arity))
+        And ((Not (OP_PRECEDENCE In Fields)) Or (Op_GetPrecedence(o) <= MaxPred)) Then
       Found := True
     Else
       o := o^.OP_NEXT

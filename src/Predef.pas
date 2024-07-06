@@ -222,12 +222,12 @@ Begin
   IdentifierIsSyscall := IdentifierEqualToShortString(I,SYSCALL_IDENT_AS_STRING)
 End;
 
-{ install all predefined, persistent constants }
+{ install the predefined identifier syscall }
 Procedure RegisterPredefined( P : ProgPtr );
 Var 
-  I : IdPtr;
+  T : TermPtr;
 Begin
-  I := InstallIdentifier(P^.PP_DCON,Str_NewFromShortString(SYSCALL_IDENT_AS_STRING),True)
+  T := EmitIdent(P,Str_NewFromShortString(SYSCALL_IDENT_AS_STRING),True)
 End;
 
 
@@ -309,27 +309,24 @@ Begin
   GetAtomArgAsStr := s
 End;
 
-{ return True if argument n of a predicate can be assigned to Pascal
- string str; if Quotes is False, identifier is returned unquoted}
-Function GetAtomArgAsShortStr( n : Byte; T : TermPtr; Quotes : Boolean;
-    Var str : TString ) : Boolean;
-Var
-  s : StrPtr;
+{ return True if argument n of a predicate can be assigned to Str s; 
+ if Quotes is False, identifier is returned unquoted}
+Function GetShortAtomArgAsStr( n : Byte; T : TermPtr; Quotes : Boolean;
+    Var s : StrPtr ) : Boolean;
 Begin
-  GetAtomArgAsShortStr := False;
+  GetShortAtomArgAsStr := False;
   s := GetAtomArgAsStr(n,T,Quotes);
   If s = Nil Then
     Exit;
-  str := Str_GetShortString(s);
   If Str_Length(s) > StringMaxSize Then
   Begin
     CWriteWarning('string too long: ');
-    CWrite(str);
+    Str_CWrite(s);
     CWrite('...');
     CWriteLn;
     Exit
   End;
-  GetAtomArgAsShortStr := True
+  GetShortAtomArgAsStr := True
 End;
 
 { return in Result the boolean argument passed as true/false in argument n 
@@ -411,10 +408,10 @@ Begin
 End;
 
 { return True if argument n of a predicate can be path  }
-Function GetPathArgAsShortString( n : Byte; T : TermPtr; 
-    Var str : TString ) : Boolean;
+Function GetShortPathArgAsStr( n : Byte; T : TermPtr; 
+    Var s : StrPtr ) : Boolean;
 Begin
-  GetPathArgAsShortString := GetAtomArgAsShortStr(n,T,False,str)
+  GetShortPathArgAsStr := GetShortAtomArgAsStr(n,T,False,s)
 End;
 
 { get a positive integer argument n }
@@ -450,7 +447,7 @@ Begin
   If GetPosIntArg(n,T,Desc) Then { case 1: file descriptor }
     f := GetStreamByDescriptor(P,Desc)
   Else { case 2: alias; leave quotes if any }
-    If GetAtomArgAsShortStr(n,T,True,Alias) Then 
+    If GetShortAtomArgAsStr(n,T,True,Alias) Then 
       f := GetStreamByAlias(P,Alias);
   GetStreamArg := f
 End;
@@ -581,12 +578,12 @@ End;
 { char-code(c,12) }
 Function ClearCharCode( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
+  y : TSyntax;
   T1,T2 : TermPtr;
   Tc,Tn : TermPtr;
   C : ConstPtr;
   I : IdPtr;
   s : StrPtr;
-  ch : TString;
   cc : TChar;
   cp :  TCodePoint;
   Enc : TEncoding;
@@ -597,13 +594,14 @@ Begin
   { 2: char code variable or value }
   T2 := GetPArg(2,T);
 
+  y := GetSyntax(P);
   { case 1: char is known: char-code("A",n), char_code('A',65) }
   { get the char as a string }
   s := Nil;
   C := EvalPArgAsString(1,T);
   If C <> Nil Then
     s := ConstGetStr(C)
-  Else If GetSyntax(P) = Edinburgh Then { Edinburgh: one-char atom }
+  Else If y = Edinburgh Then { Edinburgh: one-char atom }
     Begin
       I := EvalPArgAsIdent(1,T);
       If I <> Nil Then
@@ -611,38 +609,28 @@ Begin
     End;
   If s <> Nil Then
   Begin
-    ch := Str_AsShortString(s);
-    If Length(ch) = 0 Then
+    If (Str_Length(s) <> 1) Or Not Str_FirstChar(s,cc) Then
     Begin
-      CWriteLnWarning('a character is expected');
+      CWriteLnWarning('exactly one character is expected');
       Exit
     End;
-    Enc := Stream_GetEncoding(CurrentInput(P));
-    If Not GetOneTCharNL(ch,cc,Enc) Then
-    Begin
-      ResetError;
-      CWriteLnWarning('not a character');
-      Exit
-    End;
-    If Length(ch) > 0 Then
-    Begin
-      CWriteLnWarning('a single character is expected');
-      Exit
-    End;
-    If Not TCharToCodePoint(cc,Enc,cp) Then
+    If Not TCharToCodePoint(cc,cp) Then
     Begin
       CWriteLnWarning('invalid codepoint');
       Exit
     End;
     Tn := EmitConst(P,Str_NewFromShortString(CodePointToShortString(cp)),CI,False);
-    ClearCharCode := ReduceOneEq(T2,Tn,GetDebug(P));
+    ClearCharCode := ReduceOneEq(T2,Tn,GetDebugStream(P));
     Exit
   End;
 
   { case 2: char is free: char-code(c,65), char_code(c,65) }
   If Not GetCodePointArg(2,T,cp) Then
     Exit;
-  { get the TChar; we use the current output encoding }
+  { get the TChar; we use the current input encoding, since we might unify this
+   character with a character in the input source; 
+   FIXME: not super-clean, as we should be able to identify the stream from 
+   which the goal char_code came }
   Enc := Stream_GetEncoding(CurrentOutput(P));
   If Not CodePointToTChar(cp,cc,Enc) Then
   Begin
@@ -650,11 +638,14 @@ Begin
     Exit
   End;
   { create a constant from this TChar }
-  s := Str_New;
+  s := Str_New(Enc);
   Str_AppendChar(s,cc);
-  Tc := EmitConst(P,s,CS,False);
+  If y = Edinburgh Then
+    Tc := EmitIdent(P,s,False)
+  Else
+    Tc := EmitConst(P,s,CS,False);
   { unify the term c with this constant }
-  ClearCharCode := ReduceOneEq(T1,Tc,GetDebug(P))
+  ClearCharCode := ReduceOneEq(T1,Tc,GetDebugStream(P))
 End;
 
 {----------------------------------------------------------------------------}
@@ -671,7 +662,7 @@ Begin
   T1 := GetPArg(1,T);
   { create a constant string from the name of the current world }
   T2 := EmitConst(P,World_GetName(GetCurrentWorld(P)),CS,False);
-  ClearWorld := ReduceOneEq(T1,T2,GetDebug(P))
+  ClearWorld := ReduceOneEq(T1,T2,GetDebugStream(P))
 End;
 
 { parent-world(V) }
@@ -689,7 +680,7 @@ Begin
     Exit;
   { create a constant string from the name of parent of the current world }
   T2 := EmitConst(P,World_GetName(W),CS,False);
-  ClearParentWorld := ReduceOneEq(T1,T2,GetDebug(P))
+  ClearParentWorld := ReduceOneEq(T1,T2,GetDebugStream(P))
 End;
 
 { new-subworld("Facts") 
@@ -1024,7 +1015,7 @@ Var
 Begin
   T1 := GetPArg(1,T);
   T2 := GetPArg(2,T);
-  ClearDif := ReduceOneIneq(T1,T2,GetDebug(P))
+  ClearDif := ReduceOneIneq(T1,T2,GetDebugStream(P))
 End;
 
 { assign(file_name, "myfile.txt")
@@ -1054,7 +1045,7 @@ Begin
    variables, and getting rid of bindings }
   T2 := CopyTerm(T2,False);
   { do the assignment }
-  ClearAssign := ReduceOneEq(TermPtr(I),T2,GetDebug(P)) { "ident = term" }
+  ClearAssign := ReduceOneEq(TermPtr(I),T2,GetDebugStream(P)) { "ident = term" }
 End;
 
 { val(100,x) }
@@ -1073,7 +1064,7 @@ Begin
     Exit;
   { 2: term this value is equal to (usually a variable) }
   T2 := GetPArg(2,T);
-  ClearEval := ReduceOneEq(T2,T1,GetDebug(P)) { FIXME: shouldn't it be backtrackable? }
+  ClearEval := ReduceOneEq(T2,T1,GetDebugStream(P)) { FIXME: shouldn't it be backtrackable? }
 End;
 
 { '=..'(foo(a,b),[foo,a,b]) }
@@ -1102,7 +1093,7 @@ Begin
   Else
     T := T2
   End;
-  ClearUniv := ReduceOneEq(T,L,GetDebug(P)) { TODO: backtrackable? }
+  ClearUniv := ReduceOneEq(T,L,GetDebugStream(P)) { TODO: backtrackable? }
 End;
 
 { atom_chars('hello',['h','e','l','l','o']) }
@@ -1116,14 +1107,15 @@ Begin
   { T1 known }
   If TypeOfTerm(T1) = Identifier Then
   Begin
-    ClearAtomChars := ReduceOneEq(IdentifierToList(P,IdPtr(T1)),T2,GetDebug(P));
+    ClearAtomChars := ReduceOneEq(IdentifierToList(P,IdPtr(T1)),T2,
+        GetDebugStream(P));
     Exit
   End;
   { T1 unknown }
   T2 := ListToIdentifier(P,T2);
   If T2 = Nil Then
     Exit;
-  ClearAtomChars := ReduceOneEq(T1,T2,GetDebug(P))
+  ClearAtomChars := ReduceOneEq(T1,T2,GetDebugStream(P))
 End;
 
 { op(700,xfx,"<",inf) } { TODO: implement full specs PII+ p137 }
@@ -1175,7 +1167,8 @@ Begin
     Exit;
   Id4 := IdentifierGetShortString(I4);
   { not allowed: existing function with same number of parameters }
-  o := Op_Lookup(P^.PP_OPER,'',Id4,[],TOpTypeToArity(ot),1200);
+  o := Op_Lookup(P^.PP_OPER,[OP_FUNCTION,OP_ARITY,OP_PRECEDENCE],
+      '',Id4,[],TOpTypeToArity(ot),1200);
   If o <> Nil Then { TODO: do not fail when both declarations match }
     Exit;
   { register the new operator }
@@ -1200,36 +1193,40 @@ End;
 Function ClearExpandFileName( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   T1 : TermPtr;
-  Pattern,Path : TPath;
+  Path,Pattern : TPath;
+  ShortPath : TShortPath;
+  ShortPat : TString;
   s,s2 : StrPtr;
   L : TermPtr;
   DirInfo: SearchRec;
 Begin
   ClearExpandFileName := False;
-  If Not GetPathArgAsShortString(1,T,Pattern) Then 
+  { 1: pattern to expand }
+  If Not GetShortPathArgAsStr(1,T,Pattern) Then 
     Exit;
-  Pattern := OSFilename(Pattern); { handle ~ }
-  Path := ExtractPath(Pattern); { path part, with training sep }
+  { extract path part }
+  ShortPat := Str_AsShortString(Pattern);
+  ShortPat := OSFilename(ShortPat); { handle ~ }
+  
+  ShortPath := ExtractPath(ShortPat); { path part, with training sep }
+  Path := Str_NewFromShortString(ShortPath);
+
   L := NewEmptyList(P);
-  FindFirst(Pattern, AnyFile, DirInfo);
+  FindFirst(ShortPat,AnyFile,DirInfo);
   While DosError = 0 do
   Begin
-    { build the full path using two Str, as using "+" on two Pascal string 
-     would limit the length of the full path to 255 characters }
-    s := Str_NewFromBytes(Path);
-    s2 := Str_NewFromBytes(DirInfo.Name);
+    { build the full path }
+    s := Str_Clone(Path);
+    s2 := Str_NewFromBytes(DirInfo.Name,GetSystemCEncoding);
     Str_Concat(s,s2);
-    If GetSyntax(P) = Edinburgh Then { Edinburgh uses quoted ident }
-    Begin
-      Str_Quote(s);
+    If GetSyntax(P) = Edinburgh Then { Edinburgh uses ident }
       T1 := EmitIdent(P,s,False)
-    End
     Else
       T1 := EmitConst(P,s,CS,False);
     L := NewList2(P,T1,L);
     FindNext(DirInfo)
   End;
-  ClearExpandFileName := ReduceOneEq(L,GetPArg(2,T),GetDebug(P))
+  ClearExpandFileName := ReduceOneEq(L,GetPArg(2,T),GetDebugStream(P))
 End;
 
 {----------------------------------------------------------------------------}
@@ -1298,7 +1295,7 @@ Begin
   If Stream_IsLocked(f) Then
   Begin
     CWriteWarning('file already in use: ''');
-    CWrite(Stream_GetAlias(f));
+    Str_CWrite(Stream_GetAlias(f));
     CWrite('''');
     CWriteLn;
     Exit
@@ -1335,7 +1332,7 @@ Begin
     If Stream_IsLocked(f) Then
     Begin
       CWriteWarning('file already in use: ''');
-      CWrite(Stream_GetAlias(f));
+      Str_CWrite(Stream_GetAlias(f));
       CWrite('''');
       CWriteLn;
       Exit
@@ -1343,7 +1340,7 @@ Begin
     If Stream_GetMode(f) <> Mode Then
     Begin
       CWriteWarning('file not opened in this mode: ''');
-      CWrite(Stream_GetAlias(f));
+      Str_CWrite(Stream_GetAlias(f));
       CWrite('''');
       CWriteLn;
       Exit
@@ -1374,7 +1371,7 @@ Begin
   ClearOpenNewUserStream := False;
   
   { 1: file name }
-  If Not GetPathArgAsShortString(1,T,Path) Then 
+  If Not GetShortPathArgAsStr(1,T,Path) Then 
   Begin
     CWriteLnWarning('incorrect file path argument');
     Exit
@@ -1407,7 +1404,7 @@ Begin
     Exit
   End;
   { 4: list of options; for now, only [alias(ident)] is supported }
-  Alias := Path; { default }
+  Alias := Path; { default; note: no copy is made }
   T4 := EvalPArg(4,T);
   If Not IsNil(T4) Then { [] }
   Begin
@@ -1432,7 +1429,7 @@ Begin
       CWriteLnWarning('alias must be an identifier');
       Exit
     End;
-    Alias := IdentifierGetShortString(IdPtr(Ta))
+    Alias := IdentifierGetStr(IdPtr(Ta))
   End;
 
   { ok, we have Filename, Mode, Td (free var for file descriptor), Alias }
@@ -1441,7 +1438,7 @@ Begin
   If GetStreamByPath(P,Path) <> Nil Then
   Begin
     CWriteWarning('a stream with that path already exist: ''');
-    CWrite(Path);
+    Str_CWrite(Path);
     CWrite('''');
     CWriteLn;
     Exit
@@ -1451,7 +1448,7 @@ Begin
   If GetStreamByAlias(P,Alias) <> Nil Then
   Begin
     CWriteWarning('a stream with that name already exist: ''');
-    CWrite(Alias);
+    Str_CWrite(Alias);
     CWrite('''');
     CWriteLn;
     Exit
@@ -1462,7 +1459,7 @@ Begin
   If f = Nil Then
   Begin
     CWriteWarning('fail to create stream: ''');
-    CWrite(Alias);
+    Str_CWrite(Alias);
     CWrite('''');
     CWriteLn;
     Exit
@@ -1470,7 +1467,7 @@ Begin
   If Not Stream_IsOpen(f) Then
   Begin
     CWriteWarning('fail to open: ''');
-    CWrite(Alias);
+    Str_CWrite(Alias);
     CWrite('''');
     CWriteLn;
     Exit
@@ -1478,10 +1475,10 @@ Begin
 
   { bind the free variable with the file descriptor }
   Td := EmitConst(P,Str_NewFromShortString(PosIntToShortString(Stream_GetDescriptor(f))),CI,True);
-  If Not ReduceOneEq(T3,Td,GetDebug(P)) Then
+  If Not ReduceOneEq(T3,Td,GetDebugStream(P)) Then
   Begin
     CWriteWarning('failed to bind the file descriptor: ''');
-    CWrite(Alias);
+    Str_CWrite(Alias);
     CWrite('''');
     CWriteLn;
     Exit
@@ -1506,8 +1503,8 @@ Begin
   If Error Then
     Exit;
   Alias := Stream_GetAlias(f);
-  T1 := EmitConst(P,Str_NewFromBytes(Alias),CS,False);
-  ClearStreamIs := ReduceOneEq(GetPArg(1,T),T1,GetDebug(P))
+  T1 := EmitConst(P,Alias,CS,False);
+  ClearStreamIs := ReduceOneEq(GetPArg(1,T),T1,GetDebugStream(P))
 End;
 
 { clear_input }
@@ -1580,7 +1577,7 @@ Begin
   If Stream_GetMode(f) <> MODE_READ Then
   Begin
     CWriteWarning('stream not open for read: ''');
-    CWrite(Stream_GetAlias(f));
+    Str_CWrite(Stream_GetAlias(f));
     CWrite('''');
     CWriteLn;
     Exit
@@ -1613,16 +1610,14 @@ Begin
   Case What Of
   TYPE_CHAR:
     Begin
-      c := Stream_GetChar(f,c);
-      Success := (Not Error) And (c <> '');
+      Stream_GetChar(f,c);
+      Success := Not Error;
       If Success Then
       Begin
-        s := Str_New;
+        s := Stream_NewStr(f);
         If GetSyntax(P) = Edinburgh Then { Edinburgh: return a one-char atom }
         Begin
-          Str_AppendChar(s,'''');
           Str_AppendChar(s,c);
-          Str_AppendChar(s,'''');
           Tr := EmitIdent(P,s,False)
         End
         Else
@@ -1674,7 +1669,7 @@ Begin
 
   { try to bound the variable to the term read }
   If Success Then
-    Success := ReduceOneEq(T2,Tr,GetDebug(P));
+    Success := ReduceOneEq(T2,Tr,GetDebugStream(P));
 
   { undo read when requested or in case of failure }
   If LookAhead Or Not Success Then
@@ -1727,9 +1722,9 @@ Begin
 End;
 
 { bt }
-Function ClearBacktrace( Q : QueryPtr ) : Boolean;
+Function ClearBacktrace( P : ProgPtr; Q : QueryPtr ) : Boolean;
 Begin
-  DumpBacktrace(Q);
+  DumpBacktrace(GetOutputConsole(P),Q);
   ClearBacktrace := True
 End;
 
@@ -1869,7 +1864,7 @@ Begin
   PP_DEBUG:
     Ok := ClearDebug(P,T);
   PP_BACKTRACE:
-    Ok := ClearBacktrace(Q);
+    Ok := ClearBacktrace(P,Q);
   PP_DUMP:
     Ok := ClearDump(P);
   PP_FREEZE:

@@ -103,6 +103,7 @@ Type
     TK_STRI : StrPtr; { string object representing the token or Nil }
     { extra data: }
     TK_TYPE : TTokenType;
+    TK_QUOT : Boolean; { was the token single or double quoted?}
     TK_LINE : TLineNum; { line number in the input stream }
     TK_CHAR : TCharPos { index in the input line }
   End;
@@ -114,6 +115,7 @@ Function Token_GetStr( K : TokenPtr ) : StrPtr;
 Procedure Token_GetLocation( K : TokenPtr; Var line : TLineNum; Var col : TCharPos); 
 Procedure Token_SetLocation( K : TokenPtr; line : TLineNum; col : TCharPos );
 Function Token_GetType( K : TokenPtr ) : TTokenType;
+Function Token_IsQuoted( K : TokenPtr ) : Boolean;
 Function Token_GetTypeAsShortString( K : TokenPtr ) : TString;
 
 Implementation
@@ -134,6 +136,7 @@ Begin
   Begin
     TK_STRI := Nil;
     TK_TYPE := typ;
+    TK_QUOT := False;
     TK_LINE := 0;
     TK_CHAR := 0
   End;
@@ -178,6 +181,13 @@ Function Token_GetType( K : TokenPtr ) : TTokenType;
 Begin
   CheckCondition(K <> Nil,'Token_GetType: Nil');
   Token_GetType := K^.TK_TYPE
+End;
+
+{ return True if the token had quotes }
+Function Token_IsQuoted( K : TokenPtr ) : Boolean;
+Begin
+  CheckCondition(K <> Nil,'Token_IsQuoted: Nil');
+  Token_IsQuoted := K^.TK_QUOT
 End;
 
 {-----------------------------------------------------------------------}

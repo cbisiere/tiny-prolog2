@@ -38,7 +38,7 @@ Type
     { not deep copied: }
     DE_NEXT : DictPtr;
     DE_TERM : TermPtr; { term for which this entry was initially created }
-    DE_STRI : StrPtr;
+    DE_STRI : StrPtr; { canonical string representation }
     { extra data: }
     DE_TYPE : TypePrologObj;
     DE_GLOB : Boolean { is this entry global, and cannot be discarded? }
@@ -69,7 +69,8 @@ Implementation
 {-----------------------------------------------------------------------}
 
 { create a new dictionary entry }
-Function Dict_New( ty : TypePrologObj; glob : Boolean ) : DictPtr;
+Function Dict_New( ty : TypePrologObj; s : StrPtr; T: TermPtr; 
+    glob : Boolean ) : DictPtr;
 Var 
   D : DictPtr;
   ptr : TObjectPtr Absolute D;
@@ -78,8 +79,8 @@ Begin
   With D^ Do
   Begin
     DE_NEXT := Nil;
-    DE_STRI := Str_New;
-    DE_TERM := Nil;
+    DE_STRI := s;
+    DE_TERM := T;
     DE_TYPE := ty;
     DE_GLOB := glob
   End;
@@ -161,14 +162,13 @@ End;
 { append an entry to a dictionary }
 Function Dict_Append( Var D : DictPtr; str : StrPtr; T : TermPtr; 
     ty : TypePrologObj; glob : Boolean ) : DictPtr;
-Var e : DictPtr;
+Var 
+  e : DictPtr;
 Begin
-  e := Dict_New(ty,glob);
+  e := Dict_New(ty,str,T,glob);
   With e^ Do
   Begin
-    DE_NEXT := D;
-    DE_STRI := str;
-    DE_TERM := T
+    DE_NEXT := D
   End;
   D := e;
   Dict_Append := e

@@ -32,6 +32,7 @@ Uses
   Memory,
   Trace,
   PObj,
+  PObjIO,
   PObjList,
   PObjFCVI,
   PObjRest,
@@ -42,12 +43,12 @@ Uses
   PObjBter,
   Unparse;
 
-Function ReduceSystem( S : SysPtr;
-     Undo : Boolean; Var L : RestPtr; 
-     Var M : TermsPtr; Debug : Boolean  ) : Boolean;
-Function ReduceEquations( E : EqPtr; Debug : Boolean ) : Boolean;
-Function ReduceOneEq( T1,T2 : TermPtr; Debug : Boolean ) : Boolean;
-Function ReduceOneIneq( T1,T2 : TermPtr; Debug : Boolean ) : Boolean;
+Function ReduceSystem( S : SysPtr; 
+    Undo : Boolean; Var L : RestPtr;
+    Var M : TermsPtr; TraceStream : StreamPtr ) : Boolean;
+Function ReduceEquations( E : EqPtr; TraceStream : StreamPtr ) : Boolean;
+Function ReduceOneEq( T1,T2 : TermPtr; TraceStream : StreamPtr ) : Boolean;
+Function ReduceOneIneq( T1,T2 : TermPtr; TraceStream : StreamPtr ) : Boolean;
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -73,7 +74,7 @@ Function ReduceSystemOfEquations( S : SysPtr;
     BreakIt : Boolean; Var VarProd : VarPtr; { stop when "var = term" produced }
     Undo : Boolean; Var L : RestPtr; { will undo? }
     Var M : TermsPtr; { list of goals to freeze or clear }
-    Debug : Boolean) : Boolean;
+    TraceStream : StreamPtr) : Boolean;
 
 Var
   Abnormal : Boolean;
@@ -212,20 +213,21 @@ Var
         End
       End;
 
-      If Debug And Not Abnormal Then
+      If (TraceStream <> Nil) And Not Abnormal Then
       Begin
-        CWrite('TRY: ');
-        CWrite(PtrToName(TObjectPtr(Tg))+' ('+ TypeOfTermAsShortString(Tg) +')');
-        CWrite(' = ');
-        CWrite(PtrToName(TObjectPtr(Td))+' ('+ TypeOfTermAsShortString(Td) +')');
-        CWriteln;
+        Stream_WriteShortString(TraceStream,'TRY: ');
+        Stream_WriteShortString(TraceStream,PtrToName(TObjectPtr(Tg)) + 
+            ' (' + TypeOfTermAsShortString(Tg) + ')');
+        Stream_WriteShortString(TraceStream,' = ');
+        Stream_WritelnShortString(TraceStream,PtrToName(TObjectPtr(Td)) + 
+            ' (' + TypeOfTermAsShortString(Td) + ')');
         If Not Abnormal Then
         Begin
-          CWrite('UNIFIED: ');
-          OutTerm(Nil,PrologII,Tg); { FIXME: syntax }
-          CWrite(' = '); 
-          OutTerm(Nil,PrologII,Td); 
-          CWriteln
+          Stream_WriteShortString(TraceStream,'UNIFIED: ');
+          OutTerm(TraceStream,PrologII,Tg); { FIXME: syntax }
+          Stream_WriteShortString(TraceStream,' = '); 
+          OutTerm(TraceStream,PrologII,Td); 
+          Stream_Writeln(TraceStream)
         End
       End
     End; { Unify }
@@ -267,7 +269,7 @@ End; { ReduceSystemOfEquations }
  must be initialized before calling this function }
 Function ReduceSystem( S : SysPtr; 
     Undo : Boolean; Var L : RestPtr;
-    Var M : TermsPtr; Debug : Boolean ) : Boolean;
+    Var M : TermsPtr; TraceStream : StreamPtr ) : Boolean;
 Var 
   Fails : Boolean;
 
@@ -289,7 +291,7 @@ Var
   Var 
     DummyVar : VarPtr;
   Begin
-    If Not ReduceSystemOfEquations(S,False,DummyVar,Undo,L,M,Debug) Then
+    If Not ReduceSystemOfEquations(S,False,DummyVar,Undo,L,M,TraceStream) Then
       Fails := True
   End;
 
@@ -375,7 +377,7 @@ Var
         inserted into S}
       DummyM := Nil;
       Ss := Sys_NewWithEq(Eq_GetLhs(E),Eq_GetRhs(E));
-      Ok := ReduceSystemOfEquations(Ss,True,VarProd,Undo,L,DummyM,Debug);
+      Ok := ReduceSystemOfEquations(Ss,True,VarProd,Undo,L,DummyM,TraceStream);
 
       If Ok Then
       Begin
@@ -409,7 +411,7 @@ Begin
 End;
 
 { reduce a list of equations and inequations E; non backtrackable }
-Function ReduceEquations( E : EqPtr; Debug : Boolean ) : Boolean;
+Function ReduceEquations( E : EqPtr; TraceStream : StreamPtr ) : Boolean;
 Var
   S : SysPtr;
   U : RestPtr;
@@ -419,29 +421,29 @@ Begin
   Sys_CopyEqs(S,E);
   U := Nil;
   DummyM := Nil;
-  ReduceEquations := ReduceSystem(S,False,U,DummyM,Debug)
+  ReduceEquations := ReduceSystem(S,False,U,DummyM,TraceStream)
 End;
 
 { reduce a single equation or inequation; reduced equations may be 
   already attached to elements in T1 or T2; non backtrackable }
-Function ReduceOne( EType : EqType; T1,T2 : TermPtr; Debug : Boolean ) : Boolean;
+Function ReduceOne( EType : EqType; T1,T2 : TermPtr; TraceStream : StreamPtr ) : Boolean;
 Var   
   E : EqPtr;
 Begin
   E := Eq_New(EType,T1,T2);
-  ReduceOne := ReduceEquations(E,Debug)
+  ReduceOne := ReduceEquations(E,TraceStream)
 End;
 
 { reduce a single equation }
-Function ReduceOneEq( T1,T2 : TermPtr; Debug : Boolean ) : Boolean;
+Function ReduceOneEq( T1,T2 : TermPtr; TraceStream : StreamPtr ) : Boolean;
 Begin
-  ReduceOneEq := ReduceOne(REL_EQUA,T1,T2,Debug)
+  ReduceOneEq := ReduceOne(REL_EQUA,T1,T2,TraceStream)
 End;
 
-{ reduce a single inequation }
-Function ReduceOneIneq( T1,T2 : TermPtr; Debug : Boolean ) : Boolean;
+{ reduce a single inequation; if debug is off, debug stream is Nil }
+Function ReduceOneIneq( T1,T2 : TermPtr; TraceStream : StreamPtr ) : Boolean;
 Begin
-  ReduceOneIneq := ReduceOne(REL_INEQ,T1,T2,Debug)
+  ReduceOneIneq := ReduceOne(REL_INEQ,T1,T2,TraceStream)
 End;
 
 End.

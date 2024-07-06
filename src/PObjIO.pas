@@ -47,11 +47,13 @@ Uses
   Trace,
   Common,
   Memory,
-  PObj;
+  PObj,
+  PObjStr;
 
 Type
   TFileDescriptor = PosInt; { file descriptor }
-  TAlias = TString; { file name (a.k.a. "alias") }
+  TAlias = StrPtr; { file name (a.k.a. "alias") }
+  TPath = StrPtr; { full path }
   TIODeviceType = (DEV_FILE,DEV_BUFFER,DEV_TERMINAL,DEV_ANY);
   TStreamMode = (MODE_READ,MODE_WRITE,MODE_NONE,MODE_ANY);
 
@@ -63,10 +65,10 @@ Type
     { not deep copied: }
     FI_PREV : StreamPtr;             { previous file (upper in the stack)      }
     FI_NEXT : StreamPtr;             { next file (lower in the stack)          }
-    { extra data: }
-    FI_DESC : TFileDescriptor;       { unique number: 1,2,...                  }
     FI_ALIA : TAlias;                { name of the stream                      }
     FI_PATH : TPath;                 { file's full path                        }
+    { extra data: }
+    FI_DESC : TFileDescriptor;       { unique number: 1,2,...                  }
     FI_TYPE : TIODeviceType;         { file, buffer, or console?               }
     FI_OPEN : Boolean;               { is the stream ready for i/o?            }
     FI_LOCK : Boolean;               { user is not allowed to close atm        }
@@ -75,12 +77,16 @@ Type
     Case FI_MODE : TStreamMode Of    { opening mode: read / write              }
       MODE_READ: (
         FI_IFIL : TIFile;            { file handler (if not a console)         }
-        FI_CBUF : TChar;             { 1 multi-byte char input buffer          }
+        FI_CBUF : TCharBytes;        { 1 multi-byte char input buffer          }
         FI_IBUF : TBuf);             { input buffer                            }
       MODE_WRITE : (
         FI_OFIL : TOFile);           { file handler (if not a console)         }
       MODE_NONE : ();
   End;
+
+{ path }
+Function Path_IsAbsolute( Filename : TPath ) : Boolean;
+Function Path_ExtractPath( Filename : TPath ) : TPath;
 
 { constructors }
 Function Stream_New( Alias : TAlias; Path : TPath; Dev : TIODeviceType;
@@ -90,6 +96,7 @@ Function Stream_NewConsole( Alias : TAlias; Mode : TStreamMode ) : StreamPtr;
 
 { stream: get / set }
 Function Stream_GetPath( f : StreamPtr ) : TPath;
+Function Stream_GetShortPath( f : StreamPtr ) : TShortPath;
 Function Stream_GetAlias( f : StreamPtr ) : TAlias;
 Function Stream_GetDeviceType( f : StreamPtr ) : TIODeviceType;
 Function Stream_IsConsole( f : StreamPtr ) : Boolean;
@@ -109,27 +116,33 @@ Procedure Stream_DisplayErrorMessage( f : StreamPtr; msg : TString );
 Procedure Stream_Flush( f : StreamPtr );
 Procedure Stream_WriteShortString( f : StreamPtr; s : TString );
 Procedure Stream_WritelnShortString( f : StreamPtr; s : TString );
+Procedure Stream_Writeln( f : StreamPtr );
 
 { stream: read }
 Procedure Stream_ClearInput( f : StreamPtr );
 Procedure Stream_ReadLineFromKeyboard( f : StreamPtr );
 Procedure Stream_CheckConsoleInput( f : StreamPtr; SkipSpaces : Boolean );
-Function Stream_GetChar( f : StreamPtr; Var c : TChar ) : TChar;
-Function Stream_GetCharNb( f : StreamPtr; Var c : TChar ) : TChar;
+Procedure Stream_GetChar( f : StreamPtr; Var c : TChar );
+Procedure Stream_GetCharNb( f : StreamPtr; Var c : TChar );
 Procedure Stream_UngetChars( f : StreamPtr; line : TLineNum; 
     col : TCharPos );
 Procedure Stream_UngetChar( f : StreamPtr );
-Function Stream_NextChar( f : StreamPtr; Var c : TChar ) : TChar;
-Function Stream_NextNextChar( f : StreamPtr; Var c : TChar ) : TChar;
+Procedure Stream_NextChar( f : StreamPtr; Var c : TChar );
+Procedure Stream_NextNextChar( f : StreamPtr; Var c : TChar );
 Procedure Stream_GetIChar( f : StreamPtr; Var e : TIChar );
 Procedure Stream_NextIChar( f : StreamPtr; Var e : TIChar );
+Function Stream_NewStr( f : StreamPtr ) : StrPtr;
 
+{ write }
+Procedure Stream_WriteStr( f : StreamPtr; s : StrPtr) ;
+Procedure Stream_WriteLnStr( f : StreamPtr; s : StrPtr) ;
 
 { stack: lookup }
 Function Streams_Lookup( top : StreamPtr; Desc : TFileDescriptor; 
     Alias : TAlias; Path : TPath; Mode : TStreamMode; 
     Dev : TIODeviceType ) : StreamPtr;
 Function Streams_InputConsole( top : StreamPtr ) : StreamPtr;
+Function Streams_OutputConsole( top : StreamPtr ) : StreamPtr;
 Function Streams_LookupByPath( top : StreamPtr; Path : TPath ) : StreamPtr;
 Function Streams_LookupByMode( top : StreamPtr; 
     Mode : TStreamMode ) : StreamPtr;
@@ -158,6 +171,27 @@ Procedure Stream_SetEcho( state : Boolean );
 
 Implementation
 {-----------------------------------------------------------------------------}
+
+{-----------------------------------------------------------------------}
+{ path                                                                  }
+{-----------------------------------------------------------------------}
+
+{ is a filename absolute? }
+Function Path_IsAbsolute( Filename : TPath ) : Boolean;
+Begin
+  Path_IsAbsolute := Str_StartsWith(Filename,[GetDirectorySeparator,'/'])
+End;
+
+{ extract the path part of a filename; must mimic ExtractPath }
+Function Path_ExtractPath( Filename : TPath ) : TPath;
+Var
+  Path : TPath;
+Begin
+  Path := Str_Clone(Filename);
+  Str_DeleteLastCharUntil(Path,[GetDirectorySeparator,'/']);
+  Path_ExtractPath := Path
+End;
+
 
 {-----------------------------------------------------------------------}
 { global "echo" state                                                   }
@@ -215,12 +249,12 @@ Begin
     Case FI_MODE Of 
     MODE_READ:
       Begin
-        FI_OPEN := OpenForRead(FI_PATH,FI_IFIL);
+        FI_OPEN := OpenForRead(Stream_GetShortPath(f),FI_IFIL);
         Stream_ResetInput(f)
       End;
     MODE_WRITE:
       Begin
-        FI_OPEN := OpenForWrite(FI_PATH,FI_OFIL)
+        FI_OPEN := OpenForWrite(Stream_GetShortPath(f),FI_OFIL)
       End;
     MODE_NONE:
       Begin
@@ -241,7 +275,7 @@ Var
   f : StreamPtr;
   ptr : TObjectPtr Absolute f;
 Begin
-  ptr := NewRegisteredPObject(FI,SizeOf(TObjStream),2,False,0);
+  ptr := NewRegisteredPObject(FI,SizeOf(TObjStream),4,False,0);
   With f^ Do
   Begin
     FI_PREV := Nil;
@@ -272,7 +306,8 @@ Var
   Path : TPath;
 Begin
   BufferCount := BufferCount + 1;
-  Path := Alias + '-' + PosIntToShortString(BufferCount) + '.txt';
+  Path := Str_Clone(Alias);
+  Str_Append(Path,'-' + PosIntToShortString(BufferCount) + '.txt');
   Stream_NewBuffer := Stream_New(Alias,Path,DEV_BUFFER,MODE_NONE,
       False,False)
 End;
@@ -286,6 +321,7 @@ Begin
   Stream_SetEncoding(f,GetSystemCEncoding);
   Stream_NewConsole := f
 End;
+
 
 {-----------------------------------------------------------------------}
 {                                                                       }
@@ -341,11 +377,23 @@ Begin
     Stream_GetAlias := FI_ALIA
 End;
 
+{ get file alias as a Pascal string}
+Function Stream_GetShortAlias( f : StreamPtr ) : TString;
+Begin
+  Stream_GetShortAlias := Str_AsShortString(Stream_GetAlias(f))
+End;
+
 { get file path }
 Function Stream_GetPath( f : StreamPtr ) : TPath;
 Begin
   With f^ Do
     Stream_GetPath := FI_PATH
+End;
+
+{ get file path as a Pascal string }
+Function Stream_GetShortPath( f : StreamPtr ) : TShortPath;
+Begin
+  Stream_GetShortPath := Str_AsShortString(Stream_GetPath(f))
 End;
 
 { get device type }
@@ -398,9 +446,9 @@ Begin
   Begin
     Case Stream_GetMode(f) Of
     MODE_READ:
-      CloseIFile(Stream_GetPath(f),f^.FI_IFIL);
+      CloseIFile(Stream_GetShortPath(f),f^.FI_IFIL);
     MODE_WRITE:
-      CloseOFile(Stream_GetPath(f),f^.FI_OFIL);
+      CloseOFile(Stream_GetShortPath(f),f^.FI_OFIL);
     MODE_NONE:
       Bug('Stream_Close: open buffer with no mode ');
     End;
@@ -434,9 +482,10 @@ Begin
       Case FI_TYPE Of
       DEV_FILE:
       Begin
-        CWrite('In file: ''' + Stream_GetPath(f) + '''');
+        CWrite('In file: ''' + Stream_GetShortPath(f) + '''');
         CWriteLn;
-        CWrite('Error line ' + IntToShortString(e.Lnb) + ', position ' + IntToShortString(e.Pos) + ': ' + msg)
+        CWrite('Error line ' + IntToShortString(e.Lnb) + 
+            ', position ' + IntToShortString(e.Pos) + ': ' + msg)
       End;
       DEV_TERMINAL:
         CWrite('Error at position ' + IntToShortString(e.Pos) + ': ' + msg)
@@ -469,13 +518,14 @@ Begin
     Begin
       If Eof(FI_IFIL) Then
         Stream_Close(f)
-      Else If ReadFromFile(FI_PATH,FI_IFIL,c) Then
+      Else If ReadFromFile(Stream_GetShortPath(f),FI_IFIL,c) Then
       Begin
         FI_CBUF := FI_CBUF + c;
         FI_CHAR := FI_CHAR + 1
       End
       Else
-        RuntimeError('i/o error when reading from "' + FI_PATH + '"')
+        RuntimeError('i/o error when reading from "' + 
+            Stream_GetShortPath(f) + '"')
     End
   End
 End;
@@ -562,15 +612,18 @@ Begin
       DEV_FILE,DEV_BUFFER: { for now, a buffer is a file }
         Begin
           Stream_GetChars(f); { fill up FI_CBUF }
-          cc := EndOfInput;
+          ASCIIChar(cc,EndOfInput);
           If Length(FI_CBUF) > 0 Then
             If GetOneTCharNL(FI_CBUF,cc,FI_ENCO) Then
               If Stream_GetEcho Then
-                CWrite(cc);
+                CWriteChar(cc);
           BufAppendTChar(FI_IBUF,cc)
         End;
       DEV_TERMINAL:
-        BufAppendTChar(FI_IBUF,EndOfInput);
+        Begin
+          ASCIIChar(cc,EndOfInput);
+          BufAppendTChar(FI_IBUF,cc)
+        End
       End
     End;
 
@@ -581,34 +634,31 @@ End;
 
 { read one TChar with position }
 Procedure Stream_GetIChar( f : StreamPtr; Var e : TIChar );
+Var
+  cc : TChar;
 Begin
-  SetIChar(e,'',0,0);
+  ASCIIChar(cc,' ');
+  SetIChar(e,cc,0,0);
   Stream_ReadTChar(f,e)
 End;
 
 { read one TChar }
-Function Stream_GetChar( f : StreamPtr; Var c : TChar ) : TChar;
+Procedure Stream_GetChar( f : StreamPtr; Var c : TChar );
 Var
   e : TIChar;
 Begin
-  Stream_GetChar := '';
-  c := '';
   Stream_GetIChar(f,e);
   If Error Then Exit;
-  c := e.Val;
-  Stream_GetChar := c
+  c := e.Val
 End;
 
 { read the next non-blank TChar }
-Function Stream_GetCharNb( f : StreamPtr; Var c : TChar ) : TChar;
+Procedure Stream_GetCharNb( f : StreamPtr; Var c : TChar );
 Begin
-  Stream_GetCharNb := '';
   Repeat 
-    c := Stream_GetChar(f,c);
+    Stream_GetChar(f,c);
     If Error Then Exit
-  Until Not (c[1] In [' ',#9,#13,NewLine]) Or Error;
-  If Error Then Exit;
-  Stream_GetCharNb := c
+  Until Not IsIn(c,[' ',#9,#13,NewLine])
 End;
 
 { return the next TChar with position, without consuming it }
@@ -620,29 +670,24 @@ Begin
 End;
 
 { return the next TChar without consuming it }
-Function Stream_NextChar( f : StreamPtr; Var c : TChar ) : TChar;
+Procedure Stream_NextChar( f : StreamPtr; Var c : TChar );
 Var
   e : TIChar;
 Begin
-  Stream_NextChar := '';
-  c := '';
   Stream_NextIChar(f,e);
   If Error Then Exit;
-  c := e.Val;
-  Stream_NextChar := c
+  c := e.Val
 End;
 
 { ditto but two TChar in advance }
-Function Stream_NextNextChar( f : StreamPtr; Var c : TChar ) : TChar;
+Procedure Stream_NextNextChar( f : StreamPtr; Var c : TChar );
 Begin
-  Stream_NextNextChar := '';
-  c := Stream_GetChar(f,c);
+  Stream_GetChar(f,c);
   If Error Then Exit;
-  c := Stream_GetChar(f,c);
+  Stream_GetChar(f,c);
   If Error Then Exit;
   Stream_UngetChar(f);
-  Stream_UngetChar(f);
-  Stream_NextNextChar := c
+  Stream_UngetChar(f)
 End;
 
 { if f is a console, then read a line (from the keyboard) if no more characters 
@@ -651,15 +696,15 @@ End;
  reading a char (in_char) or line (inl); }
 Procedure Stream_CheckConsoleInput( f : StreamPtr; SkipSpaces : Boolean );
 Var 
-  c : TChar;
+  cc : TChar;
 Begin
   If Stream_IsConsole(f) Then
   Begin
     If SkipSpaces Then
     Begin
-      c := Stream_GetCharNb(f,c);
+      Stream_GetCharNb(f,cc);
       If Error Then Exit;
-      If c = EndOfInput Then
+      If cc.Bytes = EndOfInput Then
         Stream_ResetInput(f)
       Else
         Stream_UngetChar(f); { put back the non-blank character }
@@ -669,16 +714,48 @@ Begin
   End
 End;
 
+{ new string whose context is steam f, meaning that the string will be either 
+ read from or written to f (or a console or a file having the same encoding 
+ as f) }
+Function Stream_NewStr( f : StreamPtr ) : StrPtr;
+Begin
+  Stream_NewStr := Str_New(Stream_GetEncoding(f))
+End;
+
+
 {----------------------------------------------------------------------------}
 { write                                                                      }
 {----------------------------------------------------------------------------}
+
+{-----------------------------------------------------------------------}
+{ methods: write to file                                                }
+{-----------------------------------------------------------------------}
+
+{ write a string to a stream }
+Procedure Stream_WriteStr( f : StreamPtr; s : StrPtr ) ;
+Var
+  Iter : StrIter;
+  cc : TChar;
+Begin
+  StrIter_ToStart(Iter,s);
+  While StrIter_NextChar(Iter,cc) Do 
+    Stream_WriteShortString(f,cc.Bytes)
+End;
+
+{ writeln a string to a stream }
+Procedure Stream_WriteLnStr( f : StreamPtr; s : StrPtr ) ;
+Begin
+  Stream_WriteStr(f,s);
+  Stream_WritelnShortString(f,'')
+End;
+
 
 { flush an output stream }
 Procedure Stream_Flush( f : StreamPtr );
 Begin
   With f^ Do
     If FI_OPEN And (FI_TYPE = DEV_FILE) Then
-      FlushFile(FI_PATH,FI_OFIL)
+      FlushFile(Stream_GetShortPath(f),FI_OFIL)
 End;
 
 { write a short string to an output stream }
@@ -689,7 +766,7 @@ Begin
       DEV_TERMINAL:
         CWrite(s);
       DEV_FILE,DEV_BUFFER:
-        WriteToFile(FI_PATH,FI_OFIL,s)
+        WriteToFile(Stream_GetShortPath(f),FI_OFIL,s)
     End
 End;
 
@@ -704,8 +781,14 @@ Begin
           CWriteLn
         End;
       DEV_FILE,DEV_BUFFER:
-        WritelnToFile(FI_PATH,FI_OFIL,s)
+        WritelnToFile(Stream_GetShortPath(f),FI_OFIL,s)
     End
+End;
+
+{ writeln a new line to an output stream }
+Procedure Stream_Writeln( f : StreamPtr );
+Begin
+  Stream_WritelnShortString(f,'')
 End;
 
 {----------------------------------------------------------------------------}
@@ -717,13 +800,13 @@ Begin
   With f^ Do
   Begin
     WritelnToEchoFile('State of stream #' + PosIntToShortString(FI_DESC));
-    WritelnToEchoFile(' FI_ALIA: ' + FI_ALIA);
-    WritelnToEchoFile(' Path: ' + FI_PATH);
+    WritelnToEchoFile(' FI_ALIA: ' + Stream_GetShortAlias(f));
+    WritelnToEchoFile(' Path: ' + Stream_GetShortPath(f));
     WritelnToEchoFile(' FI_IBUF: ');
     BufDump(FI_IBUF);
     WritelnToEchoFile('');
     WritelnToEchoFile(' FI_CBUF: ');
-    CharDump(FI_CBUF);
+    WritelnToEchoFile(FI_CBUF);
     WritelnToEchoFile('')
   End
 End;
@@ -861,8 +944,8 @@ Begin
   While f <> Nil Do
   Begin
     If ((Desc = 0) Or (Stream_GetDescriptor(f) = Desc)) And
-      ((Alias = '') Or (Stream_GetAlias(f) = Alias)) And
-      ((Path = '') Or (Stream_GetPath(f) = Path)) And
+      ((Alias = Nil) Or Str_Equal(Stream_GetAlias(f),Alias)) And
+      ((Path = Nil) Or Str_Equal(Stream_GetPath(f),Path)) And
       ((Mode = MODE_ANY) Or (Stream_GetMode(f) = Mode)) And
       ((Dev = DEV_ANY) Or (Stream_GetDeviceType(f) = Dev)) Then
     Begin
@@ -877,40 +960,46 @@ End;
 { return the input console }
 Function Streams_InputConsole( top : StreamPtr ) : StreamPtr;
 Begin
-  Streams_InputConsole := Streams_Lookup(top,0,'','',MODE_READ,DEV_TERMINAL)
+  Streams_InputConsole := Streams_Lookup(top,0,Nil,Nil,MODE_READ,DEV_TERMINAL)
+End;
+
+{ return the output console }
+Function Streams_OutputConsole( top : StreamPtr ) : StreamPtr;
+Begin
+  Streams_OutputConsole := Streams_Lookup(top,0,Nil,Nil,MODE_WRITE,DEV_TERMINAL)
 End;
 
 { return the first stream having a given path }
 Function Streams_LookupByPath( top : StreamPtr; Path : TPath ) : StreamPtr;
 Begin
-  Streams_LookupByPath := Streams_Lookup(top,0,'',Path,MODE_ANY,DEV_ANY)
+  Streams_LookupByPath := Streams_Lookup(top,0,Nil,Path,MODE_ANY,DEV_ANY)
 End;
 
 { return the first stream having a given mode }
 Function Streams_LookupByMode( top : StreamPtr; 
     Mode : TStreamMode ) : StreamPtr;
 Begin
-  Streams_LookupByMode := Streams_Lookup(top,0,'','',Mode,DEV_ANY)
+  Streams_LookupByMode := Streams_Lookup(top,0,Nil,Nil,Mode,DEV_ANY)
 End;
 
 { return the first stream having a device type }
 Function Streams_LookupByDevice( top : StreamPtr; 
     Dev : TIODeviceType ) : StreamPtr;
 Begin
-  Streams_LookupByDevice := Streams_Lookup(top,0,'','',MODE_ANY,Dev)
+  Streams_LookupByDevice := Streams_Lookup(top,0,Nil,Nil,MODE_ANY,Dev)
 End;
 
 { return the stream having descriptor Desc in the list top, or Nil }
 Function Streams_LookupByDescriptor( top : StreamPtr; 
     Desc : TFileDescriptor ) : StreamPtr;
 Begin
-  Streams_LookupByDescriptor := Streams_Lookup(top,Desc,'','',MODE_ANY,DEV_ANY)
+  Streams_LookupByDescriptor := Streams_Lookup(top,Desc,Nil,Nil,MODE_ANY,DEV_ANY)
 End;
 
 { return the stream having descriptor Desc in the list top, or Nil }
 Function Streams_LookupByAlias( top : StreamPtr; Alias : TAlias ) : StreamPtr;
 Begin
-  Streams_LookupByAlias := Streams_Lookup(top,0,Alias,'',MODE_ANY,DEV_ANY)
+  Streams_LookupByAlias := Streams_Lookup(top,0,Alias,Nil,MODE_ANY,DEV_ANY)
 End;
 
 {----------------------------------------------------------------------------}

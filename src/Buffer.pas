@@ -351,11 +351,15 @@ Procedure BufAppendTChar( Var B : TBuf; cc : TChar );
 Var
   p : TIChar; { char from which to compute the new position }
   e : TIChar; { new char }
+  cc2 : TChar;
 Begin
   If BufLen(B) > 0 Then
     BufGetLast(p,B)
   Else
-    SetIChar(p,NewLine,0,0);
+  Begin
+    ASCIIChar(cc2,NewLine);
+    SetIChar(p,cc2,0,0)
+  End;
   NewICharFromPrev(e,p,cc);
   BufStore(B,e)
 End;
@@ -451,7 +455,7 @@ Begin
         If IsEol(Buf[i]) Then { last char is Eol }
           CWrite(' ')
         Else
-          CWrite(Buf[i].Val);
+          CWrite(Buf[i].Val.Bytes);
         n := n + CrtCharWidthOnScreen(Buf[i].Val);
         If i = IdxR Then
           i := 0
@@ -473,7 +477,7 @@ Begin
   i := FirstIdx(B);
   While i <> 0 Do
   Begin
-    CWrite(B.Buf[i].Val);
+    CWrite(B.Buf[i].Val.Bytes);
     i := NextIdx(B,i)
   End
 End;
@@ -486,7 +490,7 @@ Begin
   i := FirstIdx(B);
   While i <> 0 Do
   Begin
-    WriteToEchoFile(B.Buf[i].Val);
+    WriteToEchoFile(B.Buf[i].Val.Bytes);
     i := NextIdx(B,i)
   End
 End;
@@ -503,7 +507,7 @@ Begin
   While i <> 0 Do
   Begin
     With B.Buf[i] Do
-      If Val <> cc Then
+      If Val.Bytes <> cc.Bytes Then
         BufAppendTChar(R,Val);
     i := NextIdx(B,i)
   End;
@@ -520,7 +524,7 @@ Begin
   i := FirstIdx(B1);
   While (i <> 0) And Not Diff Do 
   Begin
-    Diff := B1.Buf[i].Val <> B2.Buf[i].Val;
+    Diff := B1.Buf[i].Val.Bytes <> B2.Buf[i].Val.Bytes;
     i := NextIdx(B1,i)
   End;
   BufDiff := Diff
@@ -538,10 +542,10 @@ Var
   s : TString;
 Begin
   s := '<';
-  For i := 1 to Length(cc) Do
+  For i := 1 to Length(cc.Bytes) Do
   Begin
-    s := s + IntToShortString(Ord(cc[i]));
-    If i < Length(cc) Then
+    s := s + IntToShortString(Ord(cc.Bytes[i]));
+    If i < Length(cc.Bytes) Then
       s := s + ','
   End;
   s := s + '>';
@@ -568,12 +572,16 @@ End;
 Procedure CrtDump;
 Var
   i : TCrtCoord;
+  cc : TChar;
 Begin
   With CrtRow Do
   Begin
     WriteToEchoFile(IntToShortString(Len) + ' ' + IntToShortString(Wrap) + ' ');
     For i := 1 to Len Do
-      CharDump(CrtChar(Row,i))
+    Begin
+      CrtChar(Row,i,cc);
+      CharDump(cc)
+    End
   End
 End;
 

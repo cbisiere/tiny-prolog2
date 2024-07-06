@@ -87,6 +87,7 @@ Type
     TV_DVAR : DictPtr; { dictionary entry }
     TV_IRED : IdPtr; { VA: identifier this variable as been initially bound to }
     { extra data: }
+    TV_QUOT : Boolean; { True if the identifier must be quoted to be valid }
     TV_ASSI : Boolean { true if the term is an identifier that can be assigned }
   End;
 
@@ -162,8 +163,8 @@ Function InstallConst( Var D : DictPtr; str : StrPtr;
     ty : TypePrologObj; glob : Boolean ) : ConstPtr;
 Function InstallVariable( Var D : DictPtr;
     str : StrPtr; glob : Boolean ) : VarPtr;
-Function InstallIdentifier( Var D : DictPtr; 
-    str : StrPtr; glob : Boolean  ) : IdPtr;
+Function InstallIdentifier( Var D : DictPtr; str : StrPtr; Quoted : Boolean;
+    glob : Boolean  ) : IdPtr;
 
 
 Implementation
@@ -203,6 +204,7 @@ Begin
     TV_DVAR := Nil;
     TV_IRED := Nil;
     TV_GOAL := Nil;
+    TV_QUOT := False;
     TV_ASSI := False
   End;
   Assignable_New := V
@@ -315,7 +317,7 @@ Function ConstGetShortString( C : ConstPtr ) : TString;
 Var s : StrPtr;
 Begin
   s := ConstGetStr(C);
-  ConstGetShortString := Str_GetShortString(s)
+  ConstGetShortString := Str_GetShortStringTruncate(s)
 End;
 
 { is a constant equal to a given Pascal string? }
@@ -395,6 +397,12 @@ End;
 { methods: identifiers                                                  }
 {-----------------------------------------------------------------------}
 
+{ return True if the identifier must be quoted to be a valid identifier }
+Function IdentifierMustBeQuoted( I : IdPtr ) : Boolean;
+Begin
+  IdentifierMustBeQuoted := I^.TV_QUOT
+End;
+
 { return the string value of an identifier; not cloning }
 Function IdentifierGetStr( I : IdPtr ) : StrPtr;
 Begin
@@ -407,7 +415,7 @@ Function IdentifierGetShortString( I : IdPtr ) : TString;
 Var s : StrPtr;
 Begin
   s := IdentifierGetStr(I);
-  IdentifierGetShortString := Str_GetShortString(s)
+  IdentifierGetShortString := Str_GetShortStringTruncate(s)
 End;
 
 { is an identifier equal to a given Pascal string? }
@@ -441,20 +449,16 @@ Begin
   TermIsCut := TermIsIdentifierEqualToShortString(T,'!')
 End;
 
-{ return an identifier as a (new) string; if Quotes is False, quoted 
- identifiers are returned unquoted }
+{ return an identifier as a (new) string; if Quotes is False, a quoted 
+ identifier is returned unquoted, otherwise it is return quoted if it must be
+ quoted to be a valid identifier }
 Function GetIdentAsStr( I : IdPtr; Quotes : Boolean ) : StrPtr;
 Var 
-  unquote : Boolean; { does the identifier need to be unquoted? }
   s : StrPtr;
 Begin
   s := Str_Clone(IdentifierGetStr(I));
-  unquote := Not Quotes And Str_StartsWith(s,['''']) And Str_EndsWith(s,['''']);
-  If unquote Then
-  Begin
-    Str_DeleteLastChar(s);
-    Str_DeleteFirstChar(s)
-  End;
+  If Quotes And IdentifierMustBeQuoted(I) Then
+    Str_SingleQuoteAndEscape(s);
   GetIdentAsStr := s
 End;
 
@@ -1073,8 +1077,8 @@ End;
 { create an assignable object (variable or identifier) if it does not 
   exist in dictionary; return it }
 Function InstallAssignable( Var D : DictPtr; 
-    str : StrPtr; ty : TypePrologObj; glob : Boolean; 
-    CanCopy : Boolean) : AssPtr;
+    str : StrPtr; ty : TypePrologObj; quoted : Boolean; glob : Boolean; 
+    CanCopy : Boolean ) : AssPtr;
 Var
   V : AssPtr;
   TV : TermPtr Absolute V;
@@ -1085,6 +1089,7 @@ Begin
   If e = Nil Then
   Begin
     V := Assignable_New(ty,CanCopy);
+    V^.TV_QUOT := quoted;
     e := Dict_Append(D,str,TV,VA,glob);
     V^.TV_DVAR := e
   End
@@ -1098,15 +1103,21 @@ End;
 Function InstallVariable( Var D : DictPtr; str : StrPtr; 
     glob : Boolean ) : VarPtr;
 Begin
-  InstallVariable := InstallAssignable(D,str,VA,glob,True)
+  InstallVariable := InstallAssignable(D,str,VA,False,glob,True)
 End;
 
-{ create an identifier if it does not exist in a dictionary; an identifier is
-  not deep-copyable }
-Function InstallIdentifier( Var D : DictPtr; str : StrPtr; 
+{ create an identifier if it does not exist in a dictionary; 
+ - an identifier is not deep-copyable; 
+ - it is assumed that the identifier in str had its single quotes removed if 
+   any, and is already in canonical version, so that e.g. eq('abc',abc) 
+   succeeds since both refer to the same identifier;
+ - the fact that the identifier must be quoted to be valid depends on the 
+   current syntax; thus, dynamic changes of syntax do not affect this behavior;
+   this is fine as long as the is not used as a syntax converter }
+Function InstallIdentifier( Var D : DictPtr; str : StrPtr; Quoted : Boolean;
     glob : Boolean  ) : IdPtr;
 Begin
-  InstallIdentifier := InstallAssignable(D,str,ID,glob,False)
+  InstallIdentifier := InstallAssignable(D,str,ID,Quoted,glob,False)
 End;
 
 End.

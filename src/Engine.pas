@@ -133,6 +133,7 @@ Var
   isSys       : Boolean;
   isCut       : Boolean;
   GCCount     : Integer;  { counter to trigger GC }
+  TraceStream : StreamPtr; { trace stream }
 
   { init the clock }
   Procedure InitClock;
@@ -148,7 +149,7 @@ Var
   { display on Crt constraints only about the variables in the query }
   Procedure WriteQuerySolution;
   Begin
-    OutQuerySolution(Nil,Q);
+    OutQuerySolution(GetOutputConsole(P),Q);
     CWriteLn
   End;
 
@@ -394,7 +395,7 @@ End;
       Begin
         Ss := Sys_New;
         Sys_CopyEqs(Ss,R^.RU_SYST);
-        Solvable := ReduceSystem(Ss,True,H^.HH_REST,FrozenM,GetDebug(P))
+        Solvable := ReduceSystem(Ss,True,H^.HH_REST,FrozenM,GetDebugStream(P))
       End;
 
       If Solvable Then
@@ -416,7 +417,7 @@ End;
         H^.HH_FBCL := BTerms_GetNext(BCopyRuleP);
 
         FrozenM := Nil;
-        Solvable := ReduceSystem(Ss,True,H^.HH_REST,FrozenM,GetDebug(P));
+        Solvable := ReduceSystem(Ss,True,H^.HH_REST,FrozenM,GetDebugStream(P));
 
         { insert unfrozen goals if any }
         If Solvable And (FrozenM <> Nil) Then
@@ -426,9 +427,10 @@ End;
             FrozenT := TermPtr(List_GetObject(FrozenM));
             If GetDebug(P) Then
             Begin
-              CWrite('UNFROZEN: ');
-              OutTerm(Nil,GetSyntax(P),FrozenT); { FIXME: syntax }
-              CWriteLn
+              TraceStream := GetTraceStream(P);
+              Stream_WriteShortString(TraceStream,'UNFROZEN: ');
+              OutTerm(TraceStream,GetSyntax(P),FrozenT); { FIXME: syntax }
+              Stream_Writeln(TraceStream)
             End;
             { build and insert the goal in the list of goals to clear }
             FrozenB := BTerm_New(FrozenT);
@@ -444,15 +446,16 @@ End;
     { trace: print goal that has been cleared }
     If GetTrace(P) And (Solvable Or GetDebug(P)) Then
     Begin
+      TraceStream := GetTraceStream(P);
       If GetDebug(P) Then 
         If Solvable Then 
-          CWrite('+') 
+          Stream_WriteShortString(TraceStream,'+') 
         Else 
-          CWrite('-');
-      CWriteLongInt(Header_GetClock(H));
-      CWrite(': ');
-      OutTerm(Nil,GetSyntax(P),ClearT); { FIXME: syntax }
-      CWriteLn
+          Stream_WriteShortString(TraceStream,'-');
+      Stream_WriteShortString(TraceStream,LongIntToShortString(Header_GetClock(H)));
+      Stream_WriteShortString(TraceStream,': ');
+      OutTerm(TraceStream,GetSyntax(P),ClearT); { FIXME: syntax }
+      Stream_Writeln(TraceStream)
     End
   End;
 
@@ -477,7 +480,7 @@ Begin
     goal, including goals that sets global variables; thus a query 
     like "assign(aa,1) { aa = 1 )" will fail right away  }
   If Query_GetSys(Q) <> Nil Then
-    If Not ReduceEquations(Query_GetSys(Q),GetDebug(P)) Then
+    If Not ReduceEquations(Query_GetSys(Q),GetDebugStream(P)) Then
       Exit;
 
   B := Query_GetTerms(Q); { list of terms to clear }
@@ -526,7 +529,7 @@ End;
 Procedure AnswerQuery( P : ProgPtr; Q : QueryPtr; Echo : Boolean );
 Begin
   If Echo Then
-    OutOneQuery(Nil,Q);
+    OutOneQuery(GetOutputConsole(P),Q);
   Clock(P,Q)
 End;
 
@@ -648,26 +651,40 @@ End;
 {----------------------------------------------------------------------------}
 
 { try to set a Prolog file as input, making sure there are no loops }
-Function TryPrologFileForInput( P : ProgPtr; Path : TPath ) : StreamPtr;
+Function TryPrologFileForInput( P : ProgPtr; Path : TPath; 
+    RaiseError : Boolean ) : StreamPtr;
 Var
   f : StreamPtr;
+  ShortPath : TShortPath;
 Begin
   TryPrologFileForInput := Nil;
-  f := Nil;
-  { just return Nil if the file does not exist }
-  If Not FileExistsOnDisk(Path) Then
-    Exit;
+  If Str_Length(Path) > StringMaxSize Then { path too long }
+  Begin
+    If RaiseError Then
+      RuntimeError('path is too long: ''' + 
+          Str_GetShortStringTruncate(Path) + '...''');
+    Exit
+  End;
+  ShortPath := Str_AsShortString(Path);
+  { check the file exists }
+  If Not FileExistsOnDisk(ShortPath) Then
+  Begin
+    If RaiseError Then
+      RuntimeError('file does not exist: ''' + ShortPath + '''');
+    Exit
+  End;
   { the file exists: check for errors }
   If GetStreamByPath(P,Path) <> Nil Then
   Begin
-    RuntimeError('insertion loop: ''' + Path + '''');
+    If RaiseError Then
+      RuntimeError('insertion loop: ''' + ShortPath + '''');
     Exit
   End;
   f := Stream_New(Path,Path,DEV_FILE,MODE_READ,True,False);
   If Not Stream_IsOpen(f) Then
   Begin
-    f := Nil;
-    RuntimeError('unable to open: ''' + Path + '''');
+    If RaiseError Then
+      RuntimeError('unable to open: ''' + ShortPath + '''');
     Exit
   End;
   PushStream(P,f);
@@ -675,36 +692,45 @@ Begin
 End;
 
 { return a stream for filename Path in base directory BaseDir, using default 
- program extensions for the current syntax; BaseDir can be ''. If it is not ''
+ program extensions for the current syntax; BaseDir can be Nil. If it is not Nil
  it must end with a directory separator;
  NOTE: probably less TOCTOU-prone than looking for the file and then 
  setting it as input }
-Function SetPrologFileForInput( P : ProgPtr; BaseDir,Path : TPath ) : StreamPtr;
+Function SetPrologFileForInput( P : ProgPtr; 
+    BaseDir,Path : StrPtr; RaiseError : Boolean ) : StreamPtr;
 Var
   f : StreamPtr;
   y : TSyntax;
-  Ext : TPath;
+  BasePath,OtherPath : StrPtr;
 Begin
   SetPrologFileForInput := Nil;
-  If Length(BaseDir) + Length(Path) > StringMaxSize Then
-    Exit;
   y := GetSyntax(P);
-  f := TryPrologFileForInput(P,BaseDir + Path);
-  If Error Then Exit;
+  { form the most natural filename to look for: dir + path }
+  If BaseDir <> Nil Then
+  Begin
+    BasePath := Str_Clone(BaseDir);
+    Str_Concat(BasePath,Path)
+  End
+  Else
+    BasePath := Str_Clone(Path);
+  { try as-is, not raising any error }
+  f := TryPrologFileForInput(P,BasePath,False);
+  { if not found, try with an extension }
   If (f = Nil) And (y = Edinburgh) Then
   Begin
-    Ext := '.pl';
-    If Length(BaseDir) + Length(Path) + Length(Ext) <= StringMaxSize Then
-      f := TryPrologFileForInput(P,BaseDir + Path + Ext);
-    If Error Then Exit
+    OtherPath := Str_Clone(BasePath);
+    Str_Append(OtherPath,'.pl');
+    f := TryPrologFileForInput(P,OtherPath,False)
   End;
   If f = Nil Then
   Begin
-    Ext := '.' + FileExt[y];
-    If Length(BaseDir) + Length(Path) + Length(Ext) <= StringMaxSize Then
-      f := TryPrologFileForInput(P,BaseDir + Path + Ext);
-    If Error Then Exit
+    OtherPath := Str_Clone(BasePath);
+    Str_Append(OtherPath,'.' + FileExt[y]);
+    f := TryPrologFileForInput(P,OtherPath,False)
   End;
+  { failure, redo with the base filename so as to raise an error }
+  If (f = Nil) And RaiseError Then
+    f := TryPrologFileForInput(P,BasePath,True);
   SetPrologFileForInput := f
 End;
 
@@ -715,51 +741,39 @@ End;
  goal }
 Procedure LoadProgram( P : ProgPtr; s : StrPtr; TryPath : Boolean );
 Var 
-  Filename,BaseDir : TPath;
+  BaseDir : StrPtr;
   f : StreamPtr;
 Begin
-  If Str_Length(s) <= StringMaxSize Then
+  f := Nil;
+  If TryPath And Not Path_IsAbsolute(s) Then
   Begin
-    Filename := Str_AsShortString(s);
-    f := Nil;
-    If TryPath Then
-    Begin
-      { try the directory of the parent Prolog file, if any }
-      BaseDir := ExtractPath(Stream_GetPath(CurrentInput(P)));
-      If BaseDir <> '' Then
-        f := SetPrologFileForInput(P,BaseDir,Filename);
-      { try the directory of the Prolog file passed as parameter }
-      If f = Nil Then
-      Begin
-        BaseDir := GetProgramPath(P);
-        If BaseDir <> '' Then
-          f := SetPrologFileForInput(P,BaseDir,Filename)
-      End
-    End;
-    If Error Then Exit;
-    { last attempt: OS's current directory }
+    { try the directory of the parent Prolog file, if any }
+    BaseDir := Path_ExtractPath(Stream_GetPath(CurrentInput(P)));
+    If Str_Length(BaseDir) > 0 Then
+      f := SetPrologFileForInput(P,BaseDir,s,False);
+    { try the directory of the Prolog file passed as parameter }
     If f = Nil Then
-      f := SetPrologFileForInput(P,'',Filename);
-    If Error Then Exit;
-    If f <> Nil Then
     Begin
-      { reading a Prolog file can consume a lot of memory; we clean up before
-       starting }
-      GarbageCollector;
-      { do insert }
-      BeginInsertion(P);
-      ProcessRulesAndQueries(f,P);
-      EndInsertion(P);
-      { do not close the input file in case of error, as the error handler 
-       needs it to display an excerpt of the input data }
-      If Error Then Exit;
-      CloseAndDeleteStream(P,f)
+      BaseDir := GetProgramPath(P);
+      If Str_Length(BaseDir) > 0 Then
+        f := SetPrologFileForInput(P,BaseDir,s,False)
     End
-    Else
-      RuntimeError('cannot open file: ''' + Filename + '''')
-  End
-  Else
-    RuntimeError('filename is too long');
+  End;
+  { last attempt: OS's current directory }
+  If f = Nil Then
+    f := SetPrologFileForInput(P,Nil,s,True);
+  If Error Then Exit;
+  { reading a Prolog file can consume a lot of memory; we clean up before
+    starting }
+  GarbageCollector;
+  { do insert }
+  BeginInsertion(P);
+  ProcessRulesAndQueries(f,P);
+  EndInsertion(P);
+  { do not close the input file in case of error, as the error handler 
+    needs it to display an excerpt of the input data }
+  If Error Then Exit;
+  CloseAndDeleteStream(P,f)
 End;
 
 End.

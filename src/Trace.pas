@@ -30,6 +30,7 @@ Uses
 Procedure TerminateTrace;
 Procedure WriteToEchoFile( s : TString );
 Procedure WritelnToEchoFile( s : TString );
+Procedure CWriteChar( cc : TChar );
 Procedure CWrite( s : TString );
 Procedure CWriteLn;
 Procedure CWriteInt( v : Integer );
@@ -48,7 +49,7 @@ Var
   Echo : Boolean;
 
 Const
-  ECHO_FILE : TPath = 'echo.txt';
+  ECHO_FILE : TShortPath = 'echo.txt';
 
 { close the trace file }
 Procedure TerminateTrace;
@@ -73,7 +74,7 @@ End;
 { write a char to the terminal }
 Procedure CWriteChar( cc : TChar );
 Begin
-  WriteToEchoFile(cc);
+  WriteToEchoFile(cc.Bytes);
   CrtWriteChar(cc)
 End;
 

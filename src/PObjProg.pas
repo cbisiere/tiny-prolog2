@@ -70,6 +70,8 @@ Procedure SetTrace( P : ProgPtr; state : Boolean );
 Function GetTrace( P : ProgPtr ) : Boolean;
 Procedure SetDebug( P : ProgPtr; state : Boolean );
 Function GetDebug( P : ProgPtr ) : Boolean;
+Function GetTraceStream( P : ProgPtr ) : StreamPtr;
+Function GetDebugStream( P : ProgPtr ) : StreamPtr;
 
 Function BufferAlias( y : TSyntax ) : TAlias;
 Function ConsoleAlias( y : TSyntax ) : TAlias;
@@ -77,7 +79,8 @@ Function ConsoleAlias( y : TSyntax ) : TAlias;
 Function CurrentInput( P : ProgPtr ) : StreamPtr;
 Function CurrentOutput( P : ProgPtr ) : StreamPtr;
 Function OutputIsConsole( P : ProgPtr ) : Boolean;
-Function GetInputConsole( P : ProgPtr )  : StreamPtr;
+Function GetInputConsole( P : ProgPtr ) : StreamPtr;
+Function GetOutputConsole( P : ProgPtr ) : StreamPtr;
 
 Function GetStreamByPath( P : ProgPtr; Path : TPath ) : StreamPtr;
 Function GetStreamByMode( P : ProgPtr; Mode : TStreamMode ) : StreamPtr;
@@ -112,6 +115,7 @@ Function FindRuleWithHeadAndArity( R : RulePtr; I : IdPtr; a : PosInt;
 
 Function EmitConst( P : ProgPtr; s : StrPtr; ty : TypePrologObj; 
     glob : Boolean ) : TermPtr;
+Function EmitVariable( P : ProgPtr; s : StrPtr; glob : Boolean ) : TermPtr;
 Function EmitIdent( P : ProgPtr; s : StrPtr; glob : Boolean ) : TermPtr;
 Function EmitShortIdent( P : ProgPtr; ident : TString; 
     glob : Boolean ) : TermPtr;
@@ -125,8 +129,8 @@ Function ReadProgramToken( P : ProgPtr; f : StreamPtr ) : TokenPtr;
 Procedure ReleaseMemory( P : ProgPtr );
 Procedure BeginInsertion( P : ProgPtr );
 Procedure EndInsertion( P : ProgPtr );
-Function GetProgramPath( P : ProgPtr ) : TString;
-Procedure SetProgramPath( P : ProgPtr; path : TString );
+Function GetProgramPath( P : ProgPtr ) : StrPtr;
+Procedure SetProgramPath( P : ProgPtr; path : StrPtr );
 Function GetSyntax( P : ProgPtr ) : TSyntax;
 Procedure SetSyntax( P : ProgPtr; y : TSyntax );
 
@@ -139,17 +143,20 @@ Implementation
 
 { return the alias for a buffer }
 Function BufferAlias( y : TSyntax ) : TAlias;
+Var
+  ShortAlias : TString;
 Begin
   If y = PrologIIc Then
-    BufferAlias := 'tampon'
+    ShortAlias := 'tampon'
   Else
-    BufferAlias := 'buffer'
+    ShortAlias := 'buffer';
+  BufferAlias := Str_NewFromShortString(ShortAlias)
 End;
 
 { return the alias for a console }
 Function ConsoleAlias( y : TSyntax ) : TAlias;
 Begin
-  ConsoleAlias := 'console'
+  ConsoleAlias := Str_NewFromShortString('console')
 End;
 
 
@@ -183,7 +190,7 @@ Var
   P : ProgPtr;
   ptr : TObjectPtr Absolute P;
 Begin
-  ptr := NewRegisteredPObject(PR,SizeOf(TObjProg),9,True,4);
+  ptr := NewRegisteredPObject(PR,SizeOf(TObjProg),10,True,4);
   With P^ Do
   Begin
     PP_WTOP := World_New(Str_NewFromShortString(WorldSetup[y].Base),False);
@@ -196,7 +203,7 @@ Begin
     PP_DVAR := Nil; { TODO: get rid of it }
     PP_OPER := Nil;
     PP_LEVL := 0;
-    PP_PATH := '';
+    PP_PATH := Nil;
     PP_SYNT := y;
     PP_ECHO := Stream_GetEcho;
     PP_TRAC := False;
@@ -240,6 +247,21 @@ Begin
   GetDebug := P^.PP_DEBG
 End;
 
+{ return the trace stream }
+Function GetTraceStream( P : ProgPtr ) : StreamPtr;
+Begin
+  GetTraceStream := GetOutputConsole(P)
+End;
+
+{ return the debug stream or Nil if debug is off }
+Function GetDebugStream( P : ProgPtr ) : StreamPtr;
+Begin
+  If GetDebug(P) Then
+    GetDebugStream := GetTraceStream(P)
+  Else
+    GetDebugStream := Nil
+End;
+
 {-----------------------------------------------------------------------}
 { streams                                                               }
 {-----------------------------------------------------------------------}
@@ -263,9 +285,15 @@ Begin
 End;
 
 { return the input console as a stream }
-Function GetInputConsole( P : ProgPtr )  : StreamPtr;
+Function GetInputConsole( P : ProgPtr ) : StreamPtr;
 Begin
   GetInputConsole := Streams_InputConsole(P^.PP_FILE)
+End;
+
+{ return the input console as a stream }
+Function GetOutputConsole( P : ProgPtr ) : StreamPtr;
+Begin
+  GetOutputConsole := Streams_OutputConsole(P^.PP_FILE)
 End;
 
 { return a stream having path Path, or Nil }
@@ -380,7 +408,7 @@ Begin
 End;
 
 
-{----------------------------------------------s-------------------------}
+{-----------------------------------------------------------------------}
 { methods: misc. convenient emit functions                              }
 {-----------------------------------------------------------------------}
 
@@ -396,13 +424,25 @@ Begin
   EmitConst := TC
 End;
 
+{ return a new variable as a term, from a string }
+Function EmitVariable( P : ProgPtr; s : StrPtr; glob : Boolean ) : TermPtr;
+Var
+  V : VarPtr;
+Begin
+  EmitVariable := Nil;
+  V := InstallVariable(P^.PP_DVAR,s,glob);
+  EmitVariable := TermPtr(V)
+End;
+
 { return a new identifier as a term, from a string }
 Function EmitIdent( P : ProgPtr; s : StrPtr; glob : Boolean ) : TermPtr;
 Var
+  Quoted : Boolean;
   I : IdPtr;
 Begin
   EmitIdent := Nil;
-  I := InstallIdentifier(P^.PP_DIDE,s,glob);
+  Quoted := Not IsUnquotedIdentifier(s,GetSyntax(P));
+  I := InstallIdentifier(P^.PP_DIDE,s,Quoted,glob);
   EmitIdent := TermPtr(I)
 End;
 
@@ -622,13 +662,13 @@ Begin
 End;
 
 { get the Prolog program's path passed as parameter }
-Function GetProgramPath( P : ProgPtr ) : TString;
+Function GetProgramPath( P : ProgPtr ) : StrPtr;
 Begin
   GetProgramPath := P^.PP_PATH
 End;
 
 { set the current type of rules to read }
-Procedure SetProgramPath( P : ProgPtr; path : TString );
+Procedure SetProgramPath( P : ProgPtr; path : StrPtr );
 Begin
   P^.PP_PATH := path
 End;

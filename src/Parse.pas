@@ -305,8 +305,16 @@ Begin
   o := Nil;
   If Token_GetType(K) = TOKEN_IDENT Then
   Begin
-    oper := Str_GetShortString(Token_GetStr(K));
-    o := Op_Lookup(P^.PP_OPER,oper,'',OpTypes,0,MaxPred)
+    oper := Str_GetShortStringTruncate(Token_GetStr(K));
+    o := Op_Lookup(P^.PP_OPER,[OP_OPERATOR,OP_TYPES,OP_PRECEDENCE],
+        oper,'',OpTypes,0,MaxPred);
+      
+    { special case: prefixed unary operator used as ident, e.g. ['-'|aa]. or 
+     aa('-'); it is assumed that a quoted unary operator is actually a quoted 
+     identifier, not an operator, so one cannot write 1 '-' 2 }
+    If (o <> Nil) And (Op_GetType(o) In [fx,fy]) And 
+        Token_IsQuoted(K) Then
+      o := Nil
   End;
   NextOp := o
 End;
@@ -552,10 +560,6 @@ Var
   y : TSyntax;
   T : TermPtr;
   L : TermPtr;
-  V : VarPtr;
-  TV : TermPtr Absolute V;
-  I : IdPtr;
-  TI : TermPtr Absolute I;
   MaxPred : TPrecedence;
 Begin
   ReadPTerm := Nil;
@@ -597,13 +601,11 @@ Begin
     Begin
       If Token_GetType(K) = TOKEN_VARIABLE Then
       Begin
-        V := InstallVariable(P^.PP_DVAR,Token_GetStr(K),glob);
-        T := TV
+        T := EmitVariable(P,Token_GetStr(K),glob)
       End
       Else
       Begin
-        I := InstallIdentifier(P^.PP_DIDE,Token_GetStr(K),glob);
-        T := TI
+        T := EmitIdent(P,Token_GetStr(K),glob)
       End;
       K := ReadProgramToken(P,f);
       If Error Then Exit;

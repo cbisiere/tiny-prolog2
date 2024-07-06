@@ -234,12 +234,13 @@ Begin
             { function is known and has the correct number of parameters }
             func := IdentifierGetShortString(IIdent);
             n := TupleArgCount(T) - 1;
-            o := Op_Lookup(P^.PP_OPER,'',func,[],n,1200);
+            o := Op_Lookup(P^.PP_OPER,[OP_FUNCTION,OP_ARITY,OP_PRECEDENCE],
+                '',func,[],n,1200);
             Ok := o <> Nil;
             If Ok Then
             Begin
-              If ((func = '''@<''') Or (func = '''@>''') Or (func = '''@=<''') 
-                  Or (func = '''@>=''')) And (y = Edinburgh) Then
+              If ((func = '@<') Or (func = '@>') Or (func = '@=<') 
+                  Or (func = '@>=')) And (y = Edinburgh) Then
               Begin
                 T1 := EvaluateExpression(TupleArgN(1+1,T),P);
                 T2 := EvaluateExpression(TupleArgN(1+2,T),P);
@@ -249,11 +250,11 @@ Begin
                 Begin
                   IsInt := True;
                   r := Ord((Cmp = CompEqual) 
-                        And ((func = '''@=<''') Or (func = '''@>='''))
+                        And ((func = '@=<') Or (func = '@>='))
                       Or (Cmp = CompLower) 
-                        And ((func = '''@=<''') Or (func = '''@<'''))
+                        And ((func = '@=<') Or (func = '@<'))
                       Or (Cmp = CompGreater) 
-                        And ((func = '''@>=''') Or (func = '''@>''')));
+                        And ((func = '@>=') Or (func = '@>')));
                 End
               End
               Else
@@ -308,37 +309,37 @@ Begin
                     IsInt := IsInt And Not ParVal[i].IsReal;
                   { TODO: absolute precision }
                   If ((func = 'add') And (y <> Edinburgh) Or 
-                      (func = '''+''') And (y = Edinburgh)) And (n = 1) Then
+                      (func = '+') And (y = Edinburgh)) And (n = 1) Then
                   Begin
                     r := ParVal[1].Val
                   End
                   Else If ((func = 'sub') And (y <> Edinburgh) Or 
-                      (func = '''-''') And (y = Edinburgh)) And (n = 1) Then
+                      (func = '-') And (y = Edinburgh)) And (n = 1) Then
                   Begin
                     r := -1*ParVal[1].Val
                   End
                   Else If ((func = 'add') And (y <> Edinburgh) Or 
-                      (func = '''+''') And (y = Edinburgh)) And (n = 2) Then
+                      (func = '+') And (y = Edinburgh)) And (n = 2) Then
                   Begin
                     r := ParVal[1].Val + ParVal[2].Val
                   End
                   Else If ((func = 'sub') And (y <> Edinburgh) Or 
-                      (func = '''-''') And (y = Edinburgh)) And (n = 2) Then
+                      (func = '-') And (y = Edinburgh)) And (n = 2) Then
                   Begin
                     r := ParVal[1].Val - ParVal[2].Val
                   End
                   Else If ((func = 'mul') And (y <> Edinburgh) Or 
-                      (func = '''*''') And (y = Edinburgh)) And (n = 2) Then
+                      (func = '*') And (y = Edinburgh)) And (n = 2) Then
                   Begin
                     r := ParVal[1].Val * ParVal[2].Val
                   End
                   Else If ((func = 'div') And (y <> Edinburgh) Or 
-                      ((func = '''/''') Or (func = '''//''')) And (y = Edinburgh)) 
+                      ((func = '/') Or (func = '//')) And (y = Edinburgh)) 
                       And (n = 2) Then
                   Begin
                     Ok := ParVal[2].Val <> 0;
                     If Ok Then
-                      Ok := Not ((func = '''//''') And Not IsInt);
+                      Ok := Not ((func = '//') And Not IsInt);
                     If Ok Then
                     Begin
                       If IsInt Then { integer division }
@@ -348,7 +349,7 @@ Begin
                         r := ParVal[1].Val / ParVal[2].Val
                     End
                   End
-                  Else If (func = '''^''') And (n = 2) Then
+                  Else If (func = '^') And (n = 2) Then
                   Begin
                     If ParVal[2].Val = 0 Then { x^0 = 1 }
                       r := 1
@@ -374,25 +375,25 @@ Begin
                     End
                   End
                   Else If ((func = 'inf') And (y <> Edinburgh) 
-                      Or (func = '''<''') And (y = Edinburgh)) And (n = 2) Then
+                      Or (func = '<') And (y = Edinburgh)) And (n = 2) Then
                   Begin
                       r := Ord(ParVal[1].Val < ParVal[2].Val); { TODO: order on strings, etc.}
                       IsInt := True
                   End
                   Else If ((func = 'infe') And (y <> Edinburgh) 
-                      Or (func = '''=<''') And (y = Edinburgh)) And (n = 2) Then
+                      Or (func = '=<') And (y = Edinburgh)) And (n = 2) Then
                   Begin
                       r := Ord(ParVal[1].Val <= ParVal[2].Val); { TODO: order on strings, etc.}
                       IsInt := True
                   End
                   Else If ((func = 'sup') And (y <> Edinburgh) 
-                      Or (func = '''>''') And (y = Edinburgh)) And (n = 2) Then
+                      Or (func = '>') And (y = Edinburgh)) And (n = 2) Then
                   Begin
                       r := Ord(ParVal[1].Val > ParVal[2].Val); { TODO: order on strings, etc.}
                       IsInt := True
                   End
                   Else If ((func = 'supe') And (y <> Edinburgh) 
-                      Or (func = '''>=''') And (y = Edinburgh)) And (n = 2) Then
+                      Or (func = '>=') And (y = Edinburgh)) And (n = 2) Then
                   Begin
                       r := Ord(ParVal[1].Val >= ParVal[2].Val); { TODO: order on strings, etc.}
                       IsInt := True

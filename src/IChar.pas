@@ -83,9 +83,9 @@ Begin
   e := p;
   With e Do
   Begin
-    If (Val = EndOfInput) Or (v = EndOfInput) Then
+    If (Val.Bytes = EndOfInput) Or (v.Bytes = EndOfInput) Then
       Pass
-    Else If Val = NewLine Then { first char after a new line }
+    Else If Val.Bytes = NewLine Then { first char after a new line }
     Begin
       Lnb := Lnb + 1;
       Pos := 1
@@ -99,31 +99,31 @@ End;
 { true if character e is a tab }
 Function IsTab( e : TIChar ) : Boolean;
 Begin
-  IsTab := e.Val = #09
+  IsTab := e.Val.Bytes = #09
 End;
 
 { true if character e is an end of line }
 Function IsEol( e : TIChar ) : Boolean;
 Begin
-  IsEol := e.Val = NewLine
+  IsEol := e.Val.Bytes = NewLine
 End;
 
 { true if character e is an end of input }
 Function IsEndOfInput( e : TIChar ) : Boolean;
 Begin
-  IsEndOfInput := e.Val = EndOfInput
+  IsEndOfInput := e.Val.Bytes = EndOfInput
 End;
 
 { set a character to Eol }
 Procedure SetToEol( Var e : TIChar );
 Begin
-  e.Val := NewLine
+  e.Val.Bytes := NewLine
 End;
 
 { set a character to Eof }
 Procedure SetToEndOfInput( Var e : TIChar );
 Begin
-  e.Val := EndOfInput
+  e.Val.Bytes := EndOfInput
 End;
 
 End.

@@ -22,11 +22,13 @@ Interface
 Uses 
   ShortStr,
   Errs,
+  Chars,
   Files,
   Memory,
   PObjStr,
   PObjDef,
   PObjProg,
+  PObjIO,
   Debug,
   Predef,
   Engine;
@@ -40,7 +42,7 @@ Implementation
 Type 
   TStartFile = Array[TSyntax] Of String[5];
 Const 
-  StartFile : TStartFile = ('PIIv1','PII','PIIp','E');
+  StartFile : TStartFile = ('PIIv1','PII','PIIp','E'); { must be ASCII only }
 
 Const
   DEFAULT_PROLOG_SYNTAX : TSyntax = PrologII;
@@ -48,7 +50,7 @@ Const
 
 { parse the command line parameters }
 Procedure ParseCL( Var Syntax : TSyntax; Var SkipStartFile : Boolean;
-    Var HasUserFilePar : Boolean; Var Filename : TPath );
+    Var HasUserFilePar : Boolean; Var Filename : TShortPath );
 Var  
   y : TSyntax;
   i : Byte;
@@ -119,50 +121,49 @@ Var
   os : TObjectPtr Absolute s;
 Begin
   y := GetSyntax(P);
-  s := Str_NewFromBytes('start/' + StartFile[y] + '.' + FileExt[y]);
+  s := Str_NewFromShortString('start/' + StartFile[y] + '.' + FileExt[y]);
   AddGCRoot(os); { protect this string from GC }
   LoadProgram(P,s,False)
 End;
 
-{ create the default user world below the current world }
-Procedure LoadUserFile( P : ProgPtr; Filename : TPath );
-Var  
-  s : StrPtr;
-  os : TObjectPtr Absolute s;
+{ set up the default user world below the current world }
+Procedure LoadUserFile( P : ProgPtr; Filename : StrPtr );
 Begin
-  SetProgramPath(P,ExtractPath(Filename));
-  s := Str_NewFromBytes(Filename);
-  AddGCRoot(os); { protect this string from GC }
-  LoadProgram(P,s,False)
+  SetProgramPath(P,Path_ExtractPath(Filename));
+  LoadProgram(P,Filename,False)
 End;
 
 { create the Prolog engine }
 Function CreateProgram : ProgPtr;
 Var 
   P : ProgPtr;
-  OP : TObjectPtr Absolute P;
-  Syntax : TSyntax; 
+  y : TSyntax; 
   SkipStartFile : Boolean;
   HasUserFilePar : Boolean; 
-  UserFilename : TPath;
+  UserFilename : TShortPath;
+  StrUserFilename : TPath;
   DummyOk : Boolean;
   UserWorldName : StrPtr;
 Begin
-  ParseCL(Syntax,SkipStartFile,HasUserFilePar,UserFilename);
+  ParseCL(y,SkipStartFile,HasUserFilePar,UserFilename);
   If Error Then Exit;
-  P := Prog_New(Syntax);
-  AddGCRoot(OP);
+  P := Prog_New(y);
+  AddGCRoot(TObjectPtr(P));
   SetCurrentProgram(P);
   RegisterPredefined(P);
   { load the start file }
   If Not Error And Not SkipStartFile Then
     LoadStartFile(P);
   { create the default user world below the current world and move to it }
-  UserWorldName := Str_NewFromShortString(WorldSetup[GetSyntax(P)].User);
+  UserWorldName := Str_NewFromShortString(WorldSetup[y].User);
   DummyOk := CreateNewSubWorld(P,UserWorldName,True);
   { load the user file }
   If Not Error And HasUserFilePar Then
-    LoadUserFile(P,UserFilename);
+  Begin
+    StrUserFilename := Str_NewFromBytes(UserFilename,GetSystemCEncoding);
+    AddGCRoot(TObjectPtr(StrUserFilename)); { protect this string from GC }
+    LoadUserFile(P,StrUserFilename)
+  End;
   CreateProgram := P
 End;
 

@@ -100,7 +100,7 @@ Var
 
 Function CrtCharWidthOnScreen( cc : TChar ) : Byte;
 Function CrtFits( cc : TChar ) : Boolean;
-Function CrtChar( R : TCrtRowData; i : TCrtCoord ) : TChar;
+Procedure CrtChar( R : TCrtRowData; i : TCrtCoord; Var cc : TChar);
 
 Procedure CrtWriteLn;
 Procedure CrtWriteCharThatFits( cc : TChar );
@@ -164,16 +164,16 @@ End;
  taking a single "column" }
 Function CrtCharWrapSize( cc : TChar ) : Byte;
 Begin
-  If cc = #09 Then
+  If cc.Bytes = #09 Then
     CrtCharWrapSize := CrtTabSize + 1 { weird, but this is what I observe }
   Else
-    CrtCharWrapSize := Length(cc)
+    CrtCharWrapSize := Length(cc.Bytes)
 End;
 
 { number of columns the char takes on the screen }
 Function CrtCharWidthOnScreen( cc : TChar ) : Byte;
 Begin
-  If cc = #09 Then
+  If cc.Bytes = #09 Then
     CrtCharWidthOnScreen := CrtTabSize + 1 { weird, see above }
   Else
     CrtCharWidthOnScreen := 1
@@ -188,9 +188,9 @@ Begin
 End;
 
 { get char i in row data R }
-Function CrtChar( R : TCrtRowData; i : TCrtCoord ) : TChar;
+Procedure CrtChar( R : TCrtRowData; i : TCrtCoord; Var cc : TChar);
 Begin;
-  CrtChar := R[i]
+  cc := R[i]
 End;
 
 { set to cc char i in row data R }
@@ -217,7 +217,7 @@ End;
 { write a char on screen, breaking the line when the screen is full }
 Procedure CrtWriteCharThatFits( cc : TChar );
 Begin
-  Write(cc);
+  Write(cc.Bytes);
   { we must exit in case of error, as the error module uses Crt to display 
    messages about bugs; if the bug is about Crt, this could create an 
    infinite loop }
@@ -238,7 +238,7 @@ End;
  FIXME: StrPtr must use TChar instead of 1-byte chars }
 Procedure CrtWriteChar( cc : TChar );
 Begin
-  If cc = NewLine Then
+  If cc.Bytes = NewLine Then
     CrtWriteLn
   Else
   Begin
@@ -253,20 +253,27 @@ End;
 Procedure CrtWriteShortString( s : TString );
 Var
   i : TStringSize;
+  cc : TChar;
 Begin
   For i := 1 to Length(s) Do
-    CrtWriteChar(s[i])
+  Begin
+    ASCIIChar(cc,s[i]);
+    CrtWriteChar(cc)
+  End
 End;
 
 { backspace one char at the cursor }
 Procedure CrtBackspace;
+Var
+  cc : TChar;
 Begin
   CheckCondition(CrtRow.Len > 1,'CrtBackspace: no chars to delete');
   Write(#08); { backspace }
   ClrEol;
   With CrtRow Do
   Begin
-    Wrap := Wrap - CrtCharWrapSize(CrtChar(Row,Len));
+    CrtChar(Row,Len,cc);
+    Wrap := Wrap - CrtCharWrapSize(cc);
     Len := Len - 1
   End
 End;
@@ -319,12 +326,16 @@ End;
 Procedure CrtReplay( R : TCrtRow; y : TCrtCoord );
 Var
   i : TCrtCoord;
+  cc : TChar;
 Begin
   GotoXY(1,y);
   CrtClrLine;
   With R Do
     For i := 1 to Len Do
-      CrtWriteCharThatFits(CrtChar(Row,i))
+    Begin
+      CrtChar(Row,i,cc);
+      CrtWriteCharThatFits(cc)
+    End
 End;
 
 

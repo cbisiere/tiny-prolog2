@@ -518,7 +518,7 @@ Begin
     Exit;
 
   { build the string representation of this term }
-  s2 := Str_New;
+  s2 := Str_New(Str_GetEncodingContext(s));
 
   { is the LHS of an equation: the string representation is that of the RHS }
   Tr := Red(T);
@@ -761,26 +761,28 @@ End;
 { output using long strings                                                  }
 {----------------------------------------------------------------------------}
 
-{ write a string to stream f or Crt }
+{ write a string to stream f }
 Procedure OutString( f : StreamPtr; s : StrPtr );
 Begin
-  If (f = Nil) Or Stream_IsConsole(f) Then
+  CheckCondition(f <> Nil,'OutString: Nil');
+  If Stream_IsConsole(f) Then
     Str_CWrite(s)
   Else
-    Str_Write(f,s)
+    Stream_WriteStr(f,s)
 End;
 
 { write a string followed by a carriage return; do not alter the
   string passed as parameter }
 Procedure OutlnString( f : StreamPtr; s : StrPtr );
 Begin
-  If (f = Nil) Or Stream_IsConsole(f) Then
+  CheckCondition(f <> Nil,'OutlnString: Nil');
+  If Stream_IsConsole(f) Then
   Begin
     Str_CWrite(s);
     CWriteLn
   End
   Else
-    Str_Writeln(f,s)
+    Stream_WriteLnStr(f,s)
 End;
 
 { line }
@@ -788,7 +790,7 @@ Procedure Outln( f : StreamPtr );
 Var 
   s : StrPtr;
 Begin
-  s := Str_New;
+  s := Stream_NewStr(f);
   OutlnString(f,s)
 End;
 
@@ -796,7 +798,7 @@ Procedure OutConst( f : StreamPtr; C : ConstPtr );
 Var 
   s : StrPtr;
 Begin
-  s := Str_New;
+  s := Stream_NewStr(f);
   WriteConst(s,C,True); { with quotes }
   OutString(f,s)
 End;
@@ -805,7 +807,7 @@ Procedure OutIdentifier( f : StreamPtr; I : IdPtr );
 Var 
   s : StrPtr;
 Begin
-  s := Str_New;
+  s := Stream_NewStr(f);
   WriteIdentifier(s,I,True);
   OutString(f,s)
 End;
@@ -814,7 +816,7 @@ Procedure OutVarName( f : StreamPtr; V : VarPtr );
 Var 
   s : StrPtr;
 Begin
-  s := Str_New;
+  s := Stream_NewStr(f);
   WriteVarName(s,V);
   OutString(f,s)
 End;
@@ -824,7 +826,7 @@ Procedure OutOneEquation( f : StreamPtr; y : TSyntax; E : EqPtr );
 Var 
   s : StrPtr;
 Begin
-  s := Str_New;
+  s := Stream_NewStr(f);
   WriteOneEquation(y,s,E,False); { source code }
   OutString(f,s)
 End;
@@ -834,7 +836,7 @@ Procedure OutQuerySolution( f : StreamPtr; Q : QueryPtr );
 Var
   s : StrPtr;
 Begin
-  s := Str_New;
+  s := Stream_NewStr(f);
   WriteSolution(Query_GetSyntax(Q),s,Query_GetDict(Q));
   OutString(f,s)
 End;
@@ -846,7 +848,7 @@ Procedure OutTermBis( f : StreamPtr; y : TSyntax; T : TermPtr;
 Var 
   s : StrPtr;
 Begin
-  s := Str_New;
+  s := Stream_NewStr(f);
   WriteTerm(y,s,T,False,ArgList,Quotes,True);
   OutString(f,s)
 End;
@@ -861,7 +863,7 @@ Procedure OutOneRule( f : StreamPtr; R : RulePtr );
 Var 
   s : StrPtr;
 Begin
-  s := Str_New;
+  s := Stream_NewStr(f);
   WriteOneRule(s,R);
   OutlnString(f,s)
 End;
@@ -870,7 +872,7 @@ Procedure OutOneQuery( f : StreamPtr; Q : QueryPtr );
 Var 
   s : StrPtr;
 Begin
-  s := Str_New;
+  s := Stream_NewStr(f);
   WriteOneQuery(s,Q);
   OutlnString(f,s)
 End;
@@ -879,7 +881,7 @@ Procedure OutOneComment( f : StreamPtr; C : CommPtr );
 Var 
   s : StrPtr;
 Begin
-  s := Str_New;
+  s := Stream_NewStr(f);
   WriteOneComment(s,C);
   OutlnString(f,s)
 End;

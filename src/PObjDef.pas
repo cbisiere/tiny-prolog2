@@ -163,9 +163,9 @@ Type
     PP_DIDE : DictPtr; { list of all identifiers (globals, can be assigned, must not backtrack) }
     PP_DVAR : DictPtr; { local variables when parsing a rule or a query }
     PP_OPER : OpPtr;   { list of operators }
+    PP_PATH : StrPtr; { path (dir) of the file passed as parameter in the CL }
     { extra data: }
     PP_LEVL : TILevel; { current file insertion level (0 is command-line) }
-    PP_PATH : TString; { path (dir) of the file passed as parameter in the CL }
     PP_SYNT : TSyntax; { current active syntax }
     PP_ECHO : Boolean; { echo is on/off }
     PP_TRAC : Boolean; { trace is on/off }

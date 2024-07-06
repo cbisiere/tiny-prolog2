@@ -42,6 +42,7 @@ Unit Tokenize;
 Interface
 
 Uses
+  Common,
   Errs,
   ShortStr,
   Chars,
@@ -50,7 +51,9 @@ Uses
   PObjStr,
   PObjTok,
   PObjDef;
-  
+
+Function IsUnquotedIdentifier( s : StrPtr; y : TSyntax ) : Boolean;
+
 Procedure ReadBlanks( f : StreamPtr );
 Function ReadString( f : StreamPtr ) : TokenPtr;
 Function ReadInteger( f : StreamPtr ) : TokenPtr;
@@ -69,70 +72,61 @@ Implementation
  certain set; return the number of TChars appended }
 Function GetCharWhile( f : StreamPtr; Ch : StrPtr; E : CharSet ) : LongInt;
 Var 
-  c : TChar;
+  cc : TChar;
   n : LongInt;
   Found : Boolean;
 Begin
   GetCharWhile := 0;
   n := 0;
   Repeat
-    c := Stream_GetChar(f,c);
+    Stream_GetChar(f,cc);
     If Error Then Exit;
-    Found := c[1] In E;
+    Found := cc.Bytes[1] In E;
     If Not Found Then
       Stream_UngetChar(f)
     Else
     Begin
-      Str_AppendChar(Ch,c);
+      Str_AppendChar(Ch,cc);
       n := n + 1
     End
   Until Not Found Or Error;
   GetCharWhile := n
 End;
 
-{ append TChars to a string until a TChar has its first letter 
- in a certain set; return that TChar }
-Function GetCharUntil( f : StreamPtr; Ch : StrPtr; E : CharSet ) : TChar;
+{ append TChars to a string until a TChar is in a certain set; 
+ return that TChar or set an Error if the char is not found }
+Procedure GetCharUntil( f : StreamPtr; Ch : StrPtr; E : CharSet; Var cc : TChar );
 Var 
-  c : TChar;
   Found : Boolean;
 Begin
-  GetCharUntil := '';
   Repeat
-    c := Stream_GetChar(f,c);
+    Stream_GetChar(f,cc);
     If Error Then Exit;
-    Found := c[1] In E;
+    Found := IsIn(cc,E);
     If Found Then
       Stream_UngetChar(f)
     Else
-      Str_AppendChar(Ch,c)
-  Until Found Or Error;
-  GetCharUntil := c
+      Str_AppendChar(Ch,cc)
+  Until Found Or Error
 End;
 
 { return the next non-blank TChar without consuming it }
-Function NextCharNb( f : StreamPtr; Var c : TChar ) : TChar;
+Procedure NextCharNb( f : StreamPtr; Var c : TChar );
 Begin
-  NextCharNb := Stream_GetCharNb(f,c);
+  Stream_GetCharNb(f,c);
   If Error Then Exit;
   Stream_UngetChar(f)
 End;
 
-{ verify that all the 1-byte chars in string s is next in input }
-Procedure Verify( f : StreamPtr; s : TString );
+{ verify that TChar cc is next in input }
+Procedure Verify( f : StreamPtr; cc : TChar );
 Var
-  q : TString;
   c  : TChar;
 Begin
-  q := s;
-  Repeat
-    c := Stream_GetChar(f,c);
-    If Error Then Exit;
-    If c <> q[1] Then 
-      SyntaxError('"' + s + '" expected');
-    If Error Then Exit;
-    Delete(q,1,1);
-  Until (Length(q) = 0) Or Error
+  Stream_GetChar(f,c);
+  If Error Then Exit;
+  If c.Bytes <> cc.Bytes Then 
+    SyntaxError('"' + cc.Bytes + '" expected');
 End;
 
 
@@ -140,15 +134,48 @@ End;
 { encoding-dependant entities                                                }
 {----------------------------------------------------------------------------}
 
-{ chars and charsets }
-Const
+{ chars and charsets;
+
+ "letter" is as defined on page R1-2 of the Prolog II+ manual:
+ "A"|...|"Z"|"a"|...|"z"|"À" ... "ß" - "x" | "à" ... "ÿ" - "÷"
+ where x is the multiplication sign, and ordering is ISO 8859.
+
+assumptions and detection policy regarding encoding:
+ (1) it is assumed that in all encodings, codepoints for a-z letters, digits and 
+  underscore are as in 7-bit ASCII; 
+  we rely on this when testing for a letter when the encoding of the input 
+  stream is still unknown
+ (2) it is assumed that, if the input is ISO-8859-1, there is no "Ã" ($C3) 
+  followed by a char that would make the 2-byte sequence an UTF8 letter; 
+  hopefully 80-9F are undefined in ISO-8859-1; A0-BF is possible but none of 
+  those combinations (e.g. Ã¢) would be a valid part of an identifier, so 
+  either the input is UTF8 and there is a syntax error, or the input is UTF8, 
+  which we therefore assume;
+ (3) when testing for a letter, if the encoding is undecided and the character 
+  is an ISO8859 letter, then the whole input is assumed to be ISO8859; this 
+  policy recognizes ISO8859 as more "likely" than other 1-byte encodings 
+
+ References:
+ UTF8: 
+  https://www.utf8-chartable.de/
+ ISO-8859-1: 
+  https://fr.wikipedia.org/wiki/ISO/CEI_8859-1
+ CP850 and 858: 
+  https://en.wikipedia.org/wiki/Code_page_850#Character_set 
+ CP437: 
+  https://en.wikipedia.org/wiki/Code_page_437#Character_set }
+
+ Const
   Letters : CharSet = ['a'..'z','A'..'Z']; { 7-bit ASCII letters }
   Alpha : CharSet = ['a'..'z','A'..'Z','_','0'..'9']; { 7-bit ASCII alpha }
   Digits  : CharSet = ['0'..'9']; { digits }
-  ISO8859_Letters : CharSet = [#$C0..#$D6,#$D8..#$F6,#$F8..#$FF];
-  CP850_Letters : CharSet = [#$80..#$9B,#$9D,#$A0..#$A5,#$B5..#$B7,
+  ISO8859_Letters : CharSet = ['a'..'z','A'..'Z',
+    #$C0..#$D6,#$D8..#$F6,#$F8..#$FF];
+  CP850_Letters : CharSet = ['a'..'z','A'..'Z',
+    #$80..#$9B,#$9D,#$A0..#$A5,#$B5..#$B7,
     #$C6,#$C7,#$D0..#$D4,#$D6..#$D8,#$DE,#$E0..#$E5,#$E7..#$ED];
-  CP437_Letters : CharSet = [#$80..#$99,#$A0..#$A5,#$E1];
+  CP437_Letters : CharSet = ['a'..'z','A'..'Z',
+    #$80..#$99,#$A0..#$A5,#$E1];
   { identifiers can be unquoted graphic chars; PII+ p48-49 }
   PROLOG_Graphic : CharSet = ['#','$','&','*','+','-','/',':','=','?','\',
     '@','^','~',#$A0..#$BF,#$D7,#$F7];
@@ -157,83 +184,101 @@ Const
     #$A0..#$BF,#$D7,#$F7];
 
 
-{ try to read one letter, as defined page R1-2 of the Prolog II+ manual:
-  "A"|...|"Z"|"a"|...|"z"|"À" ... "ß" - "x" | "à" ... "ÿ" - "÷"
-  where x is the multiplication sign, and ordering is ISO 8859.
-  it is assumed that, if the input is ISO-8859-1, there is no "Ã" (C3)
-  followed by a char that would make the 2-byte sequence an UTF8
-  letter; hopefully 80-9F are undefined in ISO-8859-1; A0-BF is possible
-  but none of those combinations (e.g. Ã¢) would be a valid part of an
-  identifier, so either the input is UTF8 and there is a syntax error,
-  or the input is UTF8, which we therefore assume;
-  "big letters" are A-Z only, see PrologII+ manual, R 1-23  }
+{ is TChar cc is a letter in UTF8? }
+Function IsUTF8Letter( cc : TChar ) : Boolean;
+Begin
+  IsUTF8Letter := IsIn(cc,Letters) Or (Length(cc.Bytes) = 2) And 
+    (cc.Bytes[1] = #$C3) And (cc.Bytes[2] In ([#$80..#$BF] - [#$97,#$B7]))
+End;
+
+{ is TChar cc is a letter in ISO8859? }
+Function IsISO8859Letter( cc : TChar ) : Boolean;
+Begin
+  IsISO8859Letter := IsIn(cc,ISO8859_Letters)
+End;
+
+{ is TChar cc is a letter in CP850? }
+Function IsCP850Letter( cc : TChar ) : Boolean;
+Begin
+  IsCP850Letter := IsIn(cc,CP850_Letters)
+End;
+
+{ is TChar cc is a letter in CP437? }
+Function IsCP437Letter( cc : TChar ) : Boolean;
+Begin
+  IsCP437Letter := IsIn(cc,CP437_Letters)
+End;
+
+{ is TChar cc known to be a letter? }
+Function IsLetter( cc : TChar ) : Boolean;
+Begin
+  Case cc.Encoding Of 
+  UTF8:
+    IsLetter := IsUTF8Letter(cc);
+  ISO8859:
+    IsLetter := IsISO8859Letter(cc);
+  CP850:
+    IsLetter := IsCP850Letter(cc);
+  CP437:
+    IsLetter := IsCP437Letter(cc);
+  Else
+    IsLetter := IsIn(cc,Letters)
+  End
+End;
+
+{ is TChar cc known to be a big letter?
+  "big letters" are A-Z only, see PrologII+ manual, R 1-23 }
+Function IsBigLetter( cc : TChar ) : Boolean;
+Begin
+  IsBigLetter := IsIn(cc,['A'..'Z'])
+End;
+
+{ is TChar cc known to be a digit in encoding Enc? }
+Function IsDigit( cc : TChar ) : Boolean;
+Begin
+  IsDigit := IsIn(cc,Digits)
+End;
+
+{ is TChar cc known to be an alphanumeric character in encoding Enc? }
+Function IsAlpha( cc : TChar ) : Boolean;
+Begin
+  IsAlpha := IsLetter(cc) Or IsDigit(cc) Or (cc.Bytes = '_')
+End;
+
+{----------------------------------------------------------------------------}
+{ grabbing characters of different classes                                   }
+{----------------------------------------------------------------------------}
+
+{ grab one letter from stream f, and, if any, detect uppercase; also, try to 
+ set the stream encoding if it is not set yet }
 Function GrabOneLetter( f : StreamPtr; Var Ch : StrPtr; 
     Var IsUpper : Boolean ) : Boolean;
 Var
-  c : TChar;
-  Found : Boolean;
+  cc : TChar;
   Enc : TEncoding;
 
+  { cc is a letter and its encoding is Enc }
   Procedure Accept( Enc : TEncoding );
   Begin
-    c := Stream_GetChar(f,c);
+    Stream_GetChar(f,cc);
     If Error Then Exit;
-    Str_AppendChar(Ch,c);
+    Str_AppendChar(Ch,cc);
     Stream_SetEncoding(f,Enc);
     GrabOneLetter := True
   End;
 
 Begin
   GrabOneLetter := False;
-  c := Stream_NextChar(f,c);
+  Stream_NextChar(f,cc);
   If Error Then Exit;
-  IsUpper := False;
+
   Enc := Stream_GetEncoding(f);
+  IsUpper := IsBigLetter(cc);
 
-  { simplest case: 7-bit letter; valid in all encodings }
-  Found := (Length(c) = 1) And (c[1] In Letters);
-  If Found Then
-  Begin
-    IsUpper := c[1] In ['A'..'Z'];
-    Accept(Enc);
-    Exit
-  End;
-
-  { UTF8: https://www.utf8-chartable.de/ }
-  If Stream_GetEncoding(f) = UTF8 Then
-  Begin
-    If Length(c) = 2 Then
-      If (c[1] = #$C3) And (c[2] In ([#$80..#$BF] - [#$97,#$B7])) Then
-      Begin
-        Accept(Enc);
-        Exit
-      End;
-    Exit
-  End;
-
-  { ISO-8859-1: https://fr.wikipedia.org/wiki/ISO/CEI_8859-1 }
-  If Stream_GetEncoding(f) In [UNDECIDED,ISO8859] Then
-  Begin
-    If c[1] In ISO8859_Letters Then
-      Accept(ISO8859);
-    Exit
-  End;
-
-  { CP850 and 858: https://en.wikipedia.org/wiki/Code_page_850#Character_set }
-  If Stream_GetEncoding(f) = CP850 Then
-  Begin
-    If c[1] In CP850_Letters Then
-      Accept(CP850);
-    Exit
-  End;
-
-  { CP437: https://en.wikipedia.org/wiki/Code_page_437#Character_set }
-  If Stream_GetEncoding(f) = CP437 Then
-  Begin
-    If c[1] In CP437_Letters Then
-      Accept(CP437);
-    Exit
-  End
+  If IsLetter(cc) Then
+    Accept(Enc)
+  Else If (Enc = UNDECIDED) And IsISO8859Letter(cc) Then { policy }
+    Accept(ISO8859)
 End;
 
 { grab letters; return the number of letters appended to Ch }
@@ -293,36 +338,37 @@ Var
   Done : Boolean;
 Begin
   ReadQuotedRunOfChars := Nil;
-  c := Stream_NextChar(f,c);
+  Stream_NextChar(f,c);
   If Error Then Exit;
-  If c <> quote Then 
+  If c.Bytes <> quote Then 
   Begin
     If Not quiet Then
       SyntaxError(quote + ' expected');
     Exit
   End;
-  c := Stream_GetChar(f,c);
+  Stream_GetChar(f,c);
   If Error Then Exit;
   K := Token_New(tt);
   With K^ Do
   Begin
-    TK_STRI := Str_New;
+    TK_STRI := Stream_NewStr(f);
+    TK_QUOT := True;
     If keep Then
       Str_Append(TK_STRI,quote);
+    Done := False;
     Repeat
-      Done := False;
       { look for the next char with special meaning inside a string }
-      c := GetCharUntil(f,TK_STRI, [quote,'\',NewLine,EndOfInput]);
+      GetCharUntil(f,TK_STRI,[quote,'\',NewLine,EndOfInput],c);
       If Error Then Exit;
-      If c = quote Then { doubled quote or end of run }
+      If c.Bytes = quote Then { doubled quote or end of run }
       Begin
-        c := Stream_GetChar(f,c); { discard it }
+        Stream_GetChar(f,c); { discard it }
         If Error Then Exit;
-        c := Stream_NextChar(f,c);
+        Stream_NextChar(f,c);
         If Error Then Exit;
-        If c = quote Then { doubled quotes }
+        If c.Bytes = quote Then { doubled quotes }
         Begin
-          c := Stream_GetChar(f,c);
+          Stream_GetChar(f,c);
           If Error Then Exit;
           Str_AppendChar(TK_STRI,c);
           If keep Then
@@ -335,28 +381,28 @@ Begin
             Str_Append(TK_STRI,quote)
         End
       End
-      Else If c = '\' Then { backslash or line continuation }
+      Else If c.Bytes = '\' Then { backslash or line continuation }
       Begin
-        c := Stream_NextNextChar(f,c);
+        Stream_NextNextChar(f,c);
         If Error Then Exit;
-        if c = NewLine Then
+        if c.Bytes = NewLine Then
         Begin
-          c := Stream_GetChar(f,c); { discard '\' }
+          Stream_GetChar(f,c); { discard '\' }
           If Error Then Exit;
-          c := Stream_GetChar(f,c)  { discard NewLine } 
+          Stream_GetChar(f,c)  { discard NewLine } 
         End
         Else
         Begin
-          c := Stream_GetChar(f,c);
+          Stream_GetChar(f,c);
           If Error Then Exit;
           Str_AppendChar(TK_STRI,c) { append '\' }
         End
       End
       Else If quiet Then 
         Exit 
-      Else If c = NewLine Then
+      Else If c.Bytes = NewLine Then
         SyntaxError('end of line while reading ' + TokenStr[tt])
-      Else If c = EndOfInput Then
+      Else If c.Bytes = EndOfInput Then
         SyntaxError('end of input while reading ' + TokenStr[tt])
     Until Error or Done;
     If Error Then Exit
@@ -374,33 +420,36 @@ End;
   nested, e.g. "/* ... |* .... *| .... */" (even with the same symbol) }
 Procedure ReadComment( f : StreamPtr; symbol : TChar );
 Var
-  c,c2 : TChar;
+  c0,c,c2 : TChar;
   Stop : Boolean;
 Begin
-  Verify(f,symbol + '*');
+  Verify(f,symbol);
+  If Error Then Exit;
+  ASCIIChar(c0,'*');
+  Verify(f,c0);
   If Error Then Exit;
   Repeat
     Stop := False;
     Repeat
-      c := Stream_GetChar(f,c)
-    Until Error Or (c = '*') Or (c = '/') Or (c = '|') Or (c = EndOfInput);
+      Stream_GetChar(f,c)
+    Until Error Or IsIn(c,['*','/','|',EndOfInput]);
     If Error Then Exit;
-    If c = '*' Then
+    If c.Bytes = '*' Then
     Begin
-      c := Stream_NextChar(f,c);
+      Stream_NextChar(f,c);
       If Error Then Exit;
-      If c = symbol Then
+      If c.Bytes = symbol.Bytes Then
       Begin
-        c := Stream_GetChar(f,c);
+        Stream_GetChar(f,c);
         If Error Then Exit;
         Stop := true
       End
     End
-    Else If (c = '/') Or (c = '|') Then
+    Else If IsIn(c,['/','|']) Then
     Begin
-      c2 := Stream_NextChar(f,c2);
+      Stream_NextChar(f,c2);
       If Error Then Exit;
-      If c2 = '*' Then
+      If c2.Bytes = '*' Then
       Begin
         Stream_UngetChar(f);
         ReadComment(f,c);
@@ -417,7 +466,7 @@ Procedure ReadBlanks( f : StreamPtr );
 Var
   n : LongInt;
 Begin
-  n := GetCharWhile(f,Str_New,[' '])
+  n := GetCharWhile(f,Stream_NewStr(f),[' '])
 End;
 
 { skip any sequence of blank spaces and comments }
@@ -428,23 +477,23 @@ Var
 Begin
   Repeat
     Stop := True;
-    c := NextCharNb(f,c);
+    NextCharNb(f,c);
     If Error Then Exit;
-    c2 := Stream_NextNextChar(f,c2);
+    Stream_NextNextChar(f,c2);
     If Error Then Exit;
     If y In [PrologIIp,Edinburgh] Then
     Begin
-      If c = '%' Then
+      If c.Bytes = '%' Then
       Begin
         Repeat
-          c := Stream_GetChar(f,c)
-        Until Error Or (c = NewLine) Or (c = EndOfInput); 
+          Stream_GetChar(f,c)
+        Until Error Or IsIn(c,[NewLine,EndOfInput]); 
         If Error Then Exit;
-        If c = EndOfInput Then
+        If c.Bytes = EndOfInput Then
           Stream_UngetChar(f);
         Stop := False
       End
-      Else If ((c = '/') Or (c = '|')) And (c2 = '*') Then
+      Else If IsIn(c,['/','|']) And (c2.Bytes = '*') Then
       Begin
         ReadComment(f,c);
         If Error Then Exit;
@@ -464,7 +513,7 @@ Begin
   K := Token_New(TOKEN_INTEGER);
   With K^ Do
   Begin
-    TK_STRI := Str_New;
+    TK_STRI := Stream_NewStr(f);
     n := GetCharWhile(f,TK_STRI,Digits);
     If n = 0 Then
       Exit
@@ -501,9 +550,10 @@ Begin
   { optional real part }
   With K^ Do
   Begin
-    s := Str_New;
-    c := Stream_NextChar(f,c);
-    If c = '.' Then
+    s := Stream_NewStr(f);
+    Stream_NextChar(f,c);
+    If Error Then Exit;
+    If c.Bytes = '.' Then
     Begin
       Stream_GetIChar(f,e1); { undo point: the dot char }
       Str_Append(s,'.');
@@ -513,13 +563,14 @@ Begin
       If Not Stop Then
       Begin
         { optional exponent sign }
-        c := Stream_NextChar(f,c);
-        Stop := (c <> 'E') And (c <> 'e') And (c <> 'D') And (c <> 'd');
+        Stream_NextChar(f,c);
+        If Error Then Exit;
+        Stop := Not IsIn(c,['E','e','D','d']);
         If Stop Then
           ListDot := y <> Edinburgh { exponent are optional in Edinburgh }
         Else
         Begin
-          c := Stream_GetChar(f,c); { grab the exponent mark }
+          Stream_GetChar(f,c); { grab the exponent mark }
           Str_Append(s,'E')
         End;
         If Not Stop Then { we had the exponent mark, now look for its value }
@@ -527,11 +578,12 @@ Begin
           { optional exponent value: "+3" in "1.2e+3" or "3" in "1.2e3";
            "1.2e" is valid syntax, so "1.2e+X" is read as an addition, and in
            that case, the "+" will have to be unread }
-          c := Stream_NextChar(f,c);
-          If (c = '-') Or (c = '+') Then
+          Stream_NextChar(f,c);
+          If Error Then Exit;
+          If IsIn(c,['-','+']) Then
           Begin
             Stream_GetIChar(f,e2); { another undo point: the exp sign }
-            s2 := Str_New;
+            s2 := Stream_NewStr(f);
             Str_AppendChar(s2,c);
             n := GetCharWhile(f,s2,Digits);
             If n > 0 Then
@@ -559,18 +611,121 @@ Begin
   ReadNumber := K
 End;
 
-{ create a token of type typ while checking a given string of 1-byte
- chars is in input }
-Function GrabToken( f : StreamPtr; typ : TTokenType; s : TString ) : TokenPtr;
+{ create a token of type typ while checking a given TChar }
+Function GrabToken( f : StreamPtr; typ : TTokenType; cc : TChar ) : TokenPtr;
 Var
   K : TokenPtr;
 Begin
   GrabToken := Nil;
   K := Nil;
-  Verify(f,s);
+  Verify(f,cc);
   If Error Then Exit;
   K := Token_New(typ);
   GrabToken := K
+End;
+
+{ return True if string s is a valid (unquoted) identifier in syntax y;
+ TODO: what about identifiers made of graphic chars }
+Function IsUnquotedIdentifier( s : StrPtr; y : TSyntax ) : Boolean;
+Var 
+  State : Byte;
+  Iter : StrIter;
+  cc : TChar;
+Begin
+  IsUnquotedIdentifier := False;
+  If Str_Length(s) = 0 Then
+    Exit;
+  State := 0;
+  StrIter_ToStart(Iter,s);
+  While StrIter_NextChar(Iter,cc) Do
+  Begin
+    Case y Of
+    Edinburgh:
+      Case State Of
+      0:
+        If IsLetter(cc) And Not IsBigLetter(cc) Then
+          State := 1
+        Else
+          Exit;
+      1: { one small letter }
+        If IsAlpha(cc) Then
+          Pass
+        Else
+          Exit
+      End;
+    PrologIIp:
+      Case State Of
+      0:
+        If IsLetter(cc) Then
+          State := 1
+        Else
+          Exit;
+      1: { one letter }
+        If IsLetter(cc) Then
+          State := 2
+        Else
+          Exit;
+      2: { two letters }
+        If IsAlpha(cc) Then
+          Pass
+        Else If cc.Bytes = '''' Then
+          State := 3
+        Else
+          Exit;
+      3: { quotes }
+        If cc.Bytes = '''' Then
+          Pass
+        Else
+          Exit
+      End;
+    PrologII,PrologIIc:
+      Case State Of
+      0:
+        If IsLetter(cc) Then
+          State := 1
+        Else
+          Exit;
+      1: { one letter in a long word }
+        If IsLetter(cc) Then
+          State := 2
+        Else
+          Exit;
+      2: { a letter in a word }
+        If IsLetter(cc) Then
+          Pass
+        Else If cc.Bytes = '-' Then
+          State := 3
+        Else If IsDigit(cc) Then
+          State := 4
+        Else If cc.Bytes = '''' Then
+          State := 5
+        Else
+          Exit;
+      3: { dash }
+        If IsLetter(cc) Then
+          State := 2
+        Else
+          Exit;
+      4: { digits }
+        If IsDigit(cc) Then
+          Pass
+        Else If cc.Bytes = '-' Then
+          State := 3
+        Else If cc.Bytes = '''' Then
+          State := 5
+        Else
+          Exit;
+      5: { quotes }
+        If cc.Bytes = '''' Then
+          Pass
+        Else If cc.Bytes = '-' Then
+          State := 3
+        Else
+          Exit
+      End
+    End
+  End;
+  IsUnquotedIdentifier := True
 End;
 
 { read a variable or an identifier (including single-quoted identifier) }
@@ -582,14 +737,14 @@ Var
   n,m : LongInt;
 Begin 
   ReadVariableOrIdentifier := Nil;
-  { single-quoted identifier? }
-  K := ReadQuotedRunOfChars(f,'''',TOKEN_IDENT,True,True);
+  { single-quoted identifier? note that surrounding quotes are NOT kept }
+  K := ReadQuotedRunOfChars(f,'''',TOKEN_IDENT,False,True);
   If K = Nil Then { nope }
   Begin
     K := Token_New(TOKEN_UNKNOWN);
     With K^ Do
     Begin
-      TK_STRI := Str_New;
+      TK_STRI := Stream_NewStr(f);
       If GrabOneLetter(f,TK_STRI,IsUpper) Then
       Begin
         { Edinburgh variables start with a "big letter"; Marseille variables 
@@ -609,11 +764,11 @@ Begin
         If y In [PrologIIc,PrologII] Then { old Prolog II syntax, w/ accented letters }
         Begin
           Repeat
-            c := Stream_NextChar(f,c);
+            Stream_NextChar(f,c);
             If Error Then Exit;
-            If c = '-' Then { "-"<word> continuation }
+            If c.Bytes = '-' Then { "-"<word> continuation }
             Begin
-              c := Stream_GetChar(f,c);
+              Stream_GetChar(f,c);
               If Error Then Exit;
               Str_AppendChar(TK_STRI,c)
             End;
@@ -623,12 +778,12 @@ Begin
             If Error Then Exit;
             m := GetCharWhile(f,TK_STRI,['''']);
             If Error Then Exit;
-            If (c = '-') And (n = 0) Then
+            If (c.Bytes = '-') And (n = 0) Then
               SyntaxError('dash must be followed by a letter');
             If Error Then Exit;
-            c := Stream_NextChar(f,c);
+            Stream_NextChar(f,c);
             If Error Then Exit
-          Until (c <> '-') Or Error;
+          Until (c.Bytes <> '-') Or Error;
         End
         Else { PrologII+ and Edinburgh extended syntax }
         Begin
@@ -668,18 +823,23 @@ Begin
    and variables"}
   ReadSpaces(f,y);
   If Error Then Exit;
-  c := Stream_NextChar(f,c);
+  Stream_NextChar(f,c);
   If Error Then Exit;
-  c2 := Stream_NextNextChar(f,c2);
+  Stream_NextNextChar(f,c2);
   If Error Then Exit;
   { arrow must be checked before identifiers made of graphic chars }
-  If (c = '-') And (c2 = '>') And (y <> Edinburgh) Then { '->' }
-    K := GrabToken(f,TOKEN_ARROW,'->')
-  Else If (c = ':') And (c2 = '-') And (y = Edinburgh) Then { ':-' }
-    K := GrabToken(f,TOKEN_ARROW,':-')
-  { identifiers made of graphic chars }
-  Else If (c[1] In PROLOG_Graphic) And (y = PrologIIp) Or 
-      (c[1] In EDINBURGH_Graphic) And (y = Edinburgh) Then
+  If (c.Bytes = '-') And (c2.Bytes = '>') And (y <> Edinburgh) Or
+      (c.Bytes = ':') And (c2.Bytes = '-') And (y = Edinburgh) Then
+  Begin
+    Stream_GetChar(f,c);
+    If Error Then Exit;
+    Stream_GetChar(f,c2);
+    If Error Then Exit;
+    K := Token_New(TOKEN_ARROW)
+  End
+  { identifiers made of graphic chars; FIXME: move this to ReadVariableOrIdentifier? }
+  Else If IsIn(c,PROLOG_Graphic) And (y = PrologIIp) Or 
+      IsIn(c,EDINBURGH_Graphic) And (y = Edinburgh) Then
   Begin
     If y = PrologIIp Then
       GraphicChars := PROLOG_Graphic
@@ -688,11 +848,11 @@ Begin
     K := Token_New(TOKEN_IDENT);
     With K^ Do
     Begin
-      TK_STRI := Str_New;
+      TK_STRI := Stream_NewStr(f);
       n := GetCharWhile(f,TK_STRI,GraphicChars)
     End
   End
-  Else Case c[1] Of
+  Else Case c.Bytes[1] Of
   EndOfInput:
     K := Token_New(TOKEN_END_OF_INPUT);
   '0'..'9':
@@ -703,7 +863,7 @@ Begin
       K := Token_New(TOKEN_VARIABLE);
       With K^ Do
       Begin
-        TK_STRI := Str_New;
+        TK_STRI := Stream_NewStr(f);
         n := GrabAlpha(f,TK_STRI) { letters (inc. accented), digits, underscore }
       End
     End;
@@ -752,7 +912,7 @@ Begin
   If Error Then Exit;
   If K = Nil Then
   Begin
-    c := Stream_GetChar(f,c); { read the char so error message points to it }
+    Stream_GetChar(f,c); { read the char so error message points to it }
     If Error Then Exit;
     SyntaxError('that character is not allowed here')
   End;

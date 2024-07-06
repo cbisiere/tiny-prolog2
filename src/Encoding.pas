@@ -184,15 +184,13 @@ Var
   Iter : StrIter;
   cc : TChar;
 Begin
-  s := GetIdentAsStr(I,False); { FIXME: this creates a copy; should use IdentifierGetStr instead; fix the single quote issue }
+  s := IdentifierGetStr(I);
   L := NewEmptyList(P);
   StrIter_ToEnd(Iter,s);
   While StrIter_PrevChar(Iter,cc) Do
   Begin
-    sc := Str_New;
-    Str_AppendChar(sc,'''');
+    sc := Str_New(Str_GetEncodingContext(s));
     Str_AppendChar(sc,cc);
-    Str_AppendChar(sc,'''');
     L := NewList2(P,EmitIdent(P,sc,True),L)
   End;
   IdentifierToList := L
@@ -206,7 +204,7 @@ Var
   Th,Tq : TermPtr;
 Begin
   ListToIdentifier := Nil;
-  s := Str_New;
+  s := Str_New(UNDECIDED);
   While Not IsNil(T) Do
   Begin
     If Not ProtectedGetList(T,Th,Tq,True) Then
@@ -216,9 +214,7 @@ Begin
     Str_Concat(s,GetIdentAsStr(IdPtr(Th),False));
     T := Tq
   End;
-  If Str_Length(s) = 0 Then { atom_chars(A,[]) -> A = ''}
-    Str_Append(s,'''''');
-  ListToIdentifier := EmitIdent(P,s,False) { FIXME: True if invalid unquoted }
+  ListToIdentifier := EmitIdent(P,s,False)
 End;
 
 {----------------------------------------------------------------------------}

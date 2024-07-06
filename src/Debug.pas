@@ -26,6 +26,7 @@ Uses
   Trace,
   Memory,
   PObj,
+  PObjIO,
   PObjTerm,
   PObjFCVI,
   PObjRest,
@@ -44,8 +45,7 @@ Uses
   Unparse;
 
 Procedure SetCurrentProgram( P : ProgPtr );
-Procedure DumpBacktrace( Q : QueryPtr );
-Procedure DumpDictConst( e : DictPtr; title : TString );
+Procedure DumpBacktrace( f : StreamPtr; Q : QueryPtr );
 Procedure CoreDumpProg( P : ProgPtr; Message : TString; Trace : Boolean );
 Procedure CoreDump( Message : TString; Trace : Boolean );
 
@@ -65,23 +65,23 @@ End;
 { DUMP                                                                       }
 {----------------------------------------------------------------------------}
 
-Procedure DumpToken( K : TokenPtr );
+Procedure DumpToken( f : StreamPtr; K : TokenPtr );
 Begin
-  CWrite('(');
-  CWriteInt(K^.TK_LINE);
-  CWrite(',');
-  CWriteInt(K^.TK_CHAR);
-  CWrite(') ');
-  CWrite(Token_GetTypeAsShortString(K));
+  Stream_WriteShortString(f,'(');
+  Stream_WriteShortString(f,IntToShortString(K^.TK_LINE));
+  Stream_WriteShortString(f,',');
+  Stream_WriteShortString(f,IntToShortString(K^.TK_CHAR));
+  Stream_WriteShortString(f,') ');
+  Stream_WriteShortString(f,Token_GetTypeAsShortString(K));
   If Token_GetStr(K) <> Nil Then
   Begin
-    CWrite(': ');
-    OutString(Nil,Token_GetStr(K))
+    Stream_WriteShortString(f,': ');
+    OutString(f,Token_GetStr(K))
   End
 End;
 
 { Write extra data in a Prolog object }
-Procedure WriteExtraData( p : TObjectPtr );
+Procedure WriteExtraData( f : StreamPtr; p : TObjectPtr );
 Var 
   PRp : ProgPtr Absolute p;
   Tp : TermPtr Absolute p;
@@ -106,22 +106,22 @@ Begin
   Case PObjectType(p) Of
   PR:
     Begin
-      CWriteInt(PRp^.PP_LEVL);
-      CWrite(' ');
+      Stream_WriteShortString(f,IntToShortString(PRp^.PP_LEVL));
+      Stream_WriteShortString(f,' ');
       y := GetSyntax(PRp);
       If y = PrologIIc Then
-        CWrite('PrologII version 1')
+        Stream_WriteShortString(f,'PrologII version 1')
       Else If y = PrologII Then
-        CWrite('PrologII version 2')
+        Stream_WriteShortString(f,'PrologII version 2')
       Else If y = PrologIIp Then
-        CWrite('PrologII+')
+        Stream_WriteShortString(f,'PrologII+')
       Else If y = Edinburgh Then
-        CWrite('Edinburgh')
+        Stream_WriteShortString(f,'Edinburgh')
     End;
   RU:
     Begin
-      CWrite('Head: ');
-      OutTerm(Nil,y,BTerm_GetTerm(Rule_GetHead(Rup)))
+      Stream_WriteShortString(f,'Head: ');
+      OutTerm(f,y,BTerm_GetTerm(Rule_GetHead(Rup)))
     End;
   QU:
     Begin
@@ -131,85 +131,84 @@ Begin
     End;
   EQ:
     Begin
-      OutOneEquation(Nil,y,E)
+      OutOneEquation(f,y,E)
     End;
   BT:
     Begin
-      OutTerm(Nil,y,BTerm_GetTerm(Bp));
+      OutTerm(f,y,BTerm_GetTerm(Bp));
     End;
   CO:
     Begin
-      CWrite('''');
-      OutConst(Nil,Cp);
-      CWrite('''')
+      Stream_WriteShortString(f,'''');
+      OutConst(f,Cp);
+      Stream_WriteShortString(f,'''')
     End;
   ID:
     Begin
-      CWriteBool(Ip^.TV_ASSI);
-      CWrite(' ');
-      OutIdentifier(Nil,Ip)
+      Stream_WriteShortString(f,BoolToShortString(Ip^.TV_ASSI));
+      Stream_WriteShortString(f,' ');
+      OutIdentifier(f,Ip)
     End;
   FU:
     Begin
-      OutTerm(Nil,y,Tp);
+      OutTerm(f,y,Tp);
       If (FRed(Fp) <> Nil) Then
       Begin
-        CWrite('==');
-        OutTerm(Nil,y,FRed(Fp))
+        Stream_WriteShortString(f,'==');
+        OutTerm(f,y,FRed(Fp))
       End
     End;
   VA:
     Begin
-      OutVarName(Nil,Vp);
+      OutVarName(f,Vp);
       If (VRed(Vp) <> Nil) Then
       Begin
-        CWrite('==');
-        OutTerm(Nil,y,VRed(Vp))
+        Stream_WriteShortString(f,'==');
+        OutTerm(f,y,VRed(Vp))
       End
     End;
   DE:
     Begin
-      CWriteBool(Dict_IsGlobal(Dp));
-      CWrite(' "');
-      OutString(Nil,Dict_GetStr(Dp));
-      CWrite('"')
+      Stream_WriteShortString(f,BoolToShortString(Dict_IsGlobal(Dp)));
+      Stream_WriteShortString(f,' "');
+      OutString(f,Dict_GetStr(Dp));
+      Stream_WriteShortString(f,'"')
     End;
   HE:
     Begin
-      CWrite(LongIntToShortString(Hp^.HH_CLOC));
-      CWrite(' Sys:');
-      CWriteBool(Hp^.HH_ISYS);
-      CWrite(' Cut:');
-      CWriteBool(Hp^.HH_ICUT)
+      Stream_WriteShortString(f,LongIntToShortString(Hp^.HH_CLOC));
+      Stream_WriteShortString(f,' Sys:');
+      Stream_WriteShortString(f,BoolToShortString(Hp^.HH_ISYS));
+      Stream_WriteShortString(f,' Cut:');
+      Stream_WriteShortString(f,BoolToShortString(Hp^.HH_ICUT))
     End;
   ST:
     Begin
-      OutString(Nil,s);
-      CWrite(' (' + LongIntToShortString(Str_Length(s)) + ')')
+      OutString(f,s);
+      Stream_WriteShortString(f,' (' + LongIntToShortString(Str_Length(s)) + ')')
     End;
   SD:
     Begin
-      CWrite('"' + Sda^.SD_DATA + '"');
-      CWrite(' (' + IntToShortString(Length(Sda^.SD_DATA)) + ')')
+      Stream_WriteShortString(f,' (' + IntToShortString(Sda^.SD_DATA.Len) + ')')
     End;
   RE:
     Begin
-      CWrite(PtrToName(Rp^.RE_ADDR^) + ' ');
-      CWriteBool(Rp^.RE_DONE)
+      Stream_WriteShortString(f,PtrToName(Rp^.RE_ADDR^) + ' ');
+      Stream_WriteShortString(f,BoolToShortString(Rp^.RE_DONE))
     End;
   OP:
     Begin
-      CWrite('"' + Op_GetOperator(Opp) + '"');
-      CWrite(' ');
-      CWrite('"' + Op_GetFunction(Opp) + '"')
+      Stream_WriteShortString(f,'"' + Op_GetOperator(Opp) + '"');
+      Stream_WriteShortString(f,' ');
+      Stream_WriteShortString(f,'"' + Op_GetFunction(Opp) + '"')
     End;
   TK:
-    DumpToken(Kp)
+    DumpToken(f,Kp)
   End
 End;
 
 { display a Prolog clock header }
-Procedure DumpHeader( H : HeadPtr );
+Procedure DumpHeader( f : StreamPtr; H : HeadPtr );
 Var 
   y : TSyntax;
   R : RulePtr;
@@ -219,114 +218,106 @@ Var
   B : BTermPtr;
 Begin
   y := PrologIIc; { syntax for header output }
-  CWrite('*** Header level ' + LongIntToShortString(H^.HH_CLOC) + ' ***');
-  CWriteLn;
+  Stream_WritelnShortString(f,'*** Header level ' + LongIntToShortString(H^.HH_CLOC) + ' ***');
   If H^.HH_BACK <> Nil Then
-  Begin
-    CWrite(' Back: ' + LongIntToShortString(H^.HH_BACK^.HH_CLOC));
-    CWriteLn
-  End;
-  CWrite('  Terms: ');
+    Stream_WritelnShortString(f,' Back: ' + LongIntToShortString(H^.HH_BACK^.HH_CLOC));
+  Stream_WriteShortString(f,'  Terms: ');
   B := H^.HH_FBCL;
   While B <> Nil Do
   Begin
-    OutTerm(Nil,y,BTerm_GetTerm(B));
+    OutTerm(f,y,BTerm_GetTerm(B));
     If BTerm_GetHeader(B) <> Nil Then
-      CWrite('[' + LongIntToShortString(BTerm_GetHeader(B)^.HH_CLOC) + ']');
-    CWrite(' ');
+      Stream_WriteShortString(f,'[' + LongIntToShortString(BTerm_GetHeader(B)^.HH_CLOC) + ']');
+    Stream_WriteShortString(f,' ');
     B := BTerms_GetNext(B)
   End;
-  CWriteLn;
-  CWrite('  Rule: ');
+  Stream_Writeln(f);
+  Stream_WriteShortString(f,'  Rule: ');
   Header_GetRule(H,R,isSys,isCut);
   if (isSys) Then
-  Begin
-    CWrite('SYS');
-    CWriteLn
-  End
+    Stream_WritelnShortString(f,'SYS')
   Else if (isCut) Then
-  Begin
-    CWrite('!');
-    CWriteLn
-  End
+    Stream_WritelnShortString(f,'!')
   Else If (R = Nil) Then
-  Begin
-    CWrite('Nil');
-    CWriteLn
-  End;
-  CWrite('  Rest_Restore: ');
+    Stream_WritelnShortString(f,'Nil');
+  Stream_WriteShortString(f,'  Rest_Restore: ');
   U := H^.HH_REST;
   While U<>Nil Do
     With U^ Do
     Begin
-      CWrite('.');
+      Stream_WriteShortString(f,'.');
       U := RE_NEXT
     End;
-  CWriteLn
+  Stream_Writeln(f)
 End;
 
 { display the call stack until header H, included }
-Procedure Backtrace( H : HeadPtr );
+Procedure Backtrace( f : StreamPtr; H : HeadPtr );
 Begin
   While H <> Nil Do
   Begin
-    DumpHeader(H);
+    DumpHeader(f,H);
     H := H^.HH_NEXT
   End
 End;
 
 { display the call stack }
-Procedure DumpBacktrace( Q : QueryPtr );
+Procedure DumpBacktrace( f : StreamPtr; Q : QueryPtr );
 Begin
-  Backtrace(Query_GetHead(Q))
+  Backtrace(f,Query_GetHead(Q))
 End;
 
 { display variable identifiers in a dictionary }
-Procedure DumpDictVar( y : TSyntax; D : DictPtr );
+Procedure DumpDictVar( f : StreamPtr; y : TSyntax; D : DictPtr );
 Var 
   e : DictPtr;
   V : VarPtr;
   TV : TermPtr Absolute V;
 Begin
-  CWrite('Variables:');
-  CWriteLn;
+  Stream_WritelnShortString(f,'Variables:');
   e := D;
   while e <> Nil Do
   Begin
     TV := Dict_GetTerm(e);
-    CWrite(' ');
+    Stream_WriteShortString(f,' ');
     If Dict_IsGlobal(e) Then
-      CWrite('*')
+      Stream_WriteShortString(f,'*')
     Else
-      CWrite(' ');
-    OutVarName(Nil,V);
+      Stream_WriteShortString(f,' ');
+    OutVarName(f,V);
     If VRed(V) <> Nil Then
     Begin
-      CWrite(' = ');
-      OutTerm(Nil,y,VRed(V))
+      Stream_WriteShortString(f,' = ');
+      OutTerm(f,y,VRed(V))
     End;
     If WatchIneq(V) <> Nil Then
     Begin
-      CWrite(', ');
-      OutOneEquation(Nil,y,WatchIneq(V))
+      Stream_WriteShortString(f,', ');
+      OutOneEquation(f,y,WatchIneq(V))
     End;
-    CWriteLn;
+    Stream_Writeln(f);
     e := Dict_GetNext(e)
   End
 End;
 
 { display the dictionary of constants }
-Procedure DumpDictConst( e : DictPtr; title : TString );
+Procedure DumpDictConst( f : StreamPtr; e : DictPtr; title : TString; 
+    Ident: Boolean );
+Var
+  s : StrPtr;
 Begin
-  CWrite(title);
-  CWriteLn;
+  Stream_WritelnShortString(f,title);
   while (e<>Nil) Do
   Begin
     If Dict_IsGlobal(e) Then
-      CWrite('*')
+      Stream_WriteShortString(f,'*')
     Else
-      CWrite(' ');
-    OutlnString(Nil,Dict_GetStr(e));
+      Stream_WriteShortString(f,' ');
+    If Ident Then
+      s := GetIdentAsStr(IdPtr(Dict_GetTerm(e)),True)
+    Else
+      s := Dict_GetStr(e);
+    OutlnString(f,s);
     e := Dict_GetNext(e)
   End
 End;
@@ -335,28 +326,28 @@ End;
 Procedure CoreDumpProg( P : ProgPtr; Message : TString; Trace : Boolean );
 Var
   reg : Boolean;
+  f : StreamPtr;
 Begin
   { suspend objects registration to avoid messing up the core dump with 
     objects created during the trace }
   reg := GetRegistrationState;
+  f := GetOutputConsole(P);
   SetRegistration(False);
   If Not OngoingCoreDump Then
   Begin
     OngoingCoreDump := True;
-    CWrite('Begin Core Dump: "' + Message + '"');
-    CWriteLn;
+    Stream_WritelnShortString(f,'Begin Core Dump: "' + Message + '"');
     PrintMemoryStats;
     DumpGCRoots;
     DumpRegisteredObject;
     If P <> Nil Then
     Begin
-      DumpDictConst(P^.PP_DCON,'Constants:');
-      DumpDictConst(P^.PP_DIDE,'Identifiers:');
+      DumpDictConst(f,P^.PP_DCON,'Constants:',False);
+      DumpDictConst(f,P^.PP_DIDE,'Identifiers:',True);
       If Trace Then
-        Backtrace(Query_GetHead(GetCurrentQuery(P)))
+        Backtrace(f,Query_GetHead(GetCurrentQuery(P)))
     End;
-    CWrite('End Code Dump: "' + Message + '"');
-    CWriteLn;
+    Stream_WritelnShortString(f,'End Code Dump: "' + Message + '"');
     OngoingCoreDump := False
   End;
   SetRegistration(reg)

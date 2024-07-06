@@ -72,6 +72,10 @@ Type
     Str : Array[THIndex] of TBuf { most recent on top }
   End;
 
+{ pre-defined characters}
+Var 
+  CC_SOFT_BREAK,CC_BLANK_SPACE,CC_NEW_LINE : TChar;
+
 {----------------------------------------------------------------------------}
 { base keyboard function                                                     }
 {----------------------------------------------------------------------------}
@@ -93,7 +97,7 @@ End;
  replace CR, LF, and CRLF with NewLine }
 Procedure ReadRunOfTChars( Var B : TBuf; Var Encoding : TEncoding );
 Var
-  s : TChar; { small read buffer }
+  s : TCharBytes; { small read buffer }
   cc : TChar; { recognized TChar }
   Done : Boolean;
 Begin
@@ -104,7 +108,7 @@ Begin
   Begin
     { replenish the small buffer with keys typed or pasted }
     While KeyPressed And (Length(s) < MaxBytesPerChar) Do
-     s := s + ReadOneKey;
+      s := s + ReadOneKey;
     Done := Length(s) = 0;
     If Not Done Then
       If BufNbFree(B) > 0 Then
@@ -205,7 +209,7 @@ Var
   Begin
     While i <> 0 Do
     Begin
-      If B.Buf[i].Val = SOFT_BREAK Then
+      If B.Buf[i].Val.Bytes = SOFT_BREAK Then
         DisplaySoftBreak
       Else
         CrtWriteCharThatFits(B.Buf[i].Val);
@@ -248,7 +252,7 @@ Var
     Found := False;
     While Not Found And (i <> 0) Do
     Begin
-      If B.Buf[i].Val = SOFT_BREAK Then
+      If B.Buf[i].Val.Bytes = SOFT_BREAK Then
         Found := True
       Else
         i := PrevIdx(B,i)
@@ -279,7 +283,7 @@ Var
 
     { remove the last char in the buffer }
     BufPop(e1,B);
-    CheckCondition(e1.Val <> SOFT_BREAK,'Backspace: popping a SOFT_BREAK');
+    CheckCondition(e1.Val.Bytes <> SOFT_BREAK,'Backspace: popping a SOFT_BREAK');
 
     { deleted char was the only char left in the buffer }
     If BufLen(B) = 0 Then
@@ -292,7 +296,7 @@ Var
     BufGetLast(e2,B);
 
     { simple case: more than one char on the current line }
-    If e2.Val <> SOFT_BREAK Then
+    If e2.Val.Bytes <> SOFT_BREAK Then
     Begin
       CrtBackspace;
       Exit
@@ -334,10 +338,12 @@ Var
   Procedure AppendChar( cc : TChar );
   Begin
     If Not CrtFits(cc) Then
-      If AppendChToBuf(SOFT_BREAK,2) Then
+    Begin
+      If AppendChToBuf(CC_SOFT_BREAK,2) Then
         DisplaySoftBreak
       Else
-        Exit;
+        Exit
+    End;
     If AppendChToBuf(cc,1) Then
       CrtWriteCharThatFits(cc)
   End;
@@ -348,7 +354,7 @@ Var
     t : 1..SPACES_PER_TAB;
   Begin
     For t := 1 to SPACES_PER_TAB Do
-      AppendChar(' ')
+      AppendChar(CC_BLANK_SPACE)
   End;
 
   { recall an older line if any; do nothing otherwise }
@@ -386,10 +392,10 @@ Var
     { visual feedback }
     DisplaySoftBreak;
     { remove all the soft marks }
-    BufFilterOut(B,SOFT_BREAK);
+    BufFilterOut(B,CC_SOFT_BREAK);
     { NewLine must be part of the input, so that:
       "> in_char(c);<NewLine>" sets c to NewLine; see PII+ R 5-4 }
-    Ok := AppendChToBuf(NewLine,0);
+    Ok := AppendChToBuf(CC_NEW_LINE,0);
     CheckCondition(Ok,'Enter: Cannot add new line');
     { since the user validated the input, we output the buffer to the echo 
      file }
@@ -406,38 +412,38 @@ Var
     Begin
       BufRead(e,R);
       cc := e.Val;
-      If cc = Newline Then { Enter }
+      If cc.Bytes = Newline Then { Enter }
       Begin
         Enter;
         Stop := True
       End
-      Else If cc = #03 Then { Ctrl-C }
+      Else If cc.Bytes = #03 Then { Ctrl-C }
       Begin
         Stop := True;
         SetQuitOn(0)
       End
-      Else If cc = #08 Then { Backspace }
+      Else If cc.Bytes = #08 Then { Backspace }
         Backspace
-      Else If cc = #09 Then { tab }
+      Else If cc.Bytes = #09 Then { tab }
         Tab
-      Else If (cc =  #00) 
+      Else If (cc.Bytes =  #00) 
           And (BufNbUnread(R) > 0) Then { extended or func. key }
       Begin { command history }
         BufGetRead(e2,R,1);
         cc2 := e2.Val;
-        If cc2 = #72 Then
+        If cc2.Bytes = #72 Then
         Begin
           BufRead(e2,R);
           UpArrow
         End
-        Else If cc2 = #80 Then
+        Else If cc2.Bytes = #80 Then
         Begin
           BufRead(e2,R);
           DownArrow
         End
       End;
       { filter out ASCII control chars }
-      If Not (cc[1] In [#00..#31,#127]) Then
+      If Not IsIn(cc,[#00..#31,#127]) Then
         AppendChar(cc)
     End
   End;
@@ -463,6 +469,9 @@ End;
 
 { initialize the command-line history }
 Begin
+  ASCIIChar(CC_SOFT_BREAK,SOFT_BREAK);
+  ASCIIChar(CC_BLANK_SPACE,' ');
+  ASCIIChar(CC_NEW_LINE,NewLine);
   BufInit(KbdBuf);
   ResetHistory(Hist)
 End.
