@@ -184,7 +184,7 @@ Predicate | Action | Example
 ### Operators
 
 Operator | Type | Precedence | Example
---- | --- | --- | --- | ---
+--- | --- | --- | --- 
 `is` | xfx | 700 | 
 `=`, `<`, `=<`, `>`, `>=` | xfx | 700 | 
 `@<`, `@=<`, `@>`, `@>=` | xfx | 700 | 
