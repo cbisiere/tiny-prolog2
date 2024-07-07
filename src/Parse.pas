@@ -601,7 +601,7 @@ Begin
     Begin
       If Token_GetType(K) = TOKEN_VARIABLE Then
       Begin
-        T := EmitVariable(P,Token_GetStr(K),glob)
+        T := EmitVariable(P,Token_GetStr(K),Token_IsAnonymous(K),glob)
       End
       Else
       Begin

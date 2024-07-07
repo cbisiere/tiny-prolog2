@@ -864,7 +864,8 @@ Begin
       With K^ Do
       Begin
         TK_STRI := Stream_NewStr(f);
-        n := GrabAlpha(f,TK_STRI) { letters (inc. accented), digits, underscore }
+        n := GrabAlpha(f,TK_STRI); { letters (inc. accented), digits, underscore }
+        Token_SetAnonymous(K,n = 1) { anonymous: '_'}
       End
     End;
   '"':

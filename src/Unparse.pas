@@ -158,13 +158,17 @@ Function SolutionAsSystem( DV : DictPtr ) : SysPtr;
 Var
   S : SysPtr;
   g : TSerial;
+  T : TermPtr;
 Begin
   S := Sys_New;
   g := NewSerial;
   { collect all equations and inequations }
   While DV <> Nil Do
   Begin
-    CollectEquationsFromTerm(Dict_GetTerm(DV),S,g);
+    T := Dict_GetTerm(DV);
+    { collect equations attached to the variable, skipping anonymous variable }
+    If Not (IsVariable(T) And IsAnonymous(VarPtr(T))) Then
+      CollectEquationsFromTerm(T,S,g);
     DV := Dict_GetNext(DV)
   End;
   SolutionAsSystem := S

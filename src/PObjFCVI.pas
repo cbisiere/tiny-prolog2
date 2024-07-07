@@ -87,6 +87,7 @@ Type
     TV_DVAR : DictPtr; { dictionary entry }
     TV_IRED : IdPtr; { VA: identifier this variable as been initially bound to }
     { extra data: }
+    TV_ANON : Boolean; { True if the object is an anonymous variable }
     TV_QUOT : Boolean; { True if the identifier must be quoted to be valid }
     TV_ASSI : Boolean { true if the term is an identifier that can be assigned }
   End;
@@ -155,14 +156,15 @@ Function AccessIdentifier( T : TermPtr ) : IdPtr;
 Function Arity( T : TermPtr ) : PosInt;
 Function IsAssigned( I : IdPtr ) : Boolean;
 Function IsVariable( T : TermPtr ) : Boolean;
+Function IsAnonymous( V : VarPtr ) : Boolean;
 Procedure OrderTerms( Var T1,T2: TermPtr );
 Procedure TrackAssignment( T1,T2: TermPtr );
 Function NormalizeConstant( Var s : StrPtr; typ : TConst ) : Boolean;
 
 Function InstallConst( Var D : DictPtr; str : StrPtr; 
     ty : TypePrologObj; glob : Boolean ) : ConstPtr;
-Function InstallVariable( Var D : DictPtr;
-    str : StrPtr; glob : Boolean ) : VarPtr;
+Function InstallVariable( Var D : DictPtr; str : StrPtr; 
+    anonymous : Boolean; glob : Boolean ) : VarPtr;
 Function InstallIdentifier( Var D : DictPtr; str : StrPtr; Quoted : Boolean;
     glob : Boolean  ) : IdPtr;
 
@@ -204,6 +206,7 @@ Begin
     TV_DVAR := Nil;
     TV_IRED := Nil;
     TV_GOAL := Nil;
+    TV_ANON := False;
     TV_QUOT := False;
     TV_ASSI := False
   End;
@@ -941,6 +944,12 @@ Begin
       (TypeOfTerm(T) = Identifier) And IsAssigned(IdPtr(T))
 End;
 
+{ True if variable V is anonymous }
+Function IsAnonymous( V : VarPtr ) : Boolean;
+Begin
+  IsAnonymous := V^.TV_ANON
+End;
+
 { order two terms if one of them happens to be an identifier, the other one
   not being a variable; in that case, an assigned identifier should come 
   first; if both are assigned identifiers, the order is defined as in the 
@@ -1077,18 +1086,25 @@ End;
 { create an assignable object (variable or identifier) if it does not 
   exist in dictionary; return it }
 Function InstallAssignable( Var D : DictPtr; 
-    str : StrPtr; ty : TypePrologObj; quoted : Boolean; glob : Boolean; 
-    CanCopy : Boolean ) : AssPtr;
+    str : StrPtr; ty : TypePrologObj; anonymous : Boolean; quoted : Boolean; 
+    glob : Boolean; CanCopy : Boolean ) : AssPtr;
 Var
   V : AssPtr;
   TV : TermPtr Absolute V;
   e : DictPtr;
 Begin
   CheckCondition((ty=VA) Or (ty=ID),'InstallAssignable: VA or ID expected');
-  e := Dict_Lookup(D,str,[VA,ID],glob);
+  { each anonymous variable, despite having the same name as the other 
+   anonymous variables, is a different variable; accordingly, we do not lookup 
+   anonymous variable's name }
+  If anonymous Then
+    e := Nil
+  Else
+    e := Dict_Lookup(D,str,[VA,ID],glob);
   If e = Nil Then
   Begin
     V := Assignable_New(ty,CanCopy);
+    V^.TV_ANON := anonymous;
     V^.TV_QUOT := quoted;
     e := Dict_Append(D,str,TV,VA,glob);
     V^.TV_DVAR := e
@@ -1101,9 +1117,9 @@ End;
 { create a variable if it does not exist in dictionary;
   a variable is subject to deep copy }
 Function InstallVariable( Var D : DictPtr; str : StrPtr; 
-    glob : Boolean ) : VarPtr;
+    anonymous : Boolean; glob : Boolean ) : VarPtr;
 Begin
-  InstallVariable := InstallAssignable(D,str,VA,False,glob,True)
+  InstallVariable := InstallAssignable(D,str,VA,anonymous,False,glob,True)
 End;
 
 { create an identifier if it does not exist in a dictionary; 
@@ -1117,7 +1133,7 @@ End;
 Function InstallIdentifier( Var D : DictPtr; str : StrPtr; Quoted : Boolean;
     glob : Boolean  ) : IdPtr;
 Begin
-  InstallIdentifier := InstallAssignable(D,str,ID,Quoted,glob,False)
+  InstallIdentifier := InstallAssignable(D,str,ID,False,Quoted,glob,False)
 End;
 
 End.

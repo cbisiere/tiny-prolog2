@@ -115,7 +115,8 @@ Function FindRuleWithHeadAndArity( R : RulePtr; I : IdPtr; a : PosInt;
 
 Function EmitConst( P : ProgPtr; s : StrPtr; ty : TypePrologObj; 
     glob : Boolean ) : TermPtr;
-Function EmitVariable( P : ProgPtr; s : StrPtr; glob : Boolean ) : TermPtr;
+Function EmitVariable( P : ProgPtr; s : StrPtr; anonymous : Boolean; 
+    glob : Boolean ) : TermPtr;
 Function EmitIdent( P : ProgPtr; s : StrPtr; glob : Boolean ) : TermPtr;
 Function EmitShortIdent( P : ProgPtr; ident : TString; 
     glob : Boolean ) : TermPtr;
@@ -425,12 +426,13 @@ Begin
 End;
 
 { return a new variable as a term, from a string }
-Function EmitVariable( P : ProgPtr; s : StrPtr; glob : Boolean ) : TermPtr;
+Function EmitVariable( P : ProgPtr; s : StrPtr; anonymous : Boolean; 
+    glob : Boolean ) : TermPtr;
 Var
   V : VarPtr;
 Begin
   EmitVariable := Nil;
-  V := InstallVariable(P^.PP_DVAR,s,glob);
+  V := InstallVariable(P^.PP_DVAR,s,anonymous,glob);
   EmitVariable := TermPtr(V)
 End;
 

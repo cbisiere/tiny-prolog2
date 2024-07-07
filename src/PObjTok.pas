@@ -103,7 +103,8 @@ Type
     TK_STRI : StrPtr; { string object representing the token or Nil }
     { extra data: }
     TK_TYPE : TTokenType;
-    TK_QUOT : Boolean; { was the token single or double quoted?}
+    TK_ANON : Boolean; { was the token an anonymous variable? }
+    TK_QUOT : Boolean; { was the token single or double quoted? }
     TK_LINE : TLineNum; { line number in the input stream }
     TK_CHAR : TCharPos { index in the input line }
   End;
@@ -116,6 +117,9 @@ Procedure Token_GetLocation( K : TokenPtr; Var line : TLineNum; Var col : TCharP
 Procedure Token_SetLocation( K : TokenPtr; line : TLineNum; col : TCharPos );
 Function Token_GetType( K : TokenPtr ) : TTokenType;
 Function Token_IsQuoted( K : TokenPtr ) : Boolean;
+Function Token_IsAnonymous( K : TokenPtr ) : Boolean;
+Procedure Token_SetAnonymous( K : TokenPtr; anonymous : Boolean );
+
 Function Token_GetTypeAsShortString( K : TokenPtr ) : TString;
 
 Implementation
@@ -136,6 +140,7 @@ Begin
   Begin
     TK_STRI := Nil;
     TK_TYPE := typ;
+    TK_ANON := False;
     TK_QUOT := False;
     TK_LINE := 0;
     TK_CHAR := 0
@@ -188,6 +193,19 @@ Function Token_IsQuoted( K : TokenPtr ) : Boolean;
 Begin
   CheckCondition(K <> Nil,'Token_IsQuoted: Nil');
   Token_IsQuoted := K^.TK_QUOT
+End;
+
+{ return True if the token has the anonymous flag set }
+Function Token_IsAnonymous( K : TokenPtr ) : Boolean;
+Begin
+  CheckCondition(K <> Nil,'Token_IsAnonymous: Nil');
+  Token_IsAnonymous := K^.TK_ANON
+End;
+
+{ set the anonymous flag }
+Procedure Token_SetAnonymous( K : TokenPtr; anonymous : Boolean );
+Begin
+  K^.TK_ANON := anonymous
 End;
 
 {-----------------------------------------------------------------------}
