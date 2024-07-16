@@ -16,14 +16,17 @@ descendre -> descendre(1);
 monter(N) -> entier(N) syscall(sysupstatement,N);
 haut -> syscall(systopstatement);
 bas -> syscall(sysbottomstatement);
+supprimer(N) -> syscall(syssuppress,N);
 
 "rules"
+
+regle(T,Q) -> syscall(sysrule,T,Q);
 
 tete(I) -> syscall(sysfindrule,I);
 
 inserer(F) -> syscall(sysinsert,F);
 inserer -> syscall(sysinputis,F) syscall(sysinsert,F);
-regle(T,Q) -> syscall(sysasserta,T,Q);
+ajout(<T,Q>) -> syscall(sysasserta,T,Q);
 
 lister(N) -> syscall(syslist,N);
 lister -> lister(0);

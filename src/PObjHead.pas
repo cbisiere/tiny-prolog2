@@ -30,6 +30,7 @@ Function Header_New : HeadPtr;
 Function Header_GetClock( H : HeadPtr ) : LongInt;
 Procedure Header_GetRule( H : HeadPtr; Var R : RulePtr; Var isSys : Boolean; 
     Var isCut : Boolean );
+Procedure Header_SetRulePtr( H : HeadPtr; R : RulePtr );
 Procedure Header_SetRule( H : HeadPtr; R : RulePtr; isSys, isCut : Boolean);
 
 Procedure Headers_PushNew( Var list : HeadPtr; Fbcl : BTermPtr; R : RulePtr; 
@@ -48,7 +49,7 @@ Var
   H : HeadPtr;
   ptr : TObjectPtr Absolute H;
 Begin
-  ptr := NewRegisteredPObject(HE,SizeOf(TObjHead),5,True,0);
+  ptr := NewRegisteredPObject(HE,SizeOf(TObjHead),6,True,0);
   With H^ Do
   Begin
     HH_NEXT := Nil;
@@ -56,6 +57,7 @@ Begin
     HH_FBCL := Nil;
     HH_REST := Nil;
     HH_BACK := Nil;
+    HH_CHOI := Nil;
     HH_CLOC := 0;
     HH_ISYS := False;
     HH_ICUT := False
@@ -82,8 +84,14 @@ Begin
   isCut := H^.HH_ICUT
 End;
 
+{ set the rule of a clock header }
+Procedure Header_SetRulePtr( H : HeadPtr; R : RulePtr );
+Begin
+  H^.HH_RULE := R
+End;
+
 { set the rule data of a clock header }
-Procedure Header_SetRule( H : HeadPtr; R : RulePtr; isSys, isCut : Boolean);
+Procedure Header_SetRule( H : HeadPtr; R : RulePtr; isSys, isCut : Boolean );
 Begin
   With H^ Do
   Begin

@@ -44,6 +44,7 @@ Function Statement_FindPrevOfType( S : StmtPtr; types : SetOfTStmt ) : StmtPtr;
 Function Statement_FindNextOfType( S : StmtPtr; types : SetOfTStmt ) : StmtPtr;
 
 Procedure Statement_ChainWith( S1,S2 : StmtPtr );
+Procedure Statement_Suppress( S : StmtPtr );
 
 Implementation
 
@@ -136,6 +137,12 @@ Procedure Statement_ChainWith( S1,S2 : StmtPtr );
 Begin
   S1^.SM_NEXT := S2;
   S2^.SM_PREV := S1
+End;
+
+{ delete a statement; Start and End cannot be deleted }
+Procedure Statement_Suppress( S : StmtPtr );
+Begin
+  Statement_ChainWith(Statement_GetPrev(S),Statement_GetNext(S))
 End;
 
 End.

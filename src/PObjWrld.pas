@@ -15,11 +15,14 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
+{ invariant:  current statement cannot be the Start statement }
+
 Unit PObjWrld;
 
 Interface
 
 Uses
+  Errs,
   Memory,
   PObj,
   PObjStr,
@@ -43,6 +46,7 @@ Procedure World_AppendChild( W,Wc : WorldPtr );
 Function World_FindChildByName( W : WorldPtr; Name : StrPtr ) : WorldPtr;
 Procedure World_SuppressChild( W,Wc : WorldPtr );
 Procedure World_InsertStatement( W : WorldPtr; St : StmtPtr );
+Procedure World_SuppressCurrentStatement( W : WorldPtr );
 
 Implementation
 
@@ -235,6 +239,19 @@ Begin
   Statement_ChainWith(Statement_GetPrev(Sc),St);
   Statement_ChainWith(St,Sc);
   Statement_SetWorld(St,W)
+End;
+
+{ suppress the current statement of world W; Start and End cannot be deleted }
+Procedure World_SuppressCurrentStatement( W : WorldPtr );
+Var
+  Sc,Sn : StmtPtr;
+Begin
+  Sc := World_GetCurrentStatement(W);
+  CheckCondition(Not (Statement_GetType(Sc) In [StatementStart,StatementEnd]),
+      'World_SuppressCurrentStatement: cannot delete start or end statement');
+  Sn := Statement_GetNext(Sc);
+  Statement_Suppress(Sc);
+  World_SetCurrentStatement(W,Sn)
 End;
 
 End.

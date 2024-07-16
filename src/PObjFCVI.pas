@@ -157,6 +157,7 @@ Function Arity( T : TermPtr ) : PosInt;
 Function IsAssigned( I : IdPtr ) : Boolean;
 Function IsVariable( T : TermPtr ) : Boolean;
 Function IsAnonymous( V : VarPtr ) : Boolean;
+Function IsAnonymousVariable( T : TermPtr ) : Boolean;
 Procedure OrderTerms( Var T1,T2: TermPtr );
 Procedure TrackAssignment( T1,T2: TermPtr );
 Function NormalizeConstant( Var s : StrPtr; typ : TConst ) : Boolean;
@@ -176,7 +177,9 @@ Implementation
 { term: constructors                                                    }
 {-----------------------------------------------------------------------}
 
-{ create a new constant }
+{ create a new constant; constants are never copied during deep copies, in 
+ order not to break the invariant "1 constant value = 1 constant object" that 
+ allows to test for equality by testing for equality of objects' addresses }
 Function Const_New : ConstPtr;
 Var 
   C : ConstPtr;
@@ -948,6 +951,12 @@ End;
 Function IsAnonymous( V : VarPtr ) : Boolean;
 Begin
   IsAnonymous := V^.TV_ANON
+End;
+
+{ True if term V is an anonymous variable }
+Function IsAnonymousVariable( T : TermPtr ) : Boolean;
+Begin
+  IsAnonymousVariable := IsVariable(T) And IsAnonymous(VarPtr(T))
 End;
 
 { order two terms if one of them happens to be an identifier, the other one

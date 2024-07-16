@@ -18,8 +18,11 @@ up(N) -> integer(N) syscall(sysupstatement,N);
 up -> up(1);
 top -> syscall(systopstatement);
 bottom -> syscall(sysbottomstatement);
+suppress(N) -> syscall(syssuppress,N);
 
 "rules"
+
+rule(T,Q) -> syscall(sysrule,T,Q);
 
 find-rule(I) -> syscall(sysfindrule,I);
 

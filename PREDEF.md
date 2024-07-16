@@ -26,16 +26,17 @@ Predicate | Action | Example
 `monter(N)` / `up(N)` | move the index upward by `N` | 
 `haut` / `top` | move the index up to the first statement | 
 `bas` / `bottom` | move the index down to the last statement | 
+`supprimer(N)` / `suppress(N)` | suppress `N` statement from the current statement; the statement after the last suppressed statement becomes the current statement | 
 
 ### Rules
 
 Predicate | Action | Example
 --- | --- | ---
+ `lister(N)`, `lister` / `list(N)`,`list` | display on the current input `N` (or all) rules, starting from the current statement
 `tete(I)` / `find-rule(I)` | move the index to the first rule with access `I` |
 `inserer(F)`, `inserer` / `insert(F)`, `insert` | insert statements before the current index, from file with path `F` or from the current input unit, until an empty statement is read, that is `;;` 
-`regle(H,Q)` / `assert(H,Q)` | create a new rule with head `H` and queue `Q`
- `lister(N)`, `lister` / `list(N)`,`list` | display on the current input `N` (or all) rules, starting from the current statement
-
+`ajout(<H,Q>)` / `assert(H,Q)` | insert a new rule with head `H` and queue `Q` at the beginning of the group of rules having the same identifier and arity, or at the end of the current world ; `H`is a predicate or an identifier, `Q` is a list of terms | `> assert(data(1),nil) list;` <br> `data(1) ->;` <br> `{  }`<br> `>`
+`regle(H,Q)` / `rule(H,Q)` | give all the rules such that `H` and `Q` unify with a rule head and queue (as a list), respectively, at the time the predefined predicate was first cleared | `> assert(data(2),nil);` <br> `{ }` <br> `> assert(data(1),nil);`  <br> `{ }` <br> `> rule(data(n),nil);` <br> `{ n=1 }` <br> `{ n=2 }` <br> `>`
 
 ### Input / Output
 
@@ -144,6 +145,15 @@ Predicate | Action | Example
 --- | --- | ---
 `not(G)` | fail if goal `G` can be cleared
 
+### Rules
+
+Predicate | Action | Example
+--- | --- | ---
+`assert(H,Q)`, `asserta(H,Q)` | same as Prolog II's `assert/2` 
+`assert''(H,Q)`, `assertz(H,Q)` | same as `assert/2` but create the rule at the end of the group of rules with the same identifier and arity
+`retract(H,Q)` | suppress (one at a time) the rules whose head and queue unify with `H` and `Q`, respectively, at the time `retract` was first cleared
+
+
 ## Edinburg syntax
 
 On top of the Prolog II+ (Marseille syntax) predicates, the interpreter supports a few Edinburg-specific Prolog II+ predicates and a few ISO predicates as well.
@@ -153,7 +163,8 @@ On top of the Prolog II+ (Marseille syntax) predicates, the interpreter supports
 Predicate | Action | Example
 --- | --- | --- 
 `consult(F)` | insert a Prolog file | `?- consult('examples/menu.pl').` <br> ...
-`asserta(T)`, `assertz(T)`| insert a fact at the beginning or end of a group of rules | `?- asserta(animal(cat)).`
+`clause(H,Q)` | same as Prolog II+ `rule(T,Q)` | 
+`asserta(H,Q)`, `assertz(H,Q)`| insert a fact at the beginning or at the end of a group of rules | `?- asserta(animal(cat),[]).` <br> `{ }` <br> `?-`
 `listing` | display the current rules | `?- listing.` <br> ...
 
 

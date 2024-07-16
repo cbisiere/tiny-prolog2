@@ -3,6 +3,12 @@
 "session"
 
 quit :- outml("bye!"), syscall(sysquit).
+
+"rules"
+
+clause(T,Q) :- syscall(sysrule,T,Q).
+retract(H) :- syscall(sysretract,H,_).
+
 list :- syscall(syslist,0).
 insert(F) :- syscall(sysinsert,F).
 
@@ -22,8 +28,9 @@ get_char(Char) :- input_is(Stream) get_char(Stream,Char).
 put_char(Char) :- syscall(sysoutm,Char).
 read(Stream,Term) :- syscall(sysinterm,Stream,Term).
 read(Term) :- input_is(Stream) syscall(sysin,Stream,Term,term,true,false).
-asserta(Term) :- syscall(sysasserta,Term,[]).
-assertz(Term) :- syscall(sysassertz,Term,[]).
+asserta(Head,Queue) :- syscall(sysasserta,Head,Queue).
+assertz(Head,Queue) :- syscall(sysassertz,Head,Queue).
+write(Term) :- syscall(sysout,Term).
 
 "i/o: PII+"
 
@@ -92,6 +99,8 @@ nil.
 
 not(X) :- X,!,fail.
 not(X).
+
+call(Goal) :- Goal.
 
 "Edinburgh-specific rules"
 

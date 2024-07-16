@@ -92,6 +92,7 @@ Type
       HH_FBCL : BTermPtr; { terms to clear }
       HH_REST : RestPtr; { restoration stack }
       HH_BACK : HeadPtr; { where to backtrack (cut) }
+      HH_CHOI : Pointer; { data storing remaining choices for system call }
       { extra data: }
       HH_CLOC : LongInt; { clock time (unlikely to overflow)}
       HH_ISYS : Boolean; { term to clear is a system call? }

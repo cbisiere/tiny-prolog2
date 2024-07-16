@@ -91,6 +91,7 @@ Procedure DumpRegisteredObject;
 
 { copy and deep copy }
 Procedure PrepareDeepCopy( p : TObjectPtr );
+Procedure SetObjectsAsGenuine( p : TObjectPtr );
 Function DeepCopyObject( p : TObjectPtr; CopyChildren : Boolean ) : TObjectPtr;
 Function DeepCopy( p : TObjectPtr ) : TObjectPtr;
 
@@ -764,7 +765,7 @@ Procedure PrepareDeepCopy( p : TObjectPtr );
 Var 
   i : Byte;
 Begin
-  If p<>Nil Then
+  If p <> Nil Then
   Begin
     With p^.PO_META Do
     Begin
@@ -778,6 +779,44 @@ Begin
       End
     End
   End
+End;
+
+{----------------------------------------------------------------------------}
+{ helpers for loop prevention                                                }
+{----------------------------------------------------------------------------}
+
+{ globally unique serial number used for loop detection }
+Var
+  MM_CURRENT_SERIAL : TSerial;
+
+Function NewMemorySerial : TSerial;
+Begin
+  MM_CURRENT_SERIAL := MM_CURRENT_SERIAL + 1;
+  NewMemorySerial := MM_CURRENT_SERIAL
+End;
+
+{ set as genuine (that is, not a copy) p and of all objects that are reachable 
+ from p through children }
+Procedure SetObjectsAsGenuine( p : TObjectPtr );
+
+  Procedure DoSetObjectsAsGenuine( p : TObjectPtr; g : TSerial );
+  Var 
+    i : Byte;
+  Begin
+    If (p <> Nil) And Not ObjectSeen(p,g) Then
+    Begin
+      SetObjectSeen(p,g);
+      With p^.PO_META Do
+      Begin
+        PO_NCOP := 0;
+        For i := 1 To ObjectNbChildrenToCopy(p) Do
+          DoSetObjectsAsGenuine(ObjectChild(p,i),g)
+      End
+    End
+  End;
+
+Begin
+  DoSetObjectsAsGenuine(p,NewMemorySerial)
 End;
 
 
@@ -923,6 +962,7 @@ Begin
 {$IFDEF MSDOS}
 HeapError:=@HeapFunc;
 {$ENDIF}
+  MM_CURRENT_SERIAL := 0;
   InitMalloc;
   InitMemObjects;
   InitMemoryStats;

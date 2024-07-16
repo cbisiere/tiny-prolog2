@@ -3,13 +3,17 @@
 "rules"
 
 rule(T,Q) -> syscall(sysrule,T,Q);
+retract(H,Q) -> syscall(sysretract,H,Q);
 
 insert(F) -> syscall(sysinsert,F);
 insert -> syscall(sysinputis,F) syscall(sysinsert,F);
 
 list(N) -> syscall(syslist,N);
 list -> list(0);
-assert(H,Q) -> syscall(sysasserta,H,Q);
+asserta(H,Q) -> syscall(sysasserta,H,Q);
+assert(H,Q) -> asserta(H,Q);
+assertz(H,Q) -> syscall(sysassertz,H,Q);
+assert''(H,Q) -> assertz(H,Q);
 
 "session"
 

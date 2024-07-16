@@ -51,6 +51,7 @@ Uses
   PObj,
   PObjStr,
   PObjTerm,
+  PObjBter,
   PObjFCVI,
   PObjDef,
   PObjProg,
@@ -66,6 +67,8 @@ Function TupleToList( P : ProgPtr; U : TermPtr ) : TermPtr;
 Function ListToTuple( L : TermPtr ) : TermPtr;
 Function IdentifierToList( P : ProgPtr; I : IdPtr ) : TermPtr;
 Function ListToIdentifier( P : ProgPtr; T : TermPtr ) : TermPtr;
+Function BTermsToList( P : ProgPtr; B : BTermPtr ) : TermPtr;
+Function ListToBTerms( P : ProgPtr; T : TermPtr ) : BTermPtr;
 
 Function ProtectedGetTupleHead( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
 Function ProtectedGetTupleQueue( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
@@ -215,6 +218,36 @@ Begin
     T := Tq
   End;
   ListToIdentifier := EmitIdent(P,s,False)
+End;
+
+{ create a new list from a list of BTerms }
+Function BTermsToList( P : ProgPtr; B : BTermPtr ) : TermPtr;
+Var
+  L : TermPtr;
+Begin
+  If B = Nil Then
+    BTermsToList := NewEmptyList(P)
+  Else
+  Begin
+    L := BTermsToList(P,BTerms_GetNext(B));
+    BTermsToList := NewList2(P,BTerm_GetTerm(B),L)
+  End
+End;
+
+{ create a new list of BTerms from a list }
+Function ListToBTerms( P : ProgPtr; T : TermPtr ) : BTermPtr;
+Var
+  Bh,Bq : BTermPtr;
+Begin
+  If IsNil(T) Then
+    ListToBTerms := Nil
+  Else
+  Begin
+    Bq := ListToBTerms(P,ListQueue(T));
+    Bh := BTerm_New(ListHead(T));
+    BTerms_SetNext(Bh,Bq);
+    ListToBTerms := Bh
+  End
 End;
 
 {----------------------------------------------------------------------------}

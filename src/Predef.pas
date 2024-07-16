@@ -39,6 +39,8 @@ Uses
   PObjStr,
   PObjTok,
   PObjDict,
+  PObjEq,
+  PObjSys,
   PObjDef,
   PObjBter,
   PObjRule,
@@ -46,6 +48,7 @@ Uses
   PObjStmt,
   PObjWrld,
   PObjProg,
+  PObjRest,
   Tuple,
   Encoding,
   Unparse,
@@ -73,6 +76,9 @@ Type
     PP_FIND_RULE,
     PP_ASSERTA,
     PP_ASSERTZ,
+    PP_SUPPRESS,
+    PP_RULE,
+    PP_RETRACT,
     PP_EXPAND_FILENAME,
     PP_NEW_BUFFER,
     PP_DEL_BUFFER,
@@ -116,7 +122,8 @@ Function GetAtomArgAsStr( n : Byte; T : TermPtr;
     Quotes : Boolean ) : StrPtr;
 
 Function ClearPredef( Predef : TPP; P : ProgPtr; Q : QueryPtr; 
-    T : TermPtr; Var V,G : TermPtr ) : Boolean;
+    T : TermPtr; Var V,G : TermPtr; Var L : RestPtr; 
+    Var Choices : Pointer ) : Boolean;
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -126,7 +133,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 49;
+  NB_PP = 52;
   MAX_PP_LENGHT = 21; { max string length }
   SYSCALL_IDENT_AS_STRING = 'syscall'; 
 Type
@@ -159,6 +166,9 @@ Const
     (I:PP_FIND_RULE;S:'sysfindrule';N:1),
     (I:PP_ASSERTA;S:'sysasserta';N:2),
     (I:PP_ASSERTZ;S:'sysassertz';N:2),
+    (I:PP_SUPPRESS;S:'syssuppress';N:1),
+    (I:PP_RULE;S:'sysrule';N:2),
+    (I:PP_RETRACT;S:'sysretract';N:2),
     (I:PP_EXPAND_FILENAME;S:'sysexpandfilename';N:2),
     (I:PP_NEW_BUFFER;S:'sysnewbuffer';N:0),
     (I:PP_DEL_BUFFER;S:'sysdelbuffer';N:0),
@@ -269,11 +279,11 @@ Begin
 End;
 
 { return the goal (or Nil) argument n of a predicate }
-Function GetPArgAsGoal( n : Byte; T : TermPtr ) : TermPtr;
+Function GetGoal( n : Byte; T : TermPtr ) : TermPtr;
 Var
   T1 : TermPtr;
 Begin
-  GetPArgAsGoal := Nil;
+  GetGoal := Nil;
   T1 := EvalPArg(n,T);
   If IsTuple(T1) Then
   Begin
@@ -283,7 +293,20 @@ Begin
   Else
     If TypeOfTerm(T1) <> Identifier Then
       Exit;
-  GetPArgAsGoal := T1
+  GetGoal := T1
+End;
+
+{ return list argument n of a predicate or Nil if argument n is not a list;
+ if Anonymous is True, accept anonymous variable "_" }
+Function GetList( n : Byte; T : TermPtr; Anonymous : Boolean ) : TermPtr;
+Var
+  T1 : TermPtr;
+Begin
+  GetList := Nil;
+  T1 := EvalPArg(n,T);
+  If IsNil(T1) Or ProtectedIsList(T1,True) Or 
+      (Anonymous And IsAnonymousVariable(T1)) Then
+    GetList := T1
 End;
 
 { return as a string pointer (or Nil) argument n of a predicate, which can be 
@@ -948,10 +971,172 @@ End;
 { rules                                                                      }
 {----------------------------------------------------------------------------}
 
-{ asserta(T,Q), assertz(T,Q); TODO: handle rules (we handle facts, for now) }
+{ suppress(10) : suppress 10 statements starting at the current statement; the 
+ current statement is set to the next non-deleted statement; only the
+ current world is affected (see Manuel d'Utilisation, section 3.2, page 5);
+ PrologII only }
+Function ClearSuppress( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  n : PosInt;
+  W : WorldPtr;
+Begin
+  ClearSuppress := False;
+  { 1: number of statements to suppress }
+  If Not GetPosIntArg(1,T,n) Then
+    Exit;
+  { suppress }
+  W := GetCurrentWorld(P);
+  While (n > 0) And 
+      (Statement_GetType(World_GetCurrentStatement(W)) <> StatementEnd) Do
+  Begin
+    World_SuppressCurrentStatement(W);
+    n := n - 1
+  End;
+  ClearSuppress := True
+End;
+
+{ Return True if rule R's head and queue can be unified with term T1 and T2, 
+ respectively; it is more than a test, as it changes the reduced system in 
+ case of success; if Undo is True, the function makes the unification undoable
+ by appending the necessary info to the restore list L }
+Function UnifyHeadAndQueue( P : ProgPtr; R : RulePtr; T1,T2 : TermPtr;
+    Undo : Boolean; Var L : RestPtr ) : Boolean;
+Var
+  Th,Tq : TermPtr;
+  S : SysPtr;
+  DummyM : TermsPtr;
+Begin
+  { extract rule's head and queue-as-a-list }
+  Th := BTerm_GetTerm(Rule_GetHead(R));
+  Tq := BTermsToList(P,Rule_GetQueue(R));
+
+  { setup a system of equations to unify head and queue }
+  S := Sys_New;
+  Sys_InsertOneEq(S,Eq_New(REL_EQUA,T1,Th));
+  Sys_InsertOneEq(S,Eq_New(REL_EQUA,T2,Tq));
+
+  UnifyHeadAndQueue := ReduceSystem(S,Undo,L,DummyM,GetDebugStream(P))
+End;
+
+{ return a list of statements containing all the (local) rules whose head 
+ and queue match terms T1 and T2, respectively }
+Function GetListOfRulesMatchingHeadAndQueue( P : ProgPtr; 
+    T1,T2 : TermPtr ) : StmtPtr;
+Var
+  Tc1,Tc2 : TermPtr;
+  Ri,Rc : RulePtr;
+  Ih : IdPtr;
+  a : PosInt;
+  Sl,St,Sth : StmtPtr;
+  DummyL : RestPtr;
+Begin
+  GetListOfRulesMatchingHeadAndQueue := Nil;
+  Ih := AccessIdentifier(T1);
+  If Ih = Nil Then
+    Exit;
+  a := Arity(T1);
+  { build the list }
+  Sl := Nil; { list to be returned }
+  Sth := Nil; { current list's head }
+  Ri := FirstRule(P,True); { first rule in the current world }
+  While Ri <> Nil Do
+  Begin
+    Ri := FindRuleWithHeadAndArity(Ri,Ih,a,True);
+    If Ri <> Nil Then
+    Begin
+      { copy before reducing, to avoid binding original terms and rule;
+       FIXME: CopyTerm does not work, as unification fails on *second* pass }
+      Tc1 := TermPtr(DeepCopy(TObjectPtr(T1)));
+      Tc2 := TermPtr(DeepCopy(TObjectPtr(T2)));
+      Rc := RulePtr(DeepCopy(TObjectPtr(Ri)));
+
+      { unifiable? note that we do not make it undoable as we work on copies }
+      If UnifyHeadAndQueue(P,Rc,Tc1,Tc2,False,DummyL) Then 
+      Begin
+        St := Statement_New(Rule,TObjectPtr(Ri));
+        If Sl = Nil Then
+          Sl := St
+        Else
+          Statement_ChainWith(Sth,St);
+        Sth := St { statement head (last generated statement) }
+      End;
+      Ri := NextRule(Ri,True)
+    End
+  End;
+  GetListOfRulesMatchingHeadAndQueue := Sl
+End;
+
+{ rule(H,Q), clause(H,Q), retract(H,Q)
+ succeeds for each rule matching a head and a queue (queue can be an anonymous 
+ variable), at the time of first call (logical update view); if Retract is True, 
+ suppress the rule upon success }
+Function ClearRule( P : ProgPtr; T : TermPtr; Retract : Boolean; 
+    Var L : RestPtr; Var Choices : Pointer ) : Boolean;
+Var
+  T1,T2 : TermPtr;
+  R,Rc : RulePtr;
+  St : StmtPtr;
+Begin
+  ClearRule := False;
+  { 1: the head (ident or tuple with ident as first element) }
+  T1 := GetGoal(1,T);
+  If T1 = Nil Then
+  Begin
+    CWriteLnWarning('cannot unify with rule: invalid rule head');
+    Exit
+  End;
+  { 2: the queue (list or anonymous) }
+  T2 := GetList(2,T,True);
+  If T2 = Nil Then
+  Begin
+    CWriteLnWarning('cannot unify with rule: invalid rule queue');
+    Exit
+  End;
+
+  { on first call, gather all rules matching the head and the queue, using a
+   list of statements }
+  If Choices = Nil Then
+    Choices := GetListOfRulesMatchingHeadAndQueue(P,T1,T2);
+
+  { no (or no more) solutions: fail }
+  If Choices = Nil Then
+    Exit;
+
+  { backup the current stored solution and move to the next one for further 
+   calls }
+  St := StmtPtr(Choices);
+  Choices := Statement_GetNext(St);
+
+  { copy the rule }
+  Rc := RulePtr(DeepCopy(Statement_GetObject(St)));
+
+  { unification (must succeed); this test is important as it will append in L 
+   what is needed to undo any bindings created by this solution, during 
+   backtracking }
+  If Not UnifyHeadAndQueue(P,Rc,T1,T2,True,L) Then
+  Begin
+    CWriteLnWarning('cannot enforce logical update view');
+    Exit
+  End;
+
+  { retract rule when requested }
+  If Retract Then
+  Begin
+    { get the actual statement }
+    R := RulePtr(Statement_GetObject(St));
+    St := Rule_GetStatement(R);
+    { delete it }
+    Statement_Suppress(St)
+  End;
+
+  ClearRule := True
+End;
+
+{ asserta(T,Q), assertz(T,Q) }
 Function ClearAssert( P : ProgPtr; T : TermPtr; first : Boolean ) : Boolean;
 Var
-  T1 : TermPtr;
+  T1,T2 : TermPtr;
+  B,Bq : BTermPtr;
   Ih : IdPtr;
   R,Ri : RulePtr;
   Sti,Stb : StmtPtr;
@@ -959,24 +1144,52 @@ Var
 Begin
   ClearAssert := False;
   { 1: the head (ident or tuple with ident as first element) }
-  T1 := GetPArg(1,T);
-
-  { deep copy with eval }
-  T1 := CopyTerm(T1,False); { TO CHECK on PII+: should assignments be ignored? }
-
-  { get the head }
-  Ih := AccessIdentifier(T1);
-  If Ih = Nil Then
+  T1 := GetGoal(1,T);
+  If T1 = Nil Then
   Begin
     CWriteLnWarning('cannot create rule: invalid rule head');
     Exit
   End;
+  { 2: the queue (list); cannot be anonymous }
+  T2 := GetList(2,T,False);
+  If T2 = Nil Then
+  Begin
+    CWriteLnWarning('cannot create rule: invalid rule queue');
+    Exit
+  End;
 
-  { create the rule from the term }
+  { make a copy of the head and the queue, applying the reduced system;  
+   - use of the reduced system solves for the variables appearing in 
+    assert/2: 
+     -> eq(x,1) assert(data(x),nil));
+    creates
+      data(1) ->;
+   - making a copy prevents variables to be bound to further constraints 
+    after assert/2; this has been tested on PII+, and SWI as well:
+     ?- assert(abc(N)), N=1.
+     N = 1.
+     ?- listing.
+     abc(_).
+     true.
+    Note that assignments of identifiers are ignored, as assignments only 
+    affect val/2
+   }
+  T1 := CopyTerm(T1,False);
+  T2 := CopyTerm(T2,False);
+
+  { create a list of BTerms representing the rule }
+  B := BTerm_New(T1);
+  Bq := ListToBTerms(P,T2);
+  BTerms_SetNext(B,Bq);
+
+  { create the rule from the list of BTerms }
   R := Rule_New(GetSyntax(P));
-  Rule_SetTerms(R,BTerm_New(T1));
+  Rule_SetTerms(R,B);
+  { make the variables appear as non-temporary, as this is nicer }
+  SetObjectsAsGenuine(TObjectPtr(R));
 
   { compute the insertion point Sti }
+  Ih := AccessIdentifier(T1);
   Sti := Nil;
   If first Then { asserta }
   Begin
@@ -1007,6 +1220,10 @@ Begin
 
   ClearAssert := True
 End;
+
+{----------------------------------------------------------------------------}
+{                                                                            }
+{----------------------------------------------------------------------------}
 
 { dif(T1,T2) }
 Function ClearDif( P : ProgPtr; T : TermPtr ) : Boolean;
@@ -1751,7 +1968,7 @@ Begin
   { 1: variable on which to freeze (actually, any term is accepted) }
   T1 := GetPArg(1,T);
   { 2: goal (identifier or predicate) }
-  T2 := GetPArgAsGoal(2,T);
+  T2 := GetGoal(2,T);
   If T2 = Nil Then
   Begin
     CWritelnWarning('freeze: second argument must be a goal');
@@ -1770,7 +1987,8 @@ End;
 { clear a predefined predicate syscall(Code,Arg1,...ArgN), meaning 
  Code(Arg1,...,ArgN), except insert; G returns the new goal to freeze or clear }
 Function ClearPredef( Predef : TPP; P : ProgPtr; Q : QueryPtr; 
-    T : TermPtr; Var V,G : TermPtr ) : Boolean;
+    T : TermPtr; Var V,G : TermPtr; 
+    Var L : RestPtr; Var Choices : Pointer ) : Boolean;
 Var
   Ok : Boolean;
 Begin
@@ -1821,6 +2039,12 @@ Begin
     Ok := ClearAssert(P,T,True);
   PP_ASSERTZ:
     Ok := ClearAssert(P,T,False);
+  PP_SUPPRESS:
+    Ok := ClearSuppress(P,T);
+  PP_RULE:
+    Ok := ClearRule(P,T,False,L,Choices);
+  PP_RETRACT:
+    Ok := ClearRule(P,T,True,L,Choices);
   PP_EXPAND_FILENAME:
     Ok := ClearExpandFileName(P,T);
   PP_NEW_BUFFER:

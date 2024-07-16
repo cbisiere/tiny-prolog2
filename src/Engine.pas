@@ -92,10 +92,18 @@ Begin
 End;
 
 { execute a system call syscall(Code,Arg1,...ArgN), meaning 
- Code(Arg1,...,ArgN); if the syscall is freeze, set the frozen variable V and
- the frozen goal G }
+ Code(Arg1,...,ArgN); 
+ - if the syscall is freeze, this function sets the frozen variable V and
+ the frozen goal G;
+ - L is the undo stack of the header on top of the header for the syscall; 
+  backtrackable syscalls (e.g. rule/2) need to use it; that way, variables
+  in the syscall will be freed when backtracking from the top header, allowing 
+  to move to the next solution for that syscall 
+ - Choices stores whatever is needed to represent the remaining 
+ choices of a syscall that yields several results, e.g. rule/2; Choices is Nil
+ on first call }
 Function ExecutionSysCallOk( P : ProgPtr; Q : QueryPtr; T : TermPtr; 
-    Var V,G : TermPtr ) : Boolean;
+    Var V,G : TermPtr; Var L : RestPtr; Var Choices : Pointer ) : Boolean;
 Var
   Ok : Boolean;
   Predef : TPP;
@@ -108,7 +116,7 @@ Begin
   If Predef = PP_INSERT Then
     Ok := ClearInsert(P,T)
   Else
-    Ok := ClearPredef(Predef,P,Q,T,V,G);
+    Ok := ClearPredef(Predef,P,Q,T,V,G,L,Choices);
   ExecutionSysCallOk := Ok
 End;
 
@@ -153,6 +161,18 @@ Var
     CWriteLn
   End;
 
+  { get a goal's access identifier and arity; signature is recomputed (rather 
+   than taken from the goal's record) to handle possible assignments }
+  Procedure GetGoalSignature( B : BTermPtr; Var I : IdPtr; Var a : PosInt );
+  Var
+    T : TermPtr;
+  Begin
+    CheckCondition(B <> Nil,'GetGoalSignature: Goal is Nil');
+    T := BTerm_GetTerm(B);
+    I := AccessIdentifier(T); { slow but handle assignment }
+    a := Arity(T)
+  End;
+
   { access whether B has a chance to be cleared, that is, 1) there is a rule Rc 
    that has a chance to unify with a term B, starting with rule R; R could be 
    Nil; or 2) B is a cut; or 3) B is the system call syscall;
@@ -162,9 +182,8 @@ Var
       WarnNone : Boolean ) : Boolean;
   Var
     Possible : Boolean;
-    Tc : TermPtr; { term to clear }
-    I : IdPtr; { access of Tc }
-    a : PosInt; { arity of Tc }
+    I : IdPtr; { goal access }
+    a : PosInt; { goal arity }
     s : StrPtr;
   Begin
     Rc := Nil;
@@ -172,9 +191,7 @@ Var
     isCut := False;
     If B = Nil Then { FIXME: ? }
       Exit;
-    Tc := BTerm_GetTerm(B);
-    I := AccessIdentifier(Tc); { slow but handle assignment }
-    a := Arity(Tc);
+    GetGoalSignature(B,I,a);
     If I <> Nil Then
     Begin
       If IdentifierIsSyscall(I) Then
@@ -202,25 +219,41 @@ Var
   End;
 
   {----------------------------------------------------------------------------}
-  { Assuming term B was unifiable with the head of rule R, this function       }
-  { returns the next rule whose head is unifiable with B, and Nil otherwise.   }
+  { Set H to the next candidate rule to clear a goal, returning False if there }
+  { is no other candidates.                                                    }
   {----------------------------------------------------------------------------}
 
-  Function NextCandidateRule( R : RulePtr; B : BTermPtr; Var isSys : Boolean; 
-      Var isCut : Boolean) : RulePtr;
+  Function NextCandidate( H : HeadPtr ) : Boolean;
   Var 
-    NextR : RulePtr;
-    Possible : Boolean;
+    HasNext : Boolean;
+    I : IdPtr;
+    a : PosInt;
   Begin
-    If (R = Nil) Or (isSys) Or (isCut) Then { no "next" rule }
+    With H^ Do
     Begin
-      isSys := False;
-      isCut := False;
-      NextR := Nil
-    End
-    Else
-      Possible := PossibleToClear(NextRule(R,False),B,NextR,isSys,isCut,False);
-    NextCandidateRule := NextR
+      If HH_ICUT Then { cut is cleared only once }
+        HasNext := False
+      Else If HH_ISYS Then
+        HasNext := HH_CHOI <> Nil { multi-solution syscall? }
+      Else If HH_RULE <> Nil Then { a rule has been used to clear the goal }
+      Begin
+        HH_RULE := NextRule(HH_RULE,False);
+        If HH_RULE = Nil Then { no next rule }
+          HasNext := False
+        Else
+        Begin
+          GetGoalSignature(HH_FBCL,I,a);
+          If I = Nil Then { no access, goal is probably a variable }
+            HasNext := False
+          Else
+          Begin
+            HH_RULE := FindRuleWithHeadAndArity(HH_RULE,I,a,False);
+            HasNext := HH_RULE <> Nil
+          End
+        End
+      End
+    End;
+    NextCandidate := HasNext
   End;
 
 {----------------------------------------------------------------------------}
@@ -236,10 +269,8 @@ Var
   Var
     CutH : HeadPtr; { target header set by a cut }
     OnTarget, Skip : Boolean;
-    NextR : RulePtr;
     NextH : HeadPtr;
-    isSys, isCut : Boolean;
-    Stop : Boolean;
+    Stop,HasNext : Boolean;
   Begin
     CutH := H^.HH_BACK;
     Repeat
@@ -252,8 +283,7 @@ Var
         If (CutH = Nil) And (H^.HH_BACK <> Nil) Then
           CutH := H^.HH_BACK;
 
-        { a target header has been reached; skip that one 
-          and then stop }
+        { a target header has been reached; skip that one and then stop }
         OnTarget := H = CutH;
         Skip := (CutH <> Nil) And (Not OnTarget);
         If OnTarget Then
@@ -265,19 +295,13 @@ Var
         H^.HH_REST := Nil;
         H := NextH;
 
-        NextR := Nil;
-        isSys := False;
-        isCut := False;
+        { advance the header to the next possibility to clear the goal }
+        HasNext := NextCandidate(H);
 
-        { set next rule to apply, if any }
-        NextR := NextCandidateRule(H^.HH_RULE,H^.HH_FBCL,isSys,isCut);
-
-        Stop := (Not Skip) And ((NextR <> Nil) Or (isSys) Or (isCut))
+        Stop := Not Skip And HasNext
       End
-    Until Stop;
-    If Not NoMoreChoices Then
-      Header_SetRule(H,NextR,isSys,isCut)
-End;
+    Until Stop
+  End;
 
 {------------------------------------------------------------------}
 { set in header H the first rule whose head is unifiable with the  }
@@ -349,7 +373,7 @@ End;
     Begin
       FrozenV := Nil;
       FrozenT := Nil;
-      Solvable := ExecutionSysCallOk(P,Q,ClearT,FrozenV,FrozenT);
+      Solvable := ExecutionSysCallOk(P,Q,ClearT,FrozenV,FrozenT,H^.HH_REST,Hc^.HH_CHOI);
 
       If Solvable Then
       Begin

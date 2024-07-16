@@ -167,7 +167,7 @@ Begin
   Begin
     T := Dict_GetTerm(DV);
     { collect equations attached to the variable, skipping anonymous variable }
-    If Not (IsVariable(T) And IsAnonymous(VarPtr(T))) Then
+    If Not IsAnonymousVariable(T) Then
       CollectEquationsFromTerm(T,S,g);
     DV := Dict_GetNext(DV)
   End;
