@@ -959,36 +959,33 @@ Begin
   IsAnonymousVariable := IsVariable(T) And IsAnonymous(VarPtr(T))
 End;
 
-{ order two terms if one of them happens to be an identifier, the other one
-  not being a variable; in that case, an assigned identifier should come 
-  first; if both are assigned identifiers, the order is defined as in the 
-  memory management system; this ordering is necessary for the  reduction
-  algorithm to work properly, as an identifier, once assigned, behaves as a
-  variable }
-Procedure OrderIdentifiers( Var T1,T2: TermPtr );
-Var 
-  IT1 : IdPtr Absolute T1;
-  IT2 : IdPtr Absolute T2;
+{ return a rank used to order a term, as required by the reduction algorithm: 
+ variables, anonymous variables, assigned identifiers; we also rank 
+ unassigned identifiers and constants }
+Function TermRank( T : TermPtr ) : Byte;
+Var
+  Rank : Byte;
 Begin
-  If TypeOfTerm(T2) = Identifier Then 
-    If IsAssigned(IT2) Then
-      If TypeOfTerm(T1) = Identifier Then
-        If Not (IsAssigned(IT1) And Term_OrderedWith(T1,T2)) Then
-          SwapTerms(T1,T2)
+  Rank := 4; { lowest rank }
+  Case TypeOfTerm(T) Of 
+  Variable:
+    If Not IsAnonymous(VarPtr(T)) Then
+      Rank := 1
+    Else 
+      Rank := 2;
+  Identifier:
+    If IsAssigned(IdPtr(T)) Then
+      Rank := 3
+  End;
+  TermRank := Rank
 End;
 
-{ order two terms, as required by the reduction algorithm: 
-  (i) variables, assigned identifiers, in that order 
-  (ii) withing those two types, order is defined as in the memory management system 
-  having variable first is required by the reduction algorithm; this implementation 
-  also takes into account (dynamically) assigned identifiers }
+{ order two terms }
 Procedure OrderTerms( Var T1,T2: TermPtr );
 Begin
-  If (TypeOfTerm(T2) = Variable) And 
-    Not ((TypeOfTerm(T1) = Variable) And Term_OrderedWith(T1,T2)) Then
+  If (TermRank(T1) > TermRank(T2)) Or (TermRank(T1) = TermRank(T2)) And 
+      Not Term_OrderedWith(T1,T2) Then
     SwapTerms(T1,T2)
-  Else 
-    OrderIdentifiers(T1,T2)
 End;
 
 { keep track of "var = assigned ident" unification; this is needed because
