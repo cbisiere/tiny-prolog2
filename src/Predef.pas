@@ -1407,15 +1407,19 @@ Begin
     CWritelnWarning('univ: second argument must be a list or a variable');
     Exit
   End;
-  If ProtectedGetList(T2,Th,Tq,True) And Not IsAtomic(Th) Then
-  Begin
-    CWritelnWarning('univ: first element of the list must be atomic');
-    Exit
-  End;
 
   If IsVariable(T1) And IsVariable(T2) Then
   Begin
     CWritelnWarning('univ: insufficiently instantiated arguments');
+    Exit
+  End;
+
+  { pII+ p.222: "If X is free, Y must be instantiated with a list in which 
+   the first element is atomic. }
+  If IsVariable(T1) And 
+      Not (ProtectedGetList(T2,Th,Tq,True) And IsAtomic(Th)) Then
+  Begin
+    CWritelnWarning('univ: second argument must be a list whose first argument is atomic');
     Exit
   End;
 
