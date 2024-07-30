@@ -14,7 +14,28 @@ insert(F) :- syscall(sysinsert,F).
 
 "is"
 
-atom(T) :- syscall(sysis,T,ident).
+free(T) :- syscall(sysfree,T,true).
+var(T) :- free(T).
+bound(T) :- syscall(sysfree,T,false).
+nonvar(T) :- bound(T).
+
+ident(T) :- syscall(sysis,T,ident).
+atom(T) :- ident(T).
+
+integer(T) :- syscall(sysis,T,integer).
+real(T) :- syscall(sysis,T,real).
+float(T) :- real(T).
+number(T) :- integer(T).
+number(T) :- real(T).
+
+string(T) :- syscall(sysis,T,string).
+
+dot(T) :- syscall(sysis,T,dot).
+tuple(T) :- syscall(sysis,T,tuple).
+compound(T) :- dot(T).
+compound(T) :- tuple(T).
+
+atomic(T) :- nonvar(T), not(compound(T)).
 
 "i/o: ISO/SWI"
 
@@ -101,9 +122,6 @@ dif(X,Y) :- syscall(sysdif,X,Y).
 [P|Q] :- P, Q.
 nil.
 
-not(X) :- X,!,fail.
-not(X).
-
 call(Goal) :- Goal.
 
 "Edinburgh-specific rules"
@@ -121,6 +139,7 @@ nl :- line.
 "operators"
 
 :-
+    op(900,fy,\+,not)
     op(700,xfx,is,is)
     op(700,xfx,=,'=')
     op(700,xfx,<,'<')
@@ -144,6 +163,9 @@ nl :- line.
     op(200,xfy,^,'^').
 
 "Controls, pII+ p.217"
+
+not(X) :- X, !, fail.
+not(X).
 
 '\='(X,X) :- !, fail.
 '\='(X,Y).
