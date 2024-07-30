@@ -169,8 +169,8 @@ Var
       End;
 
     Begin { Unify }
-      T1 := UnprotectedRepOf(Tg);
-      T2 := UnprotectedRepOf(Td);
+      T1 := ProtectedRepOf(Tg);
+      T2 := ProtectedRepOf(Td);
       If Not Term_SameAs(T1,T2) Then { so might be abnormal }
       Begin
         { ordering: variables always first; for two variables, an arbitrary 

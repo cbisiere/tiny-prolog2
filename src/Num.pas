@@ -22,10 +22,9 @@ Interface
 Uses
   ShortStr;
 
-Const
-  MaxLongInt = 1e+24;
-
 {$IFDEF MSDOS}
+Const
+  MaxPosInt = 2147483647; { 2^31 - 1 }
 Type 
   { Word is too small on MDSOS, eg to store UTF-8 codepoints; so we use 4-byte
    signed integer instead }
@@ -34,6 +33,9 @@ Type
   LongReal = Extended; { high precision real }
   Pointer = ^Integer; { generic pointer }
 {$ELSE}
+Const
+  MaxPosInt = 4294967295; { 2^32 - 1 }
+  MaxLongInt = 1e+24;
  Type
   PosInt = UInt32; { 4-byte unsigned integer }
   LongLongInt = Real; { simulate a very long integer }

@@ -103,6 +103,7 @@ Type
     PP_EVAL,
     PP_OP,
     PP_ASSIGN,
+    PP_DEF_ARRAY,
     PP_ECHO,
     PP_TRACE,
     PP_DEBUG,
@@ -133,7 +134,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 52;
+  NB_PP = 53;
   MAX_PP_LENGHT = 21; { max string length }
   SYSCALL_IDENT_AS_STRING = 'syscall'; 
 Type
@@ -193,6 +194,7 @@ Const
     (I:PP_EVAL;S:'syseval';N:2),
     (I:PP_OP;S:'sysop';N:4), { TODO: 3-arg version }
     (I:PP_ASSIGN;S:'sysassign';N:2),
+    (I:PP_DEF_ARRAY;S:'sysdefarray';N:2),
     (I:PP_ECHO;S:'sysecho';N:1),
     (I:PP_TRACE;S:'systrace';N:1),
     (I:PP_DEBUG;S:'sysdebug';N:1),
@@ -574,7 +576,7 @@ Begin
   TYPE_STRING:
     TypeOK := EvaluateToString(T1) <> Nil;
   TYPE_IDENT: { an assigned ident is still an ident (tested on PII+) }
-    TypeOK := EvaluateToIdentifierIgnoreAssign(T1) <> Nil;
+    TypeOK := EvaluateToIdentifier(T1) <> Nil;
   TYPE_DOT: { list: 'nil' is not a list (tested on PII+) }
     Begin
       T1 := ProtectedRepOf(T1);
@@ -1222,7 +1224,7 @@ Begin
 End;
 
 {----------------------------------------------------------------------------}
-{                                                                            }
+{ dif                                                                        }
 {----------------------------------------------------------------------------}
 
 { dif(T1,T2) }
@@ -1235,7 +1237,67 @@ Begin
   ClearDif := ReduceOneIneq(T1,T2,GetDebugStream(P))
 End;
 
-{ assign(file_name, "myfile.txt")
+{----------------------------------------------------------------------------}
+{ assignment                                                                 }
+{----------------------------------------------------------------------------}
+
+{ def_array(stack,100) }
+Function ClearDefArray( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  T1 : TermPtr;
+  I : IdPtr;
+  n : PosInt;
+  j : TArrayIndex;
+  Tz : TermPtr;
+Begin
+  ClearDefArray := False;
+  { 1: array name (identifier) }
+  T1 := GetPArg(1,T);
+  I := EvaluateToIdentifier(T1);
+  If I = Nil Then
+    Exit;
+  { 2: size (positive integer) }
+  If Not GetPosIntArg(2,T,n) Then
+  Begin
+    CWriteWarning('array size must be a positive integer');
+    CWriteLn;
+    Exit
+  End;
+  If n > MaxChildren Then
+  Begin
+    CWriteWarning('array too large: maximum number of elements is ');
+    CWrite(PosIntToShortString(MaxChildren));
+    CWriteLn;
+    Exit
+  End;
+  If IsAssigned(I) And Not IsArray(I) Then
+  Begin
+    CWriteLnWarning('identifier already assigned');
+    Exit
+  End;
+  If IsArray(I) And (GetArraySize(I) <> n) Then
+  Begin
+    CWriteLnWarning('array already exists but has a different size');
+    Exit
+  End;
+  { If an array with the same name already exists and the arrays have the same 
+   size, nothing happens; cf. pII+ pdf doc p.114 }
+  If GetArraySize(I) = n Then
+  Begin
+    ClearDefArray := True;
+    Exit
+  End;
+  SetAsAssigned(I);
+  { set the identifier as an array of n zeros }
+  SetArray(I,n,Array_New(n));
+  Tz := EmitConst(P,Str_NewFromShortString('0'),CI,False);
+  For j := 1 To n Do
+    SetArrayElement(I,j,Tz);
+  { success }
+  ClearDefArray := True
+End;
+
+{ assign(file_name, "myfile.txt"), assign(stack(i),v))
  note: re-assignments are tricky to handle, as the reduced system, after
  e.g. "assign(test,1)", contains i=1 (w/o any remaining reference to the 
  identifier) }
@@ -1243,26 +1305,66 @@ Function ClearAssign( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   T1,T2 : TermPtr;
   I : IdPtr;
+  ArrIndex : PosInt;
+  code : Integer;
 Begin
   ClearAssign := False;
-  { 1: identifier; do not eval as assignments must be ignored }
-  T1 := GetPArg(1,T);
-  I := EvaluateToIdentifierIgnoreAssign(T1);
-  If I = Nil Then
-    Exit;
-  { identifier's dict entry is persistent }
-  Dict_SetGlobal(I^.TV_DVAR,True);
-  { neutralize its role (if any) in the reduced system as variable-like, 
-    assigned identifier }
-  UnbindVar(I);
-  I^.TV_ASSI := True;
-  { 2: assigned term }
-  T2 := GetPArg(2,T);
+  { 1: identifier or array(index) }
+  T1 := GetGoal(1,T);
+  If T1 = Nil Then
+  Begin
+    CWriteLnWarning('identifier or array element expected');
+    Exit
+  End;
+  { 2: assigned value (term) }
+  T2 := EvalPArg(2,T);
   { make a clean copy, using the reduced system to eliminate intermediate 
    variables, and getting rid of bindings }
   T2 := CopyTerm(T2,False);
-  { do the assignment }
-  ClearAssign := ReduceOneEq(TermPtr(I),T2,GetDebugStream(P)) { "ident = term" }
+
+  If IsTuple(T1) Then { array(index) }
+  Begin
+    I := AccessIdentifier(T1);
+    If Not IsArray(I) Then
+    Begin
+      CWriteLnWarning('not an array');
+      Exit
+    End;
+    If ArgCount(T1) <> 2 Then
+    Begin
+      CWriteLnWarning('arrays have only one dimension');
+      Exit
+    End;
+    T1 := ProtectedRepOf(TupleArgN(2,T1));
+    If (TypeOfTerm(T1) <> Constant) Or 
+        (ConstType(ConstPtr(T1)) <> IntegerNumber) Then
+    Begin
+      CWriteLnWarning('array index is not an integer');
+      Exit
+    End;
+    ArrIndex := ShortStringToPosInt(ConstGetShortString(ConstPtr(T1)),code);
+    If (code <> 0) Or (ArrIndex < 1) Or 
+        (ArrIndex > GetArraySize(I)) Then
+    Begin
+      CWriteLnWarning('incorrect array index');
+      Exit
+    End;
+    { do the assignment }
+    SetArrayElement(I,ArrIndex,T2)
+  End
+  Else
+  Begin
+    T1 := TermPtr(EvaluateToIdentifier(T1));
+    If T1 = Nil Then
+    Begin
+      CWriteLnWarning('identifier expected');
+      Exit
+    End;
+    SetAsAssigned(IdPtr(T1));
+    { do the assignment }
+    SetValue(IdPtr(T1),T2)
+  End;
+  ClearAssign := True
 End;
 
 { val(100,x) }
@@ -1276,7 +1378,10 @@ Begin
     see p113 of the PrologII+ documentation }
   { 1: value to assign (usually contains things like add(1,2)) }
   T1 := GetPArg(1,T);
-  T1 := EvaluateExpression(T1,P); { FIXME: do a copy and unbound variables? }
+  T1 := EvaluateExpression(T1,P); 
+  { do a copy, unbound any embedded variables }
+  T1 := CopyTerm(T1,False);
+
   If T1 = Nil Then
     Exit;
   { 2: term this value is equal to (usually a variable) }
@@ -2003,6 +2108,8 @@ Begin
     Ok := ClearDif(P,T);
   PP_ASSIGN:
     Ok := ClearAssign(P,T);
+  PP_DEF_ARRAY:
+    Ok := ClearDefArray(P,T);
   PP_EVAL:
     Ok := ClearEval(P,T);
   PP_UNIV:

@@ -107,7 +107,7 @@ Begin
     Exit;
   Term_SetSeen(T,1,g);
 
-  { V = T; also applies to assigned identifiers; it would ne abnormal to have
+  { V = T; also applies to assigned identifiers; it would be abnormal to have
    a F as LHS, as the clock undo those equations; we still collect them so it
    will show that something went wrong }
   Tr := Red(T);

@@ -82,9 +82,16 @@ Predicate | Action | Example
 Operator | Type | Precedence | Example
 --- | --- | --- | ---
 `inf` | xfx | 700 | 
+`eq` / `eql` | xfx | 700 | 
 `add`,`sub` | yfx | 500 | 
 `mul`,`div` | yfx | 400 | 
 `add`,`sub` | fx | 200 | 
+
+### Arrays
+
+Predicate | Action | Example
+--- | --- | ---
+`def-tab(I,N)` / `def-array(I,N)` | define an array `I` of size `N`; array's index ranges from `1` to `N`; all elements are initialized to `0` | `> def-array(stack,100);` <br> `{ }` <br> `> assign(stack(1),hello);` <br> `{ }` <br> `> val(stack(1),v);` <br> `{ v=hello }` <br> `>`
 
 ### Strings
 
@@ -133,7 +140,7 @@ Prolog II+ syntax accepts expressions. Operators used elsewhere in Prolog syntax
 
 Identifier | Operator | Type | Precedence | Example
 --- | --- | --- | --- | ---
-`inf`, `infe`, `sup`, `supe` | `'<'`, `'=<'`, `'>'`, `'>='` | xfx | 700 | `+> val(1 '<' 2,x);` <br> `{ x=1 }` <br> `+>`
+`inf`, `infe`, `sup`, `supe`, `eql` | `'<'`, `'=<'`, `'>'`, `'>='`, `=:=` | xfx | 700 | `+> val(1 '<' 2,x);` <br> `{ x=1 }` <br> `+>`
 `add`,`sub` | `+`, `-` | yfx | 500 | `+> val(1+1,x);` <br> `{ x=2 }` <br> `+>`
 `mul`,`div` | `*`, `/` | yfx | 400 | 
 `add`,`sub` | `+`, `-` | fx | 200 | 
@@ -197,7 +204,7 @@ Predicate | Action | Example
 Operator | Type | Precedence | Example
 --- | --- | --- | --- 
 `is` | xfx | 700 | 
-`=`, `<`, `=<`, `>`, `>=` | xfx | 700 | 
+`=`, `<`, `=<`, `>`, `>=`, `=:=` | xfx | 700 | 
 `@<`, `@=<`, `@>`, `@>=` | xfx | 700 | 
 `\=` | xfx | 700 | 
 `=..` | xfx | 700 | 

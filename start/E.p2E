@@ -7,7 +7,7 @@ quit :- outml("bye!"), syscall(sysquit).
 "rules"
 
 clause(T,Q) :- syscall(sysrule,T,Q).
-retract(H) :- syscall(sysretract,H,_).
+retract(H,Q) :- syscall(sysretract,H,Q).
 
 list :- syscall(syslist,0).
 insert(F) :- syscall(sysinsert,F).
@@ -70,6 +70,10 @@ clear :- page, fail.
 
 char_code(C,N) :- syscall(syscharcode,C,N).
 
+"array"
+
+def_array(I,N) :- syscall(sysdefarray,I,N).
+
 "assign, eval, operators"
 
 assign(I,T) :- syscall(sysassign,I,T).
@@ -129,6 +133,7 @@ nl :- line.
     op(700,xfx,@=<,'@=<')
     op(700,xfx,\=,'\=')
     op(700,xfx,=..,'=..')
+    op(700,xfx,=:=,eql)
     op(500,yfx,+,'+')
     op(500,yfx,-,'-')
     op(400,yfx,*,'*')
@@ -160,3 +165,4 @@ is(X,Y) :- val(Y,X).
 '@<'(X,Y) :- val('@<'(X,Y),1).
 '@>='(X,Y) :- val('@>='(X,Y),1).
 '@=<'(X,Y) :- val('@=<'(X,Y),1).
+'=:='(X,Y) :- val(eql(X,Y),1).

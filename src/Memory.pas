@@ -25,18 +25,29 @@ Uses
   Errs,
   Trace;
 
+{$IFDEF MSDOS}
+Const
+  GetMemMaxSize = 65521; { see TP4 pdf p. 443 }
+  MaxChildren = 16300; { 4-bytes pointers + small metadata overhead }
+Type 
+  TObjectSize : Word;
+  TObjectChild = Word; { child index or counter }
+{$ELSE}
+Const
+  GetMemMaxSize = 4294967295; { 2^32 - 1 }
+  MaxChildren = 1073741000; { 4-bytes pointers + small metadata overhead }
+ Type
+  TObjectSize = PtrUInt; { size of a single object, in bytes }
+  TObjectChild = PosInt; { child index or counter }
+{$ENDIF}
+
 Const
   MaxNbObjectTypes = 255;
-  MaxChildren = 255; { max numbers of child pointers per object }
 
 Type 
   TObjectTypeIndex = 1..MaxNbObjectTypes;
-
-  TObjectSize = Integer; { size of a single object, in bytes }
   TObjectName = String[2];
-
   TypeMark = Boolean;
-
   TSerial = PosInt; { serial number to support object marking } 
 
 { object's metadata for object management (cloning, debugging, etc.) }
@@ -49,14 +60,13 @@ Type
     PO_TYPE : TObjectTypeIndex; { type of object }
     PO_GUID : LongInt;          { object globally unique identifier (for convenience and sorting) }
     PO_SIZE : TObjectSize;      { size in bytes (including metadata) }
-    PO_NPTR : Byte;             { number of PObject pointers (which must immediately follow the metadata) }
+    PO_NPTR : TObjectChild; { number of PObject pointers (which must immediately follow the metadata) }
     { deep copy }
     PO_DPOK : Boolean;          { deep copy of this object is allowed }
-    PO_DEEP : Boolean;          { has been visited during the current deep copy operation }
     PO_COPY : TObjectPtr;       { pointer to a copy made during a deep copy; warning: copy may have been GC'ed }
     PO_CUID : LongInt;          { GUID of the copy, or 0; for display purpose, as the copy may not exist }
     PO_NCOP : Integer;          { copy number - FIXME: may overflow }
-    PO_NDEE : Byte;             { number of pointers of objects to deep copy (must be less of equal than PO_NPTR) }
+    PO_NDEE : TObjectChild; { number of pointers of objects to deep copy (must be less of equal than PO_NPTR) }
     { garbage collection }
     PO_MARK : TypeMark;         { GC mark }
     PO_NEXT : TObjectPtr;       { GC list of allocated objects }
@@ -65,7 +75,7 @@ Type
   End;
   TObject = Record
     PO_META : TObjMeta;
-    PO_PTRS : Array[1..MaxChildren] Of TObjectPtr { pointers to child objects }
+    PO_PTRS : Array[1..MaxPosInt] Of TObjectPtr { pointers to child objects }
   End;
 
 { mem stats }
@@ -85,14 +95,17 @@ Procedure DumpObject( p : TObjectPtr; extra : Boolean );
 { object creation and accounting }
 Function GetRegistrationState : Boolean;
 Procedure SetRegistration( state : Boolean );
-Function NewRegisteredObject( t : TObjectTypeIndex; b: TObjectSize ; n: Byte; 
-    CanCopy : Boolean; d : Byte ) : TObjectPtr;
+Function NewRegisteredObject( t : TObjectTypeIndex; b: TObjectSize ; 
+    n: TObjectChild; CanCopy : Boolean; d : TObjectChild ) : TObjectPtr;
 Procedure DumpRegisteredObject;
 
+{ helper to avoid loops }
+Function NewMemorySerial : TSerial;
+
 { copy and deep copy }
-Procedure PrepareDeepCopy( p : TObjectPtr );
 Procedure SetObjectsAsGenuine( p : TObjectPtr );
-Function DeepCopyObject( p : TObjectPtr; CopyChildren : Boolean ) : TObjectPtr;
+Function DeepCopyObject( p : TObjectPtr; CopyChildren : Boolean; 
+    g : TSerial ) : TObjectPtr;
 Function DeepCopy( p : TObjectPtr ) : TObjectPtr;
 
 { helpers for marking }
@@ -343,22 +356,23 @@ Begin
   p^.PO_META.PO_SIZE := b
 End;
 
-Function ObjectNbChildren( p : TObjectPtr ) : Byte;
+Function ObjectNbChildren( p : TObjectPtr ) : TObjectChild;
 Begin
   ObjectNbChildren := p^.PO_META.PO_NPTR
 End;
 
-Function ObjectNbChildrenToCopy( p : TObjectPtr ) : Byte;
+Function ObjectNbChildrenToCopy( p : TObjectPtr ) : TObjectChild;
 Begin
   ObjectNbChildrenToCopy := p^.PO_META.PO_NDEE
 End;
 
-Function ObjectChild( p : TObjectPtr; i : Byte ) : TObjectPtr;
+Function ObjectChild( p : TObjectPtr; i : TObjectChild ) : TObjectPtr;
 Begin
   ObjectChild := p^.PO_PTRS[i]
 End;
 
-Procedure SetObjectChild( p : TObjectPtr; i : Byte; child : TObjectPtr );
+Procedure SetObjectChild( p : TObjectPtr; i : TObjectChild; 
+    child : TObjectPtr );
 Begin
   p^.PO_PTRS[i] := child
 End;
@@ -446,7 +460,7 @@ End;
 { dump an object, possibly with extra data }
 Procedure DumpObject( p : TObjectPtr; extra : Boolean );
 Var 
-  i : Byte;
+  i : TObjectChild;
   child : TObjectPtr;
 Begin
   CWrite(RAlign(PtrToName(p),5) + ' : ');
@@ -454,7 +468,7 @@ Begin
   With p^.PO_META Do
   Begin
     CWrite(GetObjectName(PO_TYPE) + ' ' + MarkToShortString(PO_MARK) + ' ');
-    CWrite(IntToShortString(PO_NCOP) + ' ' + IntToShortString(Ord(PO_DEEP)) + ' ');
+    CWrite(IntToShortString(PO_NCOP) + ' ');
     CWrite(RAlign(GuidToShortString(PO_CUID),5))
   End;
   CWrite(' [');
@@ -587,6 +601,7 @@ Function GetMemForObject( b : TObjectSize ) : TObjectPtr;
 Var
   p : TObjectPtr;
 Begin
+  CheckCondition(b <= GetMemMaxSize,'Cannot allocate an object of this size');
   GetMem(p,b);
   { cannot GC here, so in case of OOM we just abort }
   If p = Nil Then
@@ -648,6 +663,20 @@ Begin
 End;
 
 {----------------------------------------------------------------------------}
+{ helpers for loop prevention                                                }
+{----------------------------------------------------------------------------}
+
+{ globally unique serial number used for loop detection }
+Var
+  MM_CURRENT_SERIAL : TSerial;
+
+Function NewMemorySerial : TSerial;
+Begin
+  MM_CURRENT_SERIAL := MM_CURRENT_SERIAL + 1;
+  NewMemorySerial := MM_CURRENT_SERIAL
+End;
+
+{----------------------------------------------------------------------------}
 { operations on registered objects                                           }
 {----------------------------------------------------------------------------}
 
@@ -668,19 +697,19 @@ End;
   object pointers; the first d child objects of these n are copied when the 
   object is deep copied (but only if deep copy is allowed for that object: 
   CanCopy) }
-Function NewRegisteredObject( t : TObjectTypeIndex; b: TObjectSize; n: Byte; 
-    CanCopy : Boolean; d : Byte ) : TObjectPtr;
+Function NewRegisteredObject( t : TObjectTypeIndex; b: TObjectSize; 
+  n: TObjectChild; CanCopy : Boolean; d : TObjectChild ) : TObjectPtr;
 Var 
   p : TObjectPtr;
 Begin
   CheckCondition(d <= n,'NewRegisteredObject: d > n');
+  CheckCondition(n <= MaxChildren,'NewRegisteredObject: too many children');
   p := NewObject(t,b);
   With p^.PO_META Do
   Begin
     PO_NPTR := n;
     { deep copy metadata: }
     PO_DPOK := CanCopy;
-    PO_DEEP := False;
     PO_COPY := Nil;
     PO_CUID := 0;
     PO_NCOP := 0;
@@ -693,8 +722,6 @@ Begin
 End;
 
 { copy an object 
-- set PO_DEEP for both the old and copied objects, to note they have
-  been visited during the deep copy operation
 - set PO_COPY of the old object to point to its copy
 - set PO_COPY of the new object to Nil to characterize this object as new
 }
@@ -702,20 +729,16 @@ Function CopyObject( p : TObjectPtr ) : TObjectPtr;
 Var 
   pc : TObjectPtr;
 Begin
-  CheckCondition(Not p^.PO_META.PO_DEEP,'Copy of an already visited object');
   pc := CloneObject(p);
   RegisterObject(pc);
   With pc^.PO_META Do { new object is a copy }
   Begin
-    PO_DEEP := True;
     PO_COPY := Nil;
     PO_CUID := 0;
-    PO_NCOP := PO_NCOP + 1; { note it is an additional copy }
-    PO_SEEN := 0 { the copy has not been seen yet }
+    PO_NCOP := PO_NCOP + 1 { note it is an additional copy }
   End;
   With p^.PO_META Do { old object has been copied }
   Begin
-    PO_DEEP := True;
     PO_COPY := pc;  { link old -> copy }
     PO_CUID := ObjectGuid(pc)
   End;
@@ -725,13 +748,12 @@ End;
 
 { deep copy of an object, or Nil if p is Nil; deep copy all the children if
  CopyChildren is True; this boolean allows writing tailor-made deep copy 
- procedures (see, e.g. CopyTerm); note that such procedure should only go
- through children declared as subject to deep copy, since PrepareDeepCopy
- only go through them }
-Function DeepCopyObject( p : TObjectPtr; CopyChildren : Boolean ) : TObjectPtr;
+ procedures (see, e.g. CopyTerm) }
+Function DeepCopyObject( p : TObjectPtr; CopyChildren : Boolean; 
+    g : TSerial ) : TObjectPtr;
 Var 
   pc : TObjectPtr;
-  i : Byte;
+  i : TObjectChild;
 Begin
   pc := Nil;
   If p <> Nil Then
@@ -740,59 +762,24 @@ Begin
     Begin
       If Not PO_DPOK Then { deep copy not authorized: return the object itself }
         pc := p
-      Else If PO_DEEP Then { object has already been visited during this deep copy }
+      Else If ObjectSeen(p,g) Then { object has already been visited during this deep copy }
       Begin 
-        If PO_COPY=Nil Then { is a copy }
+        If PO_COPY = Nil Then { is a copy }
           pc := p
         Else
           pc := PO_COPY { has been copied }
       End
       Else
       Begin
-        pc := CopyObject(p);
+        SetObjectSeen(p,g);
+        pc := CopyObject(p); { copy, including serial }
         If CopyChildren Then
           For i := 1 To ObjectNbChildrenToCopy(p) Do
-            SetObjectChild(pc,i,DeepCopyObject(ObjectChild(p,i),CopyChildren))
+            SetObjectChild(pc,i,DeepCopyObject(ObjectChild(p,i),CopyChildren,g))
       End
     End
   End;
   DeepCopyObject := pc
-End;
-
-{ reset the deep copy state of p and of all objects that are reachable 
-  from p through children subject to deep copy }
-Procedure PrepareDeepCopy( p : TObjectPtr );
-Var 
-  i : Byte;
-Begin
-  If p <> Nil Then
-  Begin
-    With p^.PO_META Do
-    Begin
-      If PO_DPOK And PO_DEEP Then
-      Begin
-        PO_DEEP := False;
-        PO_COPY := Nil;
-        PO_CUID := 0;
-        For i := 1 To ObjectNbChildrenToCopy(p) Do
-          PrepareDeepCopy(ObjectChild(p,i))
-      End
-    End
-  End
-End;
-
-{----------------------------------------------------------------------------}
-{ helpers for loop prevention                                                }
-{----------------------------------------------------------------------------}
-
-{ globally unique serial number used for loop detection }
-Var
-  MM_CURRENT_SERIAL : TSerial;
-
-Function NewMemorySerial : TSerial;
-Begin
-  MM_CURRENT_SERIAL := MM_CURRENT_SERIAL + 1;
-  NewMemorySerial := MM_CURRENT_SERIAL
 End;
 
 { set as genuine (that is, not a copy) p and of all objects that are reachable 
@@ -801,7 +788,7 @@ Procedure SetObjectsAsGenuine( p : TObjectPtr );
 
   Procedure DoSetObjectsAsGenuine( p : TObjectPtr; g : TSerial );
   Var 
-    i : Byte;
+    i : TObjectChild;
   Begin
     If (p <> Nil) And Not ObjectSeen(p,g) Then
     Begin
@@ -866,7 +853,7 @@ End;
 { mark p and all objects that are reachable from p }
 Procedure Mark( p : TObjectPtr );
 Var 
-  i : Byte;
+  i : TObjectChild;
 Begin
   If Markable(p) Then
   Begin
@@ -946,12 +933,8 @@ End;
 {----------------------------------------------------------------------------}
 
 Function DeepCopy( p : TObjectPtr ) : TObjectPtr;
-Var 
-  pc : TObjectPtr;
 Begin
-  PrepareDeepCopy(p);
-  pc := DeepCopyObject(p,True);
-  DeepCopy := pc
+  DeepCopy := DeepCopyObject(p,True,NewMemorySerial)
 End;
 
 

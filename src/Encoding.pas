@@ -259,7 +259,7 @@ Function GetTupleHead( T : TermPtr;
     Reduce : Boolean; g : TSerial ) : TermPtr;
 Begin
   T := TupleHead(T);
-  T := RepresentativeOf(T,True,Reduce,g);
+  T := RepresentativeOf(T,Reduce,g);
   GetTupleHead := T
 End;
 
@@ -268,7 +268,7 @@ Function GetTupleQueue( T : TermPtr;
     Reduce : Boolean; g : TSerial ) : TermPtr;
 Begin
   T := TupleQueue(T);
-  T := RepresentativeOf(T,True,Reduce,g);
+  T := RepresentativeOf(T,Reduce,g);
   GetTupleQueue := T
 End;
 

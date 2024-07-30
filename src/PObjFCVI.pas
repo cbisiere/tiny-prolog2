@@ -69,29 +69,58 @@ Type
     TF_RTER : TermPtr
 End;
 
-{ variable or (assignable) identifier; only variables are subject to deep-copy }
+{ array; not a term in itself; must contain only pointers, as the size of the
+ object is set a creation time }
+Type
+  TArrayIndex = 1..MaxPosInt;
+  TArraySize = PosInt;
+  ArrayPtr = ^TObjArray;
+  TObjArray = Record
+    PO_META : TObjMeta;
+    { deep copied: }
+    AR_DATA : Array[TArrayIndex] Of TermPtr
+  End;
+
 Type 
   TermsPtr = ListPtr;
-  AssPtr = ^TObjAss;
-  VarPtr = AssPtr; { variable }
-  IdPtr = AssPtr; { identifier: TV_TRED is set when the identifier has been assigned }
 
-  TObjAss = Record
+{ identifier }
+Type
+  IdPtr = ^TObjId;
+  TObjId = Record
     PO_META : TObjMeta;
     TT_META : TermMetaPtr;
-    { VA: deep copied: }
+    { deep copied: }
+    TI_ARRA : ArrayPtr; { array elements or Nil if not an array }
+    TI_VALU : TermPtr; { term assigned to the identifier }
+    { not deep copied: }
+    TI_DVAR : DictPtr; { dictionary entry }
+    { extra data: }
+    TI_SIZE : TArraySize; { number or array elements or zero if not an array }
+    TI_QUOT : Boolean; { True if the identifier must be quoted to be valid }
+    TI_ASSI : Boolean { true if the term is an identifier that has been assigned }
+  End;
+
+{ variable }
+Type
+  VarPtr = ^TObjVar;
+  TObjVar = Record
+    PO_META : TObjMeta;
+    TT_META : TermMetaPtr;
+    { deep copied: }
     TV_TRED : TermPtr; { right member of the equation in the reduced system }
     TV_FWAT : EqPtr; { first inequation this variable watches }
     TV_GOAL : TermsPtr; { frozen terms this variable control, or nil }
-    { VA: not deep copied: }
+    { not deep copied: }
     TV_DVAR : DictPtr; { dictionary entry }
-    TV_IRED : IdPtr; { VA: identifier this variable as been initially bound to }
+    TV_IRED : IdPtr; { identifier this variable as been initially bound to }
     { extra data: }
-    TV_ANON : Boolean; { True if the object is an anonymous variable }
-    TV_QUOT : Boolean; { True if the identifier must be quoted to be valid }
-    TV_ASSI : Boolean { true if the term is an identifier that can be assigned }
+    TV_ANON : Boolean { True if the object is an anonymous variable }
   End;
 
+
+Function Array_New( n : TArraySize ) : ArrayPtr;
+Function Array_GetElement( A : ArrayPtr; i : TArrayIndex ) : TermPtr;
 
 Function Func_NewAsTerm( T1,T2 : TermPtr ) : TermPtr;
 Function TypeOfTerm( T : TermPtr ) : TTerm;
@@ -129,7 +158,7 @@ Procedure Func_SetLeftWithUndo( F : FuncPtr; T : TermPtr;
 Procedure Func_SetRightWithUndo( F : FuncPtr; T : TermPtr; 
     Undo : Boolean; Var L : RestPtr );
 
-Procedure UnbindVar( V : AssPtr );
+Procedure UnbindVar( V : VarPtr );
 Function WatchIneq( V : VarPtr ) : EqPtr;
 Function IsWatching( V : VarPtr; E : EqPtr ) : Boolean;
 Procedure AddWatchWithUndo( V : VarPtr; E : EqPtr; 
@@ -137,9 +166,8 @@ Procedure AddWatchWithUndo( V : VarPtr; E : EqPtr;
 Function VRed( V : VarPtr ) : TermPtr;
 Function FRed( F : FuncPtr ) : TermPtr;
 Function Red( T : TermPtr ) : TermPtr;
-Function RepresentativeOf( T : TermPtr; Assigned : Boolean;
-    Reduce : Boolean; g : TSerial ) : TermPtr;
-Function UnprotectedRepOf( T : TermPtr ) : TermPtr;
+Function RepresentativeOf( T : TermPtr; Reduce : Boolean; 
+    g : TSerial ) : TermPtr;
 Function ProtectedRepOf( T : TermPtr ) : TermPtr;
 
 Function IsBound( T : TermPtr ) : Boolean;
@@ -150,10 +178,20 @@ Function EvaluateToInteger( T : TermPtr ) : ConstPtr;
 Function EvaluateToReal( T : TermPtr ) : ConstPtr;
 Function EvaluateToString( T : TermPtr ) : ConstPtr;
 Function EvaluateToIdentifier( T : TermPtr ) : IdPtr;
-Function EvaluateToIdentifierIgnoreAssign( T : TermPtr ) : IdPtr;
 
 Function AccessIdentifier( T : TermPtr ) : IdPtr;
+Function ArgCount( T : TermPtr ) : PosInt;
 Function Arity( T : TermPtr ) : PosInt;
+
+Function GetValue( I : IdPtr ) : TermPtr;
+Procedure SetValue( I : IdPtr; T : TermPtr );
+Function GetArray( I : IdPtr ) : ArrayPtr;
+Procedure SetArray( I : IdPtr; n : TArraySize; A : ArrayPtr );
+Procedure SetArrayElement( I : IdPtr; j : TArrayIndex; T : TermPtr );
+Function GetArraySize( I : IdPtr ) : TArraySize;
+Function IsArray( I : IdPtr ) : Boolean;
+
+Procedure SetAsAssigned( I : IdPtr );
 Function IsAssigned( I : IdPtr ) : Boolean;
 Function IsVariable( T : TermPtr ) : Boolean;
 Function IsAnonymous( V : VarPtr ) : Boolean;
@@ -172,6 +210,40 @@ Function InstallIdentifier( Var D : DictPtr; str : StrPtr; Quoted : Boolean;
 
 Implementation
 {-----------------------------------------------------------------------------}
+
+{-----------------------------------------------------------------------}
+{ array                                                                 }
+{-----------------------------------------------------------------------}
+
+{ create a new array object for n integer constants, initialized to Nil for 
+ now; each element must then be initialized to constant zero }
+Function Array_New( n : TArraySize ) : ArrayPtr;
+Var 
+  A : ArrayPtr;
+  Size : TArraySize;
+  i : TArrayIndex;
+Begin
+  Size := SizeOf(TObjMeta) + n*SizeOf(TermPtr); { CHECK: alignment issue? }
+  A := ArrayPtr(NewRegisteredPObject(AR,Size,n,False,n));
+  With A^ Do
+  Begin
+    For i := 1 To n Do
+      AR_DATA[i] := Nil
+  End;
+  Array_New := A
+End;
+
+{ get A[i] }
+Function Array_GetElement( A : ArrayPtr; i : TArrayIndex ) : TermPtr;
+Begin
+  Array_GetElement := A^.AR_DATA[i]
+End; 
+
+{ set A[i] }
+Procedure Array_SetElement( A : ArrayPtr; i : TArrayIndex; T : TermPtr );
+Begin
+  A^.AR_DATA[i] := T
+End; 
 
 {-----------------------------------------------------------------------}
 { term: constructors                                                    }
@@ -194,26 +266,43 @@ Begin
   Const_New := C
 End;
 
-{ create a (potentially) assignable object: variable or identifier }
-Function Assignable_New( ty : TypePrologObj; CanCopy : Boolean) : AssPtr;
+{ create a (potentially) assignable identifier; an identifier must remain 
+ unique, and thus cannot be copied }
+Function Ident_New( Quoted : Boolean) : IdPtr;
 Var 
-  V : AssPtr;
+  I : IdPtr;
 Begin
-  V := AssPtr(NewRegisteredPObject(ty,SizeOf(TObjAss),
-      1 + 5,CanCopy,1 + 3));
+  I := IdPtr(NewRegisteredPObject(ID,SizeOf(TObjId),1 + 3,False,1 + 2));
+  With I^ Do
+  Begin
+    TT_META := TermMeta_New;
+    TI_ARRA := Nil;
+    TI_VALU := Nil;
+    TI_DVAR := Nil;
+    TI_SIZE := 0;
+    TI_QUOT := Quoted;
+    TI_ASSI := False
+  End;
+  Ident_New := I
+End;
+
+{ create a new variable; a variable can be deep copied }
+Function Var_New( anonymous : Boolean) : VarPtr;
+Var 
+  V : VarPtr;
+Begin
+  V := VarPtr(NewRegisteredPObject(VA,SizeOf(TObjVar),1 + 5,True,1 + 3));
   With V^ Do
   Begin
     TT_META := TermMeta_New;
     TV_TRED := Nil;
     TV_FWAT := Nil;
+    TV_GOAL := Nil;
     TV_DVAR := Nil;
     TV_IRED := Nil;
-    TV_GOAL := Nil;
-    TV_ANON := False;
-    TV_QUOT := False;
-    TV_ASSI := False
+    TV_ANON := anonymous
   End;
-  Assignable_New := V
+  Var_New := V
 End;
 
 { create a new binary functional symbol }
@@ -406,13 +495,13 @@ End;
 { return True if the identifier must be quoted to be a valid identifier }
 Function IdentifierMustBeQuoted( I : IdPtr ) : Boolean;
 Begin
-  IdentifierMustBeQuoted := I^.TV_QUOT
+  IdentifierMustBeQuoted := I^.TI_QUOT
 End;
 
 { return the string value of an identifier; not cloning }
 Function IdentifierGetStr( I : IdPtr ) : StrPtr;
 Begin
-  IdentifierGetStr := Dict_GetStr(I^.TV_DVAR)
+  IdentifierGetStr := Dict_GetStr(I^.TI_DVAR)
 End;
 
 { return the Pascal string value of an identifier, shortening the
@@ -427,7 +516,7 @@ End;
 { is an identifier equal to a given Pascal string? }
 Function IdentifierEqualToShortString( I : IdPtr; ps : TString ) : Boolean;
 Begin
-  IdentifierEqualToShortString := Dict_StrIsEqualToShortString(I^.TV_DVAR,ps)
+  IdentifierEqualToShortString := Dict_StrIsEqualToShortString(I^.TI_DVAR,ps)
 End;
 
 { is an identifier and is equal to a given Pascal string }
@@ -553,23 +642,21 @@ Begin
 End;
 
 { remove all bindings for an assignable in the reduced system }
-Procedure UnbindVar( V : AssPtr );
+Procedure UnbindVar( V : VarPtr );
 Begin
   V^.TV_TRED := Nil;
   V^.TV_FWAT := Nil;
-  V^.TV_GOAL := Nil;
-  V^.TV_IRED := Nil;
-  V^.TV_ASSI := False
+  V^.TV_GOAL := Nil
 End;
 
 { remove all bindings of a term }
 Procedure Unbind( T : TermPtr );
 Begin
   Case TypeOfTerm(T) Of
-  Constant:
+  Constant,Identifier:
     Pass;
-  Identifier,Variable:
-    UnbindVar(AssPtr(T));
+  Variable:
+    UnbindVar(VarPtr(T));
   FuncSymbol:
     UnbindFunc(FuncPtr(T))
   End
@@ -622,12 +709,6 @@ Begin
   VRed := V^.TV_TRED
 End;
 
-{ return T if equation I = T is in the reduced system, or Nil }
-Function IRed( I : IdPtr ) : TermPtr;
-Begin
-  IRed := I^.TV_TRED
-End;
-
 { return T if equation F = T is in the reduced system, or Nil }
 Function FRed( F : FuncPtr ) : TermPtr;
 Begin
@@ -643,10 +724,8 @@ Var
   T2 : TermPtr;
 Begin
   Case TypeOfTerm(T) Of
-  Constant:
+  Constant,Identifier:
     T2 := Nil;
-  Identifier:
-    T2 := IRed(IT);
   Variable :
     T2 := VRed(VT);
   FuncSymbol:
@@ -681,12 +760,10 @@ End;
   the equations we go through to compute the representative of T; Stop 
   on the first marked term; this could be the term T itself (either because it
   has no RHS or because a loop points to it).
-
-  If Assigned is False, do not follows representatives of assigned identifiers
   }
 
-Function RepresentativeOf( T : TermPtr; Assigned : Boolean;
-    Reduce : Boolean; g : TSerial ) : TermPtr;
+Function RepresentativeOf( T : TermPtr; Reduce : Boolean; 
+    g : TSerial ) : TermPtr;
 Var
   T2 : TermPtr;
 Begin
@@ -699,39 +776,29 @@ Begin
     Exit;
   End;
   Term_SetSeen(T,2,g);
-  If Not Assigned Then { do not take into account assignments }
-    Case TypeOfTerm(T) Of 
-    Identifier: { disregard any assignment of that identifier }
-      Exit;
-    Variable: { return the identifier is has been assigned to, if any }
-      If VarPtr(T)^.TV_IRED <> Nil Then
-      Begin
-        RepresentativeOf := TermPtr(VarPtr(T)^.TV_IRED);
-        Exit
-      End
-    End;
+  Case TypeOfTerm(T) Of 
+  Identifier:
+    Exit;
+  Variable: { return the identifier is has been assigned to, if any }
+    If VarPtr(T)^.TV_IRED <> Nil Then
+    Begin
+      RepresentativeOf := TermPtr(VarPtr(T)^.TV_IRED);
+      Exit
+    End
+  End;
   T2 := Red(T);
   If T2 = Nil Then
     Exit;
-  T2 := RepresentativeOf(T2,Assigned,Reduce,g);
+  T2 := RepresentativeOf(T2,Reduce,g);
   RepresentativeOf := T2
 End;
 
-Function UnprotectedRepOf( T : TermPtr ) : TermPtr;
-Begin
-  UnprotectedRepOf := RepresentativeOf(T,True,True,0)
-End;
-
+{ compute representative, ignoring identifier assignments; to be used in most
+ cases }
 Function ProtectedRepOf( T : TermPtr ) : TermPtr;
 Begin
-  ProtectedRepOf := RepresentativeOf(T,True,True,NewSerial)
+  ProtectedRepOf := RepresentativeOf(T,True,NewSerial)
 End;
-
-Function ProtectedRepOfIgnoreAssign( T : TermPtr ) : TermPtr;
-Begin
-  ProtectedRepOfIgnoreAssign := RepresentativeOf(T,False,True,NewSerial)
-End;
-
 
 { return True if a term is bound; see pII p60 }
 Function IsBound( T : TermPtr ) : Boolean;
@@ -747,22 +814,22 @@ Begin
 End;
 
 { base operation for CopyTerm }
-Function CopyT( T : TermPtr; Assigned : Boolean ) : TermPtr;
+Function CopyT( T : TermPtr; Assigned : Boolean; g : TSerial ) : TermPtr;
 Begin
   CopyT := T;
   If T = Nil Then
     Exit;
   { make a copy of its representative }
-  T := ProtectedRepOfIgnoreAssign(T); { FIXME: better handle infinite trees }
-  T := TermPtr(DeepCopyObject(TObjectPtr(T),False));
+  T := ProtectedRepOf(T); { FIXME: better handle infinite trees }
+  T := TermPtr(DeepCopyObject(TObjectPtr(T),False,g));
   { delete all bindings }
   Unbind(T);
   { copy children }
   If TypeOfTerm(T) = FuncSymbol Then
     With FuncPtr(T)^ Do
     Begin
-      TF_LTER := CopyT(TF_LTER,Assigned);
-      TF_RTER := CopyT(TF_RTER,Assigned)
+      TF_LTER := CopyT(TF_LTER,Assigned,g);
+      TF_RTER := CopyT(TF_RTER,Assigned,g)
     End;
   CopyT := T
 End;
@@ -772,8 +839,7 @@ End;
  frozen terms; remaining variables are thus duplicated }
 Function CopyTerm( T : TermPtr; Assigned : Boolean ) : TermPtr;
 Begin
-  PrepareDeepCopy(TObjectPtr(T));
-  CopyTerm := CopyT(T,Assigned)
+  CopyTerm := CopyT(T,Assigned,NewMemorySerial)
 End;
 
 
@@ -826,7 +892,11 @@ Begin
   EvaluateToString := C
 End;
 
-{ return the identifier the term T is equal to, Nil otherwise }
+{ return the identifier the term T is equal to, Nil otherwise;
+ when looking at the reduced system, ignore global assignments of 
+ identifiers, otherwise reassignments would fail: considering two goals
+ "assign(ident,1) assign(ident,2))" the ident in the second goal 
+ would resolve to 2, not to the ident itself }
 Function EvaluateToIdentifier( T : TermPtr ) : IdPtr;
 Var
   IT : IdPtr Absolute T;
@@ -835,20 +905,6 @@ Begin
   If TypeOfTerm(T) <> Identifier Then
     T := Nil;
   EvaluateToIdentifier := IT
-End;
-
-{ ditto but, when looking at the reduced system, ignore global assignments of 
- identifiers, otherwise reassignments would fail: considering two goals
-  "assign(ident,1) assign(ident,2))" the ident in the second goal 
-  would resolve to 2, not to the ident itself }
-Function EvaluateToIdentifierIgnoreAssign( T : TermPtr ) : IdPtr;
-Var
-  IT : IdPtr Absolute T;
-Begin
-  T := ProtectedRepOfIgnoreAssign(T);
-  If TypeOfTerm(T) <> Identifier Then
-    T := Nil;
-  EvaluateToIdentifierIgnoreAssign := IT
 End;
 
 { return True if T evaluates to identifier (TString) ident }
@@ -933,18 +989,68 @@ End;
 { methods: assignable identifiers                                       }
 {-----------------------------------------------------------------------}
 
+{ value or nil if the identifier is not an assigned identifier }
+Function GetValue( I : IdPtr ) : TermPtr;
+Begin
+  GetValue := I^.TI_VALU
+End;
+
+{ set the data array }
+Procedure SetValue( I : IdPtr; T : TermPtr );
+Begin
+  I^.TI_VALU := T
+End;
+
+{ array or nil if the identifier is not an array }
+Function GetArray( I : IdPtr ) : ArrayPtr;
+Begin
+  GetArray := I^.TI_ARRA
+End;
+
+{ set the data array }
+Procedure SetArray( I : IdPtr; n : TArraySize; A : ArrayPtr );
+Begin
+  I^.TI_SIZE := n;
+  I^.TI_ARRA := A
+End;
+
+{ set I[j]  }
+Procedure SetArrayElement( I : IdPtr; j : TArrayIndex; T : TermPtr );
+Begin
+  Array_SetElement(GetArray(I),j,T)
+End;
+
+{ array size, or zero if the identifier is not an array }
+Function GetArraySize( I : IdPtr ) : TArraySize;
+Begin
+  GetArraySize := I^.TI_SIZE
+End;
+
+{ Is an identifier an array? }
+Function IsArray( I : IdPtr ) : Boolean;
+Begin
+  IsArray := GetArraySize(I) > 0
+End;
+
+{ Set an identifier as assigned }
+Procedure SetAsAssigned( I : IdPtr );
+Begin
+  I^.TI_ASSI := True;
+  { identifier's dict entry is now persistent }
+  Dict_SetGlobal(I^.TI_DVAR,True);
+End;
+
 { Is an identifier assigned? (even if it may not be bound yet) }
 Function IsAssigned( I : IdPtr ) : Boolean;
 Begin
-  IsAssigned := I^.TV_ASSI
+  IsAssigned := I^.TI_ASSI
 End;
 
 { is term T a variable, that is, is or may be the left-hand side of an equation 
   in the reduced system }
 Function IsVariable( T : TermPtr ) : Boolean;
 Begin
-  IsVariable := (TypeOfTerm(T) = Variable) Or 
-      (TypeOfTerm(T) = Identifier) And IsAssigned(IdPtr(T))
+  IsVariable := TypeOfTerm(T) = Variable
 End;
 
 { True if variable V is anonymous }
@@ -1089,43 +1195,29 @@ Begin
   InstallConst := C
 End;
 
-{ create an assignable object (variable or identifier) if it does not 
-  exist in dictionary; return it }
-Function InstallAssignable( Var D : DictPtr; 
-    str : StrPtr; ty : TypePrologObj; anonymous : Boolean; quoted : Boolean; 
-    glob : Boolean; CanCopy : Boolean ) : AssPtr;
+{ create a variable if it does not exist in dictionary }
+Function InstallVariable( Var D : DictPtr; str : StrPtr; 
+    anonymous : Boolean; glob : Boolean ) : VarPtr;
 Var
-  V : AssPtr;
-  TV : TermPtr Absolute V;
+  V : VarPtr;
   e : DictPtr;
 Begin
-  CheckCondition((ty=VA) Or (ty=ID),'InstallAssignable: VA or ID expected');
   { each anonymous variable, despite having the same name as the other 
    anonymous variables, is a different variable; accordingly, we do not lookup 
    anonymous variable's name }
   If anonymous Then
     e := Nil
   Else
-    e := Dict_Lookup(D,str,[VA,ID],glob);
+    e := Dict_Lookup(D,str,[VA],glob);
   If e = Nil Then
   Begin
-    V := Assignable_New(ty,CanCopy);
-    V^.TV_ANON := anonymous;
-    V^.TV_QUOT := quoted;
-    e := Dict_Append(D,str,TV,VA,glob);
+    V := Var_New(anonymous);
+    e := Dict_Append(D,str,TermPtr(V),VA,glob);
     V^.TV_DVAR := e
   End
   Else
-    TV := Dict_GetTerm(e);
-  InstallAssignable := V
-End;
-
-{ create a variable if it does not exist in dictionary;
-  a variable is subject to deep copy }
-Function InstallVariable( Var D : DictPtr; str : StrPtr; 
-    anonymous : Boolean; glob : Boolean ) : VarPtr;
-Begin
-  InstallVariable := InstallAssignable(D,str,VA,anonymous,False,glob,True)
+    V := VarPtr(Dict_GetTerm(e));
+  InstallVariable := V
 End;
 
 { create an identifier if it does not exist in a dictionary; 
@@ -1138,8 +1230,20 @@ End;
    this is fine as long as the is not used as a syntax converter }
 Function InstallIdentifier( Var D : DictPtr; str : StrPtr; Quoted : Boolean;
     glob : Boolean  ) : IdPtr;
+Var
+  I : IdPtr;
+  e : DictPtr;
 Begin
-  InstallIdentifier := InstallAssignable(D,str,ID,False,Quoted,glob,False)
+  e := Dict_Lookup(D,str,[ID],glob);
+  If e = Nil Then
+  Begin
+    I := Ident_New(Quoted);
+    e := Dict_Append(D,str,TermPtr(I),ID,glob);
+    I^.TI_DVAR := e
+  End
+  Else
+    I := IdPtr(Dict_GetTerm(e));
+  InstallIdentifier := I
 End;
 
 End.

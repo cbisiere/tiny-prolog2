@@ -145,7 +145,7 @@ Begin
     End;
   ID:
     Begin
-      Stream_WriteShortString(f,BoolToShortString(Ip^.TV_ASSI));
+      Stream_WriteShortString(f,BoolToShortString(Ip^.TI_ASSI));
       Stream_WriteShortString(f,' ');
       OutIdentifier(f,Ip)
     End;

@@ -28,14 +28,14 @@ Uses
 { type of allocated objects; note that SY, EQ, HE, RE are not managed by GC }
 Type
   TypePrologObj = (PR, SM, WO, CM, RU, QU, SY, EQ, BT, TM, CO, FU, VA, ID, 
-      CS, CI, CR, DE, LL, LT, LA, HE, ST, SD, RE, OP, FI, TK);
+      CS, CI, CR, AR, DE, LL, LT, LA, HE, ST, SD, RE, OP, FI, TK);
   SetOfTypePrologObj = Set Of TypePrologObj;
 
 
 Function PObjectType( p : TObjectPtr ) : TypePrologObj;
 
-Function NewRegisteredPObject( t : TypePrologObj; b: TObjectSize; n: Byte; 
-    CanCopy : Boolean; d : Byte ) : TObjectPtr;
+Function NewRegisteredPObject( t : TypePrologObj; b: TObjectSize; 
+    n: TObjectChild; CanCopy : Boolean; d : TObjectChild ) : TObjectPtr;
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -50,8 +50,8 @@ Type
   TypePrologObjStr = Array[TypePrologObj] Of TObjectName;
 Const
   ObjStr : TypePrologObjStr = ('PR', 'SM', 'WO', 'CM', 'RU', 'QU', 'SY', 'EQ', 
-      'BT', 'TM', 'CO', 'FU', 'VA', 'ID', 'CS', 'CI', 'CR', 'DE', 'LL', 'LT', 
-      'LA', 'HE', 'ST', 'SD', 'RE', 'OP', 'FI', 'TK');
+      'BT', 'TM', 'CO', 'FU', 'VA', 'ID', 'CS', 'CI', 'CR', 'AR', 'DE', 'LL', 
+      'LT', 'LA', 'HE', 'ST', 'SD', 'RE', 'OP', 'FI', 'TK');
 
 { mapping between types: Internal Index <-> Prolog }
 Var
@@ -93,8 +93,8 @@ End;
  Prolog child object pointers; the first d child objects of these n are copied 
  when the object is deep copied (but only if deep copy is allowed for that 
  object: CanCopy) }
-Function NewRegisteredPObject( t : TypePrologObj; b: TObjectSize; n: Byte;  
-    CanCopy : Boolean; d : Byte ) : TObjectPtr;
+Function NewRegisteredPObject( t : TypePrologObj; b: TObjectSize; 
+    n: TObjectChild; CanCopy : Boolean; d : TObjectChild ) : TObjectPtr;
 Begin
   NewRegisteredPObject := NewRegisteredObject(ObjectTypeIndexOf(t),b,n,CanCopy,d)
 End;

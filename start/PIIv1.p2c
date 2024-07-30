@@ -50,6 +50,10 @@ pris(T) -> syscall(sysfree,T,false);
 
 no-car(C,N) -> syscall(syscharcode,C,N);
 
+"array"
+
+def-tab(I,N) -> syscall(sysdefarray,I,N);
+
 "i/o"
 
 entree(F) -> syscall(sysfree,T,true) / syscall(sysinputis,F);
@@ -112,9 +116,10 @@ dif(X,Y) -> syscall(sysdif,X,Y);
 "evaluable functions; see Giannesini et al. 1985, p 144 \
 Note that expressions (e.g., 3 + 2) are not supported in Prolog II syntax; \
 these declarations are used to evaluate val(T1,T2) predicates. \
-TODO: eq, si"
+TODO: si"
 ->
     syscall(sysop,700,xfx,inf,inf)
+    syscall(sysop,700,xfx,eq,eq)
     syscall(sysop,500,yfx,add,add)
     syscall(sysop,500,yfx,sub,sub)
     syscall(sysop,400,yfx,mul,mul)

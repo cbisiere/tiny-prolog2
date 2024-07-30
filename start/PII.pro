@@ -53,6 +53,10 @@ bound(T) -> syscall(sysfree,T,false);
 
 char-code(C,N) -> syscall(syscharcode,C,N);
 
+"array"
+
+def-array(I,N) -> syscall(sysdefarray,I,N);
+
 "i/o"
 
 input-is(F) -> syscall(sysinputis,F);
@@ -119,9 +123,10 @@ dif(X,Y) -> syscall(sysdif,X,Y);
 "evaluable functions; see Giannesini et al. 1985, p 144 \
 Note that expressions (e.g., 3 + 2) are not supported in Prolog II syntax; \
 these declarations are used to evaluate val(T1,T2) predicates. \
-TODO: eql, mod"
+TODO: mod"
 ->
     syscall(sysop,700,xfx,inf,inf)
+    syscall(sysop,700,xfx,eql,eql)
     syscall(sysop,500,yfx,add,add)
     syscall(sysop,500,yfx,sub,sub)
     syscall(sysop,400,yfx,mul,mul)
