@@ -51,6 +51,8 @@ Function NewEmptyTuple : TermPtr;
 Function IsTuple( T : TermPtr ) : Boolean;
 Function IsEmptyTuple( U : TermPtr ) : Boolean;
 Function TupleHead( U : TermPtr ) : TermPtr;
+Procedure SetTupleQueue( U1,U2 : TermPtr );
+Procedure SetTupleHeadTerm( U,T : TermPtr );
 Function TupleQueue( U : TermPtr ) : TermPtr;
 Procedure SetTupleQueueTerm( U,T : TermPtr );
 Function TupleArgCount( U : TermPtr ) : Integer;
@@ -108,6 +110,12 @@ End;
 Function TupleHead( U : TermPtr ) : TermPtr;
 Begin
   TupleHead := Func_GetLeft(FuncPtr(U))
+End;
+
+{ replace the head of tuple U with term T }
+Procedure SetTupleHeadTerm( U,T : TermPtr );
+Begin
+  Func_SetLeft(FuncPtr(U),T)
 End;
 
 { return a tuple containing all the elements in the tuple but the first:

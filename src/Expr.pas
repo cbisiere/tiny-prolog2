@@ -233,7 +233,7 @@ Begin
         Ident := TupleArgN(1,T);
         If Ident <> Nil Then
         Begin
-          If TypeOfTerm(Ident) = Identifier Then
+          If IsIdentifier(Ident) Then
           Begin
             If IsArray(IIdent) And (TupleArgCount(T) = 1+1) Then { array, e.g; stack(2) }
             Begin
@@ -290,7 +290,7 @@ Begin
                     If Ok Then
                       Ok := T1 <> Nil;
                     If Ok Then
-                      Ok := TypeOfTerm(T1) = Constant;
+                      Ok := IsConstant(T1);
                     If Ok Then
                       Ok := ConstType(CT1) In [IntegerNumber,RealNumber]
                   End;

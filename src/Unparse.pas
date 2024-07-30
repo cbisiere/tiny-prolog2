@@ -586,7 +586,7 @@ Begin
       Begin 
         Th := ProtectedGetTupleHead(T,Reduce);
         Tq := ProtectedGetTupleQueue(T,Reduce);
-        If (Tq <> Nil) And (TypeOfTerm(Th) = Identifier) And 
+        If (Tq <> Nil) And IsIdentifier(Th) And 
             (Not IsNil(Th)) Then { <ident,a,b,...> == ident(a,b,...) }
         Begin
           WriteIdentifier(s2,ITh,Quotes);

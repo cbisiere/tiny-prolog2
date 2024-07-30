@@ -165,17 +165,19 @@ Begin
   End
 End;
 
-{ create a new tuple <foo,a,b>  from a list foo.a.b.nil }
+{ create a new tuple <foo,a,b>  from a list foo.a.b.nil, that is [foo,a,b];
+ note also that foo.nil => <foo>, nil => <> }
 Function ListToTuple( L : TermPtr ) : TermPtr;
 Var
   T : TermPtr;
 Begin
-  If L = Nil Then
+  If IsNil(L) Then
     ListToTuple := Nil
   Else
   Begin
-    T := ListToTuple(ListQueue(L));
-    ListToTuple := NewTuple2(ListHead(L),T)
+    T := NewTuple(ListHead(L));
+    SetTupleQueue(T,ListToTuple(ListQueue(L)));
+    ListToTuple := T
   End
 End;
 

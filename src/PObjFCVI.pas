@@ -191,7 +191,10 @@ Procedure SetArrayElement( I : IdPtr; j : TArrayIndex; T : TermPtr );
 Function GetArraySize( I : IdPtr ) : TArraySize;
 Function IsArray( I : IdPtr ) : Boolean;
 
+Function IsConstant( T : TermPtr ) : Boolean;
 Procedure SetAsAssigned( I : IdPtr );
+Function IsIdentifier( T : TermPtr ) : Boolean;
+Function IsAtomic( T : TermPtr ) : Boolean;
 Function IsAssigned( I : IdPtr ) : Boolean;
 Function IsVariable( T : TermPtr ) : Boolean;
 Function IsAnonymous( V : VarPtr ) : Boolean;
@@ -525,7 +528,7 @@ Var
   I : IdPtr Absolute T;
 Begin
   TermIsIdentifierEqualToShortString := False;
-  If TypeOfTerm(T) <> Identifier Then
+  If Not IsIdentifier(T) Then
     Exit;
   If Not IdentifierEqualToShortString(I,ident) Then
     Exit;
@@ -851,7 +854,7 @@ Var
   CT : ConstPtr Absolute T;
 Begin
   T := ProtectedRepOf(T);
-  If TypeOfTerm(T) <> Constant Then
+  If Not IsConstant(T) Then
     T := Nil;
   EvaluateToConstant := CT
 End;
@@ -902,7 +905,7 @@ Var
   IT : IdPtr Absolute T;
 Begin
   T := ProtectedRepOf(T);
-  If TypeOfTerm(T) <> Identifier Then
+  If Not IsIdentifier(T) Then
     T := Nil;
   EvaluateToIdentifier := IT
 End;
@@ -1038,6 +1041,24 @@ Begin
   I^.TI_ASSI := True;
   { identifier's dict entry is now persistent }
   Dict_SetGlobal(I^.TI_DVAR,True);
+End;
+
+{ is term T a constant? }
+Function IsConstant( T : TermPtr ) : Boolean;
+Begin
+  IsConstant := TypeOfTerm(T) = Constant
+End;
+
+{ is term T an identifier? }
+Function IsIdentifier( T : TermPtr ) : Boolean;
+Begin
+  IsIdentifier := TypeOfTerm(T) = Identifier
+End;
+
+{ is term T atomic? }
+Function IsAtomic( T : TermPtr ) : Boolean;
+Begin
+  IsAtomic := IsIdentifier(T) Or IsConstant(T)
 End;
 
 { Is an identifier assigned? (even if it may not be bound yet) }

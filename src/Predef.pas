@@ -280,8 +280,9 @@ Begin
   EvalPArgAsInt := EvaluateToInteger(GetPArg(n,U))
 End;
 
-{ return the goal (or Nil) argument n of a predicate }
-Function GetGoal( n : Byte; T : TermPtr ) : TermPtr;
+{ return the goal (predicate or identifier) argument n of a predicate, or a 
+ variable if AcceptVar is True, or Nil if the argument is not what is expected }
+Function GetGoal( n : Byte; T : TermPtr; AcceptVar : Boolean ) : TermPtr;
 Var
   T1 : TermPtr;
 Begin
@@ -289,25 +290,24 @@ Begin
   T1 := EvalPArg(n,T);
   If IsTuple(T1) Then
   Begin
-    If TypeOfTerm(ProtectedGetTupleHead(T1,True)) <> Identifier Then
+    If Not IsIdentifier(ProtectedGetTupleHead(T1,True)) Then
       Exit
   End
   Else
-    If TypeOfTerm(T1) <> Identifier Then
+    If Not IsIdentifier(T1) And Not (IsVariable(T1) And AcceptVar) Then
       Exit;
   GetGoal := T1
 End;
 
-{ return list argument n of a predicate or Nil if argument n is not a list;
- if Anonymous is True, accept anonymous variable "_" }
-Function GetList( n : Byte; T : TermPtr; Anonymous : Boolean ) : TermPtr;
+{ return list argument n of a list, or a variable if AcceptVar is True,
+ or Nil if the argument is not what is expected }
+Function GetList( n : Byte; T : TermPtr; AcceptVar : Boolean ) : TermPtr;
 Var
   T1 : TermPtr;
 Begin
   GetList := Nil;
   T1 := EvalPArg(n,T);
-  If IsNil(T1) Or ProtectedIsList(T1,True) Or 
-      (Anonymous And IsAnonymousVariable(T1)) Then
+  If IsNil(T1) Or ProtectedIsList(T1,True) Or (AcceptVar And IsVariable(T1)) Then
     GetList := T1
 End;
 
@@ -496,7 +496,7 @@ Begin
   
   { first parameter is syscall }
   T1 := TupleArgN(1,T);
-  CheckCondition(TypeOfTerm(T1) = Identifier,
+  CheckCondition(IsIdentifier(T1),
       'PredefCallIsOk: constant expected');
   SysCallCode := IdentifierGetStr(IdPtr(T1));
   CheckCondition(Str_EqualToShortString(SysCallCode,SYSCALL_IDENT_AS_STRING),
@@ -1081,15 +1081,15 @@ Var
 Begin
   ClearRule := False;
   { 1: the head (ident or tuple with ident as first element) }
-  T1 := GetGoal(1,T);
+  T1 := GetGoal(1,T,False);
   If T1 = Nil Then
   Begin
     CWriteLnWarning('cannot unify with rule: invalid rule head');
     Exit
   End;
-  { 2: the queue (list or anonymous) }
+  { 2: the queue (list or anonymous variable) }
   T2 := GetList(2,T,True);
-  If T2 = Nil Then
+  If (T2 = Nil) Or (IsVariable(T2) And Not IsAnonymous(VarPtr(T2))) Then
   Begin
     CWriteLnWarning('cannot unify with rule: invalid rule queue');
     Exit
@@ -1146,13 +1146,13 @@ Var
 Begin
   ClearAssert := False;
   { 1: the head (ident or tuple with ident as first element) }
-  T1 := GetGoal(1,T);
+  T1 := GetGoal(1,T,False);
   If T1 = Nil Then
   Begin
     CWriteLnWarning('cannot create rule: invalid rule head');
     Exit
   End;
-  { 2: the queue (list); cannot be anonymous }
+  { 2: the queue (list); cannot be a variable, even anonymous }
   T2 := GetList(2,T,False);
   If T2 = Nil Then
   Begin
@@ -1310,7 +1310,7 @@ Var
 Begin
   ClearAssign := False;
   { 1: identifier or array(index) }
-  T1 := GetGoal(1,T);
+  T1 := GetGoal(1,T,False);
   If T1 = Nil Then
   Begin
     CWriteLnWarning('identifier or array element expected');
@@ -1336,7 +1336,7 @@ Begin
       Exit
     End;
     T1 := ProtectedRepOf(TupleArgN(2,T1));
-    If (TypeOfTerm(T1) <> Constant) Or 
+    If (Not IsConstant(T1)) Or 
         (ConstType(ConstPtr(T1)) <> IntegerNumber) Then
     Begin
       CWriteLnWarning('array index is not an integer');
@@ -1395,26 +1395,44 @@ Function ClearUniv( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   T1,T2 : TermPtr;
   L : TermPtr;
+  Th,Tq : TermPtr;
 Begin
   ClearUniv := False;
+  { 1: predicate, atom or variable (e.g. foo(bb,cc), cc, 1, "hi", V}
   T1 := EvalPArg(1,T);
-  T2 := EvalPArg(2,T);
-  { create a new list from T1 }
-  Case TypeOfTerm(T1) Of
-  Constant,Identifier:
-    L := NewList2(P,T1,Nil); { foo =.. Y gives Y = [foo] }
-  FuncSymbol:
-    L := TupleToList(P,T1); { foo(a,b) =.. Y gives Y = [foo,a,b] }
-  Else
-    L := T1
+  { 2: list or free variable }
+  T2 := GetList(2,T,True);
+  If T2 = Nil Then
+  Begin
+    CWritelnWarning('univ: second argument must be a list or a variable');
+    Exit
   End;
-  { create a new tuple from list T2 }
-  Case TypeOfTerm(T2) Of
-  FuncSymbol:
-    T := ListToTuple(T2); { X =.. [foo,a,b] gives X = foo(a,b) }
-  Else
-    T := T2
+  If ProtectedGetList(T2,Th,Tq,True) And Not IsAtomic(Th) Then
+  Begin
+    CWritelnWarning('univ: first element of the list must be atomic');
+    Exit
   End;
+
+  If IsVariable(T1) And IsVariable(T2) Then
+  Begin
+    CWritelnWarning('univ: insufficiently instantiated arguments');
+    Exit
+  End;
+
+  L := T1;  { T =.. [foo,a,b] gives T = foo(a,b) }
+  T := T2;  { foo(a,b) =.. L gives L = [foo,a,b] }
+
+  If IsVariable(T1) Then
+  Begin
+    T := ListToTuple(T2);       { T =.. [foo,a,b] gives T = foo(a,b) }
+    If TupleArgCount(T) = 1 Then
+      T := TupleArgN(1,T)       { T =.. [foo] gives T = foo }
+  End
+  Else If IsAtomic(T1) Then
+    L := NewList2(P,T1,Nil)     { foo =.. L gives L = [foo] }
+  Else If IsTuple(T1) Then
+    L := TupleToList(P,T1);     { foo(a,b) =.. L gives L = [foo,a,b] }
+
   ClearUniv := ReduceOneEq(T,L,GetDebugStream(P)) { TODO: backtrackable? }
 End;
 
@@ -1427,7 +1445,7 @@ Begin
   T1 := EvalPArg(1,T);
   T2 := EvalPArg(2,T);
   { T1 known }
-  If TypeOfTerm(T1) = Identifier Then
+  If IsIdentifier(T1) Then
   Begin
     ClearAtomChars := ReduceOneEq(IdentifierToList(P,IdPtr(T1)),T2,
         GetDebugStream(P));
@@ -2073,7 +2091,7 @@ Begin
   { 1: variable on which to freeze (actually, any term is accepted) }
   T1 := GetPArg(1,T);
   { 2: goal (identifier or predicate) }
-  T2 := GetGoal(2,T);
+  T2 := GetGoal(2,T,False);
   If T2 = Nil Then
   Begin
     CWritelnWarning('freeze: second argument must be a goal');
