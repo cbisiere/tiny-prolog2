@@ -74,11 +74,12 @@ Type
     PP_UP_STATEMENT,
     PP_DOWN_STATEMENT,
     PP_FIND_RULE,
-    PP_ASSERTA,
-    PP_ASSERTZ,
+    PP_ASSERT2,
+    PP_ASSERT1,
     PP_SUPPRESS,
     PP_RULE,
-    PP_RETRACT,
+    PP_RETRACT1,
+    PP_RETRACT2,
     PP_EXPAND_FILENAME,
     PP_NEW_BUFFER,
     PP_DEL_BUFFER,
@@ -134,7 +135,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 53;
+  NB_PP = 54;
   MAX_PP_LENGHT = 21; { max string length }
   SYSCALL_IDENT_AS_STRING = 'syscall'; 
 Type
@@ -165,11 +166,12 @@ Const
     (I:PP_UP_STATEMENT;S:'sysupstatement';N:1),
     (I:PP_DOWN_STATEMENT;S:'sysdownstatement';N:1),
     (I:PP_FIND_RULE;S:'sysfindrule';N:1),
-    (I:PP_ASSERTA;S:'sysasserta';N:2),
-    (I:PP_ASSERTZ;S:'sysassertz';N:2),
+    (I:PP_ASSERT1;S:'sysassert1';N:2), { Edinburgh only }
+    (I:PP_ASSERT2;S:'sysassert2';N:3),
     (I:PP_SUPPRESS;S:'syssuppress';N:1),
     (I:PP_RULE;S:'sysrule';N:2),
-    (I:PP_RETRACT;S:'sysretract';N:2),
+    (I:PP_RETRACT1;S:'sysretract1';N:1),
+    (I:PP_RETRACT2;S:'sysretract2';N:2),
     (I:PP_EXPAND_FILENAME;S:'sysexpandfilename';N:2),
     (I:PP_NEW_BUFFER;S:'sysnewbuffer';N:0),
     (I:PP_DEL_BUFFER;S:'sysdelbuffer';N:0),
@@ -997,46 +999,46 @@ Begin
   ClearSuppress := True
 End;
 
-{ Return True if rule R's head and queue can be unified with term T1 and T2, 
- respectively; it is more than a test, as it changes the reduced system in 
- case of success; if Undo is True, the function makes the unification undoable
- by appending the necessary info to the restore list L }
-Function UnifyHeadAndQueue( P : ProgPtr; R : RulePtr; T1,T2 : TermPtr;
+{ Return True if R1 and R2's heads and queues can be unified; it is more than 
+ a test, as it changes the reduced system in case of success; if Undo is True, 
+ the function makes the unification undoable by appending the necessary info to 
+ the restore list L }
+Function UnifyRules( P : ProgPtr; R1,R2 : RulePtr;
     Undo : Boolean; Var L : RestPtr ) : Boolean;
 Var
-  Th,Tq : TermPtr;
+  Th1,Tq1,Th2,Tq2 : TermPtr;
   S : SysPtr;
   DummyM : TermsPtr;
 Begin
-  { extract rule's head and queue-as-a-list }
-  Th := BTerm_GetTerm(Rule_GetHead(R));
-  Tq := BTermsToList(P,Rule_GetQueue(R));
+  { extract rules' heads and queues-as-a-list }
+  Th1 := BTerm_GetTerm(Rule_GetHead(R1));
+  Tq1 := BTermsToList(P,Rule_GetQueue(R1));
+  Th2 := BTerm_GetTerm(Rule_GetHead(R2));
+  Tq2 := BTermsToList(P,Rule_GetQueue(R2));
 
-  { setup a system of equations to unify head and queue }
+  { setup a system of equations to unify heads and queues }
   S := Sys_New;
-  Sys_InsertOneEq(S,Eq_New(REL_EQUA,T1,Th));
-  Sys_InsertOneEq(S,Eq_New(REL_EQUA,T2,Tq));
+  Sys_InsertOneEq(S,Eq_New(REL_EQUA,Th1,Th2));
+  Sys_InsertOneEq(S,Eq_New(REL_EQUA,Tq1,Tq2));
 
-  UnifyHeadAndQueue := ReduceSystem(S,Undo,L,DummyM,GetDebugStream(P))
+  UnifyRules := ReduceSystem(S,Undo,L,DummyM,GetDebugStream(P))
 End;
 
-{ return a list of statements containing all the (local) rules whose head 
- and queue match terms T1 and T2, respectively }
-Function GetListOfRulesMatchingHeadAndQueue( P : ProgPtr; 
-    T1,T2 : TermPtr ) : StmtPtr;
+{ return a list of statements containing all the (local) rules matching R }
+Function GetListOfMatchingRules( P : ProgPtr; R : RulePtr ) : StmtPtr;
 Var
-  Tc1,Tc2 : TermPtr;
-  Ri,Rc : RulePtr;
+  Ri,R1,R2 : RulePtr;
   Ih : IdPtr;
   a : PosInt;
   Sl,St,Sth : StmtPtr;
   DummyL : RestPtr;
 Begin
-  GetListOfRulesMatchingHeadAndQueue := Nil;
-  Ih := AccessIdentifier(T1);
-  If Ih = Nil Then
-    Exit;
-  a := Arity(T1);
+  GetListOfMatchingRules := Nil;
+
+  Ih := Rule_Access(R);
+  CheckCondition(Ih <> Nil,'rule w/o access');
+  a := Rule_Arity(R);
+
   { build the list }
   Sl := Nil; { list to be returned }
   Sth := Nil; { current list's head }
@@ -1046,14 +1048,12 @@ Begin
     Ri := FindRuleWithHeadAndArity(Ri,Ih,a,True);
     If Ri <> Nil Then
     Begin
-      { copy before reducing, to avoid binding original terms and rule;
-       FIXME: CopyTerm does not work, as unification fails on *second* pass }
-      Tc1 := TermPtr(DeepCopy(TObjectPtr(T1)));
-      Tc2 := TermPtr(DeepCopy(TObjectPtr(T2)));
-      Rc := RulePtr(DeepCopy(TObjectPtr(Ri)));
+      { copy before reducing, to avoid binding original terms and rule }
+      R1 := RulePtr(DeepCopy(TObjectPtr(R)));
+      R2 := RulePtr(DeepCopy(TObjectPtr(Ri)));
 
       { unifiable? note that we do not make it undoable as we work on copies }
-      If UnifyHeadAndQueue(P,Rc,Tc1,Tc2,False,DummyL) Then 
+      If UnifyRules(P,R1,R2,False,DummyL) Then 
       Begin
         St := Statement_New(Rule,TObjectPtr(Ri));
         If Sl = Nil Then
@@ -1065,17 +1065,18 @@ Begin
       Ri := NextRule(Ri,True)
     End
   End;
-  GetListOfRulesMatchingHeadAndQueue := Sl
+  GetListOfMatchingRules := Sl
 End;
 
-{ rule(H,Q), clause(H,Q), retract(H,Q)
+{ rule(H,Q), clause(H,Q), retract(H,Q),Retract(R)
  succeeds for each rule matching a head and a queue (queue can be an anonymous 
  variable), at the time of first call (logical update view); if Retract is True, 
  suppress the rule upon success }
-Function ClearRule( P : ProgPtr; T : TermPtr; Retract : Boolean; 
-    Var L : RestPtr; Var Choices : Pointer ) : Boolean;
+Function ClearRule( P : ProgPtr; T : TermPtr; TwoParam : Boolean; 
+    Retract : Boolean; Var L : RestPtr; Var Choices : Pointer ) : Boolean;
 Var
   T1,T2 : TermPtr;
+  B,B2,Bq : BTermPtr;
   R,Rc : RulePtr;
   St : StmtPtr;
 Begin
@@ -1087,18 +1088,55 @@ Begin
     CWriteLnWarning('cannot unify with rule: invalid rule head');
     Exit
   End;
-  { 2: the queue (list or anonymous variable) }
-  T2 := GetList(2,T,True);
-  If (T2 = Nil) Or (IsVariable(T2) And Not IsAnonymous(VarPtr(T2))) Then
+
+  If TwoParam Then
   Begin
-    CWriteLnWarning('cannot unify with rule: invalid rule queue');
+    { 2: the queue (list or anonymous variable) }
+    T2 := GetList(2,T,True);
+    If (T2 = Nil) Or (IsVariable(T2) And Not IsAnonymous(VarPtr(T2))) Then
+    Begin
+      CWriteLnWarning('cannot unify with rule: invalid rule queue');
+      Exit
+    End;
+    { create a list of BTerms representing the rule }
+    B := BTerm_New(T1);
+    Bq := ListToBTerms(P,T2);
+    BTerms_SetNext(B,Bq);
+  End
+  Else
+  Begin
+    { create the list of BTerms }
+    B := RuleExpToBTerms(P,T1);
+    If B = Nil Then
+    Begin
+      CWriteLnWarning('invalid rule');
+      Exit
+    End;
+    { retract((T:-true)) is equivalent to retract(T) }
+    If (BTerms_GetNext(B) <> Nil) Then
+    Begin 
+      B2 := BTerms_GetNext(B);
+      If (BTerms_GetNext(B2) = Nil) And 
+          (BTerm_GetAccessTerm(B2) <> Nil) And
+          IdentifierEqualToShortString(BTerm_GetAccessTerm(B2),'true') Then
+        BTerms_SetNext(B,Nil)
+    End
+  End;
+
+  { create the rule from the list of BTerms }
+  R := Rule_New(GetSyntax(P));
+  Rule_SetTerms(R,B);
+
+  If Not Rule_HeadIsValid(R) Then
+  Begin
+    CWriteLnWarning('invalid rule head');
     Exit
   End;
 
   { on first call, gather all rules matching the head and the queue, using a
    list of statements }
   If Choices = Nil Then
-    Choices := GetListOfRulesMatchingHeadAndQueue(P,T1,T2);
+    Choices := GetListOfMatchingRules(P,R);
 
   { no (or no more) solutions: fail }
   If Choices = Nil Then
@@ -1115,7 +1153,7 @@ Begin
   { unification (must succeed); this test is important as it will append in L 
    what is needed to undo any bindings created by this solution, during 
    backtracking }
-  If Not UnifyHeadAndQueue(P,Rc,T1,T2,True,L) Then
+  If Not UnifyRules(P,Rc,R,True,L) Then
   Begin
     CWriteLnWarning('cannot enforce logical update view');
     Exit
@@ -1134,33 +1172,8 @@ Begin
   ClearRule := True
 End;
 
-{ asserta(T,Q), assertz(T,Q) }
-Function ClearAssert( P : ProgPtr; T : TermPtr; first : Boolean ) : Boolean;
-Var
-  T1,T2 : TermPtr;
-  B,Bq : BTermPtr;
-  Ih : IdPtr;
-  R,Ri : RulePtr;
-  Sti,Stb : StmtPtr;
-  Wi : WorldPtr;
-Begin
-  ClearAssert := False;
-  { 1: the head (ident or tuple with ident as first element) }
-  T1 := GetGoal(1,T,False);
-  If T1 = Nil Then
-  Begin
-    CWriteLnWarning('cannot create rule: invalid rule head');
-    Exit
-  End;
-  { 2: the queue (list); cannot be a variable, even anonymous }
-  T2 := GetList(2,T,False);
-  If T2 = Nil Then
-  Begin
-    CWriteLnWarning('cannot create rule: invalid rule queue');
-    Exit
-  End;
-
-  { make a copy of the head and the queue, applying the reduced system;  
+{ insert a new rule;
+ terms passed in B must be  beforehand, for the following reasons:
    - use of the reduced system solves for the variables appearing in 
     assert/2: 
      -> eq(x,1) assert(data(x),nil));
@@ -1173,27 +1186,23 @@ Begin
      ?- listing.
      abc(_).
      true.
-    Note that assignments of identifiers are ignored, as assignments only 
+    Note that assignments of identifiers must be ignored, as assignments only 
     affect val/2
-   }
-  T1 := CopyTerm(T1,False);
-  T2 := CopyTerm(T2,False);
-
-  { create a list of BTerms representing the rule }
-  B := BTerm_New(T1);
-  Bq := ListToBTerms(P,T2);
-  BTerms_SetNext(B,Bq);
-
-  { create the rule from the list of BTerms }
-  R := Rule_New(GetSyntax(P));
-  Rule_SetTerms(R,B);
+}
+Procedure AssertRule( P : ProgPtr; R : RulePtr; First : Boolean );
+Var
+  Ih : IdPtr;
+  Ri : RulePtr;
+  Sti,Stb : StmtPtr;
+  Wi : WorldPtr;
+Begin
   { make the variables appear as non-temporary, as this is nicer }
   SetObjectsAsGenuine(TObjectPtr(R));
 
   { compute the insertion point Sti }
-  Ih := AccessIdentifier(T1);
+  Ih := Rule_Access(R);
   Sti := Nil;
-  If first Then { asserta }
+  If First Then { asserta }
   Begin
     Ri := FirstRuleWithHead(P,Ih,False);
     If Ri <> Nil Then
@@ -1219,9 +1228,100 @@ Begin
   World_SetCurrentStatement(Wi,Sti);
   ProgInsertRule(P,R);
   World_SetCurrentStatement(Wi,Stb);
-
-  ClearAssert := True
 End;
+
+{ asserta(H), asserta((H :- Q1,Q2)), assertz(H), assertz((H :- Q1,Q2)) }
+Function ClearAssert1( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  T1 : TermPtr;
+  First : Boolean;
+  B : BTermPtr;
+  R : RulePtr;
+Begin
+  ClearAssert1 := False;
+  { 1: the rule (identifier, predicates, or ':-' expression) }
+  T1 := GetGoal(1,T,False);
+  If T1 = Nil Then
+  Begin
+    CWriteLnWarning('cannot create rule: invalid rule expression');
+    Exit
+  End;
+  { 2: insert at the beginning of the group of rules having the same access and
+   arity? }
+  If Not GetBoolean(2,T,First) Then
+    Exit;
+
+  { make a copy to isolate the rule from further bindings }
+  T1 := CopyTerm(T1,False);
+
+  { create the list of BTerms }
+  B := RuleExpToBTerms(P,T1);
+
+  { create the rule from the list of BTerms }
+  R := Rule_New(GetSyntax(P));
+  Rule_SetTerms(R,B);
+
+  If Not Rule_HeadIsValid(R) Then
+  Begin
+    CWriteLnWarning('cannot create rule: invalid rule head');
+    Exit
+  End;
+
+  AssertRule(P,R,First);
+  ClearAssert1 := True
+End;
+
+{ asserta(T,Q), assertz(T,Q) }
+Function ClearAssert2( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  T1,T2 : TermPtr;
+  First : Boolean;
+  B,Bq : BTermPtr;
+  R : RulePtr;
+Begin
+  ClearAssert2 := False;
+  { 1: the head (ident or tuple with ident as first element) }
+  T1 := GetGoal(1,T,False);
+  If T1 = Nil Then
+  Begin
+    CWriteLnWarning('cannot create rule: invalid rule head');
+    Exit
+  End;
+  { 2: the queue (list); cannot be a variable, even anonymous }
+  T2 := GetList(2,T,False);
+  If T2 = Nil Then
+  Begin
+    CWriteLnWarning('cannot create rule: invalid rule queue');
+    Exit
+  End;
+  { 3: insert at the beginning of the group of rules having the same access and
+   arity? }
+  If Not GetBoolean(3,T,First) Then
+    Exit;
+
+  { make a copy to isolate the rule from further bindings }
+  T1 := CopyTerm(T1,False);
+  T2 := CopyTerm(T2,False);
+
+  { create a list of BTerms representing the rule }
+  B := BTerm_New(T1);
+  Bq := ListToBTerms(P,T2);
+  BTerms_SetNext(B,Bq);
+
+  { create the rule from the list of BTerms }
+  R := Rule_New(GetSyntax(P));
+  Rule_SetTerms(R,B);
+
+  If Not Rule_HeadIsValid(R) Then
+  Begin
+    CWriteLnWarning('cannot create rule: invalid rule head');
+    Exit
+  End;
+
+  AssertRule(P,R,First);
+  ClearAssert2 := True
+End;
+
 
 {----------------------------------------------------------------------------}
 { dif                                                                        }
@@ -2164,16 +2264,18 @@ Begin
     Ok := ClearDownStatement(P,T);
   PP_FIND_RULE:
     Ok := ClearFindRule(P,T);
-  PP_ASSERTA:
-    Ok := ClearAssert(P,T,True);
-  PP_ASSERTZ:
-    Ok := ClearAssert(P,T,False);
+  PP_ASSERT1:
+    Ok := ClearAssert1(P,T);
+  PP_ASSERT2:
+    Ok := ClearAssert2(P,T);
   PP_SUPPRESS:
     Ok := ClearSuppress(P,T);
   PP_RULE:
-    Ok := ClearRule(P,T,False,L,Choices);
-  PP_RETRACT:
-    Ok := ClearRule(P,T,True,L,Choices);
+    Ok := ClearRule(P,T,True,False,L,Choices);
+  PP_RETRACT1:
+    Ok := ClearRule(P,T,False,True,L,Choices);
+  PP_RETRACT2:
+    Ok := ClearRule(P,T,True,True,L,Choices);
   PP_EXPAND_FILENAME:
     Ok := ClearExpandFileName(P,T);
   PP_NEW_BUFFER:

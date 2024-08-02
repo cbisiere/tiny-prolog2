@@ -1,13 +1,49 @@
 "Prolog II+ Edinburgh and ISO predefined rules"
 
+"operators"
+
+:- syscall(sysop,1200,xfx,':-',':-').
+
+op(N,I1,S,I2) :- syscall(sysop,N,I1,S,I2).
+op(N,I,S) :- syscall(sysop,N,I,S,S).
+
+:- op(1001,xfy,',',',').
+
+:- op(900,fy,\+,not),
+    op(700,xfx,is,is),
+    op(700,xfx,=,'='),
+    op(700,xfx,<,'<'),
+    op(700,xfx,>,'>'),
+    op(700,xfx,>=,'>='),
+    op(700,xfx,=<,'=<'),
+    op(700,xfx,@<,'@<'),
+    op(700,xfx,@>,'@>'),
+    op(700,xfx,@>=,'@>='),
+    op(700,xfx,@=<,'@=<'),
+    op(700,xfx,\=,'\='),
+    op(700,xfx,=..,'=..'),
+    op(700,xfx,=:=,eql),
+    op(500,yfx,+,'+'),
+    op(500,yfx,-,'-'),
+    op(400,yfx,*,'*'),
+    op(400,yfx,/,'/'),
+    op(400,yfx,//,'//'),
+    op(200,fx,+,'+'),
+    op(200,fx,-,'-'),
+    op(200,xfy,^,'^').
+
 "session"
 
 quit :- outml("bye!"), syscall(sysquit).
 
-"rules"
+"rules (pII+ p.219)"
+
+asserta(Rule) :- syscall(sysassert1,Rule,true).
+assertz(Rule) :- syscall(sysassert1,Rule,false).
+assert(Rule) :- assertz(Rule).
+retract(Rule) :- syscall(sysretract1,Rule).
 
 clause(T,Q) :- syscall(sysrule,T,Q).
-retract(H,Q) :- syscall(sysretract,H,Q).
 
 list :- syscall(syslist,0).
 insert(F) :- syscall(sysinsert,F).
@@ -45,12 +81,10 @@ open(File,Mode,Stream) :- syscall(sysopennew,File,Mode,Stream,[]).
 close(Stream) :- syscall(syscloseinput,Stream), !.
 close(Stream) :- syscall(syscloseoutput,Stream).
 get_char(Stream,Char) :- syscall(sysin,Stream,Char,char,false,false).
-get_char(Char) :- input_is(Stream) get_char(Stream,Char).
+get_char(Char) :- input_is(Stream), get_char(Stream,Char).
 put_char(Char) :- syscall(sysoutm,Char).
 read(Stream,Term) :- syscall(sysinterm,Stream,Term).
-read(Term) :- input_is(Stream) syscall(sysin,Stream,Term,term,true,false).
-asserta(Head,Queue) :- syscall(sysasserta,Head,Queue).
-assertz(Head,Queue) :- syscall(sysassertz,Head,Queue).
+read(Term) :- input_is(Stream), syscall(sysin,Stream,Term,term,true,false).
 write(Term) :- syscall(sysout,Term).
 
 "i/o: PII+"
@@ -63,7 +97,7 @@ clear_input :- syscall(sysclearinput).
 
 output_is(F) :- syscall(sysoutputis,F).
 output(F) :- syscall(sysopennew,F,write,S,[]).
-close_output :- output_is(F) close_output(F).
+close_output :- output_is(F), close_output(F).
 close_output(F) :- syscall(syscloseoutput,F).
 flush :- syscall(sysflush).
 
@@ -95,12 +129,10 @@ char_code(C,N) :- syscall(syscharcode,C,N).
 
 def_array(I,N) :- syscall(sysdefarray,I,N).
 
-"assign, eval, operators"
+"assign, eval"
 
 assign(I,T) :- syscall(sysassign,I,T).
 val(T1,T2) :- syscall(syseval,T1,T2).
-op(N,I1,S,I2) :- syscall(sysop,N,I1,S,I2).
-op(N,I,S) :- syscall(sysop,N,I,S,S).
 
 "control"
 
@@ -135,32 +167,6 @@ consult(F) :- insert(F).
 listing :- list.
 
 nl :- line.
-
-"operators"
-
-:-
-    op(900,fy,\+,not)
-    op(700,xfx,is,is)
-    op(700,xfx,=,'=')
-    op(700,xfx,<,'<')
-    op(700,xfx,>,'>')
-    op(700,xfx,>=,'>=')
-    op(700,xfx,=<,'=<')
-    op(700,xfx,@<,'@<')
-    op(700,xfx,@>,'@>')
-    op(700,xfx,@>=,'@>=')
-    op(700,xfx,@=<,'@=<')
-    op(700,xfx,\=,'\=')
-    op(700,xfx,=..,'=..')
-    op(700,xfx,=:=,eql)
-    op(500,yfx,+,'+')
-    op(500,yfx,-,'-')
-    op(400,yfx,*,'*')
-    op(400,yfx,/,'/')
-    op(400,yfx,//,'//')
-    op(200,fx,+,'+')
-    op(200,fx,-,'-')
-    op(200,xfy,^,'^').
 
 "Controls, pII+ p.217"
 

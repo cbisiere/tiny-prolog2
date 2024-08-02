@@ -26,7 +26,7 @@ tete(I) -> syscall(sysfindrule,I);
 
 inserer(F) -> syscall(sysinsert,F);
 inserer -> syscall(sysinputis,F) syscall(sysinsert,F);
-ajout(<T,Q>) -> syscall(sysasserta,T,Q);
+ajout(<T,Q>) -> syscall(sysassert2,T,Q,true);
 
 lister(N) -> syscall(syslist,N);
 lister -> lister(0);

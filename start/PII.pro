@@ -28,7 +28,7 @@ find-rule(I) -> syscall(sysfindrule,I);
 
 insert(F) -> syscall(sysinsert,F);
 insert -> syscall(sysinputis,F) syscall(sysinsert,F);
-assert(T,Q) -> syscall(sysasserta,T,Q);
+assert(T,Q) -> syscall(sysassert2,T,Q,true);
 
 list(N) -> syscall(syslist,N);
 list -> list(0);

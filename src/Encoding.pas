@@ -63,17 +63,23 @@ Function NewFunc2( P : ProgPtr; ident : TString; T1,T2 : TermPtr;
 Function NewEmptyList( P : ProgPtr ) : TermPtr;
 Function NewList2( P : ProgPtr; T1,T2 : TermPtr ) : TermPtr;
 Function IsNil( T : TermPtr ) : Boolean;
+Function CommaExpToList( P : ProgPtr; T : TermPtr ) : TermPtr;
 Function TupleToList( P : ProgPtr; U : TermPtr ) : TermPtr;
 Function ListToTuple( L : TermPtr ) : TermPtr;
 Function IdentifierToList( P : ProgPtr; I : IdPtr ) : TermPtr;
 Function ListToIdentifier( P : ProgPtr; T : TermPtr ) : TermPtr;
 Function BTermsToList( P : ProgPtr; B : BTermPtr ) : TermPtr;
 Function ListToBTerms( P : ProgPtr; T : TermPtr ) : BTermPtr;
+Function CommaExpToBTerms( P : ProgPtr; T : TermPtr ) : BTermPtr;
+Function RuleExpToBTerms( P : ProgPtr; T : TermPtr ) : BTermPtr;
 
 Function ProtectedGetTupleHead( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
 Function ProtectedGetTupleQueue( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
 Function ProtectedGetTupleArg( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
 Function ProtectedGetFunc1( T : TermPtr; ident : TString; Var T1 : TermPtr; 
+    Reduce : Boolean ) : Boolean;
+Function ProtectedGetFunc2( T : TermPtr; ident : TString; 
+    Var T1,T2 : TermPtr; 
     Reduce : Boolean ) : Boolean;
 
 Function ProtectedGetList( T : TermPtr; Var T1,T2 : TermPtr; 
@@ -150,6 +156,21 @@ End;
 {----------------------------------------------------------------------------}
 { conversions                                                                }
 {----------------------------------------------------------------------------}
+
+{ create a new list a.b.c.nil from a comma-expression ','(a,','(b,c)) }
+Function CommaExpToList( P : ProgPtr; T : TermPtr ) : TermPtr;
+Var
+  L : TermPtr;
+  T1,T2 : TermPtr;
+Begin
+  If ProtectedGetFunc2(T,',',T1,T2,True) Then
+  Begin
+    L := CommaExpToList(P,T2);
+    CommaExpToList := NewList2(P,T1,L)
+  End
+  Else
+    CommaExpToList := NewList2(P,T,Nil)
+End;
 
 { create a new list foo.a.b.nil from a tuple <foo,a,b> }
 Function TupleToList( P : ProgPtr; U : TermPtr ) : TermPtr;
@@ -249,6 +270,44 @@ Begin
     Bh := BTerm_New(ListHead(T));
     BTerms_SetNext(Bh,Bq);
     ListToBTerms := Bh
+  End
+End;
+
+{ create a new list of BTerms from a term or a comma-expression:
+ ','(a,','(b,c)) => a,b,c
+ a => a }
+Function CommaExpToBTerms( P : ProgPtr; T : TermPtr ) : BTermPtr;
+Var
+  T1,T2 : TermPtr;
+  Bh,Bq : BTermPtr;
+Begin
+  If Not ProtectedGetFunc2(T,',',T1,T2,True) Then
+    CommaExpToBTerms := BTerm_New(T)
+  Else
+  Begin
+    Bq := CommaExpToBTerms(P,T2);
+    Bh := BTerm_New(T1);
+    BTerms_SetNext(Bh,Bq);
+    CommaExpToBTerms := Bh
+  End
+End;
+
+{ create a new list of BTerms from a rule-expression:
+ ':-'(h,','(a,','(b,c))) => h,a,b,c 
+ h => h }
+Function RuleExpToBTerms( P : ProgPtr; T : TermPtr ) : BTermPtr;
+Var
+  T1,T2 : TermPtr;
+  Bh,Bq : BTermPtr;
+Begin
+  If Not ProtectedGetFunc2(T,':-',T1,T2,True) Then
+    RuleExpToBTerms := BTerm_New(T)
+  Else
+  Begin
+    Bq := CommaExpToBTerms(P,T2);
+    Bh := BTerm_New(T1);
+    BTerms_SetNext(Bh,Bq);
+    RuleExpToBTerms := Bh
   End
 End;
 

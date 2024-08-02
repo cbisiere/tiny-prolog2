@@ -835,7 +835,11 @@ Begin
     If Error Then Exit;
     Stream_GetChar(f,c2);
     If Error Then Exit;
-    K := Token_New(TOKEN_ARROW)
+    K := Token_New(TOKEN_ARROW);
+    { In Edinburgh syntax, ':-' is also an operator, so we need to save the 
+     string in the token, for the expression parser to function properly }
+    If y = Edinburgh Then
+      K^.TK_STRI := Str_NewFromShortString(':-')
   End
   { identifiers made of graphic chars; FIXME: move this to ReadVariableOrIdentifier? }
   Else If IsIn(c,PROLOG_Graphic) And (y = PrologIIp) Or 
@@ -897,7 +901,13 @@ Begin
   '.':
     K := GrabToken(f,TOKEN_DOT,c);
   ',':
-    K := GrabToken(f,TOKEN_COMMA,c);
+    Begin
+      K := GrabToken(f,TOKEN_COMMA,c);
+      { In Edinburgh syntax, ',' is also an operator, so we need to save the 
+      string in the token, for the expression parser to function properly }
+      If y = Edinburgh Then
+        K^.TK_STRI := Str_NewFromShortString(',')
+    End;
   '=':
     If y In [PrologIIc,PrologII] Then
       K := GrabToken(f,TOKEN_EQUAL,c);

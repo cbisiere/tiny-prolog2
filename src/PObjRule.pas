@@ -42,6 +42,7 @@ Procedure Rule_SetTerms( R : RulePtr; B : BTermPtr );
 
 Function Rule_Access( R : RulePtr ) : IdPtr;
 Function Rule_Arity( R : RulePtr ) : PosInt;
+Function Rule_HeadIsValid( R : RulePtr ) : Boolean;
 
 Implementation
 
@@ -125,6 +126,16 @@ End;
 Function Rule_Arity( R : RulePtr ) : PosInt;
 Begin
   Rule_Arity := BTerm_GetArity(Rule_GetHead(R))
+End;
+
+{ test whether the head of a rule is valid }
+Function Rule_HeadIsValid( R : RulePtr ) : Boolean;
+Var
+  B : BTermPtr;
+Begin
+  B := Rule_GetHead(R);
+  Rule_HeadIsValid := (B <> Nil) And (BTerm_GetAccessTerm(B) <> Nil) And 
+      (Not IdentifierIsCut(BTerm_GetAccessTerm(B)))
 End;
 
 End.

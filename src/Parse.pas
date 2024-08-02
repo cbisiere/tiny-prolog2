@@ -151,17 +151,6 @@ Begin
     TopOp := Nil
 End;
 
-{ is there a placeholder at the top of the term stack, indicating that a term  
- is required to complete an expression (e.g. the second operand of a binary 
- operator) }
-Function HasPlaceholder( TBottom : TStackLen ) : Boolean;
-Begin
-  HasPlaceholder := False;
-  If TStackTop > TBottom Then
-    If TStack[TStackTop] = Nil Then
-      HasPlaceholder := True
-End;
-
 { push an op }
 Procedure PushExprOp( o : OpPtr );
 Begin
@@ -188,13 +177,6 @@ Begin
   If Error Then Exit;
   TStackTop := TStackTop + 1;
   TStack[TStackTop] := T
-End;
-
-{ push a placeholder in the term stack, indicating that a term is required  
- to complete an expression (e.g. the second operand of a binary operator) }
-Procedure PushPlaceholder;
-Begin
-  PushExprTerm(Nil)
 End;
 
 { pop a term }
@@ -303,7 +285,9 @@ Var
   oper : TString;
 Begin
   o := Nil;
-  If Token_GetType(K) = TOKEN_IDENT Then
+  If (Token_GetType(K) = TOKEN_IDENT) Or 
+      (GetSyntax(P) = Edinburgh) And 
+      (Token_GetType(K) In [TOKEN_ARROW,TOKEN_COMMA]) Then
   Begin
     oper := Str_GetShortStringTruncate(Token_GetStr(K));
     o := Op_Lookup(P^.PP_OPER,[OP_OPERATOR,OP_TYPES,OP_PRECEDENCE],
@@ -332,58 +316,77 @@ Var
   o : OpPtr;
   Found : Boolean; { case identified and treated }
   Done : Boolean; { are we done parsing the expression? }
-  CT : ConstPtr Absolute T;
+  Pred : TPrecedence; { precedence of the current expression }
+  ArgMaxPred : TPrecedence;
   s : StrPtr;
 Begin
   ReadExpr := Nil;
   Done := False;
   Repeat
     Found := False;
-
-    { rule 6.1: prefixed (unary) operator }
-    { FIXME: is it legal in PII+ to use op's identifiers without arguments? 
-     as, e.g, op_add("+",add) ->; As such, this code triggers a syntax error 
-     on the right parenthesis }
-    o := NextOp(P,K,[fx,fy],MaxPred);
-    If (o <> Nil) And (Not HasTerm(TBottom)) Then 
+    
+    If Not Found Then 
     Begin
-      K := ReadProgramToken(P,f);
-      If Error Then Exit;
-      { simplify +/- integer:
-       PII+ p.48: "The trees corresponding to the unary operators + and - are  
-       evaluated when analyzed if their argument is an integer constant." }
-      If (Op_GetType(o) = fx) And ((Op_GetOperator(o) = '+') 
-          Or (Op_GetOperator(o) = '-')) 
-          And (Token_GetType(K) = TOKEN_INTEGER) Then
+      { rule 6.1: prefixed (unary) operator }
+      { FIXME: is it legal in PII+ to use op's identifiers without arguments? 
+      as, e.g, op_add("+",add) ->; As such, this code triggers a syntax error 
+      on the right parenthesis }
+      o := NextOp(P,K,[fx,fy],MaxPred);
+      If (o <> Nil) And (Not HasTerm(TBottom)) Then 
       Begin
-        T := ReadPTerm(f,P,K,glob,Cut); { read the integer constant }
+        Pred := Op_GetPrecedence(o);
+        K := ReadProgramToken(P,f);
         If Error Then Exit;
-        If Op_GetOperator(o) = '-' Then
+        { simplify +/- integer:
+        PII+ p.48: "The trees corresponding to the unary operators + and - are  
+        evaluated when analyzed if their argument is an integer constant." }
+        If (Op_GetType(o) = fx) And ((Op_GetOperator(o) = '+') 
+            Or (Op_GetOperator(o) = '-')) 
+            And (Token_GetType(K) = TOKEN_INTEGER) Then
         Begin
-          s := Str_NewFromShortString('-');
-          Str_Concat(s,ConstGetStr(CT));
-          T := EmitConst(P,s,CI,True)
+          T := ReadPTerm(f,P,K,glob,Cut); { read the integer constant }
+          If Error Then Exit;
+          If Op_GetOperator(o) = '-' Then
+          Begin
+            s := Str_NewFromShortString('-');
+            Str_Concat(s,ConstGetStr(ConstPtr(T)));
+            T := EmitConst(P,s,CI,True)
+          End;
+          PushExprTerm(T)
+        End
+        Else
+        Begin  
+          PushExprOp(o);
+          Case Op_GetType(o) Of
+          fx : ArgMaxPred := Pred - 1;
+          fy : ArgMaxPred := Pred
+          End;
+          T := ReadExpr(f,P,K,TStackTop,OpStackTop,ArgMaxPred,glob,Cut);
+          If Error Then Exit;
+          PushExprTerm(T)
         End;
-        PushExprTerm(T)
+        Found := True
       End
-      Else
-      Begin  
-        PushExprOp(o);
-        PushPlaceholder
-      End;
-      Found := True
     End;
 
     { rule 6.3: infixed (binary) operator }
     If Not Found Then 
     Begin
       o := NextOp(P,K,[xfx,xfy,yfx],MaxPred);
-      If (o <> Nil) And (HasTerm(TBottom)) Then
+      If (o <> Nil) And HasTerm(TBottom) And 
+          ((Op_GetType(o) = yfx) Or (Pred < Op_GetPrecedence(o))) Then
       Begin
+        Pred := Op_GetPrecedence(o);
         K := ReadProgramToken(P,f);
         If Error Then Exit;
         PushExprOp(o);
-        PushPlaceholder;
+        Case Op_GetType(o) Of
+        yfx,xfx : ArgMaxPred := Pred - 1;
+        xfy : ArgMaxPred := Pred
+        End;
+        T := ReadExpr(f,P,K,TStackTop,OpStackTop,ArgMaxPred,glob,Cut);
+        If Error Then Exit;
+        PushExprTerm(T);
         Found := True
       End
     End;
@@ -392,8 +395,10 @@ Begin
     If Not Found Then 
     Begin
       o := NextOp(P,K,[xf,yf],MaxPred);
-      If (o <> Nil) And (HasTerm(TBottom)) Then
+      If (o <> Nil) And HasTerm(TBottom) And 
+          ((Op_GetType(o) = yf) Or (Pred < Op_GetPrecedence(o))) Then
       Begin
+        Pred := Op_GetPrecedence(o);
         K := ReadProgramToken(P,f);
         If Error Then Exit;
         PushExprOp(o);
@@ -401,18 +406,20 @@ Begin
       End
     End;
 
-    Done := Not Found And HasTerm(TBottom);
-
     { rules 6.5: pterm }
-    If Not HasTerm(TBottom) Or HasPlaceholder(TBottom) Then
+    If Not Found Then 
     Begin
-      If HasPlaceholder(TBottom) Then
-        PopExprTerm(T,TBottom);
-      T := ReadTerm(f,P,K,glob,Cut);
-      If Error Then Exit;
-      PushExprTerm(T);
-      Found := True
+      If Not HasTerm(TBottom) Then
+      Begin
+        Pred := 0;
+        T := ReadPTerm(f,P,K,glob,Cut);
+        If Error Then Exit;
+        PushExprTerm(T);
+        Found := True
+      End
     End;
+    
+    Done := Not Found And HasTerm(TBottom);
 
     { reduce the stack as much as possible }
     ReduceExprStack(P,TBottom,OBottom)
@@ -433,7 +440,7 @@ Var
 Begin
   y := GetSyntax(P);
   If y In [PrologIIc,PrologII] Then { no expressions in old PrologII syntax }
-    ReadOneExpr := ReadTerm(f,P,K,glob,Cut)
+    ReadOneExpr := ReadPTerm(f,P,K,glob,Cut)
   Else
     ReadOneExpr := ReadExpr(f,P,K,TStackTop,OpStackTop,MaxPred,glob,Cut)
 End;
@@ -442,7 +449,7 @@ End;
 { parser                                                                     }
 {----------------------------------------------------------------------------}
 
-{ read a term: pterm [. term]*; is right-associative
+{ read a term: expr [. term]*; is right-associative
  (see pII+ p.44, "1.9.1 The syntactic level", rules 4.1 and 4.2 "term") }
 Function ReadTerm( f : StreamPtr; P : ProgPtr; Var K : TokenPtr; 
     glob : Boolean; Cut : Boolean) : TermPtr;
@@ -450,18 +457,20 @@ Var
   y : TSyntax;
   T : TermPtr;
   T2 : TermPtr;
-  WasCut : Boolean;
+  MaxPred : TPrecedence;
 Begin
   ReadTerm := Nil;
   y := GetSyntax(P);
-  WasCut := Token_GetType(K) = TOKEN_CUT;
-  T := ReadPTerm(f,P,K,glob,Cut);
+  If y = Edinburgh Then
+    MaxPred := 1200
+  Else
+    MaxPred := 1000;
+  T := ReadOneExpr(f,P,K,MaxPred,glob,Cut); { rules 4.1 and 4.2 }
   If Error Then Exit;
-  If (y <> Edinburgh) And (Token_GetType(K) = TOKEN_DOT) 
-      And (Not WasCut) Then { rule 4.1 }
+  If (y <> Edinburgh) And (Token_GetType(K) = TOKEN_DOT) Then { rule 4.1, cont. }
   Begin
     K := ReadProgramToken(P,f);
-    T2 := ReadTerm(f,P,K,glob,False);
+    T2 := ReadTerm(f,P,K,glob,Cut);
     If Error Then Exit;
     T := NewList2(P,T,T2)
   End;
@@ -471,21 +480,32 @@ End;
 
 { read the comma-separated list of expressions "a,b,c..." 
  (see pII+ p.44, "1.9.1 The syntactic level", rule 5 "termlist")
- return Nil if an error occurs }
+ - return Nil if an error occurs; 
+ - in Edinburgh mode, the precedence level 999, 
+ lower than the comma-as-an-operator's precedence, ensures that commas in the 
+ termlist are interpreted as separators
+ - in non-Edinburgh mode, I believe there is an issue with rule 5, which does
+  not allows for dotted list; we fix this by defining a termlist as a list of 
+  terms }
 Function ReadTermList( f : StreamPtr; P : ProgPtr; Var K : TokenPtr; 
-    glob : Boolean ) : TermPtr;
+    glob : Boolean; Cut : Boolean ) : TermPtr;
 Var
+  y : TSyntax;
   T,T2 : TermPtr;
 Begin
   ReadTermList := Nil;
-  T := ReadOneExpr(f,P,K,999,glob,False);
+  y := GetSyntax(P);
+  If y = Edinburgh Then
+    T := ReadOneExpr(f,P,K,999,glob,Cut) { rule 5 }
+  Else
+    T := ReadTerm(f,P,K,glob,Cut); { rule 5, modified }
   If Error Then Exit;
   T2 := Nil;
-  If Token_GetType(K) = TOKEN_COMMA Then
+  If Token_GetType(K) = TOKEN_COMMA Then { rule 5, cont. }
   Begin
     K := ReadProgramToken(P,f);
     If Error Then Exit;
-    T2 := ReadTermList(f,P,K,glob);
+    T2 := ReadTermList(f,P,K,glob,Cut);
     If Error Then Exit
   End;
   ReadTermList := Func_NewAsTerm(T,T2)
@@ -499,10 +519,15 @@ End;
 Function ReadListExpr( f : StreamPtr; P : ProgPtr; Var K : TokenPtr; 
     comma, glob, Cut : Boolean ) : TermPtr;
 Var
+  y : TSyntax;
   T,T2 : TermPtr;
 Begin
   ReadListExpr := Nil;
-  T := ReadOneExpr(f,P,K,999,glob,Cut); { TODO: cut allowed here?? }
+  y := GetSyntax(P);
+  If y = Edinburgh Then
+    T := ReadOneExpr(f,P,K,999,glob,Cut) { rule 8 }
+  Else
+    T := ReadTerm(f,P,K,glob,Cut); { rule 8, modified to allow infixed list }
   If Error Then Exit;
   If Token_GetType(K) = TOKEN_COMMA Then  { rule 8.1: "a,b" <=> a.b.nil }
   Begin
@@ -516,7 +541,10 @@ Begin
   Begin
     K := ReadProgramToken(P,f);
     If Error Then Exit;
-    T2 := ReadOneExpr(f,P,K,999,glob,Cut);
+    If y = Edinburgh Then
+      T2 := ReadOneExpr(f,P,K,999,glob,Cut) { rule 8 }
+    Else
+      T2 := ReadTerm(f,P,K,glob,Cut); { rule 8, modified to allow infixed list }
     If Error Then Exit;
     T := NewList2(P,T,T2)
   End
@@ -531,7 +559,7 @@ End;
  (see pII+ p.44, "1.9.1 The syntactic level", rule 7.6 "pterm")
 }
 Function ReadList( f : StreamPtr; P : ProgPtr; Var K : TokenPtr; 
-    glob,Cut : Boolean ) : TermPtr;
+    glob : Boolean; Cut : Boolean ) : TermPtr;
 Var
   T : TermPtr;
 Begin
@@ -544,7 +572,7 @@ Begin
   End
   Else
   Begin
-    T := ReadListExpr(f,P,K,False,glob,Cut); { TODO: cut allowed here?? }
+    T := ReadListExpr(f,P,K,False,glob,Cut);
     If Error Then Exit;
     VerifyToken(f,P,K,TOKEN_RIGHT_BRA)
   End;
@@ -560,7 +588,6 @@ Var
   y : TSyntax;
   T : TermPtr;
   L : TermPtr;
-  MaxPred : TPrecedence;
 Begin
   ReadPTerm := Nil;
   y := GetSyntax(P);
@@ -613,22 +640,18 @@ Begin
       Begin
         K := ReadProgramToken(P,f);
         If Error Then Exit;
-        L := ReadTermList(f,P,K,glob);
+        L := ReadTermList(f,P,K,glob,Cut);
         If Error Then Exit;
         VerifyToken(f,P,K,TOKEN_RIGHT_PAR);
         If Error Then Exit;
         T := Func_NewAsTerm(T,L)
       End
     End;
-  TOKEN_LEFT_PAR: { (modified) rule 7.8: parenthesized expression }
+  TOKEN_LEFT_PAR: { rule 7.8: parenthesized term }
     Begin
       K := ReadProgramToken(P,f);
       If Error Then Exit;
-      If y = Edinburgh Then
-        MaxPred := 1200
-      Else
-        MaxPred := 1000;
-      T := ReadOneExpr(f,P,K,MaxPred,glob,False);
+      T := ReadTerm(f,P,K,glob,Cut);
       If Error Then Exit;
       VerifyToken(f,P,K,TOKEN_RIGHT_PAR);
       If Error Then Exit
@@ -647,7 +670,7 @@ Begin
         Begin
           K := ReadProgramToken(P,f);
           If Error Then Exit;
-          L := ReadTermList(f,P,K,glob);
+          L := ReadTermList(f,P,K,glob,Cut);
           If Error Then Exit;
           VerifyToken(f,P,K,TOKEN_RIGHT_PAR)
         End
@@ -657,7 +680,7 @@ Begin
       Else 
         If y <> Edinburgh Then 
         Begin
-          L := ReadTermList(f,P,K,glob);
+          L := ReadTermList(f,P,K,glob,Cut);
           If Error Then Exit;
           VerifyToken(f,P,K,TOKEN_RIGHT_CHE)
         End
@@ -774,34 +797,28 @@ Begin
   CompileRuleHead := BTerm_New(T)
 End;
 
-{ compile a goal at rule or query level }
+{ compile a goal at rule or query level; non-Edinburgh only }
 Function CompileOneGoal( f : StreamPtr; P : ProgPtr; Var K : TokenPtr; 
   glob : Boolean; Cut : Boolean ) : BTermPtr;
 Var 
-  y : TSyntax;
   T : TermPtr;
 Begin
   CompileOneGoal := Nil;
-  y := GetSyntax(P);
   PrepareExprParsing;
-  If y = Edinburgh Then { see rule 2.2: expr are allowed at top level }
-    T := ReadOneExpr(f,P,K,1199,glob,Cut)
-  Else
-    T := ReadPTerm(f,P,K,glob,Cut);
+  T := ReadPTerm(f,P,K,glob,Cut);
   If Error Then Exit;
   TerminateExprParsing;
   CompileOneGoal := BTerm_New(T)
 End;
 
 { compile a (possibly empty) sequence of goals, stopping at a token in 
- StopTokens }
+ StopTokens; non-Edinburgh only }
 Function CompileGoals( f : StreamPtr; P : ProgPtr; Var K : TokenPtr; 
     glob : Boolean; StopTokens : TTokenSet ) : BTermPtr;
 
   Function DoCompileGoals : BTermPtr;
   Var
     B : BTermPtr;
-    Must : Boolean;
   Begin
     DoCompileGoals := Nil;
     B := Nil;
@@ -809,15 +826,7 @@ Function CompileGoals( f : StreamPtr; P : ProgPtr; Var K : TokenPtr;
     Begin
       B := CompileOneGoal(f,P,K,glob,True);
       If Error Then Exit;
-      With B^ Do
-      Begin
-        Must := (GetSyntax(P) = Edinburgh) And (Token_GetType(K) = TOKEN_COMMA);
-        If Must Then
-          K := ReadProgramToken(P,f);
-        BT_NEXT := DoCompileGoals;
-        If Must And (BT_NEXT = Nil) Then
-          SyntaxError('term expected after ' + TokenStr[TOKEN_COMMA])
-      End
+      B^.BT_NEXT := DoCompileGoals
     End;
     DoCompileGoals := B
   End;
@@ -848,41 +857,51 @@ Var
   y : TSyntax;
   R : RulePtr;
   B : BTermPtr;
+  T : TermPtr;
   StopTokens : TTokenSet;
 Begin
   ParseOneRule := Nil;
   y := GetSyntax(P);
-  StopTokens := [Syntax[y].RuleEnd];
-  If Syntax[y].AcceptSys Then
-    StopTokens := StopTokens + [TOKEN_COMMA];
   R := Rule_New(y);
   OpenLocalContextForRule(P,R);
-  With R^ Do
+  PrepareExprParsing;
+
+  If y = Edinburgh Then { rule 3.2 }
   Begin
-    RU_SYST := Nil;
-    B := CompileRuleHead(f,P,K,True,False);
+    T := ReadTerm(f,P,K,True,True);
     If Error Then Exit;
-    RU_FBTR := B;
-    If (y = Edinburgh) And (Token_GetType(K) = Syntax[y].RuleEnd) Then
-      K := ReadProgramToken(P,f)
-    Else
+    B := RuleExpToBTerms(P,T);
+    Rule_SetTerms(R,B);
+    If Not Rule_HeadIsValid(R) Then
+      SyntaxError('invalid rule head');
+    If Error Then Exit
+  End
+  Else { rule 3.1 }
+  Begin
+    StopTokens := [Syntax[y].RuleEnd];
+    If Syntax[y].AcceptSys Then
+      StopTokens := StopTokens + [TOKEN_COMMA];
+    With R^ Do
     Begin
+      RU_SYST := Nil;
+      B := CompileRuleHead(f,P,K,True,False);
+      If Error Then Exit;
+      RU_FBTR := B;
       VerifyToken(f,P,K,TOKEN_ARROW);
       If Error Then Exit;
       B^.BT_NEXT := CompileGoals(f,P,K,True,StopTokens);
-      If y = Edinburgh Then 
-        If B^.BT_NEXT = Nil Then
-          SyntaxError('term expected after ' + TokenStr[TOKEN_ARROW]);
       If Error Then Exit;
       If (Syntax[y].AcceptSys) And (Token_GetType(K) = TOKEN_COMMA) Then
       Begin
         K := ReadProgramToken(P,f);
         RU_SYST := CompileSystem(f,P,K,True)
       End;
-      If Error Then Exit;
-      VerifyToken(f,P,K,Syntax[y].RuleEnd)
+      If Error Then Exit
     End
   End;
+
+  TerminateExprParsing;
+  VerifyToken(f,P,K,Syntax[y].RuleEnd);
   If Error Then Exit;
   ParseOneRule := R
 End;
@@ -918,31 +937,51 @@ Function ParseOneQuery( f : StreamPtr; P : ProgPtr;
 Var
   Q : QueryPtr;
   y : TSyntax;
+  B : BTermPtr;
+  T : TermPtr;
   StopTokens : TTokenSet;
 Begin
   ParseOneQuery := Nil;
   y := GetSyntax(P);
   Q := NewProgramQuery(P);
   OpenLocalContextForQuery(P,Q);
-  StopTokens := [Syntax[y].PromptEnd,TOKEN_END_OF_INPUT];
-  If Syntax[y].AcceptSys Then
-    StopTokens := StopTokens + [TOKEN_LEFT_CUR,TOKEN_COMMA];
-  Query_SetTerms(Q,CompileGoals(f,P,K,False,StopTokens));
-  With Q^ Do
+  PrepareExprParsing;
+
+  If y = Edinburgh Then { rule 2.2 }
   Begin
+    T := ReadOneExpr(f,P,K,1199,True,True);
     If Error Then Exit;
-    If (Syntax[y].AcceptSys) And 
-        (Token_GetType(K) In [TOKEN_LEFT_CUR,TOKEN_COMMA]) Then
+    B := CommaExpToBTerms(P,T);
+    If B = Nil Then
+      SyntaxError('query expected');
+    If Error Then Exit;
+    Query_SetTerms(Q,B)
+  End
+  Else { rule 2.1 }
+  Begin
+    StopTokens := [Syntax[y].PromptEnd,TOKEN_END_OF_INPUT];
+    If Syntax[y].AcceptSys Then
+      StopTokens := StopTokens + [TOKEN_LEFT_CUR,TOKEN_COMMA];
+    Query_SetTerms(Q,CompileGoals(f,P,K,False,StopTokens));
+    With Q^ Do
     Begin
-      If Query_GetTerms(Q) <> Nil Then
-        VerifyToken(f,P,K,TOKEN_COMMA);
-      Query_SetSys(Q,CompileSystem(f,P,K,False))
-    End;
-    If Error Then Exit;
-    { verify end-of-query mark }
-    If Token_GetType(K) <> Syntax[y].PromptEnd Then
-      SyntaxError(TokenStr[Syntax[y].PromptEnd] + ' expected')
+      If Error Then Exit;
+      If (Syntax[y].AcceptSys) And 
+          (Token_GetType(K) In [TOKEN_LEFT_CUR,TOKEN_COMMA]) Then
+      Begin
+        If Query_GetTerms(Q) <> Nil Then
+          VerifyToken(f,P,K,TOKEN_COMMA);
+        Query_SetSys(Q,CompileSystem(f,P,K,False))
+      End;
+      If Error Then Exit
+    End
   End;
+
+  { verify end-of-query mark }
+  If Token_GetType(K) <> Syntax[y].PromptEnd Then
+    SyntaxError(TokenStr[Syntax[y].PromptEnd] + ' expected');
+
+  TerminateExprParsing;
   CloseLocalContextForQuery(P,Q);
   ParseOneQuery := Q
 End;
@@ -961,7 +1000,7 @@ Begin
   K := ReadProgramToken(P,f);
   If Error Then Exit;
   PrepareExprParsing;
-  ParseOneTerm := ReadTerm(f,P,K,False,False);
+  ParseOneTerm := ReadTerm(f,P,K,False,True);
   If Error Then Exit;
   TerminateExprParsing;
   { since K is now the token *following* the compiled term, we must unread it 

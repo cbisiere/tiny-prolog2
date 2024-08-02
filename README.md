@@ -420,27 +420,26 @@ Both Prolog II and Prolog II+ are based on the so-called "Marseille syntax", fea
 ```
 cut = "/" ;
 
-expr = term
-
 term = pterm, [".", term] ;
 
 term-list = term, [",", term-list] ;
 
 pterm = constant |
+        cut |
         (variable | identifier), ["(", term-list, ")"] |
         "<", [term-list], ">" |
-        "(", expr, ")" ;       
+        "(", term, ")" ;       
 
-rule = pterm, "->", { pterm | cut }, ";" ;
+rule = pterm, "->", { pterm }, ";" ;
 
-query = "->", { pterm | cut }, ";" ;                                
+query = "->", { pterm }, ";" ;                                
 
 comment = string ;
 
 program = { comment | rule | query }, [";"] ;
 
 ```
-A `pterm` is a term that can appear at the highest level, that is, as a goal in a rule or query's body. Dotted lists cannot appear at this highest level.
+A `pterm` is a term that can appear at the highest level, that is, as a goal in a rule or query's body. Dotted lists cannot appear at this highest level. A rule's head must be a predicate.
 
 
 ### Prolog II
@@ -488,7 +487,7 @@ I allow it in Prolog II version 2 mode as well, for convenience.
 ### Prolog II+
 
 Prolog II+ does not allow for dashes in variable names or (unquoted) identifiers. A single-quoted string (in which single quotes must be doubled) is an identifier. This allows for identifiers containing any characters, and is commonly used to define operators, e.g., `'>>'`. Additionally, identifiers can be made of graphic chars.
-Variables start with a `_` or with a single letter. A variable whose name is `_` is anonymous. The cut becomes `!` instead of `/`, the former being reserved for calls to external procedures (a.k.a. _parasites_, e.g. `/?20001`). Tuples gain an alternative syntax: `<>(t1,...tn)`. Expressions are allowed, but cannot appear at the highest level. Finally, both dot and Edinburgh-style lists are supported in Prolog II+ mode, and can be mixed.
+Variables start with a `_` or with a single letter. A variable whose name is `_` is anonymous. 
 
 ```
 cut = "!" ;
@@ -508,22 +507,40 @@ sq = "'" ;
 
 quoted-identifier = sq, { (character - sq - newline) | (sq, sq) | ("\", newline) }, sq ;
 
-expr = [unary-op], term [binary-op, expr] ;
+```
+where `graphic-identifier` and `quoted-identifier` are two additional forms of `identifier`.
 
-expr-list = expr, ["," , expr-list] | 
+The cut becomes `!` instead of `/`, the former being reserved for calls to external procedures (a.k.a. _parasites_, e.g. `/?20001`):
+
+```
+cut = "!" ;
+```
+
+Tuples gain an alternative syntax: `<>(t1,...tn)`. Expressions are allowed, but cannot appear at the highest level. Finally, both dot and Edinburgh-style lists are supported in Prolog II+ mode, and can be mixed.
+
+```
+expr = [unary-op], term [binary-op, expr] |
+        pterm ;
+
+term = expr, [".", term] ;
 
 pterm = constant |
+        cut |
         (identifier | variable), ["(", term-list, ")"] |
         "<", [term-list], ">" |
         "<", ">", "(", term-list, ")" |
         "[", [list-expr], "]" |
-        "(", expr, ")" ;       
+        "(", term, ")" ;       
 
 list-expr = expr, ["," , list-expr] | 
             expr, "|", expr ;
 
+rule = term, "->", { pterm }, ";" ;
+
+query = "->", { pterm }, ";" ;
+
 ```
-where `graphic-identifier` and `quoted-identifier` are two additional forms of `identifier`.
+
 
 ### Edinburgh
 
@@ -534,6 +551,7 @@ Edinburgh syntax differs from Marseille syntax:
 * rules and facts end with a `.` (instead of `;`);
 * variable names start with a `_` or with an uppercase letter;
 * tuples must be written following the `<>(...)` syntax only;
+* `:-` and `,` are binary operators, so one can write, e.g., `assert((a:-b,c))`;
 * expressions are allowed at the highest level, that is, as rule head or as goal in rule queues or queries.
 
 ```
@@ -543,14 +561,16 @@ extended-var = big-letter, [ { alpha } ] ;
 
 additional-graphic-char = ";" |"<" | ">" ;
 
-rule = expr, [ ":-", expr {",", expr} ], "." ;
+term = expr ;
 
-query = ":-", expr {",", expr}, "."
+rule = term, "." ;
+
+query = ":-", expr, "." ;
 
 ```
 where `additional-graphic-char` is an additional form of `graphic-char`.
 
-As an additional difference, we make the exponent part of real numbers non mandatory:
+Since infixed list notation (`.`) is not allowed, the exponent part of real numbers is non mandatory:
 
 ```
 real-number = digits, ".", digits, [("E"|"e"|"D"|"d"), [ ["+"|"-"], digits ]];

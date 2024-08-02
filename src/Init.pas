@@ -126,7 +126,7 @@ Begin
   LoadProgram(P,s,False)
 End;
 
-{ set up the default user world below the current world }
+{ load the user file into the current world }
 Procedure LoadUserFile( P : ProgPtr; Filename : StrPtr );
 Begin
   SetProgramPath(P,Path_ExtractPath(Filename));

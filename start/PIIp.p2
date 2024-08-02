@@ -3,16 +3,16 @@
 "rules"
 
 rule(T,Q) -> syscall(sysrule,T,Q);
-retract(H,Q) -> syscall(sysretract,H,Q);
+retract(H,Q) -> syscall(sysretract2,H,Q);
 
 insert(F) -> syscall(sysinsert,F);
 insert -> syscall(sysinputis,F) syscall(sysinsert,F);
 
 list(N) -> syscall(syslist,N);
 list -> list(0);
-asserta(H,Q) -> syscall(sysasserta,H,Q);
+asserta(H,Q) -> syscall(sysassert2,H,Q,true);
 assert(H,Q) -> asserta(H,Q);
-assertz(H,Q) -> syscall(sysassertz,H,Q);
+assertz(H,Q) -> syscall(sysassert2,H,Q,false);
 assert''(H,Q) -> assertz(H,Q);
 
 "session"
@@ -119,11 +119,11 @@ not(X) ->;
     op(700,xfx,'=<',infe)
     op(700,xfx,'>',sup)
     op(700,xfx,'>=',supe)
-    op(700,xfx,'=:=',eql)
-    op(500,yfx,"+",add)
-    op(500,yfx,"-",sub)
-    op(400,yfx,"*",mul)
-    op(400,yfx,"/",div)
-    op(200,fx,"+",add)
-    op(200,fx,"-",sub)
-    op(200,xfy,"^",'^');
+    op(700,xfx,=:=,eql)
+    op(500,yfx,+,add)
+    op(500,yfx,-,sub)
+    op(400,yfx,*,mul)
+    op(400,yfx,/,div)
+    op(200,fx,+,add)
+    op(200,fx,-,sub)
+    op(200,xfy,^,'^');

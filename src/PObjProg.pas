@@ -551,15 +551,15 @@ Function LastRuleWithHead( P : ProgPtr; I : IdPtr; Local : Boolean ) : RulePtr;
 Var
   R,Rn : RulePtr;
 Begin
-  LastRuleWithHead := Nil;
   R := FirstRuleWithHead(P,I,Local);
-  If R = Nil Then
-    Exit;
-  Rn := FindRuleWithHead(NextRule(R,Local),I,Local);
-  If Rn <> Nil Then
-    LastRuleWithHead := Rn
-  Else
-    LastRuleWithHead := R
+  Rn := R;
+  While Rn <> Nil Do
+  Begin
+    Rn := FindRuleWithHead(NextRule(R,Local),I,Local);
+    If Rn <> Nil Then
+      R := Rn
+  End;
+  LastRuleWithHead := R
 End;
 
 {-----------------------------------------------------------------------}

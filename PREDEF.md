@@ -171,7 +171,8 @@ Predicate | Action | Example
 --- | --- | --- 
 `consult(F)` | insert a Prolog file | `?- consult('examples/menu.pl').` <br> ...
 `clause(H,Q)` | same as Prolog II+ `rule(T,Q)` | 
-`asserta(H,Q)`, `assertz(H,Q)`| insert a fact at the beginning or at the end of a group of rules | `?- asserta(animal(cat),[]).` <br> `{ }` <br> `?-`
+`asserta(R)`, `assertz(R)`, `assert(R)` | insert rule `R` at the beginning (`asserta`) or at the end (`assertz`, `assert`) of a group of rules with the same access identifier, or at the end of the rules if no such group exists | `?- assert((a:-b,c)).` <br> `{ }` <br> `?-`
+`retract(R)` | delete rules matching rule `R`, succeeding once for each rule deleted; `retract((H:-true))` is equivalent to `retract(H)` | 
 `listing` | display the current rules | `?- listing.` <br> ...
 
 
