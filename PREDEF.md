@@ -202,10 +202,14 @@ Predicate | Action | Example
 
 ### Operators
 
-Operator | Type | Precedence | Example
---- | --- | --- | --- 
-`is` | xfx | 700 | 
-`=`, `<`, `=<`, `>`, `>=`, `=:=` | xfx | 700 | 
+Operator | Type | Precedence | Functor
+--- | --- | --- | ---
+`:-` | xfx | 1200 | 
+`,` | xfy | 1001 | 
+`\+` | fy | 900 | `not`
+`is` | xfx | 700 | `is`
+`=`, `<`, `=<`, `>`, `>=` | xfx | 700 | 
+`=:=` | xfx | 700 | `eql`
 `@<`, `@=<`, `@>`, `@>=` | xfx | 700 | 
 `\=` | xfx | 700 | 
 `=..` | xfx | 700 | 
@@ -214,3 +218,4 @@ Operator | Type | Precedence | Example
 `+`, `-` | fx | 200 | 
  `^` | xfy | 200  |
  
+When used as functors, operators must be single-quoted (e.g. `'+'(A,B)`), except for operators whose functors are specified in the last column.
