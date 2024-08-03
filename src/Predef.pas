@@ -112,6 +112,7 @@ Type
     PP_DIF,
     PP_UNIV,
     PP_ATOM_CHARS,
+    PP_NUMBER_CHARS,
     PP_FREEZE,
     PP_FAIL
   );
@@ -135,7 +136,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 54;
+  NB_PP = 55;
   MAX_PP_LENGHT = 21; { max string length }
   SYSCALL_IDENT_AS_STRING = 'syscall'; 
 Type
@@ -203,7 +204,8 @@ Const
     (I:PP_DUMP;S:'sysdump';N:0),
     (I:PP_DIF;S:'sysdif';N:2),
     (I:PP_UNIV;S:'sysuniv';N:2), { '=..', Edinburgh only, p.221 }
-    (I:PP_ATOM_CHARS;S:'sysatomchars';N:2), { '=..', Edinburgh only, p.222 }
+    (I:PP_ATOM_CHARS;S:'sysatomchars';N:2),
+    (I:PP_NUMBER_CHARS;S:'sysnumberchars';N:2),
     (I:PP_FREEZE;S:'sysfreeze';N:2),
     (I:PP_FAIL;S:'sysfail';N:0)
   );
@@ -1563,6 +1565,28 @@ Begin
   ClearAtomChars := ReduceOneEq(T1,T2,GetDebugStream(P))
 End;
 
+{ number_chars(123,['1','2','3']) }
+Function ClearNumberChars( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  T1,T2 : TermPtr;
+Begin
+  ClearNumberChars := False;
+  T1 := EvalPArg(1,T);
+  T2 := EvalPArg(2,T);
+  { T1 known }
+  If IsInteger(T1) Or IsReal(T1) Then
+  Begin
+    ClearNumberChars := ReduceOneEq(NumToList(P,ConstPtr(T1)),T2,
+        GetDebugStream(P));
+    Exit
+  End;
+  { T1 unknown }
+  T2 := TermPtr(ListToNum(P,T2));
+  If T2 = Nil Then
+    Exit;
+  ClearNumberChars := ReduceOneEq(T1,T2,GetDebugStream(P))
+End;
+
 { op(700,xfx,"<",inf) } { TODO: implement full specs PII+ p137 }
 Function ClearOp( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
@@ -2239,6 +2263,8 @@ Begin
     Ok := ClearUniv(P,T);
   PP_ATOM_CHARS:
     Ok := ClearAtomChars(P,T);
+  PP_NUMBER_CHARS:
+    Ok := ClearNumberChars(P,T);
   PP_OP:
     Ok := ClearOp(P,T);
   PP_QUIT:

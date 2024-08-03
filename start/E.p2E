@@ -180,6 +180,7 @@ not(X).
 
 '=..'(X,Y) :- syscall(sysuniv,X,Y).
 atom_chars(A,L) :- syscall(sysatomchars,A,L).
+number_chars(A,L) :- syscall(sysnumberchars,A,L).
 
 "expressions used as term to erase, see pII+ p.221"
 

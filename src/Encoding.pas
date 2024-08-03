@@ -67,6 +67,8 @@ Function CommaExpToList( P : ProgPtr; T : TermPtr ) : TermPtr;
 Function TupleToList( P : ProgPtr; U : TermPtr ) : TermPtr;
 Function IdentifierToList( P : ProgPtr; I : IdPtr ) : TermPtr;
 Function ListToIdentifier( P : ProgPtr; T : TermPtr ) : TermPtr;
+Function NumToList( P : ProgPtr; C : ConstPtr ) : TermPtr;
+Function ListToNum( P : ProgPtr; T : TermPtr ) : ConstPtr;
 Function BTermsToList( P : ProgPtr; B : BTermPtr ) : TermPtr;
 Function ListToBTerms( P : ProgPtr; T : TermPtr ) : BTermPtr;
 Function CommaExpToBTerms( P : ProgPtr; T : TermPtr ) : BTermPtr;
@@ -190,15 +192,14 @@ Begin
   End
 End;
 
-{ create a list of chars 'a'.'b'.'c'.nil from an identifier 'abc' }
-Function IdentifierToList( P : ProgPtr; I : IdPtr ) : TermPtr;
+{ create a list of chars 'a'.'b'.'c'.nil from a Str 'abc' }
+Function StrToList( P : ProgPtr; s : StrPtr ) : TermPtr;
 Var
-  s,sc : StrPtr;
+  sc : StrPtr;
   L : TermPtr;
   Iter : StrIter;
   cc : TChar;
 Begin
-  s := IdentifierGetStr(I);
   L := NewEmptyList(P);
   StrIter_ToEnd(Iter,s);
   While StrIter_PrevChar(Iter,cc) Do
@@ -207,17 +208,17 @@ Begin
     Str_AppendChar(sc,cc);
     L := NewList2(P,EmitIdent(P,sc,True),L)
   End;
-  IdentifierToList := L
+  StrToList := L
 End;
 
-{ create an identifier concatenating each character in a list; return Nil if 
+{ create a Str concatenating each character in a list; return Nil if 
  the term is not a list of characters }
-Function ListToIdentifier( P : ProgPtr; T : TermPtr ) : TermPtr;
+Function ListToStr( P : ProgPtr; T : TermPtr ) : StrPtr;
 Var
   s : StrPtr;
   Th,Tq : TermPtr;
 Begin
-  ListToIdentifier := Nil;
+  ListToStr := Nil;
   s := Str_New(UNDECIDED);
   While Not IsNil(T) Do
   Begin
@@ -228,7 +229,49 @@ Begin
     Str_Concat(s,GetIdentAsStr(IdPtr(Th),False));
     T := Tq
   End;
-  ListToIdentifier := EmitIdent(P,s,False)
+  ListToStr := s
+End;
+
+{ create a list of chars 'a'.'b'.'c'.nil from an identifier 'abc' }
+Function IdentifierToList( P : ProgPtr; I : IdPtr ) : TermPtr;
+Begin
+  IdentifierToList := StrToList(P,IdentifierGetStr(I))
+End;
+
+{ create an identifier concatenating each character in a list; return Nil if 
+ the term is not a list of characters }
+Function ListToIdentifier( P : ProgPtr; T : TermPtr ) : TermPtr;
+Var
+  s : StrPtr;
+Begin
+  ListToIdentifier := Nil;
+  s := ListToStr(P,T);
+  If s <> Nil Then
+    ListToIdentifier := EmitIdent(P,s,False)
+End;
+
+{ create a list of chars '1'.'2'.'3'.nil from a numerical constant 123; no
+ conversion is necessary since a canonical string representation is available }
+Function NumToList( P : ProgPtr; C : ConstPtr ) : TermPtr;
+Begin
+  NumToList := StrToList(P,ConstGetStr(C))
+End;
+
+{ create a numerical constant from a list of characters; return Nil if 
+ the term is not a list of characters or does not contain a valid numerical
+ value }
+Function ListToNum( P : ProgPtr; T : TermPtr ) : ConstPtr;
+Var
+  s : StrPtr;
+Begin
+  ListToNum := Nil;
+  s := ListToStr(P,T);
+  If s = Nil Then
+    Exit;
+  If NormalizeConstant(s,IntegerNumber) Then
+    ListToNum := ConstPtr(EmitConst(P,s,CI,False))
+  Else If NormalizeConstant(s,RealNumber) Then
+    ListToNum := ConstPtr(EmitConst(P,s,CR,False))
 End;
 
 { create a new list from a list of BTerms }

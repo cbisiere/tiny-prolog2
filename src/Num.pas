@@ -109,12 +109,12 @@ Begin
 End;
 
 { format a LongReal for display; makes it look nice, and like a Prolog real 
- constant; '1.20000000000000000000E+0002' => '1.2e+2' }
+ constant; '1.20000000000000000004E+0002' => '1.2e+2' }
 Function LongRealToShortString( v : LongReal ) : TString;
 Var 
   s : TString;
   man, exp : TString; { mantissa, exponent }
-  e,dot : Byte;
+  e,dot,i : Byte;
 Begin
   Str(v,s);
   s := TrimLeftSpaces(s);
@@ -123,12 +123,27 @@ Begin
   Begin
     man := Copy(s,1,e-1);
     exp := Copy(s,e+1,Length(s));
-    { remove useless trailing zeros from the mantissa, keeping one zero after 
+    { remove useless trailing digit from the mantissa, keeping one zero after 
      the dot }
     dot := Pos('.',man);
     If dot > 0 Then
+    Begin
+      { remove the last two digits, which are often a rounding error }
+      If Length(man) > dot+2 Then
+        Delete(man,Length(man)-1,2);
+      { removes all trailing zeros but one }
       While (Length(man) > dot+1) And (man[Length(man)] = '0') Do
         Delete(man,Length(man),1);
+      { round long sequences of 9: 22.001999999 => 22.002 }
+      i := Length(man);
+      While (i > dot+1) And (man[i] = '9') Do
+        i := i - 1;
+      If (i < Length(man)) And (man[i] <> '9') Then
+      Begin
+        Delete(man,i+1,Length(man));
+        man[i] := Chr(Ord(man[i])+1)
+      End
+    End;
     { remove leading zeros from the exponent }
     If (Length(exp) > 0) And (exp[1] In ['+','-']) Then
       While (Length(exp) > 2) And (exp[2] = '0') Do

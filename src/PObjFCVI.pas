@@ -192,15 +192,19 @@ Function GetArraySize( I : IdPtr ) : TArraySize;
 Function IsArray( I : IdPtr ) : Boolean;
 
 Function IsConstant( T : TermPtr ) : Boolean;
-Procedure SetAsAssigned( I : IdPtr );
+Function IsInteger( T : TermPtr ) : Boolean;
+Function IsReal( T : TermPtr ) : Boolean;
 Function IsIdentifier( T : TermPtr ) : Boolean;
 Function IsAtomic( T : TermPtr ) : Boolean;
-Function IsAssigned( I : IdPtr ) : Boolean;
-Function IsVariable( T : TermPtr ) : Boolean;
 Function IsAnonymous( V : VarPtr ) : Boolean;
 Function IsAnonymousVariable( T : TermPtr ) : Boolean;
-Procedure OrderTerms( Var T1,T2: TermPtr );
+
+Procedure SetAsAssigned( I : IdPtr );
+Function IsAssigned( I : IdPtr ) : Boolean;
+Function IsVariable( T : TermPtr ) : Boolean;
 Procedure TrackAssignment( T1,T2: TermPtr );
+
+Procedure OrderTerms( Var T1,T2: TermPtr );
 Function NormalizeConstant( Var s : StrPtr; typ : TConst ) : Boolean;
 
 Function InstallConst( Var D : DictPtr; str : StrPtr; 
@@ -989,6 +993,59 @@ Begin
 End;
 
 {-----------------------------------------------------------------------}
+{ methods: types                                                        }
+{-----------------------------------------------------------------------}
+
+{ is term T a constant? }
+Function IsConstant( T : TermPtr ) : Boolean;
+Begin
+  IsConstant := TypeOfTerm(T) = Constant
+End;
+
+{ is term T an integer constant? }
+Function IsInteger( T : TermPtr ) : Boolean;
+Begin
+  IsInteger := IsConstant(T) And (ConstType(ConstPtr(T)) = IntegerNumber)
+End;
+
+{ is term T a real constant? }
+Function IsReal( T : TermPtr ) : Boolean;
+Begin
+  IsReal := IsConstant(T) And (ConstType(ConstPtr(T)) = RealNumber)
+End;
+
+{ is term T an identifier? }
+Function IsIdentifier( T : TermPtr ) : Boolean;
+Begin
+  IsIdentifier := TypeOfTerm(T) = Identifier
+End;
+
+{ is term T atomic? }
+Function IsAtomic( T : TermPtr ) : Boolean;
+Begin
+  IsAtomic := IsIdentifier(T) Or IsConstant(T)
+End;
+
+{ is term T a variable, that is, is or may be the left-hand side of an equation 
+  in the reduced system }
+Function IsVariable( T : TermPtr ) : Boolean;
+Begin
+  IsVariable := TypeOfTerm(T) = Variable
+End;
+
+{ True if variable V is anonymous }
+Function IsAnonymous( V : VarPtr ) : Boolean;
+Begin
+  IsAnonymous := V^.TV_ANON
+End;
+
+{ True if term V is an anonymous variable }
+Function IsAnonymousVariable( T : TermPtr ) : Boolean;
+Begin
+  IsAnonymousVariable := IsVariable(T) And IsAnonymous(VarPtr(T))
+End;
+
+{-----------------------------------------------------------------------}
 { methods: assignable identifiers                                       }
 {-----------------------------------------------------------------------}
 
@@ -1043,76 +1100,10 @@ Begin
   Dict_SetGlobal(I^.TI_DVAR,True);
 End;
 
-{ is term T a constant? }
-Function IsConstant( T : TermPtr ) : Boolean;
-Begin
-  IsConstant := TypeOfTerm(T) = Constant
-End;
-
-{ is term T an identifier? }
-Function IsIdentifier( T : TermPtr ) : Boolean;
-Begin
-  IsIdentifier := TypeOfTerm(T) = Identifier
-End;
-
-{ is term T atomic? }
-Function IsAtomic( T : TermPtr ) : Boolean;
-Begin
-  IsAtomic := IsIdentifier(T) Or IsConstant(T)
-End;
-
 { Is an identifier assigned? (even if it may not be bound yet) }
 Function IsAssigned( I : IdPtr ) : Boolean;
 Begin
   IsAssigned := I^.TI_ASSI
-End;
-
-{ is term T a variable, that is, is or may be the left-hand side of an equation 
-  in the reduced system }
-Function IsVariable( T : TermPtr ) : Boolean;
-Begin
-  IsVariable := TypeOfTerm(T) = Variable
-End;
-
-{ True if variable V is anonymous }
-Function IsAnonymous( V : VarPtr ) : Boolean;
-Begin
-  IsAnonymous := V^.TV_ANON
-End;
-
-{ True if term V is an anonymous variable }
-Function IsAnonymousVariable( T : TermPtr ) : Boolean;
-Begin
-  IsAnonymousVariable := IsVariable(T) And IsAnonymous(VarPtr(T))
-End;
-
-{ return a rank used to order a term, as required by the reduction algorithm: 
- variables, anonymous variables, assigned identifiers; we also rank 
- unassigned identifiers and constants }
-Function TermRank( T : TermPtr ) : Byte;
-Var
-  Rank : Byte;
-Begin
-  Rank := 4; { lowest rank }
-  Case TypeOfTerm(T) Of 
-  Variable:
-    If Not IsAnonymous(VarPtr(T)) Then
-      Rank := 1
-    Else 
-      Rank := 2;
-  Identifier:
-    If IsAssigned(IdPtr(T)) Then
-      Rank := 3
-  End;
-  TermRank := Rank
-End;
-
-{ order two terms }
-Procedure OrderTerms( Var T1,T2: TermPtr );
-Begin
-  If (TermRank(T1) > TermRank(T2)) Or (TermRank(T1) = TermRank(T2)) And 
-      Not Term_OrderedWith(T1,T2) Then
-    SwapTerms(T1,T2)
 End;
 
 { keep track of "var = assigned ident" unification; this is needed because
@@ -1148,10 +1139,44 @@ Begin
 End;
 
 {-----------------------------------------------------------------------}
+{ methods: ordering                                                     }
+{-----------------------------------------------------------------------}
+
+{ return a rank used to order a term, as required by the reduction algorithm: 
+ variables, anonymous variables, assigned identifiers; we also rank 
+ unassigned identifiers and constants }
+Function TermRank( T : TermPtr ) : Byte;
+Var
+  Rank : Byte;
+Begin
+  Rank := 4; { lowest rank }
+  Case TypeOfTerm(T) Of 
+  Variable:
+    If Not IsAnonymous(VarPtr(T)) Then
+      Rank := 1
+    Else 
+      Rank := 2;
+  Identifier:
+    If IsAssigned(IdPtr(T)) Then
+      Rank := 3
+  End;
+  TermRank := Rank
+End;
+
+{ order two terms }
+Procedure OrderTerms( Var T1,T2: TermPtr );
+Begin
+  If (TermRank(T1) > TermRank(T2)) Or (TermRank(T1) = TermRank(T2)) And 
+      Not Term_OrderedWith(T1,T2) Then
+    SwapTerms(T1,T2)
+End;
+
+
+{-----------------------------------------------------------------------}
 { methods: install                                                      }
 {-----------------------------------------------------------------------}
 
-{ replace a constant string with ist canonical form, depending on its type;
+{ replace a constant string with its canonical form, depending on its type;
  return false if the canonical form cannot be computed; FIXME: far from
  perfect, as converting to string is likely to change or round the value }
 Function NormalizeConstant( Var s : StrPtr; typ : TConst ) : Boolean;
