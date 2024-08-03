@@ -1515,9 +1515,10 @@ Begin
   End;
 
   { pII+ p.222: "If X is free, Y must be instantiated with a list in which 
-   the first element is atomic. }
+   the first element is atomic." }
   If IsVariable(T1) And 
-      Not (ProtectedGetList(T2,Th,Tq,True) And IsAtomic(Th)) Then
+      Not (ProtectedGetList(T2,Th,Tq,True) And IsAtomic(Th) And 
+        ProtectedIsListOfKnownSize(T2,True)) Then
   Begin
     CWritelnWarning('univ: second argument must be a list whose first argument is atomic');
     Exit
@@ -1528,7 +1529,7 @@ Begin
 
   If IsVariable(T1) Then
   Begin
-    T := ListToTuple(T2);       { T =.. [foo,a,b] gives T = foo(a,b) }
+    T := ProtectedListToTuple(T2,True); { T =.. [foo,a,b] gives T = foo(a,b) }
     If TupleArgCount(T) = 1 Then
       T := TupleArgN(1,T)       { T =.. [foo] gives T = foo }
   End

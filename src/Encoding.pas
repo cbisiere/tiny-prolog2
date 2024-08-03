@@ -65,7 +65,6 @@ Function NewList2( P : ProgPtr; T1,T2 : TermPtr ) : TermPtr;
 Function IsNil( T : TermPtr ) : Boolean;
 Function CommaExpToList( P : ProgPtr; T : TermPtr ) : TermPtr;
 Function TupleToList( P : ProgPtr; U : TermPtr ) : TermPtr;
-Function ListToTuple( L : TermPtr ) : TermPtr;
 Function IdentifierToList( P : ProgPtr; I : IdPtr ) : TermPtr;
 Function ListToIdentifier( P : ProgPtr; T : TermPtr ) : TermPtr;
 Function BTermsToList( P : ProgPtr; B : BTermPtr ) : TermPtr;
@@ -76,6 +75,9 @@ Function RuleExpToBTerms( P : ProgPtr; T : TermPtr ) : BTermPtr;
 Function ProtectedGetTupleHead( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
 Function ProtectedGetTupleQueue( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
 Function ProtectedGetTupleArg( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
+
+Function ProtectedListToTuple( L : TermPtr; Reduce : Boolean ) : TermPtr;
+
 Function ProtectedGetFunc1( T : TermPtr; ident : TString; Var T1 : TermPtr; 
     Reduce : Boolean ) : Boolean;
 Function ProtectedGetFunc2( T : TermPtr; ident : TString; 
@@ -85,6 +87,8 @@ Function ProtectedGetFunc2( T : TermPtr; ident : TString;
 Function ProtectedGetList( T : TermPtr; Var T1,T2 : TermPtr; 
     Reduce : Boolean ) : Boolean;
 Function ProtectedIsList( T : TermPtr; Reduce : Boolean ) : Boolean;
+Function ProtectedIsNil( T : TermPtr; Reduce : Boolean ) : Boolean;
+Function ProtectedIsListOfKnownSize( T : TermPtr; Reduce : Boolean ) : Boolean;
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -183,22 +187,6 @@ Begin
   Begin
     L := TupleToList(P,TupleQueue(U));
     TupleToList := NewList2(P,TupleHead(U),L)
-  End
-End;
-
-{ create a new tuple <foo,a,b>  from a list foo.a.b.nil, that is [foo,a,b];
- note also that foo.nil => <foo>, nil => <> }
-Function ListToTuple( L : TermPtr ) : TermPtr;
-Var
-  T : TermPtr;
-Begin
-  If IsNil(L) Then
-    ListToTuple := Nil
-  Else
-  Begin
-    T := NewTuple(ListHead(L));
-    SetTupleQueue(T,ListToTuple(ListQueue(L)));
-    ListToTuple := T
   End
 End;
 
@@ -341,10 +329,62 @@ Begin
   U := GetTupleQueue(U,Reduce,g)
 End;
 
+{ list head }
+Function GetListHead( T : TermPtr; 
+    Reduce : Boolean; g : TSerial ) : TermPtr;
+Var
+  Th : TermPtr;
+Begin
+  Th := GetTupleArg(T,Reduce,g);
+  GetListHead := GetTupleHead(T,Reduce,g)
+End;
+
+{ list queue }
+Function GetListQueue( T : TermPtr; 
+    Reduce : Boolean; g : TSerial ) : TermPtr;
+Var
+  Th : TermPtr;
+Begin
+  Th := GetTupleArg(T,Reduce,g);
+  Th := GetTupleArg(T,Reduce,g);
+  GetListQueue := GetTupleHead(T,Reduce,g)
+End;
+
+{ return True if term T is 'nil' }
+Function GetIsNil( T : TermPtr; 
+    Reduce : Boolean; g : TSerial ) : Boolean;
+Begin
+  T := RepresentativeOf(T,Reduce,g);
+  GetIsNil := IsNil(T)
+End;
+
+{ create a new tuple <foo,a,b>  from a list foo.a.b.nil, that is [foo,a,b];
+ note also that foo.nil => <foo>, nil => <> }
+Function ListToTuple( L : TermPtr; 
+    Reduce : Boolean; g : TSerial  ) : TermPtr;
+Var
+  T : TermPtr;
+Begin
+  If GetIsNil(L,Reduce,g) Then
+    ListToTuple := Nil
+  Else
+  Begin
+    T := NewTuple(GetListHead(L,Reduce,g));
+    SetTupleQueue(T,ListToTuple(GetListQueue(L,Reduce,g),Reduce,g));
+    ListToTuple := T
+  End
+End;
+
 
 {----------------------------------------------------------------------------}
-{ loop-protected functions, which uses their own serial number               }
+{ loop-protected functions, which use their own serial number                }
 {----------------------------------------------------------------------------}
+
+{ tuple head }
+Function ProtectedListToTuple( L : TermPtr; Reduce : Boolean ) : TermPtr;
+Begin
+  ProtectedListToTuple := ListToTuple(L,Reduce,NewSerial)
+End;
 
 { tuple head }
 Function ProtectedGetTupleHead( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
@@ -429,6 +469,27 @@ Var
   T1,T2 : TermPtr;
 Begin
   ProtectedIsList := ProtectedGetList(T,T1,T2,Reduce)
+End;
+
+{ return True if term T is 'nil' }
+Function ProtectedIsNil( T : TermPtr; Reduce : Boolean ) : Boolean;
+Begin
+  T := RepresentativeOf(T,Reduce,NewSerial);
+  ProtectedIsNil := IsNil(T)
+End;
+
+{ return True if term T is a list of known size }
+Function ProtectedIsListOfKnownSize( T : TermPtr; Reduce : Boolean ) : Boolean;
+Var 
+  T1,T2 : TermPtr;
+Begin
+  If ProtectedIsNil(T,Reduce) Then
+    ProtectedIsListOfKnownSize := True
+  Else
+    If Not ProtectedGetList(T,T1,T2,Reduce) Then
+      ProtectedIsListOfKnownSize := False
+    Else
+      ProtectedIsListOfKnownSize := ProtectedIsListOfKnownSize(T2,Reduce)
 End;
 
 End.
