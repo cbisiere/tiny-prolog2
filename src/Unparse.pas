@@ -439,29 +439,29 @@ End;
 
 { write a comma-separated list of arguments in tuple U }
 Procedure WriteArgument( y : TSyntax; s : StrPtr; U : TermPtr; 
-    Reduce : Boolean; g : TSerial; depth : PosInt );
+    Quotes : Boolean; Reduce : Boolean; g : TSerial; depth : PosInt );
 Var
   T : TermPtr;
 Begin
   T := ProtectedGetTupleHead(U,Reduce);
-  WriteTermBis(y,s,T,False,False,True,Reduce,g,depth);
+  WriteTermBis(y,s,T,False,False,Quotes,Reduce,g,depth);
   T := ProtectedGetTupleQueue(U,Reduce);
   If T <> Nil Then
   Begin
     Str_Append(s,',');
-    WriteArgument(y,s,T,Reduce,g,depth)
+    WriteArgument(y,s,T,Quotes,Reduce,g,depth)
   End
 End;
 
 { write a tuple }
 Procedure WriteTuple( y : TSyntax; s : StrPtr; U : TermPtr; 
-    Reduce : Boolean; g : TSerial; depth : PosInt );
+    Quotes : Boolean; Reduce : Boolean; g : TSerial; depth : PosInt );
 Begin
   If y = Edinburgh Then
     Str_Append(s,'<>(')
   Else
     Str_Append(s,'<');
-  WriteArgument(y,s,U,Reduce,g,depth);
+  WriteArgument(y,s,U,Quotes,Reduce,g,depth);
   If y = Edinburgh Then
     Str_Append(s,')')
   Else
@@ -558,11 +558,11 @@ Begin
           Str_Append(s2,'(');
         If (y = Edinburgh) And (Not InList) Then
           Str_Append(s2,'[');
-        WriteTermBis(y,s2,T1,False,True,True,Reduce,g,depth+1);
+        WriteTermBis(y,s2,T1,False,True,Quotes,Reduce,g,depth+1);
         If y <> Edinburgh Then { display as dotted list }
         Begin
           Str_Append(s2,'.');
-          WriteTermBis(y,s2,T2,True,False,True,Reduce,g,depth+1)
+          WriteTermBis(y,s2,T2,True,False,Quotes,Reduce,g,depth+1)
         End
         Else If IsNil(T2) Then { t is t1.nil }
         Begin
@@ -571,12 +571,12 @@ Begin
         Else If ProtectedIsList(T2,Reduce) Then { t = t1.t2 where t2 is a list }
         Begin
           Str_Append(s2,',');
-          WriteTermBis(y,s2,T2,True,False,True,Reduce,g,depth+1)
+          WriteTermBis(y,s2,T2,True,False,Quotes,Reduce,g,depth+1)
         End
         Else { t = t1.t2 where t2 is a not list }
         Begin
           Str_Append(s2,'|');
-          WriteTermBis(y,s2,T2,False,False,True,Reduce,g,depth+1);
+          WriteTermBis(y,s2,T2,False,False,Quotes,Reduce,g,depth+1);
           Str_Append(s2,']')
         End;
         If ArgList Then 
@@ -591,12 +591,12 @@ Begin
         Begin
           WriteIdentifier(s2,ITh,Quotes);
           Str_Append(s2,'(');
-          WriteArgument(y,s2,Tq,Reduce,g,depth+1);
+          WriteArgument(y,s2,Tq,Quotes,Reduce,g,depth+1);
           Str_Append(s2, ')')
         End
         Else { <e> or <a,b,...> where a not an identifier or a is 'nil' }
         Begin
-          WriteTuple(y,s2,T,Reduce,g,depth+1)
+          WriteTuple(y,s2,T,Quotes,Reduce,g,depth+1)
         End
       End
     End

@@ -85,7 +85,7 @@ get_char(Char) :- input_is(Stream), get_char(Stream,Char).
 put_char(Char) :- syscall(sysoutm,Char).
 read(Stream,Term) :- syscall(sysinterm,Stream,Term).
 read(Term) :- input_is(Stream), syscall(sysin,Stream,Term,term,true,false).
-write(Term) :- syscall(sysout,Term).
+write(Term) :- syscall(sysoutm,Term).
 
 "i/o: PII+"
 
