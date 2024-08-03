@@ -112,6 +112,7 @@ Type
     PP_DIF,
     PP_UNIV,
     PP_ATOM_CHARS,
+    PP_ATOM_LENGTH,
     PP_NUMBER_CHARS,
     PP_FREEZE,
     PP_FAIL
@@ -136,7 +137,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 55;
+  NB_PP = 56;
   MAX_PP_LENGHT = 21; { max string length }
   SYSCALL_IDENT_AS_STRING = 'syscall'; 
 Type
@@ -205,6 +206,7 @@ Const
     (I:PP_DIF;S:'sysdif';N:2),
     (I:PP_UNIV;S:'sysuniv';N:2), { '=..', Edinburgh only, p.221 }
     (I:PP_ATOM_CHARS;S:'sysatomchars';N:2),
+    (I:PP_ATOM_LENGTH;S:'sysatomlength';N:2),
     (I:PP_NUMBER_CHARS;S:'sysnumberchars';N:2),
     (I:PP_FREEZE;S:'sysfreeze';N:2),
     (I:PP_FAIL;S:'sysfail';N:0)
@@ -1565,6 +1567,40 @@ Begin
   ClearAtomChars := ReduceOneEq(T1,T2,GetDebugStream(P))
 End;
 
+{ atom_length('hello',5) }
+Function ClearAtomLength( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  s,sn : StrPtr;
+  T1,T2 : TermPtr;
+  n : LongInt;
+Begin
+  ClearAtomLength := False;
+
+  { 1: atom  }
+  s := GetAtomArgAsStr(1,T,False);
+  If s = Nil Then
+  Begin
+    CWriteLnWarning('first argument must be an atom');
+    Exit
+  End;
+
+  { 2: length (positive integer) }
+  T2 := EvalPArg(2,T);
+  If Not (IsFree(T2) Or IsInteger(T2)) Then
+  Begin
+    CWriteLnWarning('when bound, second argument must be an integer');
+    Exit
+  End;
+
+  { create a constant from the length of s }
+  sn := Str_NewFromShortString(LongIntToShortString(Str_Length(s)));
+  If Not NormalizeConstant(sn,IntegerNumber) Then
+    Bug('atom_length: fail to normalize length');
+  T1 := EmitConst(P,sn,CI,False);
+
+  ClearAtomLength := ReduceOneEq(T1,T2,GetDebugStream(P))
+End;
+
 { number_chars(123,['1','2','3']) }
 Function ClearNumberChars( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
@@ -2263,6 +2299,8 @@ Begin
     Ok := ClearUniv(P,T);
   PP_ATOM_CHARS:
     Ok := ClearAtomChars(P,T);
+  PP_ATOM_LENGTH:
+    Ok := ClearAtomLength(P,T);
   PP_NUMBER_CHARS:
     Ok := ClearNumberChars(P,T);
   PP_OP:

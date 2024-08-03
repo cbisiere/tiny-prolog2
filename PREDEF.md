@@ -196,6 +196,7 @@ Predicate | Action | Example
 Predicate | Action | Example
 --- | --- | ---
 `atom_chars(A,L)` | unify atom `A` and list of chars `L` | `?- atom_chars('2€',L).` <br> `{ L=['2','€'] }` <br> `?-atom_chars(A,['3','¢']).` <br> `{ A='3¢' }` <br> `?-`
+`atom_length(A,N)` | unify `N` with the length of atom `A` | `?- atom_length(abc,N).` <br> `{ N=3 }` <br> `?-`
 `number_chars(X,L)` | unify number `X` and list of chars `L` | `?- number_chars(123,L).` <br> `{ L=['1','2','3'] }` <br> `?-number_chars(R,['1','.','2']).` <br> `{ R=1.2e+0 }` <br> `?-`
 
 
