@@ -35,7 +35,6 @@ Function Statement_New( ty : TStmt; O : TObjectPtr ) : StmtPtr;
 
 Function Statement_GetType( S : StmtPtr ) : TStmt;
 Function Statement_GetObject( S : StmtPtr ) : TObjectPtr;
-Function Statement_GetWorld( S : StmtPtr ) : WorldPtr;
 Procedure Statement_SetWorld( S : StmtPtr ; W : WorldPtr );
 Function Statement_GetPrev( S : StmtPtr ) : StmtPtr;
 Function Statement_GetNext( S : StmtPtr ) : StmtPtr;
@@ -84,12 +83,6 @@ End;
 Function Statement_GetObject( S : StmtPtr ) : TObjectPtr;
 Begin
   Statement_GetObject := S^.SM_OBJC
-End;
-
-{ statement's world }
-Function Statement_GetWorld( S : StmtPtr ) : WorldPtr;
-Begin
-  Statement_GetWorld := S^.SM_WRLD
 End;
 
 { set the world the statement belongs to }

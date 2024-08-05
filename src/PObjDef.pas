@@ -84,6 +84,7 @@ Type
   End;
 
   { clock header }
+  TBranch = LongInt; { branch under exploration }
   TObjHead = Record
       PO_META : TObjMeta;
       { not deep copied: }
@@ -95,6 +96,8 @@ Type
       HH_CHOI : Pointer; { data storing remaining choices for system call }
       { extra data: }
       HH_CLOC : LongInt; { clock time (unlikely to overflow)}
+      HH_BRAN : TBranch; { branch number under exploration }
+      HH_CLEA : Boolean; { current goal has been cleared }
       HH_ISYS : Boolean; { term to clear is a system call? }
       HH_ICUT : Boolean { term to clear is a cut? }
   End;
@@ -173,7 +176,51 @@ Type
     PP_DEBG : Boolean { debug is on/off }
   End;
 
+Function Statement_GetWorld( S : StmtPtr ) : WorldPtr;
+Function Rule_GetStatement( R : RulePtr ) : StmtPtr;
+
+Function World_IsUserLand( W : WorldPtr ) : Boolean;
+Function Statement_IsUserLand( S : StmtPtr ) : Boolean;
+Function Rule_IsUserLand( R : RulePtr ) : Boolean;
 
 Implementation
+
+{-----------------------------------------------------------------------}
+{ get / set                                                             }
+{-----------------------------------------------------------------------}
+
+{ some getters need to be located here to break circular references of units;
+ the typical case is when a member implements a has(O1,O2) relation while a
+ "back pointer", member of O2, points back to O1 )
+
+{ statement's world }
+Function Statement_GetWorld( S : StmtPtr ) : WorldPtr;
+Begin
+  Statement_GetWorld := S^.SM_WRLD
+End;
+
+{ get a rule's statement }
+Function Rule_GetStatement( R : RulePtr ) : StmtPtr;
+Begin
+  Rule_GetStatement := R^.RU_STMT
+End;
+
+{ is this world a userland world? }
+Function World_IsUserLand( W : WorldPtr ) : Boolean;
+Begin
+  World_IsUserland := W^.WO_USER
+End;
+
+{ statement lives in userland? }
+Function Statement_IsUserLand( S : StmtPtr ) : Boolean;
+Begin
+  Statement_IsUserLand := World_IsUserland(Statement_GetWorld(S))
+End;
+
+{ rule lives in userland? }
+Function Rule_IsUserLand( R : RulePtr ) : Boolean;
+Begin
+  Rule_IsUserLand := Statement_IsUserLand(Rule_GetStatement(R))
+End;
 
 End.

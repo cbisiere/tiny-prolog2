@@ -33,7 +33,6 @@ Uses
 Function Rule_New( y : TSyntax ) : RulePtr;
 
 Function Rule_GetSyntax( R : RulePtr ) : TSyntax;
-Function Rule_GetStatement( R : RulePtr ) : StmtPtr;
 Procedure Rule_SetStatement( R : RulePtr; St : StmtPtr );
 Function Rule_GetHead( R : RulePtr ) : BTermPtr;
 Function Rule_GetQueue( R : RulePtr ) : BTermPtr;
@@ -76,12 +75,6 @@ End;
 Function Rule_GetSyntax( R : RulePtr ) : TSyntax;
 Begin
   Rule_GetSyntax := R^.RU_SYNT
-End;
-
-{ get a rule's statement }
-Function Rule_GetStatement( R : RulePtr ) : StmtPtr;
-Begin
-  Rule_GetStatement := R^.RU_STMT
 End;
 
 { set a rule's statement }

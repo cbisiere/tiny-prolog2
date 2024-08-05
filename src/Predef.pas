@@ -126,8 +126,8 @@ Function GetAtomArgAsStr( n : Byte; T : TermPtr;
     Quotes : Boolean ) : StrPtr;
 
 Function ClearPredef( Predef : TPP; P : ProgPtr; Q : QueryPtr; 
-    T : TermPtr; Var V,G : TermPtr; Var L : RestPtr; 
-    Var Choices : Pointer ) : Boolean;
+    T : TermPtr; Var V,G : TermPtr; 
+    Var L : RestPtr; SuccessCount : LongInt; Var Choices : Pointer ) : Boolean;
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -1077,7 +1077,8 @@ End;
  variable), at the time of first call (logical update view); if Retract is True, 
  suppress the rule upon success }
 Function ClearRule( P : ProgPtr; T : TermPtr; TwoParam : Boolean; 
-    Retract : Boolean; Var L : RestPtr; Var Choices : Pointer ) : Boolean;
+    Retract : Boolean; Var L : RestPtr; SuccessCount : LongInt; 
+    Var Choices : Pointer ) : Boolean;
 Var
   T1,T2 : TermPtr;
   B,B2,Bq : BTermPtr;
@@ -1139,7 +1140,7 @@ Begin
 
   { on first call, gather all rules matching the head and the queue, using a
    list of statements }
-  If Choices = Nil Then
+  If SuccessCount = 0 Then
     Choices := GetListOfMatchingRules(P,R);
 
   { no (or no more) solutions: fail }
@@ -2276,7 +2277,7 @@ End;
  Code(Arg1,...,ArgN), except insert; G returns the new goal to freeze or clear }
 Function ClearPredef( Predef : TPP; P : ProgPtr; Q : QueryPtr; 
     T : TermPtr; Var V,G : TermPtr; 
-    Var L : RestPtr; Var Choices : Pointer ) : Boolean;
+    Var L : RestPtr; SuccessCount : LongInt; Var Choices : Pointer ) : Boolean;
 Var
   Ok : Boolean;
 Begin
@@ -2336,11 +2337,11 @@ Begin
   PP_SUPPRESS:
     Ok := ClearSuppress(P,T);
   PP_RULE:
-    Ok := ClearRule(P,T,True,False,L,Choices);
+    Ok := ClearRule(P,T,True,False,L,SuccessCount,Choices);
   PP_RETRACT1:
-    Ok := ClearRule(P,T,False,True,L,Choices);
+    Ok := ClearRule(P,T,False,True,L,SuccessCount,Choices);
   PP_RETRACT2:
-    Ok := ClearRule(P,T,True,True,L,Choices);
+    Ok := ClearRule(P,T,True,True,L,SuccessCount,Choices);
   PP_EXPAND_FILENAME:
     Ok := ClearExpandFileName(P,T);
   PP_NEW_BUFFER:

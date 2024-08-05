@@ -31,7 +31,6 @@ Uses
 
 Function World_New( Name : StrPtr; UserLand : Boolean ) : WorldPtr;
 
-Function World_IsUserLand( W : WorldPtr ) : Boolean;
 Function World_GetName( W : WorldPtr ) : StrPtr;
 Function World_GetParent( W : WorldPtr ) : WorldPtr;
 Function World_GetFirstChild( W : WorldPtr ) : WorldPtr;
@@ -83,12 +82,6 @@ End;
 {-----------------------------------------------------------------------}
 { get / set                                                             }
 {-----------------------------------------------------------------------}
-
-{ is this world a userland world? }
-Function World_IsUserLand( W : WorldPtr ) : Boolean;
-Begin
-  World_IsUserland := W^.WO_USER
-End;
 
 { name of the world }
 Function World_GetName( W : WorldPtr ) : StrPtr;

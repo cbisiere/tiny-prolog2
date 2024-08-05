@@ -94,16 +94,19 @@ End;
 { execute a system call syscall(Code,Arg1,...ArgN), meaning 
  Code(Arg1,...,ArgN); 
  - if the syscall is freeze, this function sets the frozen variable V and
- the frozen goal G;
+   the frozen goal G;
  - L is the undo stack of the header on top of the header for the syscall; 
-  backtrackable syscalls (e.g. rule/2) need to use it; that way, variables
-  in the syscall will be freed when backtracking from the top header, allowing 
-  to move to the next solution for that syscall 
+   backtrackable syscalls (e.g. rule/2) need to use it; that way, variables
+   in the syscall will be freed when backtracking from the top header, allowing 
+   to move to the next solution for that syscall 
+ - SuccessCount is the number of successes so far for the current goal; zero 
+   means this is the initial call to the syscall 
  - Choices stores whatever is needed to represent the remaining 
- choices of a syscall that yields several results, e.g. rule/2; Choices is Nil
+   choices of a syscall that yields several results, e.g. rule/2; Choices is Nil
  on first call }
 Function ExecutionSysCallOk( P : ProgPtr; Q : QueryPtr; T : TermPtr; 
-    Var V,G : TermPtr; Var L : RestPtr; Var Choices : Pointer ) : Boolean;
+    Var V,G : TermPtr; Var L : RestPtr; 
+    SuccessCount : LongInt; Var Choices : Pointer ) : Boolean;
 Var
   Ok : Boolean;
   Predef : TPP;
@@ -116,7 +119,7 @@ Begin
   If Predef = PP_INSERT Then
     Ok := ClearInsert(P,T)
   Else
-    Ok := ClearPredef(Predef,P,Q,T,V,G,L,Choices);
+    Ok := ClearPredef(Predef,P,Q,T,V,G,L,SuccessCount,Choices);
   ExecutionSysCallOk := Ok
 End;
 
@@ -128,7 +131,47 @@ End;
 {----------------------------------------------------------------------------}
 
 {----------------------------------------------------------------------------}
-{ warning during execution                                                   }
+{ trace                                                                      }
+{----------------------------------------------------------------------------}
+
+Type TTraceEvent = (TRACE_CALL,TRACE_REDO,TRACE_EXIT,TRACE_FAIL);
+
+{ is a goal traceable? TODO:  restrict to userland }
+Function Traceable( H : HeadPtr ) : Boolean;
+Begin
+  Traceable := True
+End;
+
+{ should a trace line be printed? }
+Function MustTrace( P : ProgPtr; H : HeadPtr ) : Boolean;
+Begin
+  MustTrace := GetTrace(P) And Traceable(H)
+End;
+
+{ print the trace event }
+Procedure PrintTraceEvent( P : ProgPtr; H : HeadPtr; TraceEvent : TTraceEvent );
+Var
+  Depth : LongInt;
+  Branch : TBranch;
+  Tag : TString;
+Begin
+  Depth := Header_GetClock(H) + 1;
+  Branch := Header_GetBranchNumber(H);
+
+  { event tag as a short string }
+  Case TraceEvent Of
+  TRACE_CALL: Tag := 'Call';
+  TRACE_REDO: Tag := 'Redo';
+  TRACE_EXIT: Tag := 'Exit';
+  TRACE_FAIL: Tag := 'Fail'
+  End;
+
+  OutTraceMessage(GetTraceStream(P),GetSyntax(P),Tag,Depth,Branch,
+      Header_GetTermToClear(H))
+End;
+
+{----------------------------------------------------------------------------}
+{ Prolog clock                                                               }
 {----------------------------------------------------------------------------}
 
 { clear a query }
@@ -288,9 +331,19 @@ Var
         Skip := (CutH <> Nil) And (Not OnTarget);
         If OnTarget Then
           CutH := Nil;
+ 
+        NextH := Headers_GetNext(H);
+
+        { trace; we do it early to preserve bindings for nice printing }
+        If MustTrace(P,NextH) Then
+        Begin
+          If Header_GetCleared(NextH) Then
+            PrintTraceEvent(P,NextH,TRACE_EXIT)
+          Else
+            PrintTraceEvent(P,NextH,TRACE_FAIL)
+        End;
 
         { backtracks one step }
-        NextH := H^.HH_NEXT;
         Rest_Restore(H^.HH_REST); { restore and free restore list }
         H^.HH_REST := Nil;
         H := NextH;
@@ -315,7 +368,7 @@ Var
     isSys, isCut : Boolean;
   Begin
     Possible := PossibleToClear(FirstRule(P,False),H^.HH_FBCL,R,isSys,isCut,True);
-    Header_SetRule(H,R,isSys,isCut);
+    Header_SetClearingInfo(H,R,isSys,isCut);
     If Not Possible Then
       Backtracking(H,EndOfClock)
   End;
@@ -345,13 +398,17 @@ Var
     FrozenB : BTermPtr;
     FrozenM : TermsPtr;
   Begin
-    Header_GetRule(H,R,isSys,isCut); { rule to apply }
+    Header_GetClearingInfo(H,R,isSys,isCut); { rule to apply }
 
     CheckCondition(H^.HH_FBCL <> Nil,'MoveForward: No terms to clear');
     CheckCondition((R <> Nil) Or isSys Or isCut,'MoveForward: No rule to apply');
 
     ClearB := H^.HH_FBCL; { list of terms to clear }
-    ClearT := BTerm_GetTerm(ClearB); { current term to clear }
+    ClearT := Header_GetTermToClear(H); { current term to clear }
+
+    { take note that we explore a new branch to clear the current goal }
+    Header_SetCleared(H,False);
+    Header_IncBranchNumber(H);
 
     { set the backward head pointer in case of a cut }
     If (H <> Nil) And (isCut) Then
@@ -373,7 +430,7 @@ Var
     Begin
       FrozenV := Nil;
       FrozenT := Nil;
-      Solvable := ExecutionSysCallOk(P,Q,ClearT,FrozenV,FrozenT,H^.HH_REST,Hc^.HH_CHOI);
+      Solvable := ExecutionSysCallOk(P,Q,ClearT,FrozenV,FrozenT,H^.HH_REST,Header_GetBranchNumber(Hc),Hc^.HH_CHOI);
 
       If Solvable Then
       Begin
@@ -467,20 +524,17 @@ Var
       End
     End;
 
-    { trace: print goal that has been cleared }
-    If GetTrace(P) And (Solvable Or GetDebug(P)) Then
+    { trace; we do it late to use bindings for nice printing }
+    If MustTrace(P,Hc) Then
     Begin
-      TraceStream := GetTraceStream(P);
-      If GetDebug(P) Then 
-        If Solvable Then 
-          Stream_WriteShortString(TraceStream,'+') 
-        Else 
-          Stream_WriteShortString(TraceStream,'-');
-      Stream_WriteShortString(TraceStream,LongIntToShortString(Header_GetClock(H)));
-      Stream_WriteShortString(TraceStream,': ');
-      OutTerm(TraceStream,GetSyntax(P),ClearT); { FIXME: syntax }
-      Stream_Writeln(TraceStream)
-    End
+      If Header_GetBranchNumber(Hc) = 1 Then
+        PrintTraceEvent(P,Hc,TRACE_CALL)
+      Else
+        PrintTraceEvent(P,Hc,TRACE_REDO)
+    End;
+
+    { take note whether we cleared the current goal }
+    Header_SetCleared(Hc,Solvable)
   End;
 
 {------------------------------------------------------------------}

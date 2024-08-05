@@ -61,6 +61,8 @@ Procedure OutTerm( f : StreamPtr; y : TSyntax; T : TermPtr );
 Procedure OutOneRule( f : StreamPtr; R : RulePtr );
 Procedure OutOneQuery( f : StreamPtr; Q : QueryPtr );
 Procedure OutOneComment( f : StreamPtr; C : CommPtr );
+Procedure OutTraceMessage( f : StreamPtr; y : TSyntax; Tag : TString;
+    Depth : LongInt; Branch : Longint; ClearT : TermPtr );
 
 Procedure DumpSystemFromDict( DV : DictPtr );
 
@@ -887,6 +889,22 @@ Var
 Begin
   s := Stream_NewStr(f);
   WriteOneComment(s,C);
+  OutlnString(f,s)
+End;
+
+Procedure OutTraceMessage( f : StreamPtr; y : TSyntax; Tag : TString; 
+    Depth : LongInt; Branch : Longint; ClearT : TermPtr );
+Var
+  s : StrPtr;
+Begin
+  s := Stream_NewStr(f);
+  Str_Append(s,Tag);
+  Str_Append(s,': (');
+  Str_Append(s,LongIntToShortString(Depth));
+  Str_Append(s,',');
+  Str_Append(s,LongIntToShortString(Branch));
+  Str_Append(s,') ');
+  WriteTerm(y,s,ClearT,False,False,False,True);
   OutlnString(f,s)
 End;
 

@@ -233,7 +233,7 @@ Begin
   End;
   Stream_Writeln(f);
   Stream_WriteShortString(f,'  Rule: ');
-  Header_GetRule(H,R,isSys,isCut);
+  Header_GetClearingInfo(H,R,isSys,isCut);
   if (isSys) Then
     Stream_WritelnShortString(f,'SYS')
   Else if (isCut) Then
@@ -257,7 +257,7 @@ Begin
   While H <> Nil Do
   Begin
     DumpHeader(f,H);
-    H := H^.HH_NEXT
+    H := Headers_GetNext(H)
   End
 End;
 
