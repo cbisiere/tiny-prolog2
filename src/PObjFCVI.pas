@@ -214,6 +214,7 @@ Function InstallVariable( Var D : DictPtr; str : StrPtr;
 Function InstallIdentifier( Var D : DictPtr; str : StrPtr; Quoted : Boolean;
     glob : Boolean  ) : IdPtr;
 
+Procedure DumpTermObjects( T : TermPtr; Tag : Char );
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -833,11 +834,16 @@ Begin
   Unbind(T);
   { copy children }
   If TypeOfTerm(T) = FuncSymbol Then
+  Begin
     With FuncPtr(T)^ Do
     Begin
       TF_LTER := CopyT(TF_LTER,Assigned,g);
       TF_RTER := CopyT(TF_RTER,Assigned,g)
-    End;
+    End
+  End;
+  { copy metadata; important to avoid messing up display }
+  With T^ Do
+    TT_META := TermMetaPtr(DeepCopyObject(TObjectPtr(TT_META),False,g));
   CopyT := T
 End;
 
@@ -1290,6 +1296,28 @@ Begin
   Else
     I := IdPtr(Dict_GetTerm(e));
   InstallIdentifier := I
+End;
+
+{ dump all objects representing a term; not loop proof }
+Procedure DumpTermObjects( T : TermPtr; Tag : Char );
+Begin
+  If T = Nil Then
+    Exit;
+  CWrite(Tag + ' ');
+  DumpObject(TObjectPtr(T),False);
+  Case TypeOfTerm(T) Of
+  Identifier: { TODO: Arrays }
+    If IsAssigned(IdPtr(T)) Then
+      DumpTermObjects(GetValue(IdPtr(T)),'=');
+  Variable:
+    DumpTermObjects(VRed(VarPtr(T)),'>');
+  FuncSymbol:
+    Begin
+      DumpTermObjects(Func_GetLeft(FuncPtr(T)),'L');
+      DumpTermObjects(Func_GetRight(FuncPtr(T)),'R');
+      DumpTermObjects(FRed(FuncPtr(T)),'>')
+    End;
+  End
 End;
 
 End.

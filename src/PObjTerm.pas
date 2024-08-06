@@ -46,8 +46,11 @@ Type
   TermMetaPtr = ^TermMeta;
   TermMeta = Record { only pointers here! }
     PO_META : TObjMeta;
+    { deep copied: (why??) }
     TT_CALL : ListAPtr; { list of call sites (TermPtrAddr) }
+    { not deep copied: }
     TT_DISP : StrPtr; { string representation of this term }
+    { extra data: }
     TT_DEPT : PosInt; { depth of the term (*n notation) }
     TT_SEEN : TSeenArray { 'seen' indicators }
   End;

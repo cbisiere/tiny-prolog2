@@ -176,11 +176,11 @@ Begin
     End;
   HE:
     Begin
-      Stream_WriteShortString(f,LongIntToShortString(Hp^.HH_CLOC));
+      Stream_WriteShortString(f,LongIntToShortString(Header_GetClock(Hp)));
       Stream_WriteShortString(f,' Sys:');
-      Stream_WriteShortString(f,BoolToShortString(Hp^.HH_ISYS));
+      Stream_WriteShortString(f,BoolToShortString(Header_IsSys(Hp)));
       Stream_WriteShortString(f,' Cut:');
-      Stream_WriteShortString(f,BoolToShortString(Hp^.HH_ICUT))
+      Stream_WriteShortString(f,BoolToShortString(Header_IsCut(Hp)))
     End;
   ST:
     Begin
@@ -222,7 +222,7 @@ Begin
   If H^.HH_BACK <> Nil Then
     Stream_WritelnShortString(f,' Back: ' + LongIntToShortString(H^.HH_BACK^.HH_CLOC));
   Stream_WriteShortString(f,'  Terms: ');
-  B := H^.HH_FBCL;
+  B := Header_GetGoalsToClear(H);
   While B <> Nil Do
   Begin
     OutTerm(f,y,BTerm_GetTerm(B));

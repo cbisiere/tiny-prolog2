@@ -137,6 +137,7 @@ val(T1,T2) :- syscall(syseval,T1,T2).
 "control"
 
 freeze(V,G) :- syscall(sysfreeze,V,G).
+findall(T,G,L) :- syscall(sysfindall,T,G,L).
 fail :- syscall(sysfail).
 
 "debug"

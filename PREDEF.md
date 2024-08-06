@@ -151,6 +151,7 @@ Identifier | Operator | Type | Precedence | Example
 Predicate | Action | Example
 --- | --- | ---
 `not(G)` | fail if goal `G` can be cleared
+`findall(T,G,L)` | collect in list `L` all the solutions `T` when goal `G` is cleared
 
 ### Rules
 
@@ -206,6 +207,7 @@ Predicate | Action | Example
 --- | --- | ---
 `once(G)`| clear goal `G` in the first way possible
 `true` | always succeed
+`findall(T,G,L)` | collect in list `L` all the solutions `T` when goal `G` is cleared
 
 
 ### Operators

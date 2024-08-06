@@ -89,16 +89,21 @@ Type
       PO_META : TObjMeta;
       { not deep copied: }
       HH_NEXT : HeadPtr; { previous clock header or Nil }
-      HH_RULE : RulePtr; { rule to apply }
+      HH_RULE : RulePtr; { rule to apply, if any }
       HH_FBCL : BTermPtr; { terms to clear }
       HH_REST : RestPtr; { restoration stack }
       HH_BACK : HeadPtr; { where to backtrack (cut) }
-      HH_CHOI : Pointer; { data storing remaining choices for system call }
+      HH_FIND : HeadPtr; { where to accumulate solutions (findall/3) }
+      HH_CHOI : Pointer; { data transferred between successive calls of a system call }
+      HH_CHOV : TermPtr; { term to extract data from the goal (findall/3) }
       { extra data: }
-      HH_CLOC : LongInt; { clock time (unlikely to overflow)}
-      HH_BRAN : TBranch; { branch number under exploration }
+      HH_CLOC : LongInt; { depth: clock time (unlikely to overflow)}
+      HH_SUCC : TBranch; { width: success number }
+      HH_BRAN : TBranch; { width: branch number under exploration }
       HH_CLEA : Boolean; { current goal has been cleared }
       HH_ISYS : Boolean; { term to clear is a system call? }
+      HH_MORE : Boolean; { syscall asks to be called again }
+      HH_FGOA : Boolean; { term to clear is on behalf of a syscall (next term) }
       HH_ICUT : Boolean { term to clear is a cut? }
   End;
 

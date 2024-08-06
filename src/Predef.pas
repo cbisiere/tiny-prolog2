@@ -32,6 +32,7 @@ Uses
   IChar,
   Memory,
   PObj,
+  PObjList,
   PObjTerm,
   PObjFCVI,
   PObjIO,
@@ -115,6 +116,7 @@ Type
     PP_ATOM_LENGTH,
     PP_NUMBER_CHARS,
     PP_FREEZE,
+    PP_FIND_ALL,
     PP_FAIL
   );
 
@@ -127,7 +129,8 @@ Function GetAtomArgAsStr( n : Byte; T : TermPtr;
 
 Function ClearPredef( Predef : TPP; P : ProgPtr; Q : QueryPtr; 
     T : TermPtr; Var V,G : TermPtr; 
-    Var L : RestPtr; SuccessCount : LongInt; Var Choices : Pointer ) : Boolean;
+    Var L : RestPtr; SuccessCount : LongInt; Var Choices : Pointer; 
+    Var More : Boolean ) : Boolean;
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -137,7 +140,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 56;
+  NB_PP = 57;
   MAX_PP_LENGHT = 21; { max string length }
   SYSCALL_IDENT_AS_STRING = 'syscall'; 
 Type
@@ -209,6 +212,7 @@ Const
     (I:PP_ATOM_LENGTH;S:'sysatomlength';N:2),
     (I:PP_NUMBER_CHARS;S:'sysnumberchars';N:2),
     (I:PP_FREEZE;S:'sysfreeze';N:2),
+    (I:PP_FIND_ALL;S:'sysfindall';N:3),
     (I:PP_FAIL;S:'sysfail';N:0)
   );
 
@@ -1078,7 +1082,7 @@ End;
  suppress the rule upon success }
 Function ClearRule( P : ProgPtr; T : TermPtr; TwoParam : Boolean; 
     Retract : Boolean; Var L : RestPtr; SuccessCount : LongInt; 
-    Var Choices : Pointer ) : Boolean;
+    Var Choices : Pointer; Var More : Boolean ) : Boolean;
 Var
   T1,T2 : TermPtr;
   B,B2,Bq : BTermPtr;
@@ -1086,6 +1090,8 @@ Var
   St : StmtPtr;
 Begin
   ClearRule := False;
+  More := False;
+
   { 1: the head (ident or tuple with ident as first element) }
   T1 := GetGoal(1,T,False);
   If T1 = Nil Then
@@ -1143,7 +1149,7 @@ Begin
   If SuccessCount = 0 Then
     Choices := GetListOfMatchingRules(P,R);
 
-  { no (or no more) solutions: fail }
+  { no (or no more) solutions: fail, and don't try again }
   If Choices = Nil Then
     Exit;
 
@@ -1174,6 +1180,7 @@ Begin
     Statement_Suppress(St)
   End;
 
+  More := True; { please call me back, I am not done }
   ClearRule := True
 End;
 
@@ -2269,6 +2276,73 @@ Begin
   ClearFreeze := True
 End;
 
+{ findall(x,goal(x),l)
+ 1) on first call, ask back the prolog engine to:
+   - store a handle to V 
+   - clear the goal G in all possible manners (artificially failing after each
+     success in order to trigger the next one immediately)
+   - in doing so, accumulate copies of bounded V in a list (as a ListPtr of 
+     TermPtr), passed back to the second call as Choices
+   - call us back a second time (boolean More), after removing the goal G from
+     the list of goals to clear to avoid calling G again
+ 2) on second call
+   - convert Choices to a Prolog list and unify it with the "l" argument 
+  }
+Function ClearFindAll( P : ProgPtr; T : TermPtr; 
+    Var V,G : TermPtr; SuccessCount : LongInt; 
+    Var Choices : Pointer; Var More : Boolean ) : Boolean;
+Var
+  T1,T2,T3,L : TermPtr;
+  Success : Boolean;
+Begin
+  ClearFindAll := False;
+  More := False;
+
+  CheckCondition(SuccessCount < 2, 'findall: too many calls');
+  If Error Then Exit;
+
+  { 1: variable to collect in the list (actually, any term is accepted) }
+  T1 := GetPArg(1,T);
+  { 2: goal (identifier or predicate) }
+  T2 := GetGoal(2,T,False);
+  If T2 = Nil Then
+  Begin
+    CWritelnWarning('findall: second argument must be a goal');
+    Exit
+  End;
+  { 3: list }
+  T3 := GetList(3,T,True);
+  If T3 = Nil Then
+  Begin
+    CWritelnWarning('findall: third argument is not a list');
+    Exit
+  End;
+
+  If SuccessCount = 0 Then { first call }
+  Begin
+    { returned values }
+    V := T1; { term (usually a variable) to collect in the list }
+    G := T2; { goal that must cleared }
+    Choices := Nil; { list in which to collect Vs when clearing G }
+    Success := True;
+    More := True { call me back }
+  End
+  Else
+  Begin { second (and last) call }
+    { Choices is the list of terms V when G is cleared, in reverse order }
+    L := NewEmptyList(P);
+    While Choices <> Nil Do
+    Begin
+      L := NewList2(P,TermPtr(List_GetObject(Choices)),L);
+      Choices := List_GetPrev(Choices)
+    End;
+    Success := ReduceOneEq(T3,L,GetDebugStream(P));
+    More := False { I am done, bye}
+  End;
+
+  ClearFindAll := Success
+End;
+
 {----------------------------------------------------------------------------}
 { dispatch                                                                   }
 {----------------------------------------------------------------------------}
@@ -2277,7 +2351,8 @@ End;
  Code(Arg1,...,ArgN), except insert; G returns the new goal to freeze or clear }
 Function ClearPredef( Predef : TPP; P : ProgPtr; Q : QueryPtr; 
     T : TermPtr; Var V,G : TermPtr; 
-    Var L : RestPtr; SuccessCount : LongInt; Var Choices : Pointer ) : Boolean;
+    Var L : RestPtr; SuccessCount : LongInt; Var Choices : Pointer; 
+    Var More : Boolean ) : Boolean;
 Var
   Ok : Boolean;
 Begin
@@ -2337,11 +2412,11 @@ Begin
   PP_SUPPRESS:
     Ok := ClearSuppress(P,T);
   PP_RULE:
-    Ok := ClearRule(P,T,True,False,L,SuccessCount,Choices);
+    Ok := ClearRule(P,T,True,False,L,SuccessCount,Choices,More);
   PP_RETRACT1:
-    Ok := ClearRule(P,T,False,True,L,SuccessCount,Choices);
+    Ok := ClearRule(P,T,False,True,L,SuccessCount,Choices,More);
   PP_RETRACT2:
-    Ok := ClearRule(P,T,True,True,L,SuccessCount,Choices);
+    Ok := ClearRule(P,T,True,True,L,SuccessCount,Choices,More);
   PP_EXPAND_FILENAME:
     Ok := ClearExpandFileName(P,T);
   PP_NEW_BUFFER:
@@ -2390,6 +2465,8 @@ Begin
     Ok := ClearDump(P);
   PP_FREEZE:
     Ok := ClearFreeze(P,T,V,G);
+  PP_FIND_ALL:
+    Ok := ClearFindAll(P,T,V,G,SuccessCount,Choices,More);
   PP_FAIL:
     Ok := False
   End;

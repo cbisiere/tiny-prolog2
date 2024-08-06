@@ -90,6 +90,7 @@ op(N,I,S) -> syscall(sysop,N,I,S,S);
 "control"
 
 freeze(V,G) -> syscall(sysfreeze,V,G);
+findall(T,G,L) -> syscall(sysfindall,T,G,L);
 fail -> syscall(sysfail);
 
 "debug"
