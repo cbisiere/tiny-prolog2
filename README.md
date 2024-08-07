@@ -3,9 +3,11 @@ A simple Prolog II interpreter written in Pascal
 
 ## What?
 
-This is a simple Prolog interpreter, for Linux, macOS, and Windows. It compiles under Turbo Pascal 4 and Free Pascal.
+This is a simple Prolog II interpreter, for Linux, macOS, and Windows. It compiles under Turbo Pascal 4 and Free Pascal.
 
-Regarding syntax, it (almost fully) handles the following flavours of the language: Prolog II (version 1 and version 2), Prolog II+ and Prolog Edinburgh.
+Regarding syntax, it (almost fully) supports the following flavours of the language: Prolog II (version 1 and version 2), Prolog II+ and Prolog Edinburgh.
+
+Regarding predefined predicates, it covers (almost) all the predicates defined in Prolog II, plus a subset of the PrologII+ (Marseille and Edinburgh) predicates.
 
 This whole programme started as an academic exercice, without any consideration for efficiency. In particular, memory consumption is high. Nonetheless, the interpreter is able to solve the "send more money" classical exercice in a low-end computer.
 
@@ -18,17 +20,17 @@ I wrote this interpreter as a course assignment, back in 1988, when I was a stud
 
 One of the courses I also took in this MSc was Henri Méloni's course on speech recognition. As my Prolog II interpreter gained additional features, executing the Prolog II programs I wrote for this course is now possible. Ditto for a Prolog program to query a database of Nobel Prize winners.
 
-A more ambitious goal is to run some of the demo programs written by Alain Colmeraurer (see [Alain Colmerauer's website](http://alain.colmerauer.free.fr/)). At this point, the interpreter is able to read the entire Orbis program, but fails to run it as many built-in predicates have not been implemented yet.
-
 ## Status
 
-*As of May 2024:*
+*As of August 2024:*
 
 Support for Prolog II (both versions) and Prolog II+ (both Marseille and Edinburgh) syntaxes is (I believe) complete.
 
-The interpreter offers (partial) support for UTF-8 input and output. 
+The interpreter offers (partial) support for UTF-8 input and output.
 
 Support for Prolog II's predefined predicates is almost complete, and should be completed soon. Prolog II+ has a much larger set of predefined predicates. Only the bare minimum will be implemented, so as to run some examples I found interesting. The module system will not be implemented.
+
+The interpreter is able to solve most of the exercises proposed in Kanoui (1982) and Giannesini et al. (1985). In Edinburgh mode, it successfully (but slowly) runs Orbis, a demo program written by Alain Colmeraurer (see [Alain Colmerauer's website](http://alain.colmerauer.free.fr/)).
 
 ## Overview
 Being a simple implementation exercice, the interpreter offers only a few [built-in predicates](PREDEF.md) and no advanced features. 
@@ -595,6 +597,10 @@ _11 June 2023:_ [nobel.pro](examples/PII/nobel/nobel.pro), a homework Prolog II 
 _23 February 2024:_ Tiny Prolog successfully running [Turing Completeness](https://en.wikipedia.org/wiki/Prolog#Turing_completeness), an example Edinburgh program of the [Prolog's Wikipedia page](https://en.wikipedia.org/wiki/Prolog):
 
 ![Tiny Prolog running the Turing program on macOS](examples/E/turing.png)
+
+_8 August 2024:_ Tiny Prolog successfully running [Orbis](http://alain.colmerauer.free.fr/alcol/ArchivesPublications/Orbis/*orbis.pdf):
+
+![Tiny Prolog running Orbis on macOS](examples/E/orbis.png)
 
 ## References
 
