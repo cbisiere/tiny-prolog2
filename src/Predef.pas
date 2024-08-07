@@ -121,7 +121,6 @@ Type
   );
 
 Procedure RegisterPredefined( P : ProgPtr );
-Function IdentifierIsSyscall( I : IdPtr ) : Boolean;
 Function PredefCallIsOk( P : ProgPtr; T : TermPtr; Var Predef : TPP ) : Boolean;
 
 Function GetAtomArgAsStr( n : Byte; T : TermPtr; 
@@ -142,7 +141,6 @@ Implementation
 Const
   NB_PP = 57;
   MAX_PP_LENGHT = 21; { max string length }
-  SYSCALL_IDENT_AS_STRING = 'syscall'; 
 Type
   TPPRec = Record
     I : TPP; { identifier }
@@ -238,12 +236,6 @@ Begin
 End;
 
 
-{ is an identifier a syscall? }
-Function IdentifierIsSyscall( I : IdPtr ) : Boolean;
-Begin
-  IdentifierIsSyscall := IdentifierEqualToShortString(I,SYSCALL_IDENT_AS_STRING)
-End;
-
 { install the predefined identifier syscall }
 Procedure RegisterPredefined( P : ProgPtr );
 Var 
@@ -291,7 +283,8 @@ Begin
 End;
 
 { return the goal (predicate or identifier) argument n of a predicate, or a 
- variable if AcceptVar is True, or Nil if the argument is not what is expected }
+ variable if AcceptVar is True, or Nil if the argument is not what is expected;
+ cut is not allowed }
 Function GetGoal( n : Byte; T : TermPtr; AcceptVar : Boolean ) : TermPtr;
 Var
   T1 : TermPtr;
@@ -303,9 +296,16 @@ Begin
     If Not IsIdentifier(ProtectedGetTupleHead(T1,True)) Then
       Exit
   End
-  Else
-    If Not IsIdentifier(T1) And Not (IsVariable(T1) And AcceptVar) Then
-      Exit;
+  Else If IsIdentifier(T1) Then
+  Begin
+    If TermIsCut(T1) Then
+      Exit
+  End
+  Else If IsVariable(T1) Then
+  Begin
+    If Not AcceptVar Then
+      Exit
+  End;
   GetGoal := T1
 End;
 

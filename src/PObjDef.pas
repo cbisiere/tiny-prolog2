@@ -57,6 +57,8 @@ Type
   CommPtr = ^TObjComm;
   WorldPtr = ^TObjWorld;
 
+  TGoalType = (GOAL_STD,GOAL_CUT,GOAL_SYS,GOAL_FIND);
+
   { list of pterms w/ extra data (access) }
   TObjBTerm = Record
     PO_META : TObjMeta;
@@ -67,7 +69,8 @@ Type
     { not deep copied: }
     BT_HEAD : HeadPtr; { clock header point to the rule containing this term }
     { extra data }
-    BT_ARIT : PosInt { arity or the access identifier if any, otherwise zero }
+    BT_ARIT : PosInt; { arity or the access identifier if any, otherwise zero }
+    BT_TYPE : TGoalType { type of goal }
   End;
 
   { rule }
@@ -93,7 +96,6 @@ Type
       HH_FBCL : BTermPtr; { terms to clear }
       HH_REST : RestPtr; { restoration stack }
       HH_BACK : HeadPtr; { where to backtrack (cut) }
-      HH_FIND : HeadPtr; { where to accumulate solutions (findall/3) }
       HH_CHOI : Pointer; { data transferred between successive calls of a system call }
       HH_CHOV : TermPtr; { term to extract data from the goal (findall/3) }
       { extra data: }
@@ -103,7 +105,7 @@ Type
       HH_CLEA : Boolean; { current goal has been cleared }
       HH_ISYS : Boolean; { term to clear is a system call? }
       HH_MORE : Boolean; { syscall asks to be called again }
-      HH_FGOA : Boolean; { term to clear is on behalf of a syscall (next term) }
+      HH_FGOA : Boolean; { term to clear is on behalf of a syscall }
       HH_ICUT : Boolean { term to clear is a cut? }
   End;
 

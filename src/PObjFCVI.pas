@@ -42,6 +42,9 @@ Uses
 { types                                                                 }
 {-----------------------------------------------------------------------}
 
+Const
+  SYSCALL_IDENT_AS_STRING = 'syscall'; 
+
 Type
   TTerm = (Variable,Identifier,Constant,FuncSymbol,Dummy); { type of term }
 
@@ -145,6 +148,7 @@ Function IdentifierEqualToShortString( I : IdPtr; ps : TString ) : Boolean;
 Function TermIsIdentifierEqualToShortString( T : TermPtr; ident : TString ) : Boolean;
 Function IdentifierIsCut( I : IdPtr ) : Boolean;
 Function TermIsCut( T : TermPtr ) : Boolean;
+Function IdentifierIsSyscall( I : IdPtr ) : Boolean;
 Function GetIdentAsStr( I : IdPtr; Quotes : Boolean ) : StrPtr;
 
 Function Func_GetLeft( F : FuncPtr ) : TermPtr;
@@ -550,6 +554,12 @@ End;
 Function TermIsCut( T : TermPtr ) : Boolean;
 Begin
   TermIsCut := TermIsIdentifierEqualToShortString(T,'!')
+End;
+
+{ is an identifier a syscall? }
+Function IdentifierIsSyscall( I : IdPtr ) : Boolean;
+Begin
+  IdentifierIsSyscall := IdentifierEqualToShortString(I,SYSCALL_IDENT_AS_STRING)
 End;
 
 { return an identifier as a (new) string; if Quotes is False, a quoted 
@@ -975,8 +985,7 @@ Begin
   ArgCount := n
 End;
 
-{ return the arity of a term, using the reduced system, or Nil if
- the term has no arity }
+{ return the arity of a term, using the reduced system }
 Function Arity( T : TermPtr ) : PosInt;
 Var 
   a : PosInt;

@@ -34,12 +34,15 @@ Uses
 
 { BTerm }
 Function BTerm_New( T : TermPtr ) : BTermPtr;
+Function BTerm_NewFindAll : BTermPtr;
 
 Function BTerm_GetTerm( B : BTermPtr ) : TermPtr;
 Function BTerm_GetAccessTerm( B : BTermPtr ) : IdPtr;
 Function BTerm_GetArity( B : BTermPtr ) : PosInt;
 Function BTerm_GetHeader( B : BTermPtr ) : HeadPtr;
 Procedure BTerm_SetHeader( B : BTermPtr; H : HeadPtr );
+Function BTerm_GetType( B : BTermPtr ) : TGoalType;
+Procedure BTerm_SetType( B : BTermPtr; GoalType : TGoalType );
 
 { list }
 Function BTerms_GetNext( B : BTermPtr ) : BTermPtr;
@@ -53,8 +56,9 @@ Implementation
 { constructor                                                           }
 {-----------------------------------------------------------------------}
 
-{ new block for term T }
-Function BTerm_New( T : TermPtr ) : BTermPtr;
+{ new block of type GoalType, access I, arity a, term T }
+Function BTerm_Build( GoalType : TGoalType; I : IdPtr; a : PosInt; 
+    T : TermPtr ) : BTermPtr;
 Var 
   B : BTermPtr;
   ptr : TObjectPtr Absolute B;
@@ -64,10 +68,39 @@ Begin
   Begin
     BT_TERM := T;
     BT_NEXT := Nil;
-    BT_ACCE := AccessIdentifier(T);
-    BT_ARIT := Arity(T)
+    BT_HEAD := Nil;
+    BT_ACCE := I;
+    BT_ARIT := a;
+    BT_TYPE := GoalType
   End;
-  BTerm_New := B
+  BTerm_Build := B
+End;
+
+{ new block for term T }
+Function BTerm_New( T : TermPtr ) : BTermPtr;
+Var 
+  I : IdPtr;
+  a : PosInt;
+  GoalType : TGoalType;
+Begin
+  I := AccessIdentifier(T);
+  a := Arity(T);
+  GoalType := GOAL_STD;
+  
+  If I <> Nil Then
+  Begin
+    If IdentifierIsCut(I) Then
+      GoalType := GOAL_CUT
+    Else If IdentifierIsSyscall(I) Then
+      GoalType := GOAL_SYS
+  End;
+  BTerm_New := BTerm_Build(GoalType,I,a,T)
+End;
+
+{ return a special BTerm to handle findall/3 }
+Function BTerm_NewFindAll : BTermPtr;
+Begin
+  BTerm_NewFindAll := BTerm_Build(GOAL_FIND,Nil,0,Nil)
 End;
 
 {-----------------------------------------------------------------------}
@@ -93,7 +126,7 @@ Begin
   BTerm_GetArity := B^.BT_ARIT
 End;
 
-{ set clock header }
+{ get clock header }
 Function BTerm_GetHeader( B : BTermPtr ) : HeadPtr;
 Begin
   BTerm_GetHeader := B^.BT_HEAD
@@ -103,6 +136,18 @@ End;
 Procedure BTerm_SetHeader( B : BTermPtr; H : HeadPtr );
 Begin
   B^.BT_HEAD := H
+End;
+
+{ get type }
+Function BTerm_GetType( B : BTermPtr ) : TGoalType;
+Begin
+  BTerm_GetType := B^.BT_TYPE
+End;
+
+{ set clock header }
+Procedure BTerm_SetType( B : BTermPtr; GoalType : TGoalType );
+Begin
+  B^.BT_TYPE := GoalType
 End;
 
 {-----------------------------------------------------------------------}

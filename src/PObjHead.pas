@@ -38,11 +38,8 @@ Procedure Header_SetRule( H : HeadPtr; R : RulePtr );
 
 Function Header_GetClock( H : HeadPtr ) : LongInt;
 
-Function Header_IsFindGoal( H : HeadPtr ) : Boolean;
-Procedure Header_SetFindGoal( H : HeadPtr; FindGoal : Boolean );
-
-Function Header_GetFindTarget( H : HeadPtr ) : HeadPtr;
-Procedure Header_SetFindTarget( H : HeadPtr; Target : HeadPtr );
+Function Header_GetOngoingFind( H : HeadPtr ) : Boolean;
+Procedure Header_SetOngoingFind( H : HeadPtr; FindGoal : Boolean );
 
 Function Header_IsCleared( H : HeadPtr ): Boolean ;
 Procedure Header_SetCleared( H : HeadPtr; Clear : Boolean );
@@ -88,7 +85,7 @@ Var
   H : HeadPtr;
   ptr : TObjectPtr Absolute H;
 Begin
-  ptr := NewRegisteredPObject(HE,SizeOf(TObjHead),8,True,0);
+  ptr := NewRegisteredPObject(HE,SizeOf(TObjHead),7,True,0);
   With H^ Do
   Begin
     HH_NEXT := Nil;
@@ -96,7 +93,6 @@ Begin
     HH_FBCL := Nil;
     HH_REST := Nil;
     HH_BACK := Nil;
-    HH_FIND := Nil;
     HH_CHOI := Nil;
     HH_CHOV := Nil;
     HH_SUCC := 0;
@@ -151,28 +147,16 @@ Begin
   H^.HH_CLOC := Clock
 End;
 
-{ header is meant to clear a goal G following a findall(V,G,L) call  }
-Function Header_IsFindGoal( H : HeadPtr ) : Boolean;
+{ are we currently clearing a goal of a findall(V,G,L)?  }
+Function Header_GetOngoingFind( H : HeadPtr ) : Boolean;
 Begin
-  Header_IsFindGoal := H^.HH_FGOA
+  Header_GetOngoingFind := H^.HH_FGOA
 End;
 
 { set FindGoal status }
-Procedure Header_SetFindGoal( H : HeadPtr; FindGoal : Boolean );
+Procedure Header_SetOngoingFind( H : HeadPtr; FindGoal : Boolean );
 Begin
   H^.HH_FGOA := FindGoal
-End;
-
-{ return the header where solutions are collected for a findall/3  }
-Function Header_GetFindTarget( H : HeadPtr ) : HeadPtr;
-Begin
-  Header_GetFindTarget := H^.HH_FIND
-End;
-
-{ set FindGoal status }
-Procedure Header_SetFindTarget( H : HeadPtr; Target : HeadPtr );
-Begin
-  H^.HH_FIND := Target
 End;
 
 { get clear status }

@@ -207,18 +207,6 @@ Var
     CWriteLn
   End;
 
-  { get a goal's access identifier and arity; signature is recomputed (rather 
-   than taken from the goal's record) to handle possible assignments }
-  Procedure GetGoalSignature( B : BTermPtr; Var I : IdPtr; Var a : PosInt );
-  Var
-    T : TermPtr;
-  Begin
-    CheckCondition(B <> Nil,'GetGoalSignature: ZGoal is Nil');
-    T := BTerm_GetTerm(B);
-    I := AccessIdentifier(T); { slow but handle assignment }
-    a := Arity(T)
-  End;
-
   { access whether B has a chance to be cleared, that is, 1) there is a rule Rc 
    that has a chance to unify with a term B, starting with rule R; R could be 
    Nil; or 2) B is a cut; or 3) B is the system call syscall;
@@ -233,33 +221,48 @@ Var
     s : StrPtr;
   Begin
     Rc := Nil;
-    isSys := False;
-    isCut := False;
-    If B = Nil Then { FIXME: ? }
-      Exit;
-    GetGoalSignature(B,I,a);
-    If I <> Nil Then
-    Begin
-      If IdentifierIsSyscall(I) Then
-        isSys := True
-      Else If IdentifierIsCut(I) Then
-        isCut := True
-      Else
-        Rc := FindRuleWithHeadAndArity(R,I,a,False)
-    End;
-    Possible := (Rc <> Nil) Or isSys Or isCut;
-    If WarnNone And Not Possible Then
-    Begin
-      CWriteWarning('no rules to clear goal');
-      If I <> Nil Then
+    IsCut := False;
+    IsSys := False;
+    Possible := False;
+
+    { refresh BTerm data to handle assignments }
+    B := BTerm_New(BTerm_GetTerm(B));
+    I := BTerm_GetAccessTerm(B);
+    a := BTerm_GetArity(B);
+
+    Case BTerm_GetType(B) Of
+    GOAL_CUT:
       Begin
-        s := IdentifierGetStr(I);
-        CWrite(': ');
-        Str_CWrite(s);
-        CWrite('/');
-        CWritePosInt(a)
+        IsCut := True;
+        Possible := True
       End;
-      CWriteLn
+    GOAL_FIND:
+      Begin
+        Possible := True
+      End;
+    GOAL_SYS:
+      Begin
+        IsSys := True;
+        Possible := True
+      End;
+    GOAL_STD:
+      Begin
+        Rc := FindRuleWithHeadAndArity(R,I,a,False);
+        Possible := Rc <> Nil;
+        If WarnNone And Not Possible Then
+        Begin
+          CWriteWarning('no rules to clear goal');
+          If I <> Nil Then
+          Begin
+            s := IdentifierGetStr(I);
+            CWrite(': ');
+            Str_CWrite(s);
+            CWrite('/');
+            CWritePosInt(a)
+          End;
+          CWriteLn
+        End
+      End
     End;
     PossibleToClear := Possible
   End;
@@ -272,6 +275,7 @@ Var
   Function NextCandidate( H : HeadPtr ) : Boolean;
   Var 
     HasNext : Boolean;
+    B : BTermPtr;
     I : IdPtr;
     a : PosInt;
   Begin
@@ -288,7 +292,10 @@ Var
           HasNext := False
         Else
         Begin
-          GetGoalSignature(HH_FBCL,I,a);
+          { refresh goal data to handle assignments }
+          B := BTerm_New(BTerm_GetTerm(HH_FBCL));
+          I := BTerm_GetAccessTerm(B);
+          a := BTerm_GetArity(B);
           If I = Nil Then { no access, goal is probably a variable }
             HasNext := False
           Else
@@ -372,7 +379,7 @@ Var
     WarnNone : Boolean; { warn when no rule exists to clear the goal }
   Begin
     { clearing related to findall(X,G,L) is silent }
-    WarnNone := Not Header_IsFindGoal(H) And (Header_GetFindTarget(H) = Nil); 
+    WarnNone := Not Header_GetOngoingFind(H); 
 
     Possible := PossibleToClear(FirstRule(P,False),H^.HH_FBCL,R,isSys,isCut,WarnNone);
     Header_SetClearingInfo(H,R,isSys,isCut);
@@ -402,10 +409,13 @@ Var
     FrozenM : TermsPtr;
     Predef : TPP;
     More : Boolean;
+    GoalToClear,B : BTermPtr;
   Begin
     Header_GetClearingInfo(H,R,isSys,isCut); { rule to apply }
 
-    CheckCondition(Header_GetGoalsToClear(H) <> Nil,'MoveForward: No terms to clear');
+    GoalToClear := Header_GetGoalsToClear(H);
+
+    CheckCondition(GoalToClear <> Nil,'MoveForward: No terms to clear');
     CheckCondition((R <> Nil) Or isSys Or isCut,'MoveForward: No rule to apply');
 
     { take note that we explore a new branch to clear the current goal }
@@ -414,19 +424,36 @@ Var
 
     { set the backward head pointer in case of a cut }
     If isCut Then
-      H^.HH_BACK := BTerm_GetHeader(Header_GetGoalsToClear(H));
+      H^.HH_BACK := BTerm_GetHeader(GoalToClear);
 
     { backup pointer to current header }
     Hc := H;
 
     { new header, without the current goal }
-    Headers_PushNew(H,Header_GetGoalsToClear(H),Nil,False,False);
+    Headers_PushNew(H,GoalToClear,Nil,False,False);
     Header_RemoveGoalToClear(H);
 
-    { propagate findall target upward }
-    Header_SetFindTarget(H,Header_GetFindTarget(Hc));
+    { propagate findall search indicator upward }
+    Header_SetOngoingFind(H,Header_GetOngoingFind(Hc));
 
-    If isCut Then { cut }
+    { collect solutions on behalf of a findall(V,G,L) }
+    If BTerm_GetType(GoalToClear) = GOAL_FIND Then
+    Begin
+      { header where V is stored }
+      Hz := BTerm_GetHeader(GoalToClear);
+      { prepare the new collected item; in order to prevent backtracking from 
+        undoing the bindings we make a copy of the ZTerm, which 
+        was bound by unification steps; this prevents backtracking from 
+        undoing those bindings }
+      LTerm := List_New(TObjectPtr(CopyTerm(Hz^.HH_CHOV,False)));
+      { append it to the target list, just below }
+      Hz := Headers_GetNext(Hz);
+      List_Chain(Hz^.HH_CHOI,LTerm);
+      Hz^.HH_CHOI := Lterm;
+      { make it a fail to seek the next solution }
+      Cleared := False
+    End
+    Else If isCut Then { cut }
     Begin
       Cleared := True { "cut" is always clearable }
     End
@@ -446,19 +473,24 @@ Var
       Begin
         { special post-clearing treatment }
         Case Predef Of 
-        PP_FIND_ALL:
+        PP_FIND_ALL: { findall(V,G,L) }
           Begin
             If More Then { first call }
             Begin
-              { insert the goal to clear, as returned by the syscall }
+              { insert the special goal meant to know when the goal G is 
+               cleared; the goal point back to this header, where the
+               handle variable V is stored }
+              B := BTerm_NewFindAll;
+              BTerm_SetHeader(B,H);
+              Header_InsertGoalsToClear(H,B);
+              { then, insert the goal to clear, as returned by the syscall }
               Header_InsertGoalsToClear(H,BTerm_New(ZGoal));
-              { instruct the engine to collect data on our behalf }
-              Header_SetFindGoal(H,True);
-              Header_SetFindTarget(H,H);
+              { switch the engine to find mode }
+              Header_SetOngoingFind(H,True);
               H^.HH_CHOV := ZTerm
             End
           End;
-        PP_FREEZE:
+        PP_FREEZE: { freeze(V,G) }
           Begin
             If ZTerm <> Nil Then
             Begin
@@ -541,23 +573,6 @@ Var
 
     { set clear status}
     Header_SetCleared(Hc,Cleared);
-
-    { collect solutions on behalf of a findall, if any }
-    If Header_IsSolution(H) And (Header_GetFindTarget(H) <> Nil) Then
-    Begin
-      { prepare the new collected item; in order to prevent backtracking from 
-        undoing the bindings we make a copy of the ZTerm, which 
-        was bound by unification steps; this prevents backtracking from 
-        undoing those bindings }
-      Hz := Header_GetFindTarget(H);
-      LTerm := List_New(TObjectPtr(CopyTerm(Hz^.HH_CHOV,False)));
-      { append it to the target list, just below }
-      Hz := Headers_GetNext(Hz);
-      List_Chain(Hz^.HH_CHOI,LTerm);
-      Hz^.HH_CHOI := Lterm;
-      { make it a fail }
-      Header_SetCleared(Hc,False) 
-    End;
 
     { update success count }
     If Header_IsCleared(Hc) Then
