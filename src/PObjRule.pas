@@ -123,8 +123,12 @@ End;
 
 { test whether the head of a rule is valid }
 Function Rule_HeadIsValid( R : RulePtr ) : Boolean;
+Var
+  B : BTermPtr;
 Begin
-  Rule_HeadIsValid := BTerm_GetType(Rule_GetHead(R)) = GOAL_STD
+  B := Rule_GetHead(R);
+  Rule_HeadIsValid := (BTerm_GetType(B) = GOAL_STD) And 
+      (BTerm_GetAccessTerm(B) <> Nil)
 End;
 
 End.
