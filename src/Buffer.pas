@@ -455,7 +455,7 @@ Begin
         If IsEol(Buf[i]) Then { last char is Eol }
           CWrite(' ')
         Else
-          CWrite(Buf[i].Val.Bytes);
+          CWriteChar(Buf[i].Val);
         n := n + CrtCharWidthOnScreen(Buf[i].Val);
         If i = IdxR Then
           i := 0
