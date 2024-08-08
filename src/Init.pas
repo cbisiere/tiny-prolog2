@@ -75,7 +75,7 @@ Begin
         If StartFile[y] = par Then
         Begin
           If HasSyntaxPar Then
-            RaiseError('Syntax parameter cannot be used more than once');
+            ParameterError('Syntax parameter cannot be used more than once');
           Syntax := y;
           HasSyntaxPar := True;
           KnownPar := True
@@ -89,13 +89,13 @@ Begin
           KnownPar := True
         End;
       If Not KnownPar Then
-        RaiseError('Parameter: Unknown option')
+        ParameterError('Unknown option')
     End
     Else
     Begin
       { user file }
       If HasUserFilePar Then
-        RaiseError('Parameter: file already set');
+        ParameterError('file already set');
       HasUserFilePar := True;
       Filename := par;
     End

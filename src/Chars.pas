@@ -175,7 +175,7 @@ Procedure UpdateContainerEncoding( Var Cont : TEncoding; Enc : TEncoding );
 Begin
   CheckCondition(Enc <> UNDECIDED,'undecided encoding');
   If Not AreCompatibleEncodings(Cont,Enc) Then 
-    RaiseError('cannot mix incompatible character encodings')
+    SyntaxError('cannot mix incompatible character encodings') { FIXME: could be a "user input" error  }
   Else If UpdatableEncoding(Cont,Enc) Then
     Cont := Enc
 End;

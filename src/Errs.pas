@@ -22,19 +22,30 @@ Interface
 Uses
   ShortStr;
 
+Type 
+  TErrorState = (
+    NO_ERROR,
+    PARAMETER_ERROR,
+    SYNTAX_ERROR,
+    RUNTIME_ERROR,
+    USER_INTERRUPT
+  );
+
 Procedure ResetError;
 
 Function GetErrorMessage : TString;
 Function Error : Boolean;
+Function ErrorState : TErrorState;
 Function FatalError : Boolean;
 Function QuitRequested : Boolean;
 
-Procedure RaiseError( msg : TString );
 Procedure HaltProgram;
 Procedure SetQuitOn( n : Integer );
 
 Procedure SyntaxError( msg : TString );
 Procedure RuntimeError( msg : TString );
+Procedure ParameterError( msg : TString );
+Procedure UserInterrupt;
 Procedure Bug( msg : TString );
 
 Procedure CheckCondition( Condition : Boolean; msg : TString );
@@ -43,7 +54,7 @@ Implementation
 {-----------------------------------------------------------------------------}
 
 Var
-  Err : Boolean; { an error occurred? }
+  State : TErrorState;
   Quit : Boolean; { halt is required }
   Code : Integer; { termination code }
   Message : TString; { error message }
@@ -51,7 +62,7 @@ Var
 { reset the unit to no error state }
 Procedure ResetError;
 Begin
-  Err := False;
+  State := NO_ERROR;
   Quit := False;
   Code := 0;
   Message := ''
@@ -66,13 +77,19 @@ End;
 { is there an error? }
 Function Error : Boolean;
 Begin
-  Error := Err
+  Error := State <> NO_ERROR
+End;
+
+{ error state }
+Function ErrorState : TErrorState;
+Begin
+  ErrorState := State
 End;
 
 { is there a fatal error? }
 Function FatalError : Boolean;
 Begin
-  FatalError := Err And Quit
+  FatalError := Error And Quit
 End;
 
 { is there an ongoing request to quit? }
@@ -82,9 +99,9 @@ Begin
 End;
 
 { an error occurred; display a message }
-Procedure RaiseError( msg : TString );
+Procedure RaiseError( t : TErrorState; msg : TString );
 Begin
-  Err := True;
+  State := t;
   Message := msg
 End;
 
@@ -104,13 +121,25 @@ End;
 { a syntax error occurred; display a message }
 Procedure SyntaxError( msg : TString );
 Begin
-  RaiseError('Syntax error: ' + msg)
+  RaiseError(SYNTAX_ERROR,'Syntax error: ' + msg)
 End;
 
 { a runtime error occurred; display a message }
 Procedure RuntimeError( msg : TString );
 Begin
-  RaiseError('Runtime error: ' + msg)
+  RaiseError(RUNTIME_ERROR,'Runtime error: ' + msg)
+End;
+
+{ a parameter (command line) error occurred; display a message }
+Procedure ParameterError( msg : TString );
+Begin
+  RaiseError(PARAMETER_ERROR,'Command line error: ' + msg)
+End;
+
+{ user interruption }
+Procedure UserInterrupt;
+Begin
+  RaiseError(USER_INTERRUPT,'USER INTERRUPT')
 End;
 
 { a bug occurred: display a message and terminate }

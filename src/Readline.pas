@@ -52,6 +52,7 @@ Uses
   Buffer;
 
 Procedure ReadLnKbd( Var B : TBuf; Var Encoding : TEncoding );
+Function CtrlC : Boolean;
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -61,6 +62,7 @@ Const
   MaxHist = 10;
   MaxHistPlusOne = 11; { for TP3 compatibility }
   SOFT_BREAK = #00; { value of the soft break mark }
+  CTRL_C = #03; { ASCII encoding of Ctrl-C}
 
 Type
   THIndex = 1..MaxHist;
@@ -87,6 +89,13 @@ Var
 Begin
   c := ReadKey;
   ReadOneKey := c
+End;
+
+{ return True if Ctrl-C has been hit; warning: if not a Ctrl-C, the character is
+ definitively lost }
+Function CtrlC : Boolean;
+Begin
+  CtrlC := KeyPressed And (ReadOneKey = CTRL_C)
 End;
 
 { read a series of TChars from the keyboard; it is assumed that a  
@@ -417,10 +426,10 @@ Var
         Enter;
         Stop := True
       End
-      Else If cc.Bytes = #03 Then { Ctrl-C }
+      Else If cc.Bytes = CTRL_C Then { Ctrl-C }
       Begin
         Stop := True;
-        SetQuitOn(0)
+        UserInterrupt
       End
       Else If cc.Bytes = #08 Then { Backspace }
         Backspace

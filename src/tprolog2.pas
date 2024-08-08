@@ -69,6 +69,14 @@ Uses
   Engine,
   Init;
 
+{ cleanup and die }
+Procedure Die;
+Begin
+  CWriteln;
+  TerminateTrace;
+  HaltProgram
+End;
+
 { check for error (or/and request to quit) and handle it }
 Procedure HandleErrorIfAny( P : ProgPtr );
 Var
@@ -76,15 +84,20 @@ Var
 Begin
   If Error Then
   Begin
-    f := CurrentInput(P);
-    Stream_DisplayErrorMessage(f,GetErrorMessage);
-    Stream_Close(f)
+    If ErrorState = SYNTAX_ERROR Then
+    Begin
+      f := CurrentInput(P);
+      Stream_DisplayErrorMessage(f,GetErrorMessage);
+      Stream_Close(f)
+    End
+    Else
+    Begin
+      CWrite(GetErrorMessage);
+      CWriteln
+    End
   End;
   If QuitRequested Then
-  Begin
-    TerminateTrace;
-    HaltProgram
-  End;
+    Die;
   ResetError
 End;
 
@@ -109,6 +122,8 @@ Begin
     End;
     CWrite(Prompt);
     ReadFromConsole(P);
+    If ErrorState = USER_INTERRUPT Then
+      Die;
     ProcessCommandLine(P)
   Until False
 End;

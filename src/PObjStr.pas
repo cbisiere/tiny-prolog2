@@ -466,7 +466,7 @@ Begin
   UpdateContainerEncoding(s^.ST_ENCO,cc.Encoding);
   If Error Then Exit;
   If Not AreCompatibleEncodings(s^.ST_CONT,s^.ST_ENCO) Then
-    RaiseError('incompatible character encodings')
+    SyntaxError('incompatible character encodings') { FIXME: could be a "user input" error  }
 End;
 
 { append s2 to s1 }
