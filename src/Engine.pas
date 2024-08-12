@@ -23,6 +23,7 @@ Uses
   ShortStr,
   Num,
   Errs,
+  Readline,
   Files,
   Trace,
   Memory,
@@ -155,7 +156,7 @@ End;
 { print the trace event }
 Procedure PrintTraceEvent( P : ProgPtr; H : HeadPtr; TraceEvent : TTraceEvent );
 Var
-  Depth : LongInt;
+  Depth : TClock;
   Branch : TBranch;
   Tag : TString;
 Begin
@@ -182,21 +183,15 @@ End;
 { clear a query }
 Procedure Clock( P : ProgPtr; Q : QueryPtr );
 Var
-  EndOfClock  : Boolean;
-  R           : RulePtr;
   B           : BTermPtr;
-  isSys       : Boolean;
-  isCut       : Boolean;
   GCCount     : Integer;  { counter to trigger GC }
 
-  { init the clock }
+  { initialize the clock }
   Procedure InitClock;
   Begin
     { use a per-query clock: needed because Clock must be reentrant to
       support "insert/1" }
     Q^.QU_HEAD := Nil;
-  
-    EndOfClock := False;
     GCCount := 0
   End;
 
@@ -207,185 +202,183 @@ Var
     CWriteLn
   End;
 
-  { access whether B has a chance to be cleared, that is, 1) there is a rule Rc 
-   that has a chance to unify with a term B, starting with rule R; R could be 
-   Nil; or 2) B is a cut; or 3) B is the system call syscall;
-   if WarnNone is True, print a warning if the goal is impossible to clear }
-  Function PossibleToClear( R : RulePtr; B : BTermPtr; 
-      Var Rc : RulePtr; Var isSys : Boolean ; Var isCut : Boolean; 
-      WarnNone : Boolean ) : Boolean;
+  { emit a warning that the current goal cannot be cleared }
+  Procedure WarningNoRuleToApply( H : HeadPtr );
   Var
-    Possible : Boolean;
-    I : IdPtr; { goal access }
-    a : PosInt; { goal arity }
+    I : IdPtr; 
+    a : TArity;
     s : StrPtr;
   Begin
-    Rc := Nil;
-    IsCut := False;
-    IsSys := False;
-    Possible := False;
-
-    { refresh BTerm data to handle assignments }
-    B := BTerm_New(BTerm_GetTerm(B));
-    I := BTerm_GetAccessTerm(B);
-    a := BTerm_GetArity(B);
-
-    Case BTerm_GetType(B) Of
-    GOAL_CUT:
-      Begin
-        IsCut := True;
-        Possible := True
-      End;
-    GOAL_FIND:
-      Begin
-        Possible := True
-      End;
-    GOAL_SYS:
-      Begin
-        IsSys := True;
-        Possible := True
-      End;
-    GOAL_STD:
-      Begin
-        Rc := FindRuleWithHeadAndArity(R,I,a,False);
-        Possible := Rc <> Nil;
-        If WarnNone And Not Possible Then
-        Begin
-          CWriteWarning('no rules to clear goal');
-          If I <> Nil Then
-          Begin
-            s := IdentifierGetStr(I);
-            CWrite(': ');
-            Str_CWrite(s);
-            CWrite('/');
-            CWritePosInt(a)
-          End;
-          CWriteLn
-        End
-      End
+    CWriteWarning('no rules to clear goal');
+    I := Header_GetGoalAccess(H);
+    If I <> Nil Then
+    Begin
+      s := IdentifierGetStr(I);
+      a := Header_GetGoalArity(H);
+      CWrite(': ');
+      Str_CWrite(s);
+      CWrite('/');
+      CWritePosInt(a)
     End;
-    PossibleToClear := Possible
+    CWriteLn
+  End;
+
+  { rule to apply to clear the current goal, starting at rule R; do not alter H;
+   return Nil if there is not rule to apply }
+  Function FindRuleToApply( H : HeadPtr; R : RulePtr ) : RulePtr;
+  Var
+    I : IdPtr;
+    a : TArity;
+  Begin
+    FindRuleToApply := Nil;
+    I := Header_GetGoalAccess(H);
+    If I = Nil Then { no access, goal is probably a variable }
+      Exit;
+    a := Header_GetGoalArity(H);
+    R := FindRuleWithHeadAndArity(R,I,a,False);
+    If R = Nil Then
+      Exit;
+    FindRuleToApply := R
   End;
 
   {----------------------------------------------------------------------------}
-  { Set H to the next candidate rule to clear a goal, returning False if there }
-  { is no other candidates.                                                    }
+  { Set candidate rules                                                        }
   {----------------------------------------------------------------------------}
 
+  { prepare header H for the initial attempt to clear its goal, by:
+   1) setting its 'done' status to False if there is no way to clear it, 
+   2) setting the rule to apply, if any;
+   return False if there is chance to clear the goal; only standard goals
+   may not be clearable so early, i.e., when no rule can be used;
+   if Silent is True, do not print a warning if the goal is impossible to clear }
+  Function FirstCandidate( H : HeadPtr; Silent : Boolean ) : Boolean;
+  Var
+    R : RulePtr;
+  Begin
+    FirstCandidate := False;
+    Header_SetIsDone(H,False);
+    CheckCondition(Header_GetGoalType(H) <> GOAL_UNDEFINED,'undefined goal');
+    If Header_GetGoalType(H) = GOAL_STD Then
+    Begin
+      R := FindRuleToApply(H,FirstRule(P,False));
+      If R = Nil Then
+      Begin
+        If Not Silent Then
+          WarningNoRuleToApply(H);
+        Header_SetIsDone(H,True);
+        Exit
+      End;
+      Header_SetRule(H,R);
+    End;
+    FirstCandidate := True
+  End;
+
+  { prepare header H with the next candidate rule, by:
+   1) setting its 'done' status to True if it is no more possible to clear it, 
+   2) setting the next rule to apply, if any;
+   return True in only two cases: 
+    1) standard rule, when another candidate rule with matching access and arity
+       exists; in that case H's current rule is set to that candidate   
+    2) system call that requested to be called again }
   Function NextCandidate( H : HeadPtr ) : Boolean;
   Var 
-    HasNext : Boolean;
-    B : BTermPtr;
-    I : IdPtr;
-    a : PosInt;
+    R : RulePtr;
   Begin
-    With H^ Do
-    Begin
-      If HH_ICUT Then { cut is cleared only once }
-        HasNext := False
-      Else If HH_ISYS Then
-        HasNext := Header_GetMore(H) { syscall requested additional call }
-      Else If HH_RULE <> Nil Then { a rule has been used to clear the goal }
+    NextCandidate := False;
+    { [CUT:3] artificially already exhausted header }
+    If Header_IsDone(H) Then
+      Exit;
+    { assume exhaustion and exit when it is indeed the case }
+    Header_SetIsDone(H,True);
+    If Header_GetGoalsToClear(H) = Nil Then
+      Exit;
+    Case BTerm_GetType(Header_GetGoalsToClear(H)) Of
+    GOAL_BLOCK,GOAL_CUT,GOAL_FIND: { cleared only once }
+      Exit;
+    GOAL_SYS:
+      If Header_GetMore(H) Then { syscall requested additional calls }
+        Header_SetIsDone(H,False)
+      Else
+        Exit;
+    GOAL_STD:
       Begin
-        HH_RULE := NextRule(HH_RULE,False);
-        If HH_RULE = Nil Then { no next rule }
-          HasNext := False
-        Else
-        Begin
-          { refresh goal data to handle assignments }
-          B := BTerm_New(BTerm_GetTerm(HH_FBCL));
-          I := BTerm_GetAccessTerm(B);
-          a := BTerm_GetArity(B);
-          If I = Nil Then { no access, goal is probably a variable }
-            HasNext := False
-          Else
-          Begin
-            HH_RULE := FindRuleWithHeadAndArity(HH_RULE,I,a,False);
-            HasNext := HH_RULE <> Nil
-          End
-        End
+        R := Header_GetRule(H);
+        CheckCondition(R <> Nil,'NextCandidate: rule is Nil');
+        R := FindRuleToApply(H,NextRule(R,False)); { OPTIMIZE: enforce rule grouping }
+        { no next rule at all, R was the last rule in the Prolog program }
+        If R = Nil Then
+          Exit;
+        Header_SetRule(H,R);
+        Header_SetIsDone(H,False)
       End
     End;
-    NextCandidate := HasNext
+    NextCandidate := True
   End;
 
 {----------------------------------------------------------------------------}
-{ Backtracks the Prolog clock to the last usable point of choice. If there   }
-{ are no more choices to consider, the function sets EndOfClock to True.     }
+{ Backtracks the Prolog clock to the last usable point of choice.            }
 { Backtracking is done in three steps:                                       }
 { (1) unstack the current clock header                                       }
 { (2) undo memory changes                                                    }
 { (3) find the next rule to apply; if no rules apply, backtrack again        }
 {----------------------------------------------------------------------------}
 
-  Procedure Backtracking( Var H : HeadPtr; Var NoMoreChoices : Boolean );
+  { backtracking can occur in three different contexts (H is top header, Hc is
+   the header just below):
+   1) H: no more goals to clear (Nil)
+   2) Hc: goal failed to clear
+   3) Hc: goal cleared; H: no way to clear (FirstCandidate returned False)  
+   }
+  Procedure Backtracking( Var H : HeadPtr );
   Var
-    CutH : HeadPtr; { target header set by a cut }
-    OnTarget, Skip : Boolean;
+    CutTarget : HeadPtr; { target header set by a cut }
     NextH : HeadPtr;
-    Stop,HasNext : Boolean;
+    Stop : Boolean; { target reached }
+    HasNext : Boolean; { next branch exists }
   Begin
-    CutH := H^.HH_BACK;
-    Repeat
-      NoMoreChoices := Header_GetClock(H) = 0; { no previous choice point }
-      Stop := NoMoreChoices;
-
-      If Not Stop Then
+    CutTarget := Nil;
+    Stop := False;
+    While Not Stop And Not Header_EndOfSearch(H) Do
+    Begin
+      { trace; we trace before the actual backtracking to preserve bindings 
+       for nice printing }
+      NextH := Headers_GetNext(H);
+      If MustTrace(P,NextH) Then
       Begin
-        { detect the first target header }
-        If (CutH = Nil) And (H^.HH_BACK <> Nil) Then
-          CutH := H^.HH_BACK;
+        If Header_IsCleared(NextH) Then
+          PrintTraceEvent(P,NextH,TRACE_EXIT)
+        Else
+          PrintTraceEvent(P,NextH,TRACE_FAIL)
+      End;
 
-        { a target header has been reached; skip that one and then stop }
-        OnTarget := H = CutH;
-        Skip := (CutH <> Nil) And (Not OnTarget);
-        If OnTarget Then
-          CutH := Nil;
- 
-        NextH := Headers_GetNext(H);
+      { backtrack one step, undoing changes to the reduced system }
+      Rest_Restore(H^.HH_REST); { restore and free restore list }
+      H^.HH_REST := Nil;
+      H := Headers_GetNext(H);
 
-        { trace; we do it early to preserve bindings for nice printing }
-        If MustTrace(P,NextH) Then
-        Begin
-          If Header_IsCleared(NextH) Then
-            PrintTraceEvent(P,NextH,TRACE_EXIT)
-          Else
-            PrintTraceEvent(P,NextH,TRACE_FAIL)
-        End;
+      { [CUT:3] detect and honor the first target header }
+      If (CutTarget = Nil) And (Header_GetCutTarget(H) <> Nil) Then
+        CutTarget := Header_GetCutTarget(H);
+      { we acquired a target: we artificially keep exhausting the remaining 
+       choices at all levels downward including the target itself; that way we
+       will keep backtracking, going back to the goal before the targeted rule 
+       head  }
+      If CutTarget <> Nil then
+      Begin
+        Header_SetIsDone(H,True); { will make HasNext False }
+        If H = CutTarget Then
+          CutTarget := Nil { cancel the target, to branch again the next header }
+      End;
+      
+      { try to advance the new top header to the next candidate to clear the 
+        goal at step H }
+      HasNext := NextCandidate(H);
 
-        { backtracks one step }
-        Rest_Restore(H^.HH_REST); { restore and free restore list }
-        H^.HH_REST := Nil;
-        H := NextH;
-
-        { advance the header to the next possibility to clear the goal }
-        HasNext := NextCandidate(H);
-
-        Stop := Not Skip And HasNext
-      End
-    Until Stop
+      { more rules to try, stop here }
+      Stop := HasNext
+    End
   End;
 
-{------------------------------------------------------------------}
-{ set in header H the first rule whose head is unifiable with the  }
-{ current goal and backtrack if none                               }
-{------------------------------------------------------------------}
-
-  Procedure SetFirstCandidateRuleOrBacktrack( Var H : HeadPtr );
-  Var
-    Possible : Boolean;
-    R : RulePtr;
-    isSys, isCut : Boolean;
-    WarnNone : Boolean; { warn when no rule exists to clear the goal }
-  Begin
-    { clearing related to findall(X,G,L) is silent }
-    WarnNone := Not Header_GetOngoingFind(H); 
-
-    Possible := PossibleToClear(FirstRule(P,False),H^.HH_FBCL,R,isSys,isCut,WarnNone);
-    Header_SetClearingInfo(H,R,isSys,isCut);
-    If Not Possible Then
-      Backtracking(H,EndOfClock)
-  End;
 
 {------------------------------------------------------------------}
 { Advance the Prolog clock by one period, as follows:              }
@@ -401,8 +394,6 @@ Var
     Cleared : Boolean;  { current goal can be cleared}
     Hc : HeadPtr; { current header }
     Hz : HeadPtr; { header collecting findall results }
-    R : RulePtr;
-    isCut, isSys : Boolean;
     Ss : SysPtr;
     ZTerm,ZGoal : TermPtr; { term and goal set by frozen/2 and findall/3 }
     LTerm : ListPtr; { collected term (findall/3) }
@@ -410,171 +401,273 @@ Var
     Predef : TPP;
     More : Boolean;
     GoalToClear,B : BTermPtr;
+    R : RulePtr;
+    I : IdPtr;
   Begin
-    Header_GetClearingInfo(H,R,isSys,isCut); { rule to apply }
-
+    { initialize value to return in cas of block end }
     GoalToClear := Header_GetGoalsToClear(H);
 
     CheckCondition(GoalToClear <> Nil,'MoveForward: No terms to clear');
-    CheckCondition((R <> Nil) Or isSys Or isCut,'MoveForward: No rule to apply');
 
-    { take note that we explore a new branch to clear the current goal }
+    { take note that we explore a (possibly) new branch to clear the current goal }
     Header_SetCleared(H,False);
     Header_IncBranchNumber(H);
 
-    { set the backward head pointer in case of a cut }
-    If isCut Then
-      H^.HH_BACK := BTerm_GetHeader(GoalToClear);
-
-    { backup pointer to current header }
+    { backup pointer to current header Hc }
     Hc := H;
 
-    { new header, without the current goal }
-    Headers_PushNew(H,GoalToClear,Nil,False,False);
-    Header_RemoveGoalToClear(H);
+    { new header H, without the current goal; this new header is not fully ready
+     for the next forward step yet, as the rule is Nil; a call to 
+     FirstCandidate is required to find the first matching rule }
+    H := Headers_PushNew(Hc,BTerms_GetNext(GoalToClear));
 
-    { propagate findall search indicator upward }
+    { code below seeks to: 
+     1) clear GoalToClear, the current goal in Hc, 
+     2) prepare the new top header H for the next forward step, in case of 
+      successful clearing;
+     * Work on the new H includes: 
+     - setting up its list of goal, as the list of goal in Hc but with the 
+      first goal replaces with with the queue of the rule in Hc (or with 
+      special goals to handle findall or block) 
+     - setting up the restoration stack that will be used to backtrack to the 
+      previous header Hc; this restoration allows to 'undo' the unification of
+      the goal in Hc and the head of the rule in Hc  
+     * Work on the old Hc includes:
+     - setting its 'cleared' state
+     - cut: set the cut target in preparation of a further backtracking step;
+      this will forces the backtracking to proceed until the goal that was just
+      before the cut, forgetting about all the choices made after the cut
+      }
+
+    { [FIND:3] propagate findall search indicator upward }
     Header_SetOngoingFind(H,Header_GetOngoingFind(Hc));
 
-    { collect solutions on behalf of a findall(V,G,L) }
-    If BTerm_GetType(GoalToClear) = GOAL_FIND Then
-    Begin
-      { header where V is stored }
-      Hz := BTerm_GetHeader(GoalToClear);
-      { prepare the new collected item; in order to prevent backtracking from 
-        undoing the bindings we make a copy of the ZTerm, which 
-        was bound by unification steps; this prevents backtracking from 
-        undoing those bindings }
-      LTerm := List_New(TObjectPtr(CopyTerm(Hz^.HH_CHOV,False)));
-      { append it to the target list, just below }
-      Hz := Headers_GetNext(Hz);
-      List_Chain(Hz^.HH_CHOI,LTerm);
-      Hz^.HH_CHOI := Lterm;
-      { make it a fail to seek the next solution }
-      Cleared := False
-    End
-    Else If isCut Then { cut }
-    Begin
-      Cleared := True { "cut" is always clearable }
-    End
-    Else
-    If isSys Then { system call }
-    Begin
-      ZTerm := Nil;
-      ZGoal := Nil;
-      Cleared := ExecutionSysCallOk(P,Q,Header_GetTermToClear(Hc),
-          ZTerm,ZGoal,H^.HH_REST,Header_GetSuccessCount(Hc),
-          Hc^.HH_CHOI,Predef,More);
+    { [BLOCK:3] propagate pointer to last opened block upward }
+    Header_SetBlockScope(H,Header_GetBlockScope(Hc));
 
-      { not whether the syscall asked to be called again }
-      Header_SetMore(Hc,More);
-
-      If Cleared Then
+    { try to clear the current goal in Hc }
+    Case BTerm_GetType(GoalToClear) Of
+    GOAL_BLOCK: { [BLOCK:4.1] block(T,G): G cleared, w/o a block_exit(T) }
       Begin
-        { special post-clearing treatment }
-        Case Predef Of 
-        PP_FIND_ALL: { findall(V,G,L) }
-          Begin
-            If More Then { first call }
+        { note that we are now out of scope of that block, and back in the
+         scope of the outer block, if any }
+        Hz := Header_GetBlockScope(H);
+        Hz := Headers_GetNext(Hz); 
+        Header_SetBlockScope(H,Header_GetBlockScope(Hz));
+        { success }
+        Cleared := True
+      End;
+    GOAL_FIND: { [FIND:4] findall(V,G,L): G cleared, collect a solution V in L }
+      Begin
+        { header where V is stored }
+        Hz := BTerm_GetHeader(GoalToClear);
+        { prepare the new collected item; in order to prevent backtracking from 
+          undoing the bindings we make a copy of the ZTerm, which 
+          was bound by unification steps; this prevents backtracking from 
+          undoing those bindings }
+        LTerm := List_New(TObjectPtr(CopyTerm(Header_GetSideCarTerm(Hz),False)));
+        { append it to the target list, just below }
+        Hz := Headers_GetNext(Hz);
+        List_Chain(Header_GetSideCarObject(Hz),LTerm);
+        Header_SetSideCarObject(Hz,LTerm);
+        { make it a fail to look for the next solution }
+        Cleared := False
+      End;
+    GOAL_CUT: { [CUT:2] set the target header, for later backtracking }
+      Begin
+        Header_SetCutTarget(Hc,BTerm_GetHeader(GoalToClear));
+        Cleared := True
+      End;
+    GOAL_SYS: { system call }
+      Begin
+        ZTerm := Nil;
+        ZGoal := Nil;
+        Cleared := ExecutionSysCallOk(P,Q,Header_GetTermToClear(Hc),
+            ZTerm,ZGoal,H^.HH_REST,Header_GetSuccessCount(Hc),
+            Hc^.HH_CHOI,Predef,More);
+
+        { not whether the syscall asked to be called again }
+        Header_SetMore(Hc,More);
+
+        If Cleared Then
+        Begin
+          { special post-clearing treatment }
+          Case Predef Of 
+          PP_BLOCK: { [BLOCK:2] block(T,G); insert goals in H: -> G -> B<H> }
             Begin
-              { insert the special goal meant to know when the goal G is 
-               cleared; the goal point back to this header, where the
-               handle variable V is stored }
-              B := BTerm_NewFindAll;
-              BTerm_SetHeader(B,H);
+              { insert special goal }
+              I := IdPtr(EmitShortIdent(P,'{END OF BLOCK}',False));
+              B := BTerm_NewSpecial(GOAL_BLOCK,I,H);
               Header_InsertGoalsToClear(H,B);
               { then, insert the goal to clear, as returned by the syscall }
               Header_InsertGoalsToClear(H,BTerm_New(ZGoal));
-              { switch the engine to find mode }
-              Header_SetOngoingFind(H,True);
-              H^.HH_CHOV := ZTerm
-            End
-          End;
-        PP_FREEZE: { freeze(V,G) }
-          Begin
-            If ZTerm <> Nil Then
+              { switch the engine to in-block mode }
+              Header_SetBlockScope(H,H);
+              { save label T }
+              Header_SetSideCarTerm(H,ZTerm)
+            End;
+          PP_BLOCK_EXIT: { [BLOCK:5] block_exit(T) }
             Begin
-              CheckCondition(ZGoal <> Nil,'missing frozen term');
-              If IsFree(ZTerm) Then { free var: goal clearing must be delayed }
+              { 1) find the target header Hz }
+              Hz := Header_GetBlockScope(Hc);
+              While (Hz <> Nil) And 
+                  Not Unifiable(Header_GetSideCarTerm(Hz),ZTerm,GetDebugStream(P)) Do 
               Begin
-                { create the list element }
-                FrozenM := List_New(TObjectPtr(ZGoal));
-                { prepend the frozen term to the existing list, which may be Nil }
-                List_SetNext(FrozenM,GetFrozenTerms(VarPtr(ZTerm)));
-                { attach to the frozen variable the updated list of frozen terms }
-                SetFrozenTerms(VarPtr(ZTerm),FrozenM)
+                { previous label, if any, is pointed by the header just below 
+                 the special header; this is the header for the block(T,G); it
+                 points to an outer block, if any }
+                Hz := Headers_GetNext(Hz); 
+                Hz := Header_GetBlockScope(Hz);
+              End;
+              If Hz = Nil Then
+              Begin
+                RuntimeError('block exit with no matching block');
+                Cleared := False
               End
-              Else { bounded term: goal must be cleared right now }
+              Else
               Begin
-                { insert the (not frozen in the first place) goal, as returned 
-                 by the syscall }
+                { 1) deletes any choice points waiting for all the goals
+                 enclosed in the parentheses labeled T: prepare the header to 
+                 backtrack to the target header; note that the effect of this 
+                 cut will be to go just beyond the target of the cut itself, 
+                 meaning we will go back to the opening block(T,G) itself; 
+                 in turn, since that opening can only be called once, the
+                 backtrack process will go back to the goal before block/2, if
+                 any }
+                Header_SetCutTarget(Hc,Hz);
+                { 2) aborts execution of all goals enclosed by the pair of 
+                 parentheses labeled T: in H, bypass all goals before BLOCK[Hz]; 
+                 for instance, when clearing a block_exit to an outer block 
+                 (of clock level 4), top two headers might have the following 
+                 goals to clear:
+                 
+                 [top] cc2(v2) -> BLOCK[8] 
+                        -> bb2(y2) -> BLOCK[4] -> aa2(z) ->  Nil
+
+                 [top-1] syscall(sysblockexit,1) -> cc2(v2) -> BLOCK[8] 
+                        -> bb2(y2) -> BLOCK[4] -> aa2(z) ->  Nil
+
+                 The code below changes [top] to:
+
+                 [top] BLOCK[4] -> aa2(z) ->  Nil
+
+                 effectively setting the next goal to be the first one after
+                 the end of the outer block 
+                 }
+                B := Header_GetGoalsToClear(H);
+                While (B <> Nil) And ((BTerm_GetType(B) <> GOAL_BLOCK) Or
+                    (BTerm_GetHeader(B) <> Hz)) Do
+                  B := BTerms_GetNext(B);
+                CheckCondition(B <> Nil,'block: cannot find special goal');
+                AssignGoalsToClear(H,B)
+              End
+            End;
+          PP_FIND_ALL: { [FIND:2] findall(V,G,L) }
+            Begin
+              If More Then { first call }
+              Begin
+                { insert the special goal meant to know when the goal G is 
+                cleared; the goal point back to this header, where the
+                handle variable V is stored }
+                I := IdPtr(EmitShortIdent(P,'{END OF FINDALL}',False));
+                B := BTerm_NewSpecial(GOAL_FIND,I,H);
+                Header_InsertGoalsToClear(H,B);
+                { then, insert the goal to clear, as returned by the syscall }
                 Header_InsertGoalsToClear(H,BTerm_New(ZGoal));
+                { switch the engine to find mode }
+                Header_SetOngoingFind(H,True);
+                { save handle term V }
+                Header_SetSideCarTerm(H,ZTerm)
+              End
+            End;
+          PP_FREEZE: { freeze(V,G) }
+            Begin
+              If ZTerm <> Nil Then
+              Begin
+                CheckCondition(ZGoal <> Nil,'missing frozen term');
+                If IsFree(ZTerm) Then { free var: goal clearing must be delayed }
+                Begin
+                  { create the list element }
+                  FrozenM := List_New(TObjectPtr(ZGoal));
+                  { prepend the frozen term to the existing list, which may be Nil }
+                  List_SetNext(FrozenM,GetFrozenTerms(VarPtr(ZTerm)));
+                  { attach to the frozen variable the updated list of frozen terms }
+                  SetFrozenTerms(VarPtr(ZTerm),FrozenM)
+                End
+                Else { bounded term: goal must be cleared right now }
+                Begin
+                  { insert the (not frozen in the first place) goal, as returned 
+                  by the syscall }
+                  Header_InsertGoalsToClear(H,BTerm_New(ZGoal));
+                End
               End
             End
           End
         End
-      End
-    End
-    Else
-    Begin
-      Cleared := True;
-
-      { if any, reduce the equations given as a system in the rule itself; 
-        this must be done each time the rule is applied to take into account 
-        global assignments; e.g. "go -> { test=1 )" may succeed or fail, 
-        depending on the value of the identifier "test" if any; this value 
-        will be 1 if a goal "assign(test,1)" has been cleared before;
-        this reduction must be done *before* the rule is copied, such that
-        the liaisons are copied as part of the rule itself }
-      If R^.RU_SYST <> Nil Then
-      Begin
-        Ss := Sys_New;
-        Sys_CopyEqs(Ss,R^.RU_SYST);
-        Cleared := ReduceSystem(Ss,True,H^.HH_REST,FrozenM,GetDebugStream(P))
       End;
-
-      If Cleared Then
+    GOAL_STD:
       Begin
-        { copy the rule }
-        R := RulePtr(DeepCopy(TObjectPtr(R)));
+        Cleared := True;
 
-        { cut: link each term of the queue to the header pointing to the rule;
-         only the "!" terms need to be set that way but we do it fot all the
-         queue anyway }
-        BTerms_SetHeader(Rule_GetQueue(R),Hc);
+        { rule to try }
+        R := Header_GetRule(Hc);
 
-        { constraint to reduce: term to clear = rule head }
-        Ss := Sys_NewWithEq(Header_GetTermToClear(Hc),BTerm_GetTerm(Rule_GetHead(R)));
-
-        { insert the rule queue in the list of terms to clear }
-        If Rule_GetQueue(R) <> Nil Then
-          Header_InsertGoalsToClear(H,Rule_GetQueue(R));
-
-        FrozenM := Nil;
-        Cleared := ReduceSystem(Ss,True,H^.HH_REST,FrozenM,GetDebugStream(P));
-
-        { insert unfrozen goals if any }
-        If Cleared And (FrozenM <> Nil) Then
+        { if any, reduce the equations given as a system in the rule itself; 
+          this must be done each time the rule is applied to take into account 
+          global assignments; e.g. "go -> { test=1 )" may succeed or fail, 
+          depending on the value of the identifier "test" if any; this value 
+          will be 1 if a goal "assign(test,1)" has been cleared before;
+          this reduction must be done *before* the rule is copied, such that
+          the liaisons are copied as part of the rule itself }
+        If Rule_GetEqs(R) <> Nil Then
         Begin
-          While FrozenM <> Nil Do { loop through all terms to unfreeze}
+          Ss := Sys_New;
+          Sys_CopyEqs(Ss,Rule_GetEqs(R));
+          Cleared := ReduceSystem(Ss,True,H^.HH_REST,FrozenM,GetDebugStream(P))
+        End;
+
+        If Cleared Then
+        Begin
+          { copy the rule }
+          R := RulePtr(DeepCopy(TObjectPtr(R)));
+
+          { [CUT:1] each cut in the queue must point to the header whose rule is 
+           the rule containing these cuts }
+          BTerms_SetCutHeader(Rule_GetQueue(R),Hc);
+
+          { constraint to reduce: term to clear = rule head }
+          Ss := Sys_NewWithEq(BTerm_GetTerm(GoalToClear),BTerm_GetTerm(Rule_GetHead(R)));
+
+          { insert the rule queue in the list of terms to clear }
+          If Rule_GetQueue(R) <> Nil Then
+            Header_InsertGoalsToClear(H,Rule_GetQueue(R));
+
+          FrozenM := Nil;
+          Cleared := ReduceSystem(Ss,True,H^.HH_REST,FrozenM,GetDebugStream(P));
+
+          { insert unfrozen goals if any }
+          If Cleared And (FrozenM <> Nil) Then
           Begin
-            ZGoal := TermPtr(List_GetObject(FrozenM));
-            { build and insert the goal in the list of goals to clear }
-            Header_InsertGoalsToClear(H,BTerm_New(ZGoal));
-            { trace; FIXME: should appear after the trace event below }
-            If MustTrace(P,Hc) Then
-              PrintTraceEvent(P,Hc,TRACE_GOAL);
-            { next unfrozen term }
-            FrozenM := List_GetNext(FrozenM)
+            While FrozenM <> Nil Do { loop through all terms to unfreeze}
+            Begin
+              ZGoal := TermPtr(List_GetObject(FrozenM));
+              { build and insert the goal in the list of goals to clear }
+              Header_InsertGoalsToClear(H,BTerm_New(ZGoal));
+              { trace; FIXME: should appear after the trace event below }
+              If MustTrace(P,Hc) Then
+                PrintTraceEvent(P,Hc,TRACE_GOAL);
+              { next unfrozen term }
+              FrozenM := List_GetNext(FrozenM)
+            End
           End
         End
       End
-    End;
+    End; { of case }
 
     { set clear status}
     Header_SetCleared(Hc,Cleared);
 
-    { update success count }
+    { update success counter }
     If Header_IsCleared(Hc) Then
       Header_IncSuccessCount(Hc);
 
@@ -588,19 +681,7 @@ Var
     End
   End;
 
-{------------------------------------------------------------------}
-{ We are in a leaf of the exploration tree; if the set of          }
-{ constraints is soluble, we have a solution; then backtrack       }
-{------------------------------------------------------------------}
-
-  Procedure MoveBackward( Var H : HeadPtr );
-  Begin
-    If Header_IsSolution(H) Then
-      WriteQuerySolution;
-    Backtracking(H,EndOfClock)
-  End;
-
-Begin
+Begin { clock }
   InitClock;
   GarbageCollector;
 
@@ -621,29 +702,48 @@ Begin
     Exit
   End;
 
-  { fail when there is no chance to clear B }
-  If Not PossibleToClear(FirstRule(P,False),B,R,isSys,isCut,True) Then
-    Exit;
+  { first clock header; rule is set by the next statement  }
+  Q^.QU_HEAD := Headers_PushNew(Nil,B);
 
-  Headers_PushNew(Q^.QU_HEAD,B,R,isSys,isCut);
+  { from now, the top header is always pointed by the query, to ease debugging }
+  With Q^ Do
+  Begin
+    { fail when there is no chance to clear the first goal }
+    If Not FirstCandidate(QU_HEAD,False) Then
+      Exit;
 
-  { terms to clear points to this header }
-  BTerms_SetHeader(B,Q^.QU_HEAD);
+    { [CUT:1] cuts in the query must point back to this header }
+    BTerms_SetCutHeader(B,QU_HEAD);
 
-  Repeat
-    MoveForward(Q^.QU_HEAD);
-    If Header_IsLeaf(Q^.QU_HEAD) Then
-      MoveBackward(Q^.QU_HEAD)
-    Else
-      SetFirstCandidateRuleOrBacktrack(Q^.QU_HEAD);
-    { trigger GC after a certain number of steps }
-    GCCount := GCCount + 1;
-    If GCCount = 100 Then
-    Begin
-      GarbageCollector;
-      GCCount := 0
-    End
-  Until EndOfClock
+    Repeat
+      MoveForward(QU_HEAD);
+
+      If Header_IsLeaf(QU_HEAD) Then { a leaf: always backtrack }
+      Begin
+        If Header_IsSolution(QU_HEAD) Then
+          WriteQuerySolution;
+        Backtracking(QU_HEAD)
+      End
+      Else { not a leaf: try to find a first rule }
+      Begin
+        { note: clearing related to findall(X,G,L) is silent }
+        If Not FirstCandidate(QU_HEAD,Header_GetOngoingFind(QU_HEAD)) Then
+          Backtracking(QU_HEAD)
+      End;
+
+      { trigger GC after a certain number of steps }
+      GCCount := GCCount + 1;
+      If GCCount = 100 Then
+      Begin
+        GarbageCollector;
+        GCCount := 0
+      End;
+
+      { give the user a chance to halt execution }
+      If CtrlC Then
+        UserInterrupt
+    Until Header_EndOfSearch(QU_HEAD) Or Error
+  End
 End;
 
 {----------------------------------------------------------------------------}
@@ -779,7 +879,7 @@ End;
 
 { try to set a Prolog file as input, making sure there are no loops }
 Function TryPrologFileForInput( P : ProgPtr; Path : TPath; 
-    RaiseError : Boolean ) : StreamPtr;
+    RaiseAnError : Boolean ) : StreamPtr;
 Var
   f : StreamPtr;
   ShortPath : TShortPath;
@@ -787,7 +887,7 @@ Begin
   TryPrologFileForInput := Nil;
   If Str_Length(Path) > StringMaxSize Then { path too long }
   Begin
-    If RaiseError Then
+    If RaiseAnError Then
       RuntimeError('path is too long: ''' + 
           Str_GetShortStringTruncate(Path) + '...''');
     Exit
@@ -796,21 +896,21 @@ Begin
   { check the file exists }
   If Not FileExistsOnDisk(ShortPath) Then
   Begin
-    If RaiseError Then
+    If RaiseAnError Then
       RuntimeError('file does not exist: ''' + ShortPath + '''');
     Exit
   End;
   { the file exists: check for errors }
   If GetStreamByPath(P,Path) <> Nil Then
   Begin
-    If RaiseError Then
+    If RaiseAnError Then
       RuntimeError('insertion loop: ''' + ShortPath + '''');
     Exit
   End;
   f := Stream_New(Path,Path,DEV_FILE,MODE_READ,True,False);
   If Not Stream_IsOpen(f) Then
   Begin
-    If RaiseError Then
+    If RaiseAnError Then
       RuntimeError('unable to open: ''' + ShortPath + '''');
     Exit
   End;
@@ -824,7 +924,7 @@ End;
  NOTE: probably less TOCTOU-prone than looking for the file and then 
  setting it as input }
 Function SetPrologFileForInput( P : ProgPtr; 
-    BaseDir,Path : StrPtr; RaiseError : Boolean ) : StreamPtr;
+    BaseDir,Path : StrPtr; RaiseAnError : Boolean ) : StreamPtr;
 Var
   f : StreamPtr;
   y : TSyntax;
@@ -856,7 +956,7 @@ Begin
     f := TryPrologFileForInput(P,OtherPath,False)
   End;
   { failure, redo with the base filename so as to raise an error }
-  If (f = Nil) And RaiseError Then
+  If (f = Nil) And RaiseAnError Then
     f := TryPrologFileForInput(P,BasePath,True);
   SetPrologFileForInput := f
 End;

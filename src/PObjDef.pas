@@ -57,7 +57,7 @@ Type
   CommPtr = ^TObjComm;
   WorldPtr = ^TObjWorld;
 
-  TGoalType = (GOAL_STD,GOAL_CUT,GOAL_SYS,GOAL_FIND);
+  TGoalType = (GOAL_UNDEFINED,GOAL_STD,GOAL_CUT,GOAL_SYS,GOAL_FIND,GOAL_BLOCK);
 
   { list of pterms w/ extra data (access) }
   TObjBTerm = Record
@@ -69,7 +69,7 @@ Type
     { not deep copied: }
     BT_HEAD : HeadPtr; { clock header point to the rule containing this term }
     { extra data }
-    BT_ARIT : PosInt; { arity or the access identifier if any, otherwise zero }
+    BT_ARIT : TArity; { arity or the access identifier if any, otherwise zero }
     BT_TYPE : TGoalType { type of goal }
   End;
 
@@ -87,26 +87,30 @@ Type
   End;
 
   { clock header }
-  TBranch = LongInt; { branch under exploration }
+  TBranch = PosInt; { branch under exploration }
+  TClock = PosInt; { clock time }
   TObjHead = Record
       PO_META : TObjMeta;
       { not deep copied: }
       HH_NEXT : HeadPtr; { previous clock header or Nil }
       HH_RULE : RulePtr; { rule to apply, if any }
-      HH_FBCL : BTermPtr; { terms to clear }
+      HH_FBCL : BTermPtr; { all terms to clear }
       HH_REST : RestPtr; { restoration stack }
       HH_BACK : HeadPtr; { where to backtrack (cut) }
+      HH_BLOC : HeadPtr; { header of the last opened bloc (scope) }
       HH_CHOI : Pointer; { data transferred between successive calls of a system call }
-      HH_CHOV : TermPtr; { term to extract data from the goal (findall/3) }
+      HH_CHOV : TermPtr; { term to extract data from the goal (findall/3), or block/2 label }
+      HH_ACCE : IdPtr; { goal access }
       { extra data: }
-      HH_CLOC : LongInt; { depth: clock time (unlikely to overflow)}
-      HH_SUCC : TBranch; { width: success number }
+      HH_TYPE : TGoalType; { goal type } 
+      HH_ARIT : TArity;  { goal arity }
+      HH_CLOC : TClock;  { depth: clock time (unlikely to overflow)}
       HH_BRAN : TBranch; { width: branch number under exploration }
+      HH_SUCC : TBranch; { width: success number }
       HH_CLEA : Boolean; { current goal has been cleared }
-      HH_ISYS : Boolean; { term to clear is a system call? }
       HH_MORE : Boolean; { syscall asks to be called again }
       HH_FGOA : Boolean; { term to clear is on behalf of a syscall }
-      HH_ICUT : Boolean { term to clear is a cut? }
+      HH_DONE : Boolean  { no more branches to explore for the current goal }
   End;
 
   { query }

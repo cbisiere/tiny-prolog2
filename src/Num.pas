@@ -44,6 +44,7 @@ Const
 
 Function Max( a,b : Integer ) : Integer;
 Function Min( a,b : Integer ) : Integer;
+Function PointerToShortString( p : Pointer ) : TString;
 Function PosIntToShortString( v : PosInt ) : TString;
 Function LongRealToLongInt( v : LongReal ) : LongInt;
 Function LongIntToShortString( v : LongInt ) : TString;
@@ -73,6 +74,21 @@ Begin
     Min := a
   Else
     Min := b
+End;
+
+{ format a pointer for display }
+Function PointerToShortString( p : Pointer ) : TString;
+Var 
+  s1,s2 : TString;
+Begin
+  s1 := '';
+  If Seg(p) <> 0 Then { Seg(p) always 0 on Free Pascal }
+  Begin
+    Str(Seg(p),s1);
+    s1 := s1 + ':'
+  End;
+  Str(Ofs(p),s2);
+  PointerToShortString := s1 + s2
 End;
 
 { format a positive integer for display }

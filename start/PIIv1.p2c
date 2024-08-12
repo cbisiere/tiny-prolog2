@@ -101,6 +101,8 @@ val(T1,T2) -> syscall(syseval,T1,T2);
 "control"
 
 geler(V,G) -> syscall(sysfreeze,V,G);
+bloc(T,G) -> syscall(sysblock,T,G);
+fin-bloc(T) -> syscall(sysblockexit,T);
 impasse -> syscall(sysfail);
 
 "trace"

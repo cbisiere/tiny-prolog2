@@ -34,11 +34,13 @@ Uses
 
 { BTerm }
 Function BTerm_New( T : TermPtr ) : BTermPtr;
-Function BTerm_NewFindAll : BTermPtr;
+Function BTerm_NewSpecial( GoalType : TGoalType; I : IdPtr; 
+    H : HeadPtr ) : BTermPtr;
 
 Function BTerm_GetTerm( B : BTermPtr ) : TermPtr;
 Function BTerm_GetAccessTerm( B : BTermPtr ) : IdPtr;
-Function BTerm_GetArity( B : BTermPtr ) : PosInt;
+Function BTerm_GetArity( B : BTermPtr ) : TArity;
+Procedure BTerm_SetArity( B : BTermPtr; a : TArity );
 Function BTerm_GetHeader( B : BTermPtr ) : HeadPtr;
 Procedure BTerm_SetHeader( B : BTermPtr; H : HeadPtr );
 Function BTerm_GetType( B : BTermPtr ) : TGoalType;
@@ -48,7 +50,7 @@ Procedure BTerm_SetType( B : BTermPtr; GoalType : TGoalType );
 Function BTerms_GetNext( B : BTermPtr ) : BTermPtr;
 Procedure BTerms_SetNext( B : BTermPtr; B1 : BTermPtr );
 Function BTerms_GetLast( B : BTermPtr ) : BTermPtr;
-Procedure BTerms_SetHeader( B : BTermPtr; H : HeadPtr );
+Procedure BTerms_SetCutHeader( B : BTermPtr; H : HeadPtr );
 
 Implementation
 
@@ -57,7 +59,7 @@ Implementation
 {-----------------------------------------------------------------------}
 
 { new block of type GoalType, access I, arity a, term T }
-Function BTerm_Build( GoalType : TGoalType; I : IdPtr; a : PosInt; 
+Function BTerm_Build( GoalType : TGoalType; I : IdPtr; a : TArity; 
     T : TermPtr ) : BTermPtr;
 Var 
   B : BTermPtr;
@@ -80,7 +82,7 @@ End;
 Function BTerm_New( T : TermPtr ) : BTermPtr;
 Var 
   I : IdPtr;
-  a : PosInt;
+  a : TArity;
   GoalType : TGoalType;
 Begin
   I := AccessIdentifier(T);
@@ -97,10 +99,17 @@ Begin
   BTerm_New := BTerm_Build(GoalType,I,a,T)
 End;
 
-{ return a special BTerm to handle findall/3 }
-Function BTerm_NewFindAll : BTermPtr;
+{ return a special BTerm with a back pointer, to handle findall/3 or block/2;
+ identifier is for convenience (tracing) }
+Function BTerm_NewSpecial( GoalType : TGoalType; I : IdPtr; 
+    H : HeadPtr ) : BTermPtr;
+Var
+  B : BTermPtr;
 Begin
-  BTerm_NewFindAll := BTerm_Build(GOAL_FIND,Nil,0,Nil)
+  CheckCondition(GoalType In [GOAL_FIND,GOAL_BLOCK],'BTerm_NewSpecial: type');
+  B := BTerm_Build(GoalType,I,0,TermPtr(I));
+  BTerm_SetHeader(B,H);
+  BTerm_NewSpecial := B
 End;
 
 {-----------------------------------------------------------------------}
@@ -120,10 +129,16 @@ Begin
   BTerm_GetAccessTerm := B^.BT_ACCE
 End;
 
-{ arity of a block }
-Function BTerm_GetArity( B : BTermPtr ) : PosInt;
+{ arity  }
+Function BTerm_GetArity( B : BTermPtr ) : TArity;
 Begin
   BTerm_GetArity := B^.BT_ARIT
+End;
+
+{ set arity }
+Procedure BTerm_SetArity( B : BTermPtr; a : TArity );
+Begin
+  B^.BT_ARIT := a
 End;
 
 { get clock header }
@@ -175,12 +190,13 @@ Begin
   BTerms_GetLast := B
 End;
 
-{ make all terms in B point back to header H }
-Procedure BTerms_SetHeader( B : BTermPtr; H : HeadPtr );
+{ make all cut terms in the list B point back to header H }
+Procedure BTerms_SetCutHeader( B : BTermPtr; H : HeadPtr );
 Begin
   While B <> Nil Do
   Begin
-    BTerm_SetHeader(B,H);
+    If BTerm_GetType(B) = GOAL_CUT Then
+      BTerm_SetHeader(B,H);
     B := BTerms_GetNext(B)
   End
 End;

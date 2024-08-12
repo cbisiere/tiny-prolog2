@@ -49,6 +49,7 @@ Function ReduceSystem( S : SysPtr;
 Function ReduceEquations( E : EqPtr; TraceStream : StreamPtr ) : Boolean;
 Function ReduceOneEq( T1,T2 : TermPtr; TraceStream : StreamPtr ) : Boolean;
 Function ReduceOneIneq( T1,T2 : TermPtr; TraceStream : StreamPtr ) : Boolean;
+Function Unifiable( T1,T2 : TermPtr; TraceStream : StreamPtr ) : Boolean;
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -444,6 +445,22 @@ End;
 Function ReduceOneIneq( T1,T2 : TermPtr; TraceStream : StreamPtr ) : Boolean;
 Begin
   ReduceOneIneq := ReduceOne(REL_INEQ,T1,T2,TraceStream)
+End;
+
+{ are two terms unifiable? if not, undo any change to the reduced system;
+ there is no need to explicitly undo changes, as it is done by the
+ reduction system when the constraints cannot be satisfied }
+Function Unifiable( T1,T2 : TermPtr; TraceStream : StreamPtr ) : Boolean;
+Var
+  Success : Boolean;
+  S : SysPtr;
+  L : RestPtr;
+  M : TermsPtr;
+Begin
+  S := Sys_NewWithEq(T1,T2);
+  L := Nil;
+  M := Nil;
+  Unifiable := ReduceSystem(S,True,L,M,TraceStream)
 End;
 
 End.

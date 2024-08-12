@@ -47,6 +47,7 @@ Const
 
 Type
   TTerm = (Variable,Identifier,Constant,FuncSymbol,Dummy); { type of term }
+  TArity = PosInt; { arity of a predicate, e.g. aaa/2, '<'/2, bbb/0 }
 
 { constant: identifier, number or quoted string; list of constants  }
 Type
@@ -185,7 +186,7 @@ Function EvaluateToIdentifier( T : TermPtr ) : IdPtr;
 
 Function AccessIdentifier( T : TermPtr ) : IdPtr;
 Function ArgCount( T : TermPtr ) : PosInt;
-Function Arity( T : TermPtr ) : PosInt;
+Function Arity( T : TermPtr ) : TArity;
 
 Function GetValue( I : IdPtr ) : TermPtr;
 Procedure SetValue( I : IdPtr; T : TermPtr );
@@ -986,9 +987,9 @@ Begin
 End;
 
 { return the arity of a term, using the reduced system }
-Function Arity( T : TermPtr ) : PosInt;
+Function Arity( T : TermPtr ) : TArity;
 Var 
-  a : PosInt;
+  a : TArity;
 Begin
   a := 0;
   If T = Nil Then

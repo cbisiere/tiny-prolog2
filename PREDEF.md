@@ -104,6 +104,7 @@ Predicate | Action | Example
 Predicate | Action | Example
 --- | --- | ---
 `geler(V,G)` / `freeze(V,G)`| postpone the clearing of goal `G` as long as `V` is free |
+`bloc(T,G)`,`fin-bloc(T)` / `block(T,G)`,`bloc-exit(T)` | `block(T,G)` creates a scope for clearing goal `G`, labelled with `T`; when clearing a goal within one or several block scopes, `block-exit(T)` finds the first scope whose label unifies with `T`, and then proceeds to execute the first goal after the `block/2` that opened that scope; moreover, all the choice points within that scope are suppressed      |
 `impasse`, `fail` | fail, without displaying a warning that the goal does not exist
 
 
@@ -152,6 +153,8 @@ Predicate | Action | Example
 --- | --- | ---
 `not(G)` | fail if goal `G` can be cleared
 `findall(T,G,L)` | collect in list `L` all the solutions `T` when goal `G` is cleared
+`freeze(V,G)`| _as in Prolog II_ |
+`block(T,G)`,`bloc_exit(T)` | _as in Prolog II_ |
 
 ### Rules
 
@@ -208,6 +211,7 @@ Predicate | Action | Example
 `once(G)`| clear goal `G` in the first way possible
 `true` | always succeed
 `findall(T,G,L)` | collect in list `L` all the solutions `T` when goal `G` is cleared
+`freeze(V,G)`| _as in Prolog II_ |
 
 
 ### Operators

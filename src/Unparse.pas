@@ -732,10 +732,10 @@ Begin
     Str_Append(s,prefix)
   End;
   WriteTerms(y,s,B,prefix);
-  If R^.RU_SYST <> Nil Then
+  If Rule_GetEqs(R) <> Nil Then
   Begin
     Str_Append(s,', ');
-    WriteSystem(y,s,R^.RU_SYST,False)
+    WriteSystem(y,s,Rule_GetEqs(R),False)
   End;
   Str_Append(s,OSyntax[y].RuleEnd)
 End;

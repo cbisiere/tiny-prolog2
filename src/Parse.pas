@@ -883,7 +883,6 @@ Begin
       StopTokens := StopTokens + [TOKEN_COMMA];
     With R^ Do
     Begin
-      RU_SYST := Nil;
       B := CompileRuleHead(f,P,K,True,False);
       If Error Then Exit;
       RU_FBTR := B;
@@ -894,7 +893,7 @@ Begin
       If (Syntax[y].AcceptSys) And (Token_GetType(K) = TOKEN_COMMA) Then
       Begin
         K := ReadProgramToken(P,f);
-        RU_SYST := CompileSystem(f,P,K,True)
+        Rule_SetEqs(R,CompileSystem(f,P,K,True))
       End;
       If Error Then Exit
     End

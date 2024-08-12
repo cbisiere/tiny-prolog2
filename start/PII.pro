@@ -108,6 +108,8 @@ val(T1,T2) -> syscall(syseval,T1,T2);
 "control"
 
 freeze(V,G) -> syscall(sysfreeze,V,G);
+block(T,G) -> syscall(sysblock,T,G);
+block-exit(T) -> syscall(sysblockexit,T);
 fail -> syscall(sysfail);
 
 "debug"

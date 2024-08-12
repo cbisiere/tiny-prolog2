@@ -230,7 +230,7 @@ Begin
     FuncSymbol:
       Begin
         { try to get and evaluate an evaluable function or an array element }
-        Ident := TupleArgN(1,T);
+        Ident := ProtectedGetTupleHead(T,True);
         If Ident <> Nil Then
         Begin
           If IsIdentifier(Ident) Then
@@ -366,6 +366,8 @@ Begin
                         Else
                           r := ParVal[1].Val / ParVal[2].Val
                       End
+                      Else
+                        e := Nil { val(div(3,0),v) fails on PII+; TODO: warning  }
                     End
                     Else If (func = '^') And (n = 2) Then
                     Begin

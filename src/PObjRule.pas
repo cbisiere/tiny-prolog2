@@ -27,6 +27,7 @@ Uses
   PObj,
   PObjTerm,
   PObjFCVI,
+  PObjEq,
   PObjDef,
   PObjBter;
 
@@ -38,9 +39,11 @@ Function Rule_GetHead( R : RulePtr ) : BTermPtr;
 Function Rule_GetQueue( R : RulePtr ) : BTermPtr;
 Function Rule_GetTerms( R : RulePtr ) : BTermPtr;
 Procedure Rule_SetTerms( R : RulePtr; B : BTermPtr );
+Function Rule_GetEqs( R : RulePtr ) : EqPtr;
+Procedure Rule_SetEqs( R : RulePtr; Eqs : EqPtr );
 
 Function Rule_Access( R : RulePtr ) : IdPtr;
-Function Rule_Arity( R : RulePtr ) : PosInt;
+Function Rule_Arity( R : RulePtr ) : TArity;
 Function Rule_HeadIsValid( R : RulePtr ) : Boolean;
 
 Implementation
@@ -107,6 +110,18 @@ Begin
   R^.RU_FBTR := B
 End;
 
+{ rule's list of equations }
+Function Rule_GetEqs( R : RulePtr ) : EqPtr;
+Begin
+  Rule_GetEqs := R^.RU_SYST
+End;
+
+{ set a rule's list of equations }
+Procedure Rule_SetEqs( R : RulePtr; Eqs : EqPtr );
+Begin
+  R^.RU_SYST := Eqs
+End;
+
 {-----------------------------------------------------------------------}
 { methods                                                               }
 {-----------------------------------------------------------------------}
@@ -116,7 +131,7 @@ Begin
   Rule_Access := BTerm_GetAccessTerm(Rule_GetHead(R))
 End;
 
-Function Rule_Arity( R : RulePtr ) : PosInt;
+Function Rule_Arity( R : RulePtr ) : TArity;
 Begin
   Rule_Arity := BTerm_GetArity(Rule_GetHead(R))
 End;

@@ -117,6 +117,8 @@ Type
     PP_NUMBER_CHARS,
     PP_FREEZE,
     PP_FIND_ALL,
+    PP_BLOCK,
+    PP_BLOCK_EXIT,
     PP_FAIL
   );
 
@@ -139,7 +141,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 57;
+  NB_PP = 59;
   MAX_PP_LENGHT = 21; { max string length }
 Type
   TPPRec = Record
@@ -211,6 +213,8 @@ Const
     (I:PP_NUMBER_CHARS;S:'sysnumberchars';N:2),
     (I:PP_FREEZE;S:'sysfreeze';N:2),
     (I:PP_FIND_ALL;S:'sysfindall';N:3),
+    (I:PP_BLOCK;S:'sysblock';N:2), { block(T,G) }
+    (I:PP_BLOCK_EXIT;S:'sysblockexit';N:1), { block-exit(T) }
     (I:PP_FAIL;S:'sysfail';N:0)
   );
 
@@ -1037,7 +1041,7 @@ Function GetListOfMatchingRules( P : ProgPtr; R : RulePtr ) : StmtPtr;
 Var
   Ri,R1,R2 : RulePtr;
   Ih : IdPtr;
-  a : PosInt;
+  a : TArity;
   Sl,St,Sth : StmtPtr;
   DummyL : RestPtr;
 Begin
@@ -1417,7 +1421,7 @@ Function ClearAssign( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   T1,T2 : TermPtr;
   I : IdPtr;
-  ArrIndex : PosInt;
+  ArrIndex : TArity;
   code : Integer;
 Begin
   ClearAssign := False;
@@ -1580,7 +1584,6 @@ Function ClearAtomLength( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   s,sn : StrPtr;
   T1,T2 : TermPtr;
-  n : LongInt;
 Begin
   ClearAtomLength := False;
 
@@ -2318,7 +2321,7 @@ Begin
     Exit
   End;
 
-  If SuccessCount = 0 Then { first call }
+  If SuccessCount = 0 Then { [FIND:1] first call }
   Begin
     { returned values }
     V := T1; { term (usually a variable) to collect in the list }
@@ -2328,7 +2331,7 @@ Begin
     More := True { call me back }
   End
   Else
-  Begin { second (and last) call }
+  Begin { [FIND:5] second (and last) call }
     { Choices is the list of terms V when G is cleared, in reverse order }
     L := NewEmptyList(P);
     While Choices <> Nil Do
@@ -2341,6 +2344,40 @@ Begin
   End;
 
   ClearFindAll := Success
+End;
+
+{ [BLOCK:1] block(T,G) }
+Function ClearBlock( P : ProgPtr; T : TermPtr; Var V,G : TermPtr ) : Boolean;
+Var
+  T1,T2 : TermPtr;
+Begin
+  ClearBlock := False;
+  { 1: label }
+  T1 := GetPArg(1,T);
+  { 2: goal (identifier or predicate) }
+  T2 := GetGoal(2,T,False);
+  If T2 = Nil Then
+  Begin
+    CWritelnWarning('block: second argument must be a goal');
+    Exit
+  End;
+  { return V, G }
+  V := T1;
+  G := T2;
+  ClearBlock := True
+End;
+
+{ [BLOCK:4.2] block_exit(error(1)) }
+Function ClearBlockExit( P : ProgPtr; T : TermPtr; Var V : TermPtr ) : Boolean;
+Var
+  T1 : TermPtr;
+Begin
+  ClearBlockExit := False;
+  { 1: label }
+  T1 := GetPArg(1,T);
+  { return V }
+  V := T1;
+  ClearBlockExit := True
 End;
 
 {----------------------------------------------------------------------------}
@@ -2467,6 +2504,10 @@ Begin
     Ok := ClearFreeze(P,T,V,G);
   PP_FIND_ALL:
     Ok := ClearFindAll(P,T,V,G,SuccessCount,Choices,More);
+  PP_BLOCK:
+    Ok := ClearBlock(P,T,V,G);
+  PP_BLOCK_EXIT:
+    Ok := ClearBlockExit(P,T,V);
   PP_FAIL:
     Ok := False
   End;

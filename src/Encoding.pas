@@ -74,8 +74,8 @@ Function ListToBTerms( P : ProgPtr; T : TermPtr ) : BTermPtr;
 Function CommaExpToBTerms( P : ProgPtr; T : TermPtr ) : BTermPtr;
 Function RuleExpToBTerms( P : ProgPtr; T : TermPtr ) : BTermPtr;
 
-Function ProtectedGetTupleHead( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
-Function ProtectedGetTupleQueue( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
+Function ProtectedGetTupleHead( U : TermPtr; Reduce : Boolean ) : TermPtr;
+Function ProtectedGetTupleQueue( U : TermPtr; Reduce : Boolean ) : TermPtr;
 Function ProtectedGetTupleArg( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
 
 Function ProtectedListToTuple( L : TermPtr; Reduce : Boolean ) : TermPtr;
@@ -430,13 +430,13 @@ Begin
 End;
 
 { tuple head }
-Function ProtectedGetTupleHead( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
+Function ProtectedGetTupleHead( U : TermPtr; Reduce : Boolean ) : TermPtr;
 Begin
   ProtectedGetTupleHead := GetTupleHead(U,Reduce,NewSerial)
 End;
 
 { tuple queue }
-Function ProtectedGetTupleQueue( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
+Function ProtectedGetTupleQueue( U : TermPtr; Reduce : Boolean ) : TermPtr;
 Begin
   ProtectedGetTupleQueue := GetTupleQueue(U,Reduce,NewSerial)
 End;

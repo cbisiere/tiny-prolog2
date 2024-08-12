@@ -110,7 +110,7 @@ Function NextRule( R : RulePtr; Local : Boolean ) : RulePtr;
 Function FirstRuleWithHead( P : ProgPtr; I : IdPtr; Local : Boolean ) : RulePtr;
 Function LastRuleWithHead( P : ProgPtr; I : IdPtr; Local : Boolean ) : RulePtr;
 Function FindRuleWithHead( R : RulePtr; I : IdPtr; Local : Boolean ) : RulePtr;
-Function FindRuleWithHeadAndArity( R : RulePtr; I : IdPtr; a : PosInt; 
+Function FindRuleWithHeadAndArity( R : RulePtr; I : IdPtr; a : TArity; 
     Local : Boolean ) : RulePtr;
 
 Function EmitConst( P : ProgPtr; s : StrPtr; ty : TypePrologObj; 
@@ -517,7 +517,7 @@ End;
 
 { ditto, with arity }
 Function RuleHeadMatchesWithArity( R : RulePtr; I : IdPtr; 
-    a : PosInt ) : Boolean;
+    a : TArity ) : Boolean;
 Begin
   RuleHeadMatchesWithArity := RuleHeadMatches(R,I) And (Rule_Arity(R) = a)
 End;
@@ -532,7 +532,7 @@ Begin
 End;
 
 { ditto but with a given arity }
-Function FindRuleWithHeadAndArity( R : RulePtr; I : IdPtr; a : PosInt; 
+Function FindRuleWithHeadAndArity( R : RulePtr; I : IdPtr; a : TArity; 
     Local : Boolean ) : RulePtr;
 Begin
   While (R <> Nil) And (Not RuleHeadMatchesWithArity(R,I,a)) Do
