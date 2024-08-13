@@ -127,6 +127,7 @@ not(X) ->;
     op(500,yfx,-,sub)
     op(400,yfx,*,mul)
     op(400,yfx,/,div)
+    op(400,yfx,mod,mod)
     op(200,fx,+,add)
     op(200,fx,-,sub)
     op(200,xfy,^,'^');

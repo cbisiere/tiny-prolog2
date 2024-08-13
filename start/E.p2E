@@ -25,6 +25,7 @@ op(N,I,S) :- syscall(sysop,N,I,S,S).
     op(700,xfx,=:=,eql),
     op(500,yfx,+,'+'),
     op(500,yfx,-,'-'),
+    op(400,yfx,mod,mod),
     op(400,yfx,*,'*'),
     op(400,yfx,/,'/'),
     op(400,yfx,//,'//'),

@@ -126,6 +126,7 @@ TODO: si"
     syscall(sysop,500,yfx,sub,sub)
     syscall(sysop,400,yfx,mul,mul)
     syscall(sysop,400,yfx,div,div)
+    syscall(sysop,400,yfx,mod,mod)
     syscall(sysop,200,fx,add,add)
     syscall(sysop,200,fx,sub,sub)
     impasse;

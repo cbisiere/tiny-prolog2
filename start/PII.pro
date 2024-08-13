@@ -124,8 +124,7 @@ dif(X,Y) -> syscall(sysdif,X,Y);
 
 "evaluable functions; see Giannesini et al. 1985, p 144 \
 Note that expressions (e.g., 3 + 2) are not supported in Prolog II syntax; \
-these declarations are used to evaluate val(T1,T2) predicates. \
-TODO: mod"
+these declarations are used to evaluate val(T1,T2) predicates."
 ->
     syscall(sysop,700,xfx,inf,inf)
     syscall(sysop,700,xfx,eql,eql)
@@ -133,6 +132,7 @@ TODO: mod"
     syscall(sysop,500,yfx,sub,sub)
     syscall(sysop,400,yfx,mul,mul)
     syscall(sysop,400,yfx,div,div)
+    syscall(sysop,400,yfx,mod,mod)
     syscall(sysop,200,fx,add,add)
     syscall(sysop,200,fx,sub,sub)
     fail;
