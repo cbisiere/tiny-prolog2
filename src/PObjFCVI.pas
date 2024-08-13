@@ -42,10 +42,15 @@ Uses
 { types                                                                 }
 {-----------------------------------------------------------------------}
 
+{ special identifiers, as short strings }
 Const
-  SYSCALL_IDENT_AS_STRING = 'syscall'; 
+  SPECIAL_IDENT_SYSCALL = 'syscall'; 
+  SPECIAL_IDENT_CUT = '!';
+  SPECIAL_IDENT_FINDALL = '{FIND}';
+  SPECIAL_IDENT_BLOCK = '{BLOCK}';
 
 Type
+  TGoalType = (GOAL_STD,GOAL_CUT,GOAL_SYS,GOAL_FIND,GOAL_BLOCK);
   TTerm = (Variable,Identifier,Constant,FuncSymbol,Dummy); { type of term }
   TArity = PosInt; { arity of a predicate, e.g. aaa/2, '<'/2, bbb/0 }
 
@@ -147,6 +152,7 @@ Function IdentifierGetStr( I : IdPtr ) : StrPtr;
 Function IdentifierGetShortString( I : IdPtr ) : TString;
 Function IdentifierEqualToShortString( I : IdPtr; ps : TString ) : Boolean;
 Function TermIsIdentifierEqualToShortString( T : TermPtr; ident : TString ) : Boolean;
+Function IdentifierToGoalType( I : IdPtr ) : TGoalType;
 Function IdentifierIsCut( I : IdPtr ) : Boolean;
 Function TermIsCut( T : TermPtr ) : Boolean;
 Function IdentifierIsSyscall( I : IdPtr ) : Boolean;
@@ -186,7 +192,7 @@ Function EvaluateToIdentifier( T : TermPtr ) : IdPtr;
 
 Function AccessIdentifier( T : TermPtr ) : IdPtr;
 Function ArgCount( T : TermPtr ) : PosInt;
-Function Arity( T : TermPtr ) : TArity;
+Function GetArity( T : TermPtr ) : TArity;
 
 Function GetValue( I : IdPtr ) : TermPtr;
 Procedure SetValue( I : IdPtr; T : TermPtr );
@@ -532,6 +538,22 @@ Begin
   IdentifierEqualToShortString := Dict_StrIsEqualToShortString(I^.TI_DVAR,ps)
 End;
 
+{ type of goal, given an access identifier }
+Function IdentifierToGoalType( I : IdPtr ) : TGoalType;
+Begin
+  IdentifierToGoalType := GOAL_STD;
+  If I = Nil Then
+    Exit;
+  If IdentifierEqualToShortString(I,SPECIAL_IDENT_SYSCALL) Then
+    IdentifierToGoalType := GOAL_SYS
+  Else If IdentifierEqualToShortString(I,SPECIAL_IDENT_CUT) Then
+    IdentifierToGoalType := GOAL_CUT
+  Else If IdentifierEqualToShortString(I,SPECIAL_IDENT_FINDALL) Then
+    IdentifierToGoalType := GOAL_FIND
+  Else If IdentifierEqualToShortString(I,SPECIAL_IDENT_BLOCK) Then
+    IdentifierToGoalType := GOAL_BLOCK
+End;
+
 { is an identifier and is equal to a given Pascal string }
 Function TermIsIdentifierEqualToShortString( T : TermPtr; ident : TString ) : Boolean;
 Var
@@ -548,19 +570,19 @@ End;
 { is an identifier the cut? }
 Function IdentifierIsCut( I : IdPtr ) : Boolean;
 Begin
-  IdentifierIsCut := IdentifierEqualToShortString(I,'!')
+  IdentifierIsCut := IdentifierEqualToShortString(I,SPECIAL_IDENT_CUT)
 End;
 
 { is a term the cut? }
 Function TermIsCut( T : TermPtr ) : Boolean;
 Begin
-  TermIsCut := TermIsIdentifierEqualToShortString(T,'!')
+  TermIsCut := TermIsIdentifierEqualToShortString(T,SPECIAL_IDENT_CUT)
 End;
 
 { is an identifier a syscall? }
 Function IdentifierIsSyscall( I : IdPtr ) : Boolean;
 Begin
-  IdentifierIsSyscall := IdentifierEqualToShortString(I,SYSCALL_IDENT_AS_STRING)
+  IdentifierIsSyscall := IdentifierEqualToShortString(I,SPECIAL_IDENT_SYSCALL)
 End;
 
 { return an identifier as a (new) string; if Quotes is False, a quoted 
@@ -987,7 +1009,7 @@ Begin
 End;
 
 { return the arity of a term, using the reduced system }
-Function Arity( T : TermPtr ) : TArity;
+Function GetArity( T : TermPtr ) : TArity;
 Var 
   a : TArity;
 Begin
@@ -1002,10 +1024,10 @@ Begin
     End;
   Variable:
     Begin
-      a := Arity(Red(T))
+      a := GetArity(Red(T))
     End;
   End;
-  Arity := a
+  GetArity := a
 End;
 
 {-----------------------------------------------------------------------}

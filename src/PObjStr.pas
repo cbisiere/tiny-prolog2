@@ -464,7 +464,7 @@ Begin
   End;
   { infer encoding }
   UpdateContainerEncoding(s^.ST_ENCO,cc.Encoding);
-  If Error Then Exit;
+  If ErrorState = ENCODING_ERROR Then Exit;
   If Not AreCompatibleEncodings(s^.ST_CONT,s^.ST_ENCO) Then
     SyntaxError('incompatible character encodings') { FIXME: could be a "user input" error  }
 End;
@@ -476,7 +476,7 @@ Var
   cc : TChar;
 Begin
   StrIter_ToStart(Iter,s2);
-  While Not Error And StrIter_NextChar(Iter,cc) Do 
+  While (ErrorState <> ENCODING_ERROR) And StrIter_NextChar(Iter,cc) Do 
     Str_AppendChar(s1,cc)
 End;
 
@@ -515,7 +515,8 @@ Var
   cc : TChar;
 Begin
   s := Str_New(Enc);
-  While Not Error And (Length(bytes) > 0) And GetOneTCharNL(bytes,cc,Enc) Do
+  While (ErrorState <> ENCODING_ERROR) And 
+      (Length(bytes) > 0) And GetOneTCharNL(bytes,cc,Enc) Do
     Str_AppendChar(s,cc);
   Str_NewFromBytes := s
 End;
@@ -537,7 +538,7 @@ Begin
   Str_Zap(s);
   Str_Append(s,quote);
   StrIter_ToStart(Iter,s2);
-  While Not Error And StrIter_NextChar(Iter,cc) Do 
+  While (ErrorState <> ENCODING_ERROR) And StrIter_NextChar(Iter,cc) Do 
   Begin
     If cc.Bytes = quote Then
     Begin

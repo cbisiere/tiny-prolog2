@@ -512,14 +512,16 @@ End;
 { does the head of R matches identifier I? }
 Function RuleHeadMatches( R : RulePtr; I : IdPtr ) : Boolean;
 Begin
-  RuleHeadMatches := Term_UnifiableWith(TermPtr(Rule_Access(R)),TermPtr(I))
+  RuleHeadMatches := Term_UnifiableWith(TermPtr(Rule_GetAccess(R)),TermPtr(I))
 End;
 
 { ditto, with arity }
 Function RuleHeadMatchesWithArity( R : RulePtr; I : IdPtr; 
     a : TArity ) : Boolean;
 Begin
-  RuleHeadMatchesWithArity := RuleHeadMatches(R,I) And (Rule_Arity(R) = a)
+  RuleHeadMatchesWithArity := 
+      Term_UnifiableWith(TermPtr(Rule_GetAccess(R)),TermPtr(I)) And 
+      (Rule_GetArity(R) = a)
 End;
 
 { find the first rule whose head is a given identifier, starting on

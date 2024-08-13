@@ -57,32 +57,30 @@ Type
   CommPtr = ^TObjComm;
   WorldPtr = ^TObjWorld;
 
-  TGoalType = (GOAL_UNDEFINED,GOAL_STD,GOAL_CUT,GOAL_SYS,GOAL_FIND,GOAL_BLOCK);
-
-  { list of pterms w/ extra data (access) }
+  { list of goals; signature is not cached, since the reduced system is too 
+   dynamic (e.g. consider the simple "call(X) :- X.") }
   TObjBTerm = Record
     PO_META : TObjMeta;
     { deep copied: }
     BT_NEXT : BTermPtr; { next element }
     BT_TERM : TermPtr; { term }
-    BT_ACCE : IdPtr; { access identifier or Nil }
     { not deep copied: }
-    BT_HEAD : HeadPtr; { clock header point to the rule containing this term }
+    BT_HEAD : HeadPtr { clock header point to the rule containing this term }
     { extra data }
-    BT_ARIT : TArity; { arity or the access identifier if any, otherwise zero }
-    BT_TYPE : TGoalType { type of goal }
   End;
 
-  { rule }
+  { rule; signature (type/access/arity) is cached, as it is fixed upon creation }
   TObjRule = Record
     PO_META : TObjMeta;
     { deep copied: }
     RU_FBTR : BTermPtr; { list of terms (the first is the rule head) }
     RU_SYST : EqPtr; { list of equation or inequation in the rule; Warning: not GC }
     { not deep copied: }
+    RU_ACCE : IdPtr; { rule access identifier }
     RU_STMT : StmtPtr; { statement of this rule }
     { extra data: }
-    RU_ACUT : Boolean; { rule queue contains a cut }
+    RU_ARIT : TArity; { arity }
+    RU_TYPE : TGoalType; { goal type (should be GOAL_STD) }
     RU_SYNT : TSyntax { syntax the rule is written in }
   End;
 
@@ -100,10 +98,7 @@ Type
       HH_BLOC : HeadPtr; { header of the last opened bloc (scope) }
       HH_CHOI : Pointer; { data transferred between successive calls of a system call }
       HH_CHOV : TermPtr; { term to extract data from the goal (findall/3), or block/2 label }
-      HH_ACCE : IdPtr; { goal access }
       { extra data: }
-      HH_TYPE : TGoalType; { goal type } 
-      HH_ARIT : TArity;  { goal arity }
       HH_CLOC : TClock;  { depth: clock time (unlikely to overflow)}
       HH_BRAN : TBranch; { width: branch number under exploration }
       HH_SUCC : TBranch; { width: success number }

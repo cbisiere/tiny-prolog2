@@ -176,11 +176,7 @@ Begin
     End;
   HE:
     Begin
-      Stream_WriteShortString(f,LongIntToShortString(Header_GetClock(Hp)));
-      Stream_WriteShortString(f,' Sys:');
-      Stream_WriteShortString(f,BoolToShortString(Header_GetGoalType(Hp) = GOAL_SYS));
-      Stream_WriteShortString(f,' Cut:');
-      Stream_WriteShortString(f,BoolToShortString(Header_GetGoalType(Hp) = GOAL_CUT))
+      Stream_WriteShortString(f,LongIntToShortString(Header_GetClock(Hp)))
     End;
   ST:
     Begin
@@ -213,61 +209,54 @@ Var
   y : TSyntax;
   U : RestPtr;
   B : BTermPtr;
+  GoalType : TGoalType; 
+  Access : IdPtr;
+  Arity : TArity;
 Begin
   y := PrologIIc; { syntax for header output }
   Stream_WritelnShortString(f,'*** Header level ' + LongIntToShortString(Header_GetClock(H)) + ' ***');
+
+  B := Header_GetGoalsToClear(H);
+  If B <> Nil Then
+    BTerm_GetMetadata(B,GoalType,Access,Arity);
+
   { goal type }
-  Stream_WriteShortString(f,'  Type: ');
-  Case Header_GetGoalType(H) Of
-    GOAL_UNDEFINED: Stream_WritelnShortString(f,'GOAL_UNDEFINED');
-    GOAL_BLOCK: Stream_WritelnShortString(f,'GOAL_BLOCK');
-    GOAL_FIND: Stream_WritelnShortString(f,'GOAL_FIND');
-    GOAL_CUT: Stream_WritelnShortString(f,'GOAL_CUT');
-    GOAL_SYS: Stream_WritelnShortString(f,'GOAL_SYS');
-    GOAL_STD: Stream_WritelnShortString(f,'GOAL_STD')
+  If B <> Nil Then
+  Begin
+    Stream_WriteShortString(f,'  Type: ');
+    Case GoalType Of
+      GOAL_BLOCK: Stream_WritelnShortString(f,'GOAL_BLOCK');
+      GOAL_FIND: Stream_WritelnShortString(f,'GOAL_FIND');
+      GOAL_CUT: Stream_WritelnShortString(f,'GOAL_CUT');
+      GOAL_SYS: Stream_WritelnShortString(f,'GOAL_SYS');
+      GOAL_STD: Stream_WritelnShortString(f,'GOAL_STD')
+    End
   End;
 
   { access / arity }
-  If Header_GetGoalAccess(H) <> Nil Then
+  If B <> Nil Then
   Begin
-    Stream_WriteShortString(f,'  Header access: ');
-    Stream_WriteShortString(f,IdentifierGetShortString(Header_GetGoalAccess(H)));
-    Stream_WriteShortString(f,'/');
-    Stream_WriteShortString(f,PosIntToShortString(Header_GetGoalArity(H)));
-    Stream_Writeln(f)
+    If Access <> Nil Then
+    Begin
+      Stream_WriteShortString(f,'  Access: ');
+      Stream_WriteShortString(f,IdentifierGetShortString(Access));
+      Stream_WriteShortString(f,'/');
+      Stream_WriteShortString(f,PosIntToShortString(Arity));
+      Stream_Writeln(f)
+    End
   End;
 
   { terms to clear }
   Stream_WriteShortString(f,'  Terms: -> ');
-  B := Header_GetGoalsToClear(H);
   While B <> Nil Do
   Begin
-    If BTerm_GetType(B) = GOAL_FIND Then
-      Stream_WriteShortString(f,'{FIND}') 
-    Else If BTerm_GetType(B) = GOAL_BLOCK Then
-      Stream_WriteShortString(f,'{BLOCK}') 
-    Else
-      OutTerm(f,y,BTerm_GetTerm(B));
+    OutTerm(f,y,BTerm_GetTerm(B));
     If BTerm_GetHeader(B) <> Nil Then
       Stream_WriteShortString(f,'[' + LongIntToShortString(Header_GetClock(BTerm_GetHeader(B))) + ']');
     Stream_WriteShortString(f,' -> ');
     B := BTerms_GetNext(B)
   End;
   Stream_WritelnShortString(f,' Nil');
-
-  { access / arity }
-  B := Header_GetGoalsToClear(H);
-  If B <> Nil Then
-  Begin
-    If BTerm_GetAccessTerm(B) <> Nil Then
-    Begin
-      Stream_WriteShortString(f,'  First goal access: ');
-      Stream_WriteShortString(f,IdentifierGetShortString(BTerm_GetAccessTerm(B)));
-      Stream_WriteShortString(f,'/');
-      Stream_WriteShortString(f,PosIntToShortString(BTerm_GetArity(B)));
-      Stream_Writeln(f)
-    End
-  End;
 
   { cleared? }
   Stream_WriteShortString(f,'  Cleared: ');

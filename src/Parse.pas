@@ -618,7 +618,7 @@ Begin
     Begin
       If Cut Then 
       Begin
-        T := EmitShortIdent(P,'!',True);
+        T := EmitShortIdent(P,SPECIAL_IDENT_CUT,True);
         K := ReadProgramToken(P,f)
       End
       Else
@@ -871,7 +871,7 @@ Begin
     T := ReadTerm(f,P,K,True,True);
     If Error Then Exit;
     B := RuleExpToBTerms(P,T);
-    Rule_SetTerms(R,B);
+    Rule_SetHeadAndQueue(R,B);
     If Not Rule_HeadIsValid(R) Then
       SyntaxError('invalid rule head');
     If Error Then Exit
@@ -881,22 +881,19 @@ Begin
     StopTokens := [Syntax[y].RuleEnd];
     If Syntax[y].AcceptSys Then
       StopTokens := StopTokens + [TOKEN_COMMA];
-    With R^ Do
+    B := CompileRuleHead(f,P,K,True,False);
+    If Error Then Exit;
+    Rule_SetHeadAndQueue(R,B);
+    VerifyToken(f,P,K,TOKEN_ARROW);
+    If Error Then Exit;
+    BTerms_SetNext(B,CompileGoals(f,P,K,True,StopTokens));
+    If Error Then Exit;
+    If (Syntax[y].AcceptSys) And (Token_GetType(K) = TOKEN_COMMA) Then
     Begin
-      B := CompileRuleHead(f,P,K,True,False);
-      If Error Then Exit;
-      RU_FBTR := B;
-      VerifyToken(f,P,K,TOKEN_ARROW);
-      If Error Then Exit;
-      B^.BT_NEXT := CompileGoals(f,P,K,True,StopTokens);
-      If Error Then Exit;
-      If (Syntax[y].AcceptSys) And (Token_GetType(K) = TOKEN_COMMA) Then
-      Begin
-        K := ReadProgramToken(P,f);
-        Rule_SetEqs(R,CompileSystem(f,P,K,True))
-      End;
-      If Error Then Exit
-    End
+      K := ReadProgramToken(P,f);
+      Rule_SetEqs(R,CompileSystem(f,P,K,True))
+    End;
+    If Error Then Exit
   End;
 
   TerminateExprParsing;

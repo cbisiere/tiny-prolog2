@@ -31,11 +31,7 @@ Uses
 
 Function Header_New : HeadPtr;
 
-{ goal's characteristics }
-Function Header_GetGoalType( H : HeadPtr ) : TGoalType;
-Function Header_GetGoalAccess( H : HeadPtr ) : IdPtr;
-Function Header_GetGoalArity( H : HeadPtr ) : TArity;
-Procedure Header_RefreshGoalMetaData( H : HeadPtr );
+{ header }
 
 Function Header_GetClock( H : HeadPtr ) : TClock;
 Procedure Header_SetClock( H : HeadPtr; Clock : TClock );
@@ -72,22 +68,25 @@ Function Header_GetBranchNumber( H : HeadPtr ) : TBranch;
 Procedure Header_IncBranchNumber( H : HeadPtr );
 
 Function Header_GetGoalsToClear( H : HeadPtr ) : BTermPtr;
+Procedure Header_SetGoalsToClear( H : HeadPtr; Goals : BTermPtr);
 
 Function Header_GetTermToClear( H : HeadPtr ) : TermPtr;
 
 Function Header_GetMore( H : HeadPtr ): Boolean ;
 Procedure Header_SetMore( H : HeadPtr; More : Boolean );
 
+Procedure Header_GetGoalMetadata( H : HeadPtr; 
+    Var GoalType : TGoalType; Var Access : IdPtr; Var Arity : TArity );
 Function Header_IsUserLand( H : HeadPtr ) : Boolean;
 Function Header_IsSolution( H : HeadPtr ) : Boolean;
 Function Header_IsLeaf( H : HeadPtr ) : Boolean;
-Procedure AssignGoalsToClear( H : HeadPtr; Goals : BTermPtr );
 Procedure Header_InsertGoalsToClear( H : HeadPtr; Goals : BTermPtr );
 Function Header_EndOfSearch( H : HeadPtr ) : Boolean;
 
+{ list of headers }
 Function Headers_GetNext( H : HeadPtr ) : HeadPtr;
+Function Headers_GetLast( H : HeadPtr ) : HeadPtr;
 Function Headers_PushNew( Ht : HeadPtr; Goals : BTermPtr ) : HeadPtr;
-
 
 Implementation
 
@@ -101,7 +100,7 @@ Var
   H : HeadPtr;
   ptr : TObjectPtr Absolute H;
 Begin
-  ptr := NewRegisteredPObject(HE,SizeOf(TObjHead),9,True,0);
+  ptr := NewRegisteredPObject(HE,SizeOf(TObjHead),8,True,0);
   With H^ Do
   Begin
     HH_NEXT := H;
@@ -112,10 +111,6 @@ Begin
     HH_BLOC := Nil;
     HH_CHOI := Nil;
     HH_CHOV := Nil;
-    { type of goal: }
-    HH_ACCE := Nil;
-    HH_TYPE := GOAL_UNDEFINED;
-    HH_ARIT := 0;
     { other }
     HH_SUCC := 0;
     HH_BRAN := 0;
@@ -129,59 +124,25 @@ Begin
 End;
 
 {-----------------------------------------------------------------------}
-{ goal characteristics                                                  }
+{ goals                                                                 }
 {-----------------------------------------------------------------------}
 
-{ the current goal in header H, if any, is the first goal in the HH_FBCL 
- list }
-
-{ get type }
-Function Header_GetGoalType( H : HeadPtr ) : TGoalType;
+{ get the list of goals to clear }
+Function Header_GetGoalsToClear( H : HeadPtr ) : BTermPtr;
 Begin
-  Header_GetGoalType := H^.HH_TYPE
+  Header_GetGoalsToClear := H^.HH_FBCL
 End;
 
-{ get access }
-Function Header_GetGoalAccess( H : HeadPtr ) : IdPtr;
+{ set the list of goals to clear }
+Procedure Header_SetGoalsToClear( H : HeadPtr; Goals : BTermPtr);
 Begin
-  Header_GetGoalAccess := H^.HH_ACCE
+  H^.HH_FBCL := Goals
 End;
 
-{ get arity }
-Function Header_GetGoalArity( H : HeadPtr ) : TArity;
+{ get the term to clear }
+Function Header_GetTermToClear( H : HeadPtr ) : TermPtr;
 Begin
-  Header_GetGoalArity := H^.HH_ARIT
-End;
-
-{ set type }
-Procedure Header_SetGoalType( H : HeadPtr; GoalType : TGoalType );
-Begin
-  H^.HH_TYPE := GoalType
-End;
-
-{ set access }
-Procedure Header_SetGoalAccess( H : HeadPtr; I : IdPtr );
-Begin
-  H^.HH_ACCE := I
-End;
-
-{ set arity }
-Procedure Header_SetGoalArity( H : HeadPtr; a : TArity );
-Begin
-  H^.HH_ARIT := a
-End;
-
-{ update the goal characteristics }
-Procedure Header_RefreshGoalMetaData( H : HeadPtr );
-Var
-  T : TermPtr;
-Begin
-  If Header_GetGoalType(H) = GOAL_STD Then
-  Begin
-    T := Header_GetTermToClear(H);
-    Header_SetGoalAccess(H,AccessIdentifier(T));
-    Header_SetGoalArity(H,Arity(T))
-  End
+  Header_GetTermToClear := BTerm_GetTerm(Header_GetGoalsToClear(H))
 End;
 
 {-----------------------------------------------------------------------}
@@ -449,25 +410,6 @@ Begin
   H^.HH_BRAN := H^.HH_BRAN + 1
 End;
 
-{ get the list of goals to clear }
-Function Header_GetGoalsToClear( H : HeadPtr ) : BTermPtr;
-Begin
-  Header_GetGoalsToClear := H^.HH_FBCL
-End;
-
-{ set the list of goals to clear; not exported, as full goal update must use
- assign/insert methods below }
-Procedure Header_SetGoalsToClear( H : HeadPtr; Goals : BTermPtr);
-Begin
-  H^.HH_FBCL := Goals
-End;
-
-{ get the term to clear }
-Function Header_GetTermToClear( H : HeadPtr ) : TermPtr;
-Begin
-  Header_GetTermToClear := BTerm_GetTerm(Header_GetGoalsToClear(H))
-End;
-
 { get more status }
 Function Header_GetMore( H : HeadPtr ): Boolean ;
 Begin
@@ -483,6 +425,14 @@ End;
 {-----------------------------------------------------------------------}
 { methods                                                               }
 {-----------------------------------------------------------------------}
+
+{ get metadata about the current goal; the current goal, if any, in header H, 
+ is the first goal in the HH_FBCL list }
+Procedure Header_GetGoalMetadata( H : HeadPtr; 
+    Var GoalType : TGoalType; Var Access : IdPtr; Var Arity : TArity );
+Begin
+  BTerm_GetMetadata(Header_GetGoalsToClear(H),GoalType,Access,Arity)
+End;
 
 { return True if the rule in H is a user land rule }
 Function Header_IsUserLand( H : HeadPtr ) : Boolean;
@@ -524,6 +474,14 @@ Begin
   Headers_GetNext := H^.HH_NEXT
 End;
 
+{ last in the list (that is, clock-zero header) }
+Function Headers_GetLast( H : HeadPtr ) : HeadPtr;
+Begin
+  While Headers_GetNext(H) <> Nil Do
+    H := Headers_GetNext(H);
+  Headers_GetLast := H
+End;
+
 { set next header }
 Procedure Headers_SetNext( H : HeadPtr; NextH : HeadPtr );
 Begin
@@ -534,14 +492,6 @@ End;
 { dynamics                                                              }
 {-----------------------------------------------------------------------}
 
-{ assign to header H the list of goals to clear, updating H accordingly }
-Procedure AssignGoalsToClear( H : HeadPtr; Goals : BTermPtr );
-Begin
-  Header_SetGoalType(H,BTerm_GetType(Goals));
-  Header_SetGoalsToClear(H,Goals);
-  Header_RefreshGoalMetaData(H)
-End;
-
 { insert a list of goals to clear and update the header accordingly }
 Procedure Header_InsertGoalsToClear( H : HeadPtr; Goals : BTermPtr );
 Var
@@ -551,7 +501,7 @@ Begin
   LastGoal := BTerms_GetLast(Goals);
   BTerms_SetNext(LastGoal,Header_GetGoalsToClear(H));
   { set H with the new list of goals}
-  AssignGoalsToClear(H,Goals)
+  Header_SetGoalsToClear(H,Goals)
 End;
 
 { create and set a clock header on top of a list of headers Ht; Goals

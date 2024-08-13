@@ -203,18 +203,14 @@ Var
   End;
 
   { emit a warning that the current goal cannot be cleared }
-  Procedure WarningNoRuleToApply( H : HeadPtr );
+  Procedure WarningNoRuleToApply( I : IdPtr; a : TArity );
   Var
-    I : IdPtr; 
-    a : TArity;
     s : StrPtr;
   Begin
     CWriteWarning('no rules to clear goal');
-    I := Header_GetGoalAccess(H);
     If I <> Nil Then
     Begin
       s := IdentifierGetStr(I);
-      a := Header_GetGoalArity(H);
       CWrite(': ');
       Str_CWrite(s);
       CWrite('/');
@@ -223,18 +219,13 @@ Var
     CWriteLn
   End;
 
-  { rule to apply to clear the current goal, starting at rule R; do not alter H;
+  { rule to apply to clear a goal with given ident/arity, starting at rule R;
    return Nil if there is not rule to apply }
-  Function FindRuleToApply( H : HeadPtr; R : RulePtr ) : RulePtr;
-  Var
-    I : IdPtr;
-    a : TArity;
+  Function FindRuleToApply( I : IdPtr; a : TArity; R : RulePtr ) : RulePtr;
   Begin
     FindRuleToApply := Nil;
-    I := Header_GetGoalAccess(H);
     If I = Nil Then { no access, goal is probably a variable }
       Exit;
-    a := Header_GetGoalArity(H);
     R := FindRuleWithHeadAndArity(R,I,a,False);
     If R = Nil Then
       Exit;
@@ -254,17 +245,22 @@ Var
   Function FirstCandidate( H : HeadPtr; Silent : Boolean ) : Boolean;
   Var
     R : RulePtr;
+    GoalType : TGoalType; 
+    Access : IdPtr;
+    Arity : TArity;
   Begin
     FirstCandidate := False;
+    CheckCondition(Header_GetGoalsToClear(H) <> Nil,'FirstCandidate: Nil');
+    If Error Then Exit;
     Header_SetIsDone(H,False);
-    CheckCondition(Header_GetGoalType(H) <> GOAL_UNDEFINED,'undefined goal');
-    If Header_GetGoalType(H) = GOAL_STD Then
+    Header_GetGoalMetadata(H,GoalType,Access,Arity);
+    If GoalType = GOAL_STD Then
     Begin
-      R := FindRuleToApply(H,FirstRule(P,False));
+      R := FindRuleToApply(Access,Arity,FirstRule(P,False));
       If R = Nil Then
       Begin
         If Not Silent Then
-          WarningNoRuleToApply(H);
+          WarningNoRuleToApply(Access,Arity);
         Header_SetIsDone(H,True);
         Exit
       End;
@@ -283,16 +279,20 @@ Var
   Function NextCandidate( H : HeadPtr ) : Boolean;
   Var 
     R : RulePtr;
+    GoalType : TGoalType; 
+    Access : IdPtr;
+    Arity : TArity;
   Begin
     NextCandidate := False;
+    CheckCondition(Header_GetGoalsToClear(H) <> Nil,'NextCandidate: Nil');
+    If Error Then Exit;
     { [CUT:3] artificially already exhausted header }
     If Header_IsDone(H) Then
       Exit;
     { assume exhaustion and exit when it is indeed the case }
     Header_SetIsDone(H,True);
-    If Header_GetGoalsToClear(H) = Nil Then
-      Exit;
-    Case BTerm_GetType(Header_GetGoalsToClear(H)) Of
+    Header_GetGoalMetadata(H,GoalType,Access,Arity);
+    Case GoalType Of
     GOAL_BLOCK,GOAL_CUT,GOAL_FIND: { cleared only once }
       Exit;
     GOAL_SYS:
@@ -304,7 +304,7 @@ Var
       Begin
         R := Header_GetRule(H);
         CheckCondition(R <> Nil,'NextCandidate: rule is Nil');
-        R := FindRuleToApply(H,NextRule(R,False)); { OPTIMIZE: enforce rule grouping }
+        R := FindRuleToApply(Access,Arity,NextRule(R,False)); { OPTIMIZE: enforce rule grouping }
         { no next rule at all, R was the last rule in the Prolog program }
         If R = Nil Then
           Exit;
@@ -496,8 +496,8 @@ Var
           PP_BLOCK: { [BLOCK:2] block(T,G); insert goals in H: -> G -> B<H> }
             Begin
               { insert special goal }
-              I := IdPtr(EmitShortIdent(P,'{END OF BLOCK}',False));
-              B := BTerm_NewSpecial(GOAL_BLOCK,I,H);
+              B := BTerm_New(EmitShortIdent(P,SPECIAL_IDENT_BLOCK,False));
+              BTerm_SetHeader(B,H);
               Header_InsertGoalsToClear(H,B);
               { then, insert the goal to clear, as returned by the syscall }
               Header_InsertGoalsToClear(H,BTerm_New(ZGoal));
@@ -522,6 +522,7 @@ Var
               If Hz = Nil Then
               Begin
                 RuntimeError('block exit with no matching block');
+                Header_SetCutTarget(Hc,Headers_GetLast(Hc));
                 Cleared := False
               End
               Else
@@ -559,7 +560,7 @@ Var
                     (BTerm_GetHeader(B) <> Hz)) Do
                   B := BTerms_GetNext(B);
                 CheckCondition(B <> Nil,'block: cannot find special goal');
-                AssignGoalsToClear(H,B)
+                Header_SetGoalsToClear(H,B)
               End
             End;
           PP_FIND_ALL: { [FIND:2] findall(V,G,L) }
@@ -569,8 +570,8 @@ Var
                 { insert the special goal meant to know when the goal G is 
                 cleared; the goal point back to this header, where the
                 handle variable V is stored }
-                I := IdPtr(EmitShortIdent(P,'{END OF FINDALL}',False));
-                B := BTerm_NewSpecial(GOAL_FIND,I,H);
+                B := BTerm_New(EmitShortIdent(P,SPECIAL_IDENT_FINDALL,False));
+                BTerm_SetHeader(B,H);
                 Header_InsertGoalsToClear(H,B);
                 { then, insert the goal to clear, as returned by the syscall }
                 Header_InsertGoalsToClear(H,BTerm_New(ZGoal));

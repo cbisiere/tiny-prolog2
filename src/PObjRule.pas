@@ -34,17 +34,19 @@ Uses
 Function Rule_New( y : TSyntax ) : RulePtr;
 
 Function Rule_GetSyntax( R : RulePtr ) : TSyntax;
+Function Rule_GetAccess( R : RulePtr ) : IdPtr;
+Function Rule_GetArity( R : RulePtr ) : TArity;
+
 Procedure Rule_SetStatement( R : RulePtr; St : StmtPtr );
 Function Rule_GetHead( R : RulePtr ) : BTermPtr;
 Function Rule_GetQueue( R : RulePtr ) : BTermPtr;
-Function Rule_GetTerms( R : RulePtr ) : BTermPtr;
-Procedure Rule_SetTerms( R : RulePtr; B : BTermPtr );
 Function Rule_GetEqs( R : RulePtr ) : EqPtr;
 Procedure Rule_SetEqs( R : RulePtr; Eqs : EqPtr );
 
-Function Rule_Access( R : RulePtr ) : IdPtr;
-Function Rule_Arity( R : RulePtr ) : TArity;
+Procedure Rule_GetSignature( R : RulePtr; 
+    Var Access : IdPtr; Var Arity : TArity );
 Function Rule_HeadIsValid( R : RulePtr ) : Boolean;
+Procedure Rule_SetHeadAndQueue( R : RulePtr; B : BTermPtr );
 
 Implementation
 
@@ -58,13 +60,15 @@ Var
   R : RulePtr;
   ptr : TObjectPtr Absolute R;
 Begin
-  ptr := NewRegisteredPObject(RU,SizeOf(TObjRule),3,True,2);
+  ptr := NewRegisteredPObject(RU,SizeOf(TObjRule),4,True,2);
   With R^ Do
   Begin
     RU_FBTR := Nil;
     RU_SYST := Nil;
     RU_STMT := Nil;
-    RU_ACUT := False;
+    RU_ACCE := Nil;
+    RU_ARIT := 0;
+    RU_TYPE := GOAL_STD;
     RU_SYNT := y
   End;
   Rule_New := R
@@ -122,28 +126,73 @@ Begin
   R^.RU_SYST := Eqs
 End;
 
+{ rule's access }
+Function Rule_GetAccess( R : RulePtr ) : IdPtr;
+Begin
+  Rule_GetAccess := R^.RU_ACCE
+End;
+
+{ set a rule's access identifier  }
+Procedure Rule_SetAccess( R : RulePtr; I : IdPtr );
+Begin
+  R^.RU_ACCE := I
+End;
+
+{ rule's arity }
+Function Rule_GetArity( R : RulePtr ) : TArity;
+Begin
+  Rule_GetArity := R^.RU_ARIT
+End;
+
+{ set a rule's arity }
+Procedure Rule_SetArity( R : RulePtr; a : TArity );
+Begin
+  R^.RU_ARIT := a
+End;
+
+{ rule's arity }
+Function Rule_GetType( R : RulePtr ) : TGoalType;
+Begin
+  Rule_GetType := R^.RU_TYPE
+End;
+
+{ set a rule's arity }
+Procedure Rule_SetType( R : RulePtr; GoalType : TGoalType );
+Begin
+  R^.RU_TYPE := GoalType
+End;
+
 {-----------------------------------------------------------------------}
 { methods                                                               }
 {-----------------------------------------------------------------------}
 
-Function Rule_Access( R : RulePtr ) : IdPtr;
+Procedure Rule_GetSignature( R : RulePtr; 
+    Var Access : IdPtr; Var Arity : TArity );
 Begin
-  Rule_Access := BTerm_GetAccessTerm(Rule_GetHead(R))
+  Access := Rule_GetAccess(R);
+  Arity := Rule_GetArity(R)
 End;
 
-Function Rule_Arity( R : RulePtr ) : TArity;
-Begin
-  Rule_Arity := BTerm_GetArity(Rule_GetHead(R))
-End;
-
-{ test whether the head of a rule is valid }
+{ is the head of a rule valid? }
 Function Rule_HeadIsValid( R : RulePtr ) : Boolean;
-Var
-  B : BTermPtr;
 Begin
-  B := Rule_GetHead(R);
-  Rule_HeadIsValid := (BTerm_GetType(B) = GOAL_STD) And 
-      (BTerm_GetAccessTerm(B) <> Nil)
+  Rule_HeadIsValid := (Rule_GetType(R) = GOAL_STD) And 
+      (Rule_GetAccess(R) <> Nil)
+End;
+
+{ set a rule's head and queue, updating the rule's signature }
+Procedure Rule_SetHeadAndQueue( R : RulePtr; B : BTermPtr );
+Var
+  GoalType : TGoalType;
+  I : IdPtr;
+  a : TArity;
+Begin
+  Rule_SetTerms(R,B);
+  { update cached metadata }
+  BTerm_GetMetadata(B,GoalType,I,a);
+  Rule_SetType(R,GoalType);
+  Rule_SetAccess(R,I);
+  Rule_SetArity(R,a)
 End;
 
 End.

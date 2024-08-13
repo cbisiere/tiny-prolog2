@@ -28,6 +28,7 @@ Type
     PARAMETER_ERROR,
     SYNTAX_ERROR,
     RUNTIME_ERROR,
+    ENCODING_ERROR,
     USER_INTERRUPT
   );
 
@@ -45,6 +46,7 @@ Procedure SetQuitOn( n : Integer );
 Procedure SyntaxError( msg : TString );
 Procedure RuntimeError( msg : TString );
 Procedure ParameterError( msg : TString );
+Procedure EncodingError( msg : TString );
 Procedure UserInterrupt;
 Procedure Bug( msg : TString );
 
@@ -134,6 +136,12 @@ End;
 Procedure ParameterError( msg : TString );
 Begin
   RaiseError(PARAMETER_ERROR,'Command line error: ' + msg)
+End;
+
+{ broken encoding; display a message }
+Procedure EncodingError( msg : TString );
+Begin
+  RaiseError(ENCODING_ERROR,'Character encoding error: ' + msg)
 End;
 
 { user interruption }

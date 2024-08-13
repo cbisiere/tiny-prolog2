@@ -245,7 +245,7 @@ Procedure RegisterPredefined( P : ProgPtr );
 Var 
   T : TermPtr;
 Begin
-  T := EmitIdent(P,Str_NewFromShortString(SYSCALL_IDENT_AS_STRING),True)
+  T := EmitIdent(P,Str_NewFromShortString(SPECIAL_IDENT_SYSCALL),True)
 End;
 
 
@@ -513,7 +513,7 @@ Begin
   CheckCondition(IsIdentifier(T1),
       'PredefCallIsOk: constant expected');
   SysCallCode := IdentifierGetStr(IdPtr(T1));
-  CheckCondition(Str_EqualToShortString(SysCallCode,SYSCALL_IDENT_AS_STRING),
+  CheckCondition(Str_EqualToShortString(SysCallCode,SPECIAL_IDENT_SYSCALL),
       'PredefCallIsOk: Not a syscall');
 
   { there are at least two arguments: 'syscall' and the identifier }
@@ -1047,9 +1047,8 @@ Var
 Begin
   GetListOfMatchingRules := Nil;
 
-  Ih := Rule_Access(R);
+  Rule_GetSignature(R,Ih,a);
   CheckCondition(Ih <> Nil,'rule w/o access');
-  a := Rule_Arity(R);
 
   { build the list }
   Sl := Nil; { list to be returned }
@@ -1140,7 +1139,7 @@ Begin
 
   { create the rule from the list of BTerms }
   R := Rule_New(GetSyntax(P));
-  Rule_SetTerms(R,B);
+  Rule_SetHeadAndQueue(R,B);
 
   If Not Rule_HeadIsValid(R) Then
   Begin
@@ -1211,12 +1210,13 @@ Var
   Ri : RulePtr;
   Sti,Stb : StmtPtr;
   Wi : WorldPtr;
+  a : TArity;
 Begin
   { make the variables appear as non-temporary, as this is nicer }
   SetObjectsAsGenuine(TObjectPtr(R));
 
   { compute the insertion point Sti }
-  Ih := Rule_Access(R);
+  Rule_GetSignature(R,Ih,a);
   Sti := Nil;
   If First Then { asserta }
   Begin
@@ -1275,7 +1275,7 @@ Begin
 
   { create the rule from the list of BTerms }
   R := Rule_New(GetSyntax(P));
-  Rule_SetTerms(R,B);
+  Rule_SetHeadAndQueue(R,B);
 
   If Not Rule_HeadIsValid(R) Then
   Begin
@@ -1326,7 +1326,7 @@ Begin
 
   { create the rule from the list of BTerms }
   R := Rule_New(GetSyntax(P));
-  Rule_SetTerms(R,B);
+  Rule_SetHeadAndQueue(R,B);
 
   If Not Rule_HeadIsValid(R) Then
   Begin

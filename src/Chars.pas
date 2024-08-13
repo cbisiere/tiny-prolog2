@@ -175,7 +175,7 @@ Procedure UpdateContainerEncoding( Var Cont : TEncoding; Enc : TEncoding );
 Begin
   CheckCondition(Enc <> UNDECIDED,'undecided encoding');
   If Not AreCompatibleEncodings(Cont,Enc) Then 
-    SyntaxError('cannot mix incompatible character encodings') { FIXME: could be a "user input" error  }
+    EncodingError('cannot mix incompatible character encodings') { FIXME: could be a "user input" error  }
   Else If UpdatableEncoding(Cont,Enc) Then
     Cont := Enc
 End;
@@ -267,7 +267,7 @@ End;
  - based on such context, try to guess the  encoding of the next, possibly 
    multi-bytes, character in s
  - in case of success, delete cc from the beginning of s and return True
-   (since SyntaxError halts the program, this should always be the case)
+   (since EncodingError halts the program, this should always be the case)
  - update the encoding context Cont whenever possible
  - recognize CRLF as a single code point, as in DOS and Windows,
    and most non-Unix, non-IBM systems:
@@ -333,7 +333,7 @@ Begin
       { cannot be UTF-8 }
       If Cont = UTF8 Then
       Begin
-        SyntaxError('broken UTF-8 encoding');
+        EncodingError('broken UTF-8 encoding');
         GetOneTChar := False;
         Exit
       End;
@@ -360,7 +360,7 @@ Begin
         Begin
           If m <> n-1 Then
           Begin
-            SyntaxError('broken UTF-8 encoding');
+            EncodingError('broken UTF-8 encoding');
             GetOneTChar := False;
             Exit
           End;

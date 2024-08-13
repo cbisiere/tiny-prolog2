@@ -24,6 +24,7 @@ Interface
 Uses
   Num,
   Errs,
+  Trace,
   Memory,
   PObj,
   PObjTerm,
@@ -34,17 +35,17 @@ Uses
 
 { BTerm }
 Function BTerm_New( T : TermPtr ) : BTermPtr;
-Function BTerm_NewSpecial( GoalType : TGoalType; I : IdPtr; 
-    H : HeadPtr ) : BTermPtr;
 
 Function BTerm_GetTerm( B : BTermPtr ) : TermPtr;
-Function BTerm_GetAccessTerm( B : BTermPtr ) : IdPtr;
-Function BTerm_GetArity( B : BTermPtr ) : TArity;
-Procedure BTerm_SetArity( B : BTermPtr; a : TArity );
 Function BTerm_GetHeader( B : BTermPtr ) : HeadPtr;
 Procedure BTerm_SetHeader( B : BTermPtr; H : HeadPtr );
+
 Function BTerm_GetType( B : BTermPtr ) : TGoalType;
-Procedure BTerm_SetType( B : BTermPtr; GoalType : TGoalType );
+Function BTerm_GetAccessTerm( B : BTermPtr ) : IdPtr;
+
+Procedure BTerm_GetMetadata( B : BTermPtr; 
+    Var GoalType : TGoalType; Var Access : IdPtr; Var Arity : TArity );
+
 
 { list }
 Function BTerms_GetNext( B : BTermPtr ) : BTermPtr;
@@ -59,57 +60,19 @@ Implementation
 {-----------------------------------------------------------------------}
 
 { new block of type GoalType, access I, arity a, term T }
-Function BTerm_Build( GoalType : TGoalType; I : IdPtr; a : TArity; 
-    T : TermPtr ) : BTermPtr;
+Function BTerm_New( T : TermPtr ) : BTermPtr;
 Var 
   B : BTermPtr;
   ptr : TObjectPtr Absolute B;
 Begin
-  ptr := NewRegisteredPObject(BT,SizeOf(TObjBTerm),4,True,3);
+  ptr := NewRegisteredPObject(BT,SizeOf(TObjBTerm),3,True,2);
   With B^ Do
   Begin
     BT_TERM := T;
     BT_NEXT := Nil;
-    BT_HEAD := Nil;
-    BT_ACCE := I;
-    BT_ARIT := a;
-    BT_TYPE := GoalType
+    BT_HEAD := Nil
   End;
-  BTerm_Build := B
-End;
-
-{ new block for term T }
-Function BTerm_New( T : TermPtr ) : BTermPtr;
-Var 
-  I : IdPtr;
-  a : TArity;
-  GoalType : TGoalType;
-Begin
-  I := AccessIdentifier(T);
-  a := Arity(T);
-  GoalType := GOAL_STD;
-  
-  If I <> Nil Then
-  Begin
-    If IdentifierIsCut(I) Then
-      GoalType := GOAL_CUT
-    Else If IdentifierIsSyscall(I) Then
-      GoalType := GOAL_SYS
-  End;
-  BTerm_New := BTerm_Build(GoalType,I,a,T)
-End;
-
-{ return a special BTerm with a back pointer, to handle findall/3 or block/2;
- identifier is for convenience (tracing) }
-Function BTerm_NewSpecial( GoalType : TGoalType; I : IdPtr; 
-    H : HeadPtr ) : BTermPtr;
-Var
-  B : BTermPtr;
-Begin
-  CheckCondition(GoalType In [GOAL_FIND,GOAL_BLOCK],'BTerm_NewSpecial: type');
-  B := BTerm_Build(GoalType,I,0,TermPtr(I));
-  BTerm_SetHeader(B,H);
-  BTerm_NewSpecial := B
+  BTerm_New := B
 End;
 
 {-----------------------------------------------------------------------}
@@ -121,24 +84,6 @@ Function BTerm_GetTerm( B : BTermPtr ) : TermPtr;
 Begin
   CheckCondition(B <> Nil,'BTerm_GetTerm: Nil');
   BTerm_GetTerm := B^.BT_TERM
-End;
-
-{ access identifier of a block }
-Function BTerm_GetAccessTerm( B : BTermPtr ) : IdPtr;
-Begin
-  BTerm_GetAccessTerm := B^.BT_ACCE
-End;
-
-{ arity  }
-Function BTerm_GetArity( B : BTermPtr ) : TArity;
-Begin
-  BTerm_GetArity := B^.BT_ARIT
-End;
-
-{ set arity }
-Procedure BTerm_SetArity( B : BTermPtr; a : TArity );
-Begin
-  B^.BT_ARIT := a
 End;
 
 { get clock header }
@@ -153,16 +98,41 @@ Begin
   B^.BT_HEAD := H
 End;
 
-{ get type }
-Function BTerm_GetType( B : BTermPtr ) : TGoalType;
+{-----------------------------------------------------------------------}
+{ metadata                                                              }
+{-----------------------------------------------------------------------}
+
+Procedure BTerm_GetMetadata( B : BTermPtr; 
+    Var GoalType : TGoalType; Var Access : IdPtr; Var Arity : TArity );
+Var
+  T : TermPtr;
 Begin
-  BTerm_GetType := B^.BT_TYPE
+  T := BTerm_GetTerm(B);
+  Access := AccessIdentifier(T);
+  Arity := GetArity(T);
+  GoalType := IdentifierToGoalType(Access)  
 End;
 
-{ set clock header }
-Procedure BTerm_SetType( B : BTermPtr; GoalType : TGoalType );
+{ get type }
+Function BTerm_GetType( B : BTermPtr ) : TGoalType;
+Var 
+  GoalType : TGoalType;
+  Access : IdPtr; 
+  Arity : TArity; 
 Begin
-  B^.BT_TYPE := GoalType
+  BTerm_GetMetadata(B,GoalType,Access,Arity);
+  BTerm_GetType := GoalType
+End;
+
+{ access identifier of a block }
+Function BTerm_GetAccessTerm( B : BTermPtr ) : IdPtr;
+Var 
+  GoalType : TGoalType;
+  Access : IdPtr; 
+  Arity : TArity; 
+Begin
+  BTerm_GetMetadata(B,GoalType,Access,Arity);
+  BTerm_GetAccessTerm := Access
 End;
 
 {-----------------------------------------------------------------------}
