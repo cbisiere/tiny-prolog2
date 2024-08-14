@@ -1190,7 +1190,7 @@ Begin
   { on first call, gather all rules matching the head and the queue, using a
    list of statements }
   If SuccessCount = 0 Then
-    Choices := GetListOfMatchingRules(P,R);
+    Choices := Pointer(GetListOfMatchingRules(P,R));
 
   { no (or no more) solutions: fail, and don't try again }
   If Choices = Nil Then
@@ -1199,7 +1199,7 @@ Begin
   { backup the current stored solution and move to the next one for further 
    calls }
   St := StmtPtr(Choices);
-  Choices := Statement_GetNext(St);
+  Choices := Pointer(Statement_GetNext(St));
 
   { copy the rule }
   Rc := RulePtr(DeepCopy(Statement_GetObject(St)));
@@ -1419,10 +1419,10 @@ Begin
     CWriteLn;
     Exit
   End;
-  If n > MaxChildren Then
+  If n > MaxPrologArraySize Then
   Begin
     CWriteWarning('array too large: maximum number of elements is ');
-    CWrite(PosIntToShortString(MaxChildren));
+    CWrite(PosIntToShortString(MaxPrologArraySize));
     CWriteLn;
     Exit
   End;
@@ -2398,8 +2398,8 @@ Begin
     L := NewEmptyList(P);
     While Choices <> Nil Do
     Begin
-      L := NewList2(P,TermPtr(List_GetObject(Choices)),L);
-      Choices := List_GetPrev(Choices)
+      L := NewList2(P,TermPtr(List_GetObject(ListPtr(Choices))),L);
+      Choices := Pointer(List_GetPrev(ListPtr(Choices)))
     End;
     Success := ReduceOneEq(T3,L,GetDebugStream(P));
     More := False { I am done, bye}

@@ -588,8 +588,10 @@ Begin
     While (cmp = CompUndefined) And  
         StrIter_NextChar(Iter1,cc1) And StrIter_NextChar(Iter2,cc2) Do
     Begin
-      TCharToCodePoint(cc1,cp1);
-      TCharToCodePoint(cc2,cp2);
+      If Not TCharToCodePoint(cc1,cp1) Then
+        Exit;
+      If Not TCharToCodePoint(cc2,cp2) Then
+        Exit;
       If cp1 < cp2 Then
         cmp := CompLower
       Else If cp1 > cp2 Then

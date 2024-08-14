@@ -24,6 +24,7 @@ Uses
 
 {$IFDEF MSDOS}
 Const
+  MaxWord = 65535; { 2^16 - 1 }
   MaxPosInt = 2147483647; { 2^31 - 1 }
 Type 
   { Word is too small on MDSOS, eg to store UTF-8 codepoints; so we use 4-byte
@@ -34,6 +35,7 @@ Type
   Pointer = ^Integer; { generic pointer }
 {$ELSE}
 Const
+  MaxWord = 65535; { 2^16 - 1 }
   MaxPosInt = 4294967295; { 2^32 - 1 }
   MaxLongInt = 1e+24;
  Type

@@ -26,11 +26,12 @@ Uses
   Trace;
 
 {$IFDEF MSDOS}
+{ TP4 p212: maximum size of a structured type is 65520 bytes }
 Const
   GetMemMaxSize = 65521; { see TP4 pdf p. 443 }
   MaxChildren = 16300; { 4-bytes pointers + small metadata overhead }
 Type 
-  TObjectSize : Word;
+  TObjectSize = Word;
   TObjectChild = Word; { child index or counter }
 {$ELSE}
 Const
@@ -75,7 +76,7 @@ Type
   End;
   TObject = Record
     PO_META : TObjMeta;
-    PO_PTRS : Array[1..MaxPosInt] Of TObjectPtr { pointers to child objects }
+    PO_PTRS : Array[1..MaxChildren] Of TObjectPtr { pointers to child objects }
   End;
 
 { mem stats }

@@ -78,11 +78,16 @@ Type
     TF_RTER : TermPtr
 End;
 
+{ max number of elements in an array; this is much smaller in TP4 to account 
+ for a maximum record size of 65520 bytes }
+Const 
+  MaxPrologArraySize = MaxChildren;
+
 { array; not a term in itself; must contain only pointers, as the size of the
  object is set a creation time }
 Type
-  TArrayIndex = 1..MaxPosInt;
-  TArraySize = PosInt;
+  TArrayIndex = 1..MaxPrologArraySize;
+  TArraySize = 0..MaxPrologArraySize;
   ArrayPtr = ^TObjArray;
   TObjArray = Record
     PO_META : TObjMeta;

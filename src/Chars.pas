@@ -110,9 +110,11 @@ End;
 
 Function GetSystemCEncoding: TEncoding;
 Var
+  CodePage : Word;
   Enc : TEncoding;
 Begin
-  Case GetSystemCodepage Of
+  CodePage := GetSystemCodepage;
+  Case CodePage Of
   437: 
     Enc := CP437;
   850: 
@@ -121,10 +123,13 @@ Begin
     Enc := ASCII;
   28591: 
     Enc := ISO8859;
-  0,65001: 
+  0: 
     Enc := UTF8;
   Else
-    Enc := SINGLE_BYTE
+    If CodePage = 65001 Then { TP: case constant must within integer range }
+      Enc := UTF8
+    Else
+      Enc := SINGLE_BYTE
   End;
   GetSystemCEncoding := Enc
 End;
