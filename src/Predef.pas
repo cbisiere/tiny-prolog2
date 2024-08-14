@@ -402,9 +402,10 @@ Begin
   GetBoolean := True
 End;
 
+{ type to read or return }
 Type
-  TPrologDataType = (TYPE_CHAR,TYPE_INTEGER,TYPE_IDENT,TYPE_REAL,TYPE_STRING,
-      TYPE_TERM,TYPE_DOT,TYPE_TUPLE);
+  TPrologDataType = (TYPE_CHAR,TYPE_CODE_CHAR,TYPE_INTEGER,TYPE_IDENT,TYPE_REAL,
+      TYPE_STRING,TYPE_TERM,TYPE_DOT,TYPE_TUPLE);
 
 { return in Result the type argument passed as an identifier in argument n 
  of a predicate; return false if the argument is not a type identifier }
@@ -426,6 +427,8 @@ Begin
     Result := TYPE_TERM
   Else If s = 'char' Then
     Result := TYPE_CHAR
+  Else If s = 'code' Then
+    Result := TYPE_CODE_CHAR
   Else If s = 'ident' Then
     Result := TYPE_IDENT
   Else If s = 'integer' Then
@@ -2117,10 +2120,12 @@ Var
   LookAhead : Boolean; { advance read requested, undo all the reads }
   f : StreamPtr;
   c : TChar;
+  cp : TCodePoint;
   K : TokenPtr;
   e : TIChar;
   Success : Boolean;
   s : StrPtr;
+  ss : TString;
 Begin
   ClearIn := False;
   { 1: stream }
@@ -2161,22 +2166,42 @@ Begin
 
   { read target in Tr}
   Case What Of
-  TYPE_CHAR:
+  TYPE_CHAR,TYPE_CODE_CHAR:
     Begin
       Stream_GetChar(f,c);
       Success := Not Error;
       If Success Then
       Begin
-        s := Stream_NewStr(f);
-        If GetSyntax(P) = Edinburgh Then { Edinburgh: return a one-char atom }
-        Begin
-          Str_AppendChar(s,c);
-          Tr := EmitIdent(P,s,False)
-        End
-        Else
-        Begin
-          Str_AppendChar(s,c);
-          Tr := EmitConst(P,s,CS,False)
+        Case What Of
+        TYPE_CHAR:
+          Begin
+            s := Stream_NewStr(f);
+            If GetSyntax(P) = Edinburgh Then { Edinburgh: return a one-char atom }
+            Begin
+              If c.Bytes = EndOfInput Then
+                Str_Append(s,'end_of_file')
+              Else
+                Str_AppendChar(s,c);
+              Tr := EmitIdent(P,s,False)
+            End
+            Else
+            Begin
+              Str_AppendChar(s,c);
+              Tr := EmitConst(P,s,CS,False)
+            End
+          End;
+        TYPE_CODE_CHAR:
+          Begin
+            If (GetSyntax(P) = Edinburgh) And (c.Bytes = EndOfInput) Then
+              ss := '-1'
+            Else
+            Begin
+              If Not TCharToCodePoint(c,cp) Then { TODO: check }
+                Exit;
+              ss := CodePointToShortString(cp)
+            End;
+            Tr := EmitConst(P,Str_NewFromShortString(ss),CI,False)
+          End
         End
       End
     End;

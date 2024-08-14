@@ -83,6 +83,8 @@ close(Stream) :- syscall(syscloseinput,Stream), !.
 close(Stream) :- syscall(syscloseoutput,Stream).
 get_char(Stream,Char) :- syscall(sysin,Stream,Char,char,false,false).
 get_char(Char) :- input_is(Stream), get_char(Stream,Char).
+get_code(Stream,Code) :- syscall(sysin,Stream,Code,code,false,false).
+get_code(Code) :- input_is(Stream), get_code(Stream,Code).
 put_char(Char) :- syscall(sysoutm,Char).
 read(Stream,Term) :- syscall(sysinterm,Stream,Term).
 read(Term) :- input_is(Stream), syscall(sysin,Stream,Term,term,true,false).

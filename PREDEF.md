@@ -203,9 +203,10 @@ Predicate | Action | Example
 ### Terms: read and write
 Predicate | Action | Example
 --- | --- | ---
-`get_char(S,C)`, `get_char(C)`| read a character from stream `S` or from the current stream | `?- get_char(data,C).`
-`put_char(C)` | write a character to the current stream | `?- put_char('a').`
-`read(S,T)`, `read(T)`| read a term from stream `S` or from the current stream | `?- read(data,T).`
+`get_char(S,C)`, `get_char(C)`| read a character from stream `S` or from the current stream; on end of file, `C` is set to the atom `end_of_file` | `?- get_char(data,C).` <br> `{ C='\n' }` <br> `?-`
+`put_char(C)` | write a character to the current stream | `?- put_char('a').` <br> `a{ }` <br> `?-`
+`read(S,T)`, `read(T)`| read a term from stream `S` or from the current stream | `?- read(T).` <br> `cat(felix)` <br> `{ T=cat(felix) }` <br> `?-`
+`get_code(S,N)`, `get_code(N)` | read a character from stream `S` or from the current stream, and set `N` to its code (or to `-1` on end of file)  | `?- get_char(emptyfile,N).` <br> `{ N=-1 }` <br> `?-`
 
 
 ### Composition and decomposition of objects
@@ -214,6 +215,7 @@ Predicate | Action | Example
 `atom_chars(A,L)` | unify atom `A` and list of chars `L` | `?- atom_chars('2€',L).` <br> `{ L=['2','€'] }` <br> `?-atom_chars(A,['3','¢']).` <br> `{ A='3¢' }` <br> `?-`
 `atom_length(A,N)` | unify `N` with the length of atom `A` | `?- atom_length(abc,N).` <br> `{ N=3 }` <br> `?-`
 `number_chars(X,L)` | unify number `X` and list of chars `L` | `?- number_chars(123,L).` <br> `{ L=['1','2','3'] }` <br> `?-number_chars(R,['1','.','2']).` <br> `{ R=1.2e+0 }` <br> `?-`
+`char_code(C,N)` | unifiy character `C` and character code `N`; either `C` or `N` must be bound | `?- char_code('€',N).` <br> `{ N=8364 }` <br> `?-`
 
 
 ### Control
