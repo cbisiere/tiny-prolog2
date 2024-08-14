@@ -141,6 +141,10 @@ freeze(V,G) :- syscall(sysfreeze,V,G).
 findall(T,G,L) :- syscall(sysfindall,T,G,L).
 fail :- syscall(sysfail).
 
+"date/time"
+
+get_time(V) :- syscall(systime,V,epoch,real).
+
 "debug"
 
 bt :- syscall(sysbacktrace).

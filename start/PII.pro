@@ -112,6 +112,10 @@ block(T,G) -> syscall(sysblock,T,G);
 block-exit(T) -> syscall(sysblockexit,T);
 fail -> syscall(sysfail);
 
+"date/time"
+
+time(V) -> syscall(systime,V,startofday,integer);
+
 "debug"
 
 trace -> syscall(systrace,true);

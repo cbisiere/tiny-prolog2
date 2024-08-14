@@ -116,6 +116,12 @@ Predicate | Action | Example
 `echo`, `sourd` / `echo`, `no-echo` | set the echo state on or off; when echo is on, inserted Prolog files are echoed to console | 
 `trace`, `sans-trace` / `trace`, `no-trace` | set the trace state on or off; when trace is on, cleared goals are displayed | 
 
+### Date and Time
+
+Predicate | Action | Example
+--- | --- | ---
+`time(V)` | unify `V` with the number of seconds elapsed since the beginning of the day, as an integer value | `> time(V);` <br> `{ v=34084 }` <br> `$`
+
 
 ## Prolog II+, Marseille syntax
 
@@ -163,6 +169,12 @@ Predicate | Action | Example
 `assert(H,Q)`, `asserta(H,Q)` | same as Prolog II's `assert/2` 
 `assert''(H,Q)`, `assertz(H,Q)` | same as `assert/2` but create the rule at the end of the group of rules with the same identifier and arity
 `retract(H,Q)` | suppress (one at a time) the rules whose head and queue unify with `H` and `Q`, respectively, at the time `retract` was first cleared
+
+### Date and Time
+
+Predicate | Action | Example
+--- | --- | ---
+`time(V)` | unify `V` with the number of seconds elapsed since January 1, 1970, as an integer value | `> time(V);` <br> `{ v=1723626866 }` <br> `$`
 
 
 ## Edinburg syntax
@@ -213,6 +225,11 @@ Predicate | Action | Example
 `findall(T,G,L)` | collect in list `L` all the solutions `T` when goal `G` is cleared
 `freeze(V,G)`| _as in Prolog II_ |
 
+### Date and Time
+
+Predicate | Action | Example
+--- | --- | ---
+`get_time(V)` | unify `V` with the number of seconds elapsed since January 1, 1970, as a real value | `?- get_time(V).` <br> `{ v=1.723626866e+9 }` <br> `?-`
 
 ### Operators
 

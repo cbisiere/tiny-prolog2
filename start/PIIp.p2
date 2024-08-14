@@ -95,6 +95,11 @@ block_exit(T) -> syscall(sysblockexit,T);
 findall(T,G,L) -> syscall(sysfindall,T,G,L);
 fail -> syscall(sysfail);
 
+"date/time"
+
+"Note: I cannot figure out the actual time reference used by PII+ Windows"
+time(V) -> syscall(systime,V,epoch,integer); 
+
 "debug"
 
 trace -> syscall(systrace,true);

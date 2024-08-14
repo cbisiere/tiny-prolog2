@@ -23,6 +23,7 @@ Uses
   Dos,
   ShortStr,
   Num,
+  DateTime,
   Errs,
   Chars,
   Crt2,
@@ -119,7 +120,8 @@ Type
     PP_FIND_ALL,
     PP_BLOCK,
     PP_BLOCK_EXIT,
-    PP_FAIL
+    PP_FAIL,
+    PP_TIME
   );
 
 Procedure RegisterPredefined( P : ProgPtr );
@@ -141,7 +143,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 59;
+  NB_PP = 60;
   MAX_PP_LENGHT = 21; { max string length }
 Type
   TPPRec = Record
@@ -215,7 +217,8 @@ Const
     (I:PP_FIND_ALL;S:'sysfindall';N:3),
     (I:PP_BLOCK;S:'sysblock';N:2), { block(T,G) }
     (I:PP_BLOCK_EXIT;S:'sysblockexit';N:1), { block-exit(T) }
-    (I:PP_FAIL;S:'sysfail';N:0)
+    (I:PP_FAIL;S:'sysfail';N:0),
+    (I:PP_TIME;S:'systime';N:3)
   );
 
 { lookup for a predefined predicates; set the found record; 
@@ -444,6 +447,40 @@ Begin
     Exit
   End;
   GetType := True
+End;
+
+Type
+  TTimeType = (TIME_TYPE_TODAY,TIME_TYPE_EPOCH);
+
+{ return in Result the time type argument passed as an identifier in argument n 
+ of a predicate; return false if the argument is not a type identifier }
+Function GetTimeType( n : Byte; T : TermPtr; 
+  Var Result : TTimeType ) : Boolean;
+Var
+  I : IdPtr;
+  s : TString;
+Begin
+  GetTimeType := False;
+  I := EvalPArgAsIdent(n,T);
+  If I = Nil Then
+  Begin
+    CWriteLnWarning('incorrect argument: type expected');
+    Exit
+  End;
+  s := IdentifierGetShortString(I);
+  If s = 'startofday' Then
+    Result := TIME_TYPE_TODAY
+  Else If s = 'epoch' Then
+    Result := TIME_TYPE_EPOCH
+  Else
+  Begin
+    CWriteWarning('invalid time type argument: ''');
+    CWrite(s);
+    CWrite('''');
+    CWriteLn;
+    Exit
+  End;
+  GetTimeType := True
 End;
 
 { return True if argument n of a predicate can be path  }
@@ -2380,6 +2417,62 @@ Begin
   ClearBlockExit := True
 End;
 
+{ (time(V), get_time(V) }
+Function ClearTime( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  T1,Tr : TermPtr;
+  TimeRef : TTimeType;
+  What : TPrologDataType;
+  V : PosInt;
+  s : StrPtr;
+Begin
+  ClearTime := False;
+  { 1: time variable (or value, but then likely to fail) }
+  T1 := EvalPArg(1,T);
+  { 2: time reference ('startofday' or 'epoch') }
+  If Not GetTimeType(2,T,TimeRef) Then
+  Begin
+    CWritelnWarning('invalid reference time argument');
+    Exit
+  End;
+  { 3: type of result ('integer' or 'real')}
+  If Not GetType(3,T,What) Then
+    Exit;
+  If Not (What In [TYPE_INTEGER,TYPE_REAL]) Then
+  Begin
+    CWritelnWarning('invalid type argument');
+    Exit
+  End;
+  { check T1 is not bound to an non numerical value }
+  If IsBound(T1) And Not (((What = TYPE_INTEGER) And IsInteger(T1)) Or 
+      ((What = TYPE_REAL) And IsReal(T1))) Then
+  Begin
+    CWritelnWarning('time argument is bounded to a value with incorrect type');
+    Exit
+  End;
+  { compute the number of seconds since the reference time }
+  Case TimeRef Of
+  TIME_TYPE_TODAY: { seconds since the start of the day }
+    V := SecondsSinceMidnight;
+  TIME_TYPE_EPOCH: { seconds since Jan 1, 1970 }
+    V := UnixTime;
+  End;
+  { convert to target type }
+  Case What Of
+  TYPE_INTEGER:
+    Begin
+      s := Str_NewFromShortString(LongIntToShortString(V));
+      Tr := EmitConst(P,s,CI,False)
+    End;
+  TYPE_REAL:
+    Begin
+      s := Str_NewFromShortString(LongRealToShortString(V));
+      Tr := EmitConst(P,s,CR,False)
+    End
+  End;
+  ClearTime := ReduceOneEq(T1,Tr,GetDebugStream(P))
+End;
+
 {----------------------------------------------------------------------------}
 { dispatch                                                                   }
 {----------------------------------------------------------------------------}
@@ -2508,6 +2601,8 @@ Begin
     Ok := ClearBlock(P,T,V,G);
   PP_BLOCK_EXIT:
     Ok := ClearBlockExit(P,T,V);
+  PP_TIME:
+    Ok := ClearTime(P,T);
   PP_FAIL:
     Ok := False
   End;
