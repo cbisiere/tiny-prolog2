@@ -53,7 +53,7 @@ Type
   TBufItem = TIChar; { items in the buffer (opaque to this module) }
 
 Type 
-  TBufIndex = 0..BufSize; { index in (or size of) the buffer }
+  TBufIndex = Word; {//}//0..BufSize; { index in (or size of) the buffer }
   TBuf = Record
     { elements in the buffer: [IdxB,IdxE] }
     Len : TBufIndex; { number of elements }
@@ -62,6 +62,8 @@ Type
     { elements that have been read: [IdxB,Idx]  }
     LenR : TBufIndex; { number of elements read }
     IdxR : TBufIndex; { last element read, or zero if none yet }
+    { current pointer (editing) }
+    CP : TBufIndex; { insertion is done after CP; prepend if CP = 0 }
     { storage structure }
     Buf : Array[1..BufSize] Of TBufItem
   End;
@@ -83,14 +85,22 @@ Procedure BufPop( Var e : TIChar; Var B : TBuf );
 Procedure BufDiscard( Var B : TBuf; n : TBufIndex );
 Procedure BufAppendTChar( Var B : TBuf; cc : TChar );
 Procedure BufDiscardUnread( Var B : TBuf );
-
+Procedure BufSetAllRead( Var B : TBuf );
 Procedure BufRead( Var e : TBufItem; Var B : TBuf );
 Procedure BufUnread( Var B : TBuf );
+Procedure BufFilterOut( Var B : TBuf; cc : TChar );
+Function BufDiff( B1,B2 : TBuf ) : Boolean;
+
+Function BufCPIsAtStart( B : TBuf ) : Boolean;
+Function BufCPIsAtEnd( B : TBuf ) : Boolean;
+Procedure BufNextCP( Var B : TBuf );
+Procedure BufPrevCP( Var B : TBuf );
+Procedure BufGetCharAtCP( Var e : TBufItem; B : TBuf );
+Procedure BufDeleteAtCP( Var B : TBuf );
+Procedure BufInsertAtCP( Var B : TBuf; cc : TChar );
 
 Function BufDisplayLine( B : TBuf; max : TBufIndex ) : TBufIndex;
 Procedure BufToEchoFile( B : TBuf );
-Procedure BufFilterOut( Var B : TBuf; cc : TChar );
-Function BufDiff( B1,B2 : TBuf ) : Boolean;
 
 Procedure CharDump( cc : TChar );
 Procedure BufDump( B : TBuf );
@@ -246,9 +256,10 @@ Begin
     BufGetRead(e,B,0)
 End;
 
-{ set element of index i in a buffer }
-Procedure BufSet( Var B : TBuf; i : TBufIndex; e : TBufItem );
+{ set element of index i, with offset n, in a buffer }
+Procedure BufSet( Var B : TBuf; i,n : TBufIndex; e : TBufItem );
 Begin
+  i := IncIdx(i,n);
   BufCheck(B,i);
   With B Do 
     Buf[i] := e
@@ -267,7 +278,8 @@ Begin
     IdxB := 0;
     IdxE := 0;
     LenR := 0;
-    IdxR := 0
+    IdxR := 0;
+    CP := 0
   End
 End;
 
@@ -283,7 +295,7 @@ Begin
     IdxB := Loc;
     IdxE := Loc;
   End;
-  BufSet(B,Loc,e)
+  BufSet(B,Loc,0,e)
 End;
 
 { pop one element in buffer B }
@@ -340,7 +352,7 @@ Begin
     Begin
       IdxE := IncIdx(IdxE,1);
       Len := Len + 1;
-      BufSet(B,IdxE,e)
+      BufSet(B,IdxE,0,e)
     End
   End
 End;
@@ -376,6 +388,16 @@ Begin
       IdxE := IdxR;
       Len := NbBetween(B,IdxB,IdxE)
     End
+  End
+End;
+
+{ set all chars as read }
+Procedure BufSetAllRead( Var B : TBuf );
+Begin
+  With B Do
+  Begin
+    IdxR := IdxE;
+    LenR := Len
   End
 End;
 
@@ -417,6 +439,181 @@ Begin
     End
   End
 End;
+
+{ delete from buffer B all characters equal to cc; reset the read 
+ cursor }
+Procedure BufFilterOut( Var B : TBuf; cc : TChar );
+Var 
+  R : TBuf;
+  i : TBufIndex;
+Begin
+  BufInit(R);
+  i := FirstIdx(B);
+  While i <> 0 Do
+  Begin
+    With B.Buf[i] Do
+      If Val.Bytes <> cc.Bytes Then
+        BufAppendTChar(R,Val);
+    i := NextIdx(B,i)
+  End;
+  B := R
+End;
+
+{ have two buffers different content? }
+Function BufDiff( B1,B2 : TBuf ) : Boolean;
+Var 
+  i : TBufIndex;
+  Diff : Boolean;
+Begin
+  Diff := B1.Len <> B2.Len;
+  i := FirstIdx(B1);
+  While (i <> 0) And Not Diff Do 
+  Begin
+    Diff := B1.Buf[i].Val.Bytes <> B2.Buf[i].Val.Bytes;
+    i := NextIdx(B1,i)
+  End;
+  BufDiff := Diff
+End;
+
+{----------------------------------------------------------------------------}
+{ Current pointer (CP)                                                       }
+{----------------------------------------------------------------------------}
+
+{ CP ranges from 0 to N, the number of chars in the buffer;
+ - in terms of display, the blinking cursor is on char CP+1, that is, from the 
+   first char to the char right after the last char 
+ - insertions are made before char CP+1
+ - deletion by backspace are made at char CP; no deletion is possible when CP
+   is zero 
+ }
+
+{ Is CP at its starting position? meaning inserting is prepending, and delete
+ by backspace is not possible }
+Function BufCPIsAtStart( B : TBuf ) : Boolean;
+Begin
+  BufCPIsAtStart := B.CP = 0
+End;
+
+{ Is CP at its ending position? meaning inserting is appending, and delete by
+ backspace deletes the last char; note that if the buffer is empty, this 
+ function returns True }
+Function BufCPIsAtEnd( B : TBuf ) : Boolean;
+Begin
+  BufCPIsAtEnd := B.CP = B.IdxE
+End;
+
+{ advance CP by one char }
+Procedure BufNextCP( Var B : TBuf );
+Begin
+  CheckCondition(Not BufCPIsAtEnd(B),'Buf: CP already at end');
+  B.CP := NextIdx(B,B.CP)
+End;
+
+{ move backward CP by one char; CP = 0 means further insertions will be done at 
+ the beginning }
+Procedure BufPrevCP( Var B : TBuf );
+Begin
+  CheckCondition(Not BufCPIsAtStart(B),'Buf: CP already at start');
+  B.CP := PrevIdx(B,B.CP)
+End;
+
+{ get the char at position CP }
+Procedure BufGetCharAtCP( Var e : TBufItem; B : TBuf );
+Begin
+  CheckCondition(Not BufCPIsAtStart(B),'Buf: CP is zero');
+  With B Do 
+    BufGet(e,B,CP,0)
+End;
+
+{ delete the char at current pointer CP }
+Procedure BufDeleteAtCP( Var B : TBuf );
+Var
+  i : TBufIndex;
+  e,ePrev : TBufItem;
+  dummy : TChar;
+Begin
+  CheckCondition(B.CP > 0,'Buf: cannot delete, CP is zero');
+  If BufCPIsAtEnd(B) Then { simple case: pop }
+    BufPop(e,B)
+  Else
+  Begin
+    { get ePrev, the IChar on which the location of the moved char must be 
+     based on }
+    If B.CP = B.IdxB Then { what is going to be deleted is the first char }
+    Begin
+      ASCIIChar(dummy,' ');
+      SetIChar(ePrev,dummy,0,0)
+    End
+    Else { not the first char: char before the deleted one is the reference }
+    Begin
+      BufGet(ePrev,B,PrevIdx(B,B.CP),0)
+    End;
+    { move left all chars from CP+1, by one char, overwriting the char at CP }
+    i := B.CP; { start with the location of the char to delete }
+    While NextIdx(B,i) <> 0 Do
+    Begin
+      BufGet(e,B,i,1); { i+1: char to move left by one spot }
+      NewICharFromPrev(e,ePrev,e.Val);
+      BufSet(B,i,0,e); { Buf[i] <- Buf[i+1] }
+      ePrev := e;
+      i := NextIdx(B,i);
+    End;
+    { shorten the buffer by one char }
+    BufPop(e,B)
+  End;
+  { update CP }
+  BufPrevCP(B)
+End;
+
+{ insert one char after CP; CP = O means prepend; CP = IdxE means append }
+Procedure BufInsertAtCP( Var B : TBuf; cc : TChar );
+Var
+  i : TBufIndex;
+  e,eNew,ePrev,eNext,ei,ej : TBufItem;
+  dummy : TChar;
+Begin
+  CheckCondition(BufNbFree(B) > 0,'Buf: cannot insert, buffer is full');
+  If BufCPIsAtEnd(B) Then { simple case: push }
+    BufAppendTChar(B,cc)
+  Else
+  Begin
+    { build eNew, the IChar to insert, with adequate position data }
+    If BufCPIsAtStart(B) Then { use what is going to be the next char }
+    Begin
+      BufGetFirst(eNext,B);
+      NewICharFromNext(eNew,eNext,cc)
+    End
+    Else { use what is going to be the char before the new one }
+    Begin
+      BufGetCharAtCP(ePrev,B);
+      NewICharFromPrev(eNew,ePrev,cc)
+    End;
+    { append a dummy char }
+    ASCIIChar(dummy,' ');
+    BufAppendTChar(B,dummy);
+    { move right all chars from CP+1 to the end, by one char }
+    i := NextIdx(B,B.CP); { start at CP+1 }
+    e := eNew; { in the loop, e is the char to store at position i }
+    While i <> 0 Do
+    Begin
+      { save char i into ei }
+      BufGet(ei,B,i,0); { i: char to move right by one spot  }
+      { reset its pos data using e, the char that will be just left of it }
+      NewICharFromPrev(ei,e,ei.Val);
+      { set e at spot i }
+      BufSet(B,i,1,e);
+      { char to insert next is now ei }
+      e := ei;
+      i := NextIdx(B,i)
+    End
+  End;
+  { update CP }
+  BufNextCP(B)
+End;
+
+{----------------------------------------------------------------------------}
+{ Display                                                                    }
+{----------------------------------------------------------------------------}
 
 { display last characters read, belonging to the same line, and taking up to a 
  maximum of max columns; return the number of columns actually
@@ -495,41 +692,6 @@ Begin
   End
 End;
 
-{ delete from buffer B all characters equal to cc; reset the read 
- cursor }
-Procedure BufFilterOut( Var B : TBuf; cc : TChar );
-Var 
-  R : TBuf;
-  i : TBufIndex;
-Begin
-  BufInit(R);
-  i := FirstIdx(B);
-  While i <> 0 Do
-  Begin
-    With B.Buf[i] Do
-      If Val.Bytes <> cc.Bytes Then
-        BufAppendTChar(R,Val);
-    i := NextIdx(B,i)
-  End;
-  B := R
-End;
-
-{ have two buffers different content? }
-Function BufDiff( B1,B2 : TBuf ) : Boolean;
-Var 
-  i : TBufIndex;
-  Diff : Boolean;
-Begin
-  Diff := B1.Len <> B2.Len;
-  i := FirstIdx(B1);
-  While (i <> 0) And Not Diff Do 
-  Begin
-    Diff := B1.Buf[i].Val.Bytes <> B2.Buf[i].Val.Bytes;
-    i := NextIdx(B1,i)
-  End;
-  BufDiff := Diff
-End;
-
 
 {----------------------------------------------------------------------------}
 { Debug                                                                      }
@@ -576,10 +738,11 @@ Var
 Begin
   With CrtRow Do
   Begin
-    WriteToEchoFile(IntToShortString(Len) + ' ' + IntToShortString(Wrap) + ' ');
+    WriteToEchoFile(IntToShortString(Len) + ' ' + 
+        IntToShortString(LenBytes) + ' ');
     For i := 1 to Len Do
     Begin
-      CrtChar(Row,i,cc);
+      CrtChar(CrtRow,i,cc);
       CharDump(cc)
     End
   End

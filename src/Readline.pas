@@ -194,8 +194,13 @@ Var
    several Enter keys;
  - detect encoding if Encoding is still unknown, impose it otherwise;
  - use soft marks to indicate line breaks such that the command
-   line nicely fits into the screen width without breaking UTF-8 sequences; 
- assertions: 
+   line nicely fits into the screen width without breaking UTF-8 sequences;
+ - use the CP index of the TBuf to manage editing: CP = 0 means the cursor
+   is located on the first char of the current input, meaning you cannot
+   backspace from here, or that insertion are done at the beginning of the 
+   buffer; note that inserted characters increase CP; when CP points to the
+   last character, inserting means appending   
+ Assertions: 
  - in the buffer, soft marks are separated with at least one
    genuine char; 
  - the buffer never ends with a soft mark 
@@ -235,6 +240,7 @@ Var
   { clear the command line and display the prompt }
   Procedure ResetCommandLine;
   Begin
+    { input buffer is empty }
     BufInit(B);
     { make sur the prompt will be visible }
     Ya := Max(Ya,1);
@@ -277,22 +283,45 @@ Var
     DisplayBufferFrom(i)
   End;
 
+  { left arrow action }
+  Procedure LeftArrow;
+  Begin
+    If Not BufCPIsAtStart(B) Then
+    Begin
+      BufPrevCP(B);
+      CrtMoveLeft
+    End
+  End;
+
+  { right arrow action }
+  Procedure RightArrow;
+  Begin
+    If Not BufCPIsAtEnd(B) Then
+    Begin
+      BufNextCP(B);
+      CrtMoveRight
+    End
+  End;
+
   { backspace action }
   Procedure Backspace;
   Var
     e1,e2 : TIChar;
   Begin
-
-    { empty command line: emit a beep }
-    If BufLen(B) = 0 Then
+    { no chars to delete: emit a beep }
+    If BufCPIsAtStart(B) Then
     Begin
       CrtBeep;
       Exit
     End;
 
-    { remove the last char in the buffer }
-    BufPop(e1,B);
-    CheckCondition(e1.Val.Bytes <> SOFT_BREAK,'Backspace: popping a SOFT_BREAK');
+    BufGetCharAtCP(e1,B);
+    CheckCondition(e1.Val.Bytes <> SOFT_BREAK,
+        'Backspace: backspace on a SOFT_BREAK');
+
+    { remove the target char, that is, the char at CP; CP is set to the
+     char before the deleted char }
+    BufDeleteAtCP(B);
 
     { deleted char was the only char left in the buffer }
     If BufLen(B) = 0 Then
@@ -302,7 +331,7 @@ Var
     End;
 
     { get the char just before the one we just deleted }
-    BufGetLast(e2,B);
+    BufGetCharAtCP(e2,B);
 
     { simple case: more than one char on the current line }
     If e2.Val.Bytes <> SOFT_BREAK Then
@@ -314,7 +343,7 @@ Var
     { backspacing on a single char on a soft line: }
 
     { delete the soft mark }
-    BufPop(e2,B);
+    BufDeleteAtCP(B);
     { scroll down one line if the previous line is hidden }
     If WhereY = 1 Then
       Ya := Ya + 1;
@@ -327,18 +356,18 @@ Var
     DisplayLastLine
   End;
 
-  { append a char to the buffer, making sure at least n characters 
-   are left free in the buffer; return True if the char has been
-   appended; characters (user input) that do not fit into the buffer 
+  { insert a char in the buffer, at insertion point, making sure at least n 
+   characters are left free in the buffer; return True if the char has been
+   inserted; characters (user input) that do not fit into the buffer 
    are silently discarded }
-  Function AppendChToBuf( cc : TChar; n : TBufIndex ) : Boolean;
+  Function InsertCharInBuf( cc : TChar; n : TBufIndex ) : Boolean;
   Var
     Can : Boolean;
   Begin
     Can := BufNbFree(B) > n;
     If Can Then
-      BufAppendTChar(B,cc);
-    AppendChToBuf := Can
+      BufInsertAtCP(B,cc);
+    InsertCharInBuf := Can
   End;
 
   { append a char to the buffer, inserting extra soft breaks to avoid 
@@ -348,12 +377,12 @@ Var
   Begin
     If Not CrtFits(cc) Then
     Begin
-      If AppendChToBuf(CC_SOFT_BREAK,2) Then
+      If InsertCharInBuf(CC_SOFT_BREAK,2) Then
         DisplaySoftBreak
       Else
         Exit
     End;
-    If AppendChToBuf(cc,1) Then
+    If InsertCharInBuf(cc,1) Then
       CrtWriteCharThatFits(cc)
   End;
 
@@ -374,6 +403,7 @@ Var
       ResetCommandLine;
       Hist.Cur := Hist.Cur + 1;
       B := Hist.Str[Hist.Cur];
+      BufSetAllRead(B); { CP at the end }
       DisplayBuffer
     End
   End;
@@ -387,6 +417,7 @@ Var
     If Hist.Cur > 0 Then
     Begin
       B := Hist.Str[Hist.Cur];
+      BufSetAllRead(B); { CP at the end }
       DisplayBuffer
     End
   End;
@@ -404,7 +435,7 @@ Var
     BufFilterOut(B,CC_SOFT_BREAK);
     { NewLine must be part of the input, so that:
       "> in_char(c);<NewLine>" sets c to NewLine; see PII+ R 5-4 }
-    Ok := AppendChToBuf(CC_NEW_LINE,0);
+    Ok := InsertCharInBuf(CC_NEW_LINE,0);
     CheckCondition(Ok,'Enter: Cannot add new line');
     { since the user validated the input, we output the buffer to the echo 
      file }
@@ -449,6 +480,16 @@ Var
         Begin
           BufRead(e2,R);
           DownArrow
+        End
+        Else If cc2.Bytes = #75 Then
+        Begin
+          BufRead(e2,R);
+          LeftArrow
+        End
+        Else If cc2.Bytes = #77 Then
+        Begin
+          BufRead(e2,R);
+          RightArrow
         End
       End;
       { filter out ASCII control chars }

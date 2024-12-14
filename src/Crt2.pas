@@ -85,7 +85,7 @@ Type
   TCrtRowData = Array[1..CrtScreenMaxWidth] Of TChar;
   TCrtRow = Record
     Len : Byte; { number of chars in the row }
-    Wrap : Integer; { Crt will wrap when greater than CrtScreenMaxWidth }
+    LenBytes : Word; { total number of bytes in the row }
     Row : TCrtRowData
   End;
 
@@ -100,13 +100,15 @@ Var
 
 Function CrtCharWidthOnScreen( cc : TChar ) : Byte;
 Function CrtFits( cc : TChar ) : Boolean;
-Procedure CrtChar( R : TCrtRowData; i : TCrtCoord; Var cc : TChar);
+Procedure CrtChar( R : TCrtRow; i : TCrtCoord; Var cc : TChar);
 
 Procedure CrtWriteLn;
 Procedure CrtWriteCharThatFits( cc : TChar );
 Procedure CrtWriteChar( cc : TChar );
 Procedure CrtWriteShortString( s : TString );
 
+Procedure CrtMoveLeft;
+Procedure CrtMoveRight;
 Procedure CrtBackspace;
 Procedure CrtClrLines( y : TCrtCoord; n : Byte );
 Procedure CrtClrSrc;
@@ -139,22 +141,9 @@ Function GetScreenHeight : TCrtCoord;
 Begin
   GetScreenHeight := ScreenHeight
 End;
-{----------------------------------------------------------------------------}
-{ initializations                                                            }
-{----------------------------------------------------------------------------}
-
-{ reset the memorized line }
-Procedure CrtResetLine;
-Begin
-  With CrtRow Do
-  Begin
-    Len := 0;
-    Wrap := 0
-  End;
-End;
 
 {----------------------------------------------------------------------------}
-{ get / set                                                                  }
+{ wrap info                                                                  }
 {----------------------------------------------------------------------------}
 
 { number of bytes that a char takes when trying to fit in the screen row 
@@ -179,25 +168,142 @@ Begin
     CrtCharWidthOnScreen := 1
 End;
 
+{----------------------------------------------------------------------------}
+{ editing an array of chars R                                                }
+{----------------------------------------------------------------------------}
+
+{ procedures below work on a row R, w/o any change to what is displayed on 
+ screen }
+
+{ get char i in row data R }
+Procedure CrtChar( R : TCrtRow; i : TCrtCoord; Var cc : TChar);
+Begin;
+  cc := R.Row[i]
+End;
+
+{ set to cc char i in row data R }
+Procedure CrtSetChar( Var R : TCrtRow; i : TCrtCoord; cc : TChar);
+Begin
+  R.Row[i] := cc
+End;
+
+{ assign char i with char j of row R }
+Procedure CrtAssignChar( Var R : TCrtRow; i,j : TCrtCoord );
+Begin
+  R.Row[i] := R.Row[j]
+End;
+
+{ insert char cc before position i on row R }
+Procedure CrtInsertChar( Var R : TCrtRow; i : TCrtCoord; cc : TChar );
+Var
+  j : Byte; { loop index to move chars in the row }
+Begin
+  With R Do
+  Begin
+    { update length }
+    Len := Len + 1;
+    LenBytes := LenBytes + CrtCharWrapSize(cc);
+    { move right all chars from char i, if any, making room for the new char }
+    For j := Len - 1 DownTo i Do
+      CrtAssignChar(R,j + 1,j);
+    { save the new char at insertion point }
+    CrtSetChar(R,i,cc)
+  End
+End;
+
+{ delete char cc at position i on row R }
+Procedure CrtDeleteChar( Var R : TCrtRow; i : TCrtCoord );
+Var
+  cc : TChar; { char being deleted }
+  j : Byte; { loop index to move chars in the row }
+Begin
+  With R Do
+  Begin
+    CrtChar(R,i,cc);
+    { move left all chars from char i, overwriting it }
+    For j := Len - 1  DownTo i Do
+      CrtAssignChar(R,j,j + 1);
+    { update length }
+    Len := Len - 1;
+    LenBytes := LenBytes - CrtCharWrapSize(cc)
+  End
+End;
+
+{----------------------------------------------------------------------------}
+{ displaying an array of chars R                                             }
+{----------------------------------------------------------------------------}
+
+{ procedures below work on a row R, without changing it, but may change the 
+ position of the current pointer (CP) on screen; it is assumed that none of
+ there procedures trigger a wrap (change of line) }
+
+{ display char cc; increase WhereX by one }
+Procedure CrtDisplayChar( cc : TChar );
+Begin
+  Write(cc.Bytes)
+End;
+
+{ replay (display) row R, from char i, at current screen row; restore WhereX if
+ RestoreX is True }
+Procedure CrtDisplayChars( R : TCrtRow; i : TCrtCoord; RestoreX : Boolean );
+Var
+  X : TCrtCoord; { WhereX backup }
+  j : TCrtCoord;
+  cc : TChar;
+Begin
+  X := WhereX;
+  ClrEol;
+  For j := i to R.Len Do
+  Begin
+    CrtChar(R,j,cc);
+    CrtDisplayChar(cc)
+  End;
+  If RestoreX Then
+    GotoXY(X,WhereY)
+End;
+
+{ replay (display) a full row R at screen row number Y; changes WhereX and 
+ WhereY }
+Procedure CrtReplay( R : TCrtRow; y : TCrtCoord );
+Begin
+  GotoXY(1,y);
+  CrtDisplayChars(R,1,False) { CP at the end }
+End;
+
+{----------------------------------------------------------------------------}
+{                                                                            }
+{  Main procedures                                                           }
+{                                                                            }
+{  Procedures below work on CrtRow, maintaining data in synch with what is   }
+{  displayed on screen                                                       }
+{                                                                            }
+{----------------------------------------------------------------------------}
+{----------------------------------------------------------------------------}
+{ initializations                                                            }
+{----------------------------------------------------------------------------}
+
+{ reset the memorized line }
+Procedure CrtResetLine;
+Begin
+  With CrtRow Do
+  Begin
+    Len := 0;
+    LenBytes := 0
+  End;
+End;
+
+{----------------------------------------------------------------------------}
+{ wrap?                                                                      }
+{----------------------------------------------------------------------------}
+
 { return true if cc fits into the current screen row; we do not use 
  the last column, as displaying a character here will trigger a line
  break }
 Function CrtFits( cc : TChar ) : Boolean;
 Begin
-  CrtFits := CrtRow.Wrap + CrtCharWrapSize(cc) < CrtScreenWidth
+  CrtFits := CrtRow.LenBytes + CrtCharWrapSize(cc) < CrtScreenWidth
 End;
 
-{ get char i in row data R }
-Procedure CrtChar( R : TCrtRowData; i : TCrtCoord; Var cc : TChar);
-Begin;
-  cc := R[i]
-End;
-
-{ set to cc char i in row data R }
-Procedure CrtSetChar( Var R : TCrtRowData; i : TCrtCoord; cc : TChar);
-Begin
-  R[i] := cc
-End;
 
 {----------------------------------------------------------------------------}
 { main procedures                                                            }
@@ -214,28 +320,39 @@ Begin
   CrtResetLine
 End;
 
-{ write a char on screen, breaking the line when the screen is full }
+{ delete one char at the cursor }
+Procedure CrtBackspace;
+Begin
+  CheckCondition(WhereX > 1,'CrtBackspace: no chars to delete');
+  { update data structure }
+  CrtDeleteChar(CrtRow,WhereX);
+  { update display, w/o changing WhereX  }
+  Write(#08); { backspace }
+  CrtDisplayChars(CrtRow,WhereX + 1,True)
+End;
+
+{ insert a char on screen, at the insertion point WhereX, assuming there is 
+ enough room for the new character to be displayed without Crt creating a line 
+ break }
 Procedure CrtWriteCharThatFits( cc : TChar );
 Begin
-  Write(cc.Bytes);
+  { display the char; full display is completed below }
+  CrtDisplayChar(cc);
   { we must exit in case of error, as the error module uses Crt to display 
    messages about bugs; if the bug is about Crt, this could create an 
    infinite loop }
   If Error Then Exit;
   CheckCondition(CrtFits(cc),'Character does not fit into the screen');
-  With CrtRow Do
-  Begin
-    Len := Len + 1;
-    CrtSetChar(Row,Len,cc);
-    Wrap := Wrap + CrtCharWrapSize(cc)
-  End
+  { update data }
+  CrtInsertChar(CrtRow,WhereX,cc);
+  { complete screen update, w/o changing WhereX }
+  CrtDisplayChars(CrtRow,WhereX,True)
 End;
 
 { write a char on screen, breaking the line when the screen is full or when
  the char itself if NewLine; remember that the input subsystem replaces CR, LF, 
  and CRLF with (NewLine) (LF), so CR should only appear when we add it 
- ourselves, which we avoid doing
- FIXME: StrPtr must use TChar instead of 1-byte chars }
+ ourselves, which we avoid doing }
 Procedure CrtWriteChar( cc : TChar );
 Begin
   If cc.Bytes = NewLine Then
@@ -262,20 +379,18 @@ Begin
   End
 End;
 
-{ backspace one char at the cursor }
-Procedure CrtBackspace;
-Var
-  cc : TChar;
+{ move cursor left by one char }
+Procedure CrtMoveLeft;
 Begin
-  CheckCondition(CrtRow.Len > 1,'CrtBackspace: no chars to delete');
-  Write(#08); { backspace }
-  ClrEol;
-  With CrtRow Do
-  Begin
-    CrtChar(Row,Len,cc);
-    Wrap := Wrap - CrtCharWrapSize(cc);
-    Len := Len - 1
-  End
+  If WhereX > 1 Then
+    GotoXY(WhereX - 1,WhereY)
+End;
+
+{ move cursor right by one char }
+Procedure CrtMoveRight;
+Begin
+  If WhereX < CrtScreenWidth Then
+    GotoXY(WhereX + 1,WhereY)
 End;
 
 { clear the current line }
@@ -321,23 +436,6 @@ Procedure CrtBeep;
 Begin
   Write(#07) { bell }
 End;
-
-{ replay (display) the row R at row number Y }
-Procedure CrtReplay( R : TCrtRow; y : TCrtCoord );
-Var
-  i : TCrtCoord;
-  cc : TChar;
-Begin
-  GotoXY(1,y);
-  CrtClrLine;
-  With R Do
-    For i := 1 to Len Do
-    Begin
-      CrtChar(Row,i,cc);
-      CrtWriteCharThatFits(cc)
-    End
-End;
-
 
 { initialize the unit }
 Begin

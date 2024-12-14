@@ -57,6 +57,7 @@ Type
   End;
 
 Procedure SetIChar( Var e : TIChar; v : TChar; line : TLineNum; col : TCharPos );
+Procedure NewICharFromNext( Var e : TIChar; n : TIChar; v : TChar );
 Procedure NewICharFromPrev( Var e : TIChar; p : TIChar; v : TChar );
 
 Function IsTab( e : TIChar ) : Boolean;
@@ -73,6 +74,26 @@ Begin
     Val := v;
     Lnb := line;
     Pos := col
+  End
+End;
+
+{ set a character e with a given value v, computing its position data from the 
+ next character n; this function is meant to be called when prepending a char, 
+ otherwise, if that char is a NewLine, its position will be  wrong (and set 
+ to 1) as we do not know the length of the line this NewLine is the end of }
+Procedure NewICharFromNext( Var e : TIChar; n : TIChar; v : TChar );
+Begin
+  e := n;
+  With e Do
+  Begin
+    If v.Bytes = NewLine Then { v is a new line, belonging to the previous line }
+    Begin
+      Lnb := Lnb - 1;
+      Pos := 1 { probably wrong, but we do not have enough info }
+    End
+    Else { previous char in the same input line }
+      Pos := Pos - 1;
+    Val := v
   End
 End;
 
