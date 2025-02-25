@@ -25,7 +25,7 @@ Uses
   ShortStr,
   Memory,
   Errs,
-  Trace,
+  CWrites,
   Common,
   PObj,
   PObjLisA,

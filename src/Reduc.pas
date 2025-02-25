@@ -30,7 +30,7 @@ Interface
 Uses
   Errs,
   Memory,
-  Trace,
+  CWrites,
   PObj,
   PObjIO,
   PObjList,

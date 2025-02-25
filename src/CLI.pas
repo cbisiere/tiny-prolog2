@@ -1,21 +1,21 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   File        : Readline.pas                                               }
+{   File        : CLI.pas                                                    }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022,2023,2024                                             }
+{   Updated     : 2022-2025                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
-{          K E Y B O A R D   I N P U T   W I T H   H I S T O R Y             }
+{                C O M M A N D   L I N E   I N T E R F A C E                 }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-{ Command line editing, with history:
+{ Command line editing, with command history:
  - edit starts at the X position, after an optional prompt;
    since editing can start at any position X, the string before X must be
    memorized, to be displayed again when the prompt line disappears on top
@@ -26,9 +26,6 @@
    the second call, etc. This requires maintaining a keyboard buffer 
    across calls to ReadLnKbd, as each call might return before all 
    the input chars are processed 
- - #00 is used as soft break mark (an arbitrary choice, 
-   provided the mark is not displayable and unlikely to be present in 
-   user input)
  }
 
 {
@@ -38,19 +35,24 @@
     characters in the input encoding 
 }
 
-Unit Readline;
+Unit CLI;
 
 Interface
 
 Uses
+  Common,
+  ShortStr,
   Num,
   Errs,
   Chars,
+  Trace,
   Crt,
   Crt2,
   IChar,
-  Buffer;
+  Buffer,
+  CEdit;
 
+Procedure CLISetPrompt( Prompt : TPrompt );
 Procedure ReadLnKbd( Var B : TBuf; Var Encoding : TEncoding );
 Function CtrlC : Boolean;
 
@@ -61,7 +63,6 @@ Const
   SPACES_PER_TAB = 4; { tabs are converted into spaces }
   MaxHist = 10;
   MaxHistPlusOne = 11; { for TP3 compatibility }
-  SOFT_BREAK = #00; { value of the soft break mark }
   CTRL_C = #03; { ASCII encoding of Ctrl-C}
 
 Type
@@ -74,9 +75,19 @@ Type
     Str : Array[THIndex] of TBuf { most recent on top }
   End;
 
-{ pre-defined characters}
 Var 
-  CC_SOFT_BREAK,CC_BLANK_SPACE,CC_NEW_LINE : TChar;
+  CC_BLANK_SPACE,CC_NEW_LINE : TChar; { pre-defined composite characters}
+  CLIPrompt : TPrompt; { prompt, set by main }
+
+
+{----------------------------------------------------------------------------}
+{ prompt                                                                     }
+{----------------------------------------------------------------------------}
+
+Procedure CLISetPrompt( Prompt : TPrompt );
+Begin
+  CLIPrompt := Prompt
+End;
 
 {----------------------------------------------------------------------------}
 { base keyboard function                                                     }
@@ -123,7 +134,7 @@ Begin
       If BufNbFree(B) > 0 Then
         { get one TChar }
         If GetOneTCharNL(s,cc,Encoding) Then
-          BufAppendTChar(B,cc)
+          BufPushChar(B,cc)
         Else
           SyntaxError('character not recognized')
       Else
@@ -174,6 +185,22 @@ Begin
     InsertAsTopHistory(H,H.Cur,B)
 End;
 
+{ trace history }
+Procedure HistoryDump( H : THistory );
+Var 
+  i : THIndex;
+Begin
+  WritelnToTraceFile('| HIST: ');
+  With H Do
+  Begin
+    If Len > 0 Then
+      For i := 1 To Len Do
+      Begin
+        WriteToTraceFile('| HIST '+IntToShortString(i)+': ');
+        BufDump(H.Str[i])
+      End
+  End
+End;
 
 {----------------------------------------------------------------------------}
 { ReadLn with history                                                        }
@@ -182,208 +209,75 @@ End;
 { history }
 Var
   Hist : THistory;
-  PromptRow : TCrtRow; { backup of the screen row when readline is called }
   KbdBuf : TBuf; { keyboard buffer to support paste with chars after new line }
 
 { read one line from the keyboard, that is, a sequence of keys ending
-  with an Enter key
- highlights:
- - return on Enter key, even if there are still keys in the keyboard 
+  with an Enter key }
+
+{ 
+  NOTES:
+  ------
+ - edition starts at screen row WhereY, which is expected to be an empty ine 
+ - return on Enter key, even if there are still keys in the keyboard; 
    buffer; remaining keys will be processed on further calls; this
    allows for sequential treatment of copy-paste text containing
    several Enter keys;
  - detect encoding if Encoding is still unknown, impose it otherwise;
- - use soft marks to indicate line breaks such that the command
-   line nicely fits into the screen width without breaking UTF-8 sequences;
- - use the CP index of the TBuf to manage editing: CP = 0 means the cursor
-   is located on the first char of the current input, meaning you cannot
-   backspace from here, or that insertion are done at the beginning of the 
-   buffer; note that inserted characters increase CP; when CP points to the
-   last character, inserting means appending   
- Assertions: 
- - in the buffer, soft marks are separated with at least one
-   genuine char; 
- - the buffer never ends with a soft mark 
+ - B must not contain any NewLine
  }
 Procedure ReadLnKbd( Var B : TBuf; Var Encoding : TEncoding );
 Var
+  Ed : TEditor; { the CL editor used to edit buffer B }
   Stop : Boolean;
-  Ya : Integer; { current Y-coordinate of the prompt line (can be <= 0) }
 
-  { line feed, maintaining the position Y trackers }
-  Procedure DisplaySoftBreak;
+  { set the command line buffer to B and show it }
+  Procedure SetCommandLine;
   Begin
-    If WhereY = CrtScreenHeight Then { last screen line }
-      Ya := Ya - 1; { screen is full and will scroll one line up }
-    CrtWriteLn
+    CEditSet(Ed,B)
   End;
 
-  { display the buffer from index i, breaking lines at soft marks }
-  Procedure DisplayBufferFrom( i : TBufIndex );
+  { recall an older line if any; do nothing otherwise }
+  Procedure UpArrow;
   Begin
-    While i <> 0 Do
+    If Hist.Cur < Hist.Len Then
     Begin
-      If B.Buf[i].Val.Bytes = SOFT_BREAK Then
-        DisplaySoftBreak
-      Else
-        CrtWriteCharThatFits(B.Buf[i].Val);
-      i := NextIdx(B,i)
-    End
-  End;
-
-  { display the whole buffer  }
-  Procedure DisplayBuffer;
-  Begin
-    DisplayBufferFrom(FirstIdx(B))
-  End;
-
-  { clear the command line and display the prompt }
-  Procedure ResetCommandLine;
-  Begin
-    { input buffer is empty }
-    BufInit(B);
-    { make sur the prompt will be visible }
-    Ya := Max(Ya,1);
-    { clear all the visible edited rows }
-    CrtClrLines(Ya,WhereY);
-    { redraw the prompt }
-    CrtReplay(PromptRow,Ya)
-  End;
-
-  { display at the cursor position the last (possibly soft) line  
-   in the buffer; do not modify the content of the buffer itself }
-  Procedure DisplayLastLine;
-  Var 
-    i : TBufIndex;
-    Found : Boolean; { soft mark found }
-  Begin
-    i := LastIdx(B);
-
-    { empty buffer: nothing to display }
-    If i = 0 Then
-      Exit;
-
-    { locate the beginning of the last line in the buffer }
-    Found := False;
-    While Not Found And (i <> 0) Do
-    Begin
-      If B.Buf[i].Val.Bytes = SOFT_BREAK Then
-        Found := True
-      Else
-        i := PrevIdx(B,i)
+      Hist.Cur := Hist.Cur + 1;
+      B := Hist.Str[Hist.Cur];
+      SetCommandLine
     End;
-    If Found Then
-      i := NextIdx(B,i)
+  End;
+
+  { recall a more recent line if any; reset the prompt otherwise }
+  Procedure DownArrow;
+  Begin
+    If Hist.Cur > 0 Then
+      Hist.Cur := Hist.Cur - 1;
+    If Hist.Cur > 0 Then
+      B := Hist.Str[Hist.Cur]
     Else
-      i := FirstIdx(B);
-
-    { display all the chars up to the end of the buffer; assertions: 
-     all the chars are displayable; the total number of bytes
-     written is not larger than CrtScreenWidth }
-    DisplayBufferFrom(i)
+      BufInit(B);
+    SetCommandLine
   End;
 
-  { left arrow action }
-  Procedure LeftArrow;
+  { Enter key has been hit (or came in through a paste operation); even if the
+   edit cursor is not at the end of the command line, the whole command line
+   is submitted for execution, with a <NewLine> appended at the end;
+   TODO: check a paste (including a NL) in the middle of the edited command 
+   line }
+  Procedure EnterKey;
   Begin
-    If Not BufCPIsAtStart(B) Then
-    Begin
-      BufPrevCP(B);
-      CrtMoveLeft
-    End
-  End;
-
-  { right arrow action }
-  Procedure RightArrow;
-  Begin
-    If Not BufCPIsAtEnd(B) Then
-    Begin
-      BufNextCP(B);
-      CrtMoveRight
-    End
-  End;
-
-  { backspace action }
-  Procedure Backspace;
-  Var
-    e1,e2 : TIChar;
-  Begin
-    { no chars to delete: emit a beep }
-    If BufCPIsAtStart(B) Then
-    Begin
-      CrtBeep;
-      Exit
-    End;
-
-    BufGetCharAtCP(e1,B);
-    CheckCondition(e1.Val.Bytes <> SOFT_BREAK,
-        'Backspace: backspace on a SOFT_BREAK');
-
-    { remove the target char, that is, the char at CP; CP is set to the
-     char before the deleted char }
-    BufDeleteAtCP(B);
-
-    { deleted char was the only char left in the buffer }
-    If BufLen(B) = 0 Then
-    Begin
-      CrtBackspace;
-      Exit
-    End;
-
-    { get the char just before the one we just deleted }
-    BufGetCharAtCP(e2,B);
-
-    { simple case: more than one char on the current line }
-    If e2.Val.Bytes <> SOFT_BREAK Then
-    Begin
-      CrtBackspace;
-      Exit
-    End;
-
-    { backspacing on a single char on a soft line: }
-
-    { delete the soft mark }
-    BufDeleteAtCP(B);
-    { scroll down one line if the previous line is hidden }
-    If WhereY = 1 Then
-      Ya := Ya + 1;
-    { clear the current line and (when possible) the line just above }
-    CrtClrLines(Max(WhereY-1,1),Min(WhereY,2));
-
-    { redraw the new edit line }
-    If WhereY = Ya Then 
-      CrtReplay(PromptRow,Ya);
-    DisplayLastLine
-  End;
-
-  { insert a char in the buffer, at insertion point, making sure at least n 
-   characters are left free in the buffer; return True if the char has been
-   inserted; characters (user input) that do not fit into the buffer 
-   are silently discarded }
-  Function InsertCharInBuf( cc : TChar; n : TBufIndex ) : Boolean;
-  Var
-    Can : Boolean;
-  Begin
-    Can := BufNbFree(B) > n;
-    If Can Then
-      BufInsertAtCP(B,cc);
-    InsertCharInBuf := Can
-  End;
-
-  { append a char to the buffer, inserting extra soft breaks to avoid 
-   breaking multi-byte sequences; make sure the buffer has one spot
-   left for the extra NewLine appended by Enter }
-  Procedure AppendChar( cc : TChar );
-  Begin
-    If Not CrtFits(cc) Then
-    Begin
-      If InsertCharInBuf(CC_SOFT_BREAK,2) Then
-        DisplaySoftBreak
-      Else
-        Exit
-    End;
-    If InsertCharInBuf(cc,1) Then
-      CrtWriteCharThatFits(cc)
+    If BufLen(Ed.Buf) > 0 Then
+      PushToHistory(Hist,Ed.Buf);
+    { prepare the command line to submit: NewLine must be part of the input, 
+     so that: "> in_char(c);<NewLine>" sets c to NewLine; see PII+ R 5-4 }
+    B := Ed.Buf;
+    BufPushChar(B,CC_NEW_LINE);
+    { since the command line is submitted, we can now output the whole  
+     command line to the mirror files }
+    CEditWritePromptToMirrorFiles(Ed);
+    BufToMirrorFiles(B);
+    { visual feedback: new line }
+    CrtWriteln
   End;
 
   { convert tab into spaces }
@@ -392,54 +286,7 @@ Var
     t : 1..SPACES_PER_TAB;
   Begin
     For t := 1 to SPACES_PER_TAB Do
-      AppendChar(CC_BLANK_SPACE)
-  End;
-
-  { recall an older line if any; do nothing otherwise }
-  Procedure UpArrow;
-  Begin
-    If Hist.Cur < Hist.Len Then
-    Begin
-      ResetCommandLine;
-      Hist.Cur := Hist.Cur + 1;
-      B := Hist.Str[Hist.Cur];
-      BufSetAllRead(B); { CP at the end }
-      DisplayBuffer
-    End
-  End;
-
-  { recall a more recent line if any; reset the prompt otherwise }
-  Procedure DownArrow;
-  Begin
-    ResetCommandLine;
-    If Hist.Cur > 0 Then
-      Hist.Cur := Hist.Cur - 1;
-    If Hist.Cur > 0 Then
-    Begin
-      B := Hist.Str[Hist.Cur];
-      BufSetAllRead(B); { CP at the end }
-      DisplayBuffer
-    End
-  End;
-
-  { Enter key has been hit (or came in through a paste operation) }
-  Procedure Enter;
-  Var
-    Ok : Boolean;
-  Begin
-    If BufLen(B) > 0 Then
-      PushToHistory(Hist, B);
-    { visual feedback }
-    DisplaySoftBreak;
-    { remove all the soft marks }
-    BufFilterOut(B,CC_SOFT_BREAK);
-    { NewLine must be part of the input, so that:
-      "> in_char(c);<NewLine>" sets c to NewLine; see PII+ R 5-4 }
-    Ok := InsertCharInBuf(CC_NEW_LINE,0);
-    CheckCondition(Ok,'Enter: Cannot add new line');
-    { since the user validated the input, we output the buffer to the echo 
-     file }
-    BufToEchoFile(B)
+      CEditInsert(Ed,CC_BLANK_SPACE)
   End;
 
   { process the input buffer R, executing actions }
@@ -452,9 +299,13 @@ Var
     Begin
       BufRead(e,R);
       cc := e.Val;
+      { command line buffer full: force a submit }
+      If BufNbFree(B) = 1 Then { the free char is used for the inserted NL }
+        cc := CC_NEW_LINE;
+      { process the char}
       If cc.Bytes = Newline Then { Enter }
       Begin
-        Enter;
+        EnterKey;
         Stop := True
       End
       Else If cc.Bytes = CTRL_C Then { Ctrl-C }
@@ -463,7 +314,7 @@ Var
         UserInterrupt
       End
       Else If cc.Bytes = #08 Then { Backspace }
-        Backspace
+        CEditDelete(Ed)
       Else If cc.Bytes = #09 Then { tab }
         Tab
       Else If (cc.Bytes =  #00) 
@@ -481,31 +332,34 @@ Var
           BufRead(e2,R);
           DownArrow
         End
-        Else If cc2.Bytes = #75 Then
+        Else If cc2.Bytes = #75 Then { left arrow }
         Begin
           BufRead(e2,R);
-          LeftArrow
+          CEditBackward(Ed)
         End
-        Else If cc2.Bytes = #77 Then
+        Else If cc2.Bytes = #77 Then { right arrow }
         Begin
           BufRead(e2,R);
-          RightArrow
+          CEditForward(Ed)
         End
       End;
-      { filter out ASCII control chars }
-      If Not IsIn(cc,[#00..#31,#127]) Then
-        AppendChar(cc)
+      { insert if there are at least 2 free places (recomputing soft breaks may
+       consume an extra place) and not a control char }
+      If (BufNbFree(B) > 1) And (Not IsIn(cc,[#00..#31,#127])) Then
+        CEditInsert(Ed,cc)
     End
   End;
 
 Begin
-  PromptRow := CrtRow; { backup the current line, which serves as a prompt }
-  BufInit(B);
-  Ya := WhereY;
+  { setup and start the editor }
+  CEditInit(Ed,CLIPrompt,WhereY);
+  SetCommandLine;
+  { edit, starting with leftovers from previous paste, if any }
   Stop := False;
   { process any user input left from the previous call }
   If BufNbUnread(KbdBuf) > 0 Then
     ProcessInputBuffer(KbdBuf,Stop);
+  { command line editing }
   While Not Stop And Not Error Do
   Begin
     If KeyPressed Then
@@ -517,11 +371,11 @@ Begin
   End
 End;
 
-{ initialize the command-line history }
+{ initialize }
 Begin
-  ASCIIChar(CC_SOFT_BREAK,SOFT_BREAK);
   ASCIIChar(CC_BLANK_SPACE,' ');
   ASCIIChar(CC_NEW_LINE,NewLine);
   BufInit(KbdBuf);
-  ResetHistory(Hist)
+  ResetHistory(Hist);
+  CLISetPrompt('')
 End.

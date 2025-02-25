@@ -4,7 +4,7 @@
 {   File        : Buffer.pas                                                 }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2023                                                       }
+{   Updated     : 2022-2025                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -15,7 +15,17 @@
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-{ circular buffer with read cursor }
+{ circular buffer with read and write cursors }
+
+{
+  FEATURES:
+  ---------
+ - use the IdxW index of the TBuf to manage editing: IdxW = 0 means the cursor
+   is located on the first char of the current input, meaning you cannot
+   backspace from here, or that insertion are done at the beginning of the 
+   buffer; note that inserted characters increase IdxW; when IdxW points to the
+   last character, inserting means appending
+}
 
 {
   ASSUMPTIONS AND LIMITS:
@@ -36,24 +46,26 @@ Uses
   ShortStr,
   Num,
   Chars,
+  Trace,
   Crt2,
   Errs,
   IChar,
-  Trace;
+  Mirror,
+  CWrites;
 
 Const
   { input buffer size }
 {$IFDEF MSDOS}
   BufSize = 255;
 {$ELSE}
-  BufSize = 1024;
+  BufSize = 4096; { so, more than two 80x25 screens }
 {$ENDIF}
 
 Type 
-  TBufItem = TIChar; { items in the buffer (opaque to this module) }
+  TBufItem = TIChar; { items in the buffer (opaque to (most of) this module) }
 
 Type 
-  TBufIndex = Word; {//}//0..BufSize; { index in (or size of) the buffer }
+  TBufIndex = 0..BufSize; { index in (or size of) the buffer }
   TBuf = Record
     { elements in the buffer: [IdxB,IdxE] }
     Len : TBufIndex; { number of elements }
@@ -63,7 +75,7 @@ Type
     LenR : TBufIndex; { number of elements read }
     IdxR : TBufIndex; { last element read, or zero if none yet }
     { current pointer (editing) }
-    CP : TBufIndex; { insertion is done after CP; prepend if CP = 0 }
+    IdxW : TBufIndex; { insertion after IdxW; prepend if 0; delete at IdxW }
     { storage structure }
     Buf : Array[1..BufSize] Of TBufItem
   End;
@@ -76,31 +88,35 @@ Function BufLen( B : TBuf ) : TBufIndex;
 Function BufNbFree( B : TBuf ) : TBufIndex;
 Function BufNbUnread( B : TBuf ) : TBufIndex;
 Function BufNbRead( B : TBuf ) : TBufIndex;
+Procedure BufGetAt( Var e : TBufItem; B : TBuf; i : TBufIndex );
 Procedure BufGetLast( Var e : TBufItem; B : TBuf );
 Procedure BufGetRead( Var e : TBufItem; B : TBuf; n : TBufIndex );
 Procedure BufGetLastRead( Var e : TBufItem; B : TBuf );
 
 Procedure BufInit( Var B : TBuf );
-Procedure BufPop( Var e : TIChar; Var B : TBuf );
 Procedure BufDiscard( Var B : TBuf; n : TBufIndex );
-Procedure BufAppendTChar( Var B : TBuf; cc : TChar );
+Procedure BufGetChar( Var cc : TChar; B : TBuf; i,n : TBufIndex );
+Procedure BufGetCharAt( Var cc : TChar; B : TBuf; i : TBufIndex );
+Procedure BufPushChar( Var B : TBuf; cc : TChar );
+Function BufCountMultibyteChars( B : TBuf ) : PosInt;
+Function BufIsChar( B : TBuf; i : TBufIndex; cc : TChar ) : Boolean;
 Procedure BufDiscardUnread( Var B : TBuf );
 Procedure BufSetAllRead( Var B : TBuf );
 Procedure BufRead( Var e : TBufItem; Var B : TBuf );
 Procedure BufUnread( Var B : TBuf );
-Procedure BufFilterOut( Var B : TBuf; cc : TChar );
 Function BufDiff( B1,B2 : TBuf ) : Boolean;
 
-Function BufCPIsAtStart( B : TBuf ) : Boolean;
-Function BufCPIsAtEnd( B : TBuf ) : Boolean;
-Procedure BufNextCP( Var B : TBuf );
-Procedure BufPrevCP( Var B : TBuf );
-Procedure BufGetCharAtCP( Var e : TBufItem; B : TBuf );
-Procedure BufDeleteAtCP( Var B : TBuf );
-Procedure BufInsertAtCP( Var B : TBuf; cc : TChar );
+Function BufWriteCursorIsAtStart( B : TBuf ) : Boolean;
+Function BufWriteCursorIsAtEnd( B : TBuf ) : Boolean;
+Procedure BufSetWriteCursorAtEnd( Var B : TBuf );
+Procedure BufWriteCursorMoveToNext( Var B : TBuf );
+Procedure BufWriteCursorMoveToPrev( Var B : TBuf );
+Procedure BufGetItemAtWriteCursor( Var e : TBufItem; B : TBuf );
+Procedure BufDelete( Var B : TBuf );
+Procedure BufInsert( Var B : TBuf; cc : TChar );
 
 Function BufDisplayLine( B : TBuf; max : TBufIndex ) : TBufIndex;
-Procedure BufToEchoFile( B : TBuf );
+Procedure BufToMirrorFiles( B : TBuf );
 
 Procedure CharDump( cc : TChar );
 Procedure BufDump( B : TBuf );
@@ -109,16 +125,16 @@ Implementation
 {-----------------------------------------------------------------------------}
 
 {----------------------------------------------------------------------------}
-{ index calculations                                                         }
+{ index calculations for circular buffer                                     }
 {----------------------------------------------------------------------------}
 
-{ index i incremented by n }
+{ index i incremented by n; IncIdx(0,1) gives 1 }
 Function IncIdx( i,n : TBufIndex ) : TBufIndex;
 Begin
   IncIdx := ((i - 1 + n) mod BufSize) + 1
 End;
 
-{ index i decremented by n }
+{ index i decremented by n; DecIdx(1,1) gives 0 }
 Function DecIdx( i,n : TBufIndex ) : TBufIndex;
 Begin
   If i - n < 1 Then
@@ -127,8 +143,28 @@ Begin
     DecIdx := i - n
 End;
 
+{ test whether index i falls inside interval [i1,i2] }
+Function InBetween( i,i1,i2 : TBufIndex ) : Boolean;
+Begin
+  CheckCondition((i > 0) And (i1 > 0) And (i2 > 0),
+      'InBetween: at least one index is nul');
+  If i1 <= i2 Then
+    InBetween := (i >= i1) And (i <= i2)
+  Else
+    InBetween := (i >= i1) Or (i <= i2)
+End;
+
+{ number of elements between index i1 and index i2 }
+Function NbBetween( i1,i2 : TBufIndex ) : TBufIndex;
+Begin
+  CheckCondition((i1 > 0) And (i2 > 0),
+      'NbBetween: a bound is nul');
+  NbBetween := i2 - i1 + 1 + BufSize*Ord(i2 < i1)
+End;
+
+
 {----------------------------------------------------------------------------}
-{ buffer getters and setters                                                 }
+{ Buffer: get/set                                                            }
 {----------------------------------------------------------------------------}
 
 { first index; 0 if buffer is empty }
@@ -143,80 +179,58 @@ Begin
   LastIdx := B.IdxE
 End;
 
-{ next index after i; 0 if past the end of the buffer }
+{ next index after i; 0 if past the end of the buffer; next of 0 is first }
 Function NextIdx( B : TBuf; i : TBufIndex ) : TBufIndex;
 Begin
-  With B Do
-    If i = IdxE Then
-      NextIdx := 0
-    Else
-      NextIdx := IncIdx(i,1)
+  If i = 0 Then
+    NextIdx := FirstIdx(B)
+  Else If i = LastIdx(B) Then
+    NextIdx := 0
+  Else
+    NextIdx := IncIdx(i,1)
 End;
 
-{ previous index before i; 0 if past the beginning of the buffer }
+{ previous index before i; 0 if past the beginning of the buffer; prev of 0
+ is last }
 Function PrevIdx( B : TBuf; i : TBufIndex ) : TBufIndex;
 Begin
-  With B Do
-    If i = IdxB Then
-      PrevIdx := 0
-    Else
-      PrevIdx := DecIdx(i,1)
-End;
-
-{ test whether index i falls inside interval [i1,i2] }
-Function InBetween( i,i1,i2 : TBufIndex ) : Boolean;
-Begin
-  CheckCondition((i > 0) And (i1 > 0) And (i2 > 0),'InBetween: at least one index is nul');
-  If i1 <= i2 Then
-    InBetween := (i >= i1) And (i <= i2)
+  If i = 0 Then
+    PrevIdx := LastIdx(B)
+  Else If i = FirstIdx(B) Then
+    PrevIdx := 0
   Else
-    InBetween := (i >= i1) Or (i <= i2)
-End;
-
-{ number of elements between index i1 and index i2 }
-Function NbBetween( B : TBuf; i1,i2 : TBufIndex ) : TBufIndex;
-Begin
-  CheckCondition((i1 > 0) And (i2 > 0),'NbBetween: at least one index is nul');
-  With B Do 
-    NbBetween := i2 - i1 + 1 + BufSize*Ord(i2 < i1)
+    PrevIdx := DecIdx(i,1)
 End;
 
 { number of elements in a buffer }
 Function BufLen( B : TBuf ) : TBufIndex;
 Begin
-  With B Do 
-    BufLen := Len
+  BufLen := B.Len
 End;
+
 { number of space left (in number of elements) in a buffer }
 Function BufNbFree( B : TBuf ) : TBufIndex;
 Begin
-  With B Do 
-    BufNbFree := BufSize - Len
+  BufNbFree := BufSize - B.Len
 End;
 
 { number of elements still not consumed }
 Function BufNbUnread( B : TBuf ) : TBufIndex;
 Begin
-  With B Do 
-    BufNbUnread := Len - LenR
+  BufNbUnread := B.Len - B.LenR
 End;
 
 { number of elements already read in a buffer }
 Function BufNbRead( B : TBuf ) : TBufIndex;
 Begin
-  With B Do 
-    BufNbRead := LenR
+  BufNbRead := B.LenR
 End;
 
 { check whether element with index i is in a buffer }
 Procedure BufCheck( B : TBuf; i : TBufIndex );
 Begin
-  CheckCondition(i <> 0,'Buf check: index zero');
-  With B Do 
-  Begin
-    CheckCondition(Len > 0,'Buf check: empty buffer');
-    CheckCondition(InBetween(i,IdxB,IdxE),'Buf check: not in buffer')
-  End
+  CheckCondition(BufLen(B) > 0,'Buf check: empty buffer');
+  CheckCondition(InBetween(i,FirstIdx(B),LastIdx(B)),'Buf check: not in buffer')
 End;
 
 { element of index i in a buffer, with offset n }
@@ -224,36 +238,45 @@ Procedure BufGet( Var e : TBufItem; B : TBuf; i,n : TBufIndex );
 Begin
   i := IncIdx(i,n);
   BufCheck(B,i);
-  With B Do 
-    e := Buf[i]
+  e := B.Buf[i]
+End;
+
+{ element of index i in a buffer }
+Procedure BufGetAt( Var e : TBufItem; B : TBuf; i : TBufIndex );
+Begin
+  BufGet(e,B,i,0)
+End;
+
+{ element of index i in a buffer, with negative offset n }
+Procedure BufGetPrev( Var e : TBufItem; B : TBuf; i,n : TBufIndex );
+Begin
+  i := DecIdx(i,n);
+  BufCheck(B,i);
+  e := B.Buf[i]
 End;
 
 { first element in a buffer }
 Procedure BufGetFirst( Var e : TBufItem; B : TBuf );
 Begin
-  With B Do 
-    BufGet(e,B,IdxB,0)
+  BufGet(e,B,FirstIdx(B),0)
 End;
 
 { last element in a buffer }
 Procedure BufGetLast( Var e : TBufItem; B : TBuf );
 Begin
-  With B Do 
-    BufGet(e,B,IdxE,0)
+  BufGet(e,B,LastIdx(B),0)
 End;
 
 { last element read from a buffer, with an offset }
 Procedure BufGetRead( Var e : TBufItem; B : TBuf; n : TBufIndex );
 Begin
-  With B Do 
-    BufGet(e,B,IdxR,n)
+  BufGet(e,B,B.IdxR,n)
 End;
 
 { last element read from a buffer }
 Procedure BufGetLastRead( Var e : TBufItem; B : TBuf );
 Begin
-  With B Do 
-    BufGetRead(e,B,0)
+  BufGetRead(e,B,0)
 End;
 
 { set element of index i, with offset n, in a buffer }
@@ -261,12 +284,103 @@ Procedure BufSet( Var B : TBuf; i,n : TBufIndex; e : TBufItem );
 Begin
   i := IncIdx(i,n);
   BufCheck(B,i);
-  With B Do 
-    Buf[i] := e
+  B.Buf[i] := e
+End;
+
+{ set element of index i, with negative offset n, in a buffer }
+Procedure BufSetPrev( Var B : TBuf; i,n : TBufIndex; e : TBufItem );
+Begin
+  i := DecIdx(i,n);
+  BufCheck(B,i);
+  B.Buf[i] := e
 End;
 
 {----------------------------------------------------------------------------}
-{ methods                                                                    }
+{ IdxW: get/set                                                              }
+{----------------------------------------------------------------------------}
+
+{ The write cursor IdxW ranges from 0 to N, the number of chars in the buffer;
+ - in terms of display, the blinking cursor is on char IdxW+1, that is, from 
+   the first char to the char right after the last char 
+ - insertions are made before char IdxW+1
+ - deletion by backspace are made at char IdxW; no deletion is possible when 
+   IdxW is zero 
+ }
+
+{ Does IdxW has a sane value? }
+Function BufWriteCursorIsSane( B : TBuf ) : Boolean;
+Begin
+  With B Do 
+    BufWriteCursorIsSane := (IdxW = 0) Or InBetween(IdxW,IdxB,IdxE)
+End;
+
+{ Is IdxW at its starting position? meaning inserting is prepending, and delete
+ by backspace is not possible }
+Function BufWriteCursorIsAtStart( B : TBuf ) : Boolean;
+Begin
+  With B Do 
+    BufWriteCursorIsAtStart := IdxW = 0
+End;
+
+{ Set IdxW such that next insert will be a prepend }
+Procedure BufSetWriteCursorAtStart( Var B : TBuf );
+Begin
+  With B Do 
+    IdxW := 0
+End;
+
+{ Is IdxW at its ending position? meaning inserting is appending, and delete by
+ backspace deletes the last char; note that if the buffer is empty, this 
+ function returns True }
+Function BufWriteCursorIsAtEnd( B : TBuf ) : Boolean;
+Begin
+  With B Do 
+    BufWriteCursorIsAtEnd := IdxW = IdxE
+End;
+
+{ Set IdxW at the end of buffer B; if B is empty, IdxW will be 0, interpreted 
+ as "prepend" }
+Procedure BufSetWriteCursorAtEnd( Var B : TBuf );
+Begin
+  With B Do 
+    IdxW := LastIdx(B)
+End;
+
+{ advance IdxW by one item }
+Procedure BufWriteCursorMoveToNext( Var B : TBuf );
+Begin
+  CheckCondition(Not BufWriteCursorIsAtEnd(B),'Buf: IdxW already at end');
+  With B Do 
+    IdxW := NextIdx(B,IdxW)
+End;
+
+{ move backward IdxW by one char; IdxW = 0 means further insertions will be 
+ done at the beginning }
+Procedure BufWriteCursorMoveToPrev( Var B : TBuf );
+Begin
+  CheckCondition(Not BufWriteCursorIsAtStart(B),'Buf: IdxW already at start');
+  With B Do 
+    IdxW := PrevIdx(B,IdxW)
+End;
+
+{ get the char at position IdxW }
+Procedure BufGetItemAtWriteCursor( Var e : TBufItem; B : TBuf );
+Begin
+  CheckCondition(Not BufWriteCursorIsAtStart(B),'Buf: IdxW is at start');
+  With B Do 
+    BufGet(e,B,IdxW,0)
+End;
+
+{ clip IdxW to a buffer, setting it to zero if it points to a nonexisting char }
+Procedure BufClipWriteCursor( Var B : TBuf );
+Begin
+  If Not BufWriteCursorIsSane(B) Then
+    BufWriteCursorIsAtStart(B)
+End;
+
+
+{----------------------------------------------------------------------------}
+{ init                                                                       }
 {----------------------------------------------------------------------------}
 
 { initialize a buffer }
@@ -279,7 +393,7 @@ Begin
     IdxE := 0;
     LenR := 0;
     IdxR := 0;
-    CP := 0
+    IdxW := 0
   End
 End;
 
@@ -298,27 +412,228 @@ Begin
   BufSet(B,Loc,0,e)
 End;
 
-{ pop one element in buffer B }
-Procedure BufPop( Var e : TIChar; Var B : TBuf );
+
+{----------------------------------------------------------------------------}
+{ push/pop item                                                              }
+{----------------------------------------------------------------------------}
+
+{ push an item at the end of a buffer }
+Procedure BufPushItem( Var B : TBuf; e : TBufItem );
 Begin
+  CheckCondition(BufNbFree(B) > 0,'BufPushItem: Buf is full');
+  With B Do 
+  Begin
+    If Len = 0 Then
+      BufStoreFirst(B,e)
+    Else
+    Begin
+      IdxE := IncIdx(IdxE,1);
+      Len := Len + 1;
+      BufSet(B,IdxE,0,e)
+    End
+  End
+End;
+
+{ pop one item from a buffer, assuming the write index is not pointing at the
+ last item }
+Procedure BufPopItem( Var B : TBuf; Var e : TBufItem );
+Begin
+  CheckCondition(BufLen(B) > 0,'BufPopItem: Buf is empty');
+  CheckCondition(Not BufWriteCursorIsAtEnd(B),'BufPopItem: Cannot pop at IdxW');
   With B Do
   Begin
-    CheckCondition(Len > 0,'BufPop: empty');
+    { char to return }
     BufGetLast(e,B);
+    { delete the last char }
     If BufLen(B) = 1 Then
       BufInit(B)
     Else
-    Begin
-      If IdxR = IdxE Then { last char was already read }
+    Begin { at least two characters are in the buffer }
+      { the last char was already read: rewind the read index by one }
+      If IdxR = IdxE Then
       Begin
         IdxR := DecIdx(IdxR,1);
         LenR := LenR - 1
       End;
+      { now, delete the char from the buffer }
       IdxE := DecIdx(IdxE,1);
       Len := Len - 1
     End
   End
 End;
+
+
+{----------------------------------------------------------------------------}
+{ methods aware of items being of type TIChar                                }
+{----------------------------------------------------------------------------}
+
+{ char of index i in a buffer, with offset n }
+Procedure BufGetChar( Var cc : TChar; B : TBuf; i,n : TBufIndex );
+Var
+  e : TBufItem;
+Begin
+  BufGet(e,B,i,n);
+  cc := e.Val
+End;
+
+{ get the char at position i }
+Procedure BufGetCharAt( Var cc : TChar; B : TBuf; i : TBufIndex );
+Begin
+  BufGetChar(cc,B,i,0)
+End;
+
+{ IChar of index i in a buffer is the char cc }
+Function BufIsChar( B : TBuf; i : TBufIndex; cc : TChar ) : Boolean;
+Var
+  e : TBufItem;
+Begin
+  BufGet(e,B,i,0);
+  BufIsChar := IsChar(e,cc)
+End;
+
+{ set i-th char's position data from its previous char}
+Procedure BufSetPosFromPrev( Var B : TBuf; i : TBufIndex );
+Var
+  k : TBufIndex; { previous index }
+Begin
+  k := PrevIdx(B,i);
+  With B Do
+    SetICharPosFromPrev(Buf[i],Buf[k])
+End;
+
+{ recalculate all character positions, starting from i-th character }
+Procedure BufSetPositions( Var B : TBuf; i : TBufIndex; 
+    line : TLineNum; col : TCharPos );
+Begin
+  { set position data of the first character }
+  SetICharPos(B.Buf[i],line,col);
+  { char next to i is the first to recalculate }
+  i := NextIdx(B,i);
+  While i <> 0 Do
+  Begin
+    BufSetPosFromPrev(B,i);
+    i := NextIdx(B,i)
+  End
+End;
+
+{ append a composite char to a buffer, computing its position from
+ the previous element }
+Procedure BufPushChar( Var B : TBuf; cc : TChar );
+Var
+  p : TIChar; { previous char: from which to compute the new position }
+  e : TIChar; { new char }
+Begin
+  SetIChar(e,cc,1,1); { default: line 1, char 1 }
+  If BufLen(B) > 0 Then
+  Begin
+    BufGetLast(p,B);
+    SetICharPosFromPrev(e,p)
+  End;
+  BufPushItem(B,e)
+End;
+
+{ return the number of multibyte chars in B }
+Function BufCountMultibyteChars( B : TBuf ) : PosInt;
+Var
+  n : PosInt;
+  i : TBufIndex;
+  cc : TChar;
+Begin
+  n := 0;
+  i := FirstIdx(B);
+  While (i <> 0) Do
+  Begin
+    BufGetCharAt(cc,B,i);
+    If IsMultibyte(cc) Then
+      n := n + 1;
+    i := NextIdx(B,i)
+  End;
+  BufCountMultibyteChars := n
+End;
+
+{----------------------------------------------------------------------------}
+{ edit at IdxW                                                               }
+{----------------------------------------------------------------------------}
+
+{ delete the item at write index IdxW and move IdxW left }
+Procedure BufDelete( Var B : TBuf );
+Var
+  i : TBufIndex;
+  e,e1 : TBufItem;
+Begin
+  CheckCondition(Not BufWriteCursorIsAtStart(B),
+      'Buf: cannot delete, IdxW is at start');
+  { char just after IdxW, if any }
+  i := NextIdx(B,B.IdxW);
+  { move left all items from IdxW+1, by one char, overwriting the item at IdxW }
+  If i <> 0 Then
+  Begin
+    { save position data of item at IdxW }
+    BufGetItemAtWriteCursor(e1,B);
+    { move items }
+    While i <> 0 Do
+    Begin
+      BufGet(e,B,i,0); { char to move left by one spot }
+      BufSetPrev(B,i,1,e); { Buf[i-1] <- Buf[i] }
+      i := NextIdx(B,i)
+    End;
+    { update all position data from IdxW }
+    BufSetPositions(B,B.IdxW,e1.Lnb,e1.Pos)
+  End;
+  { move IdxW left; this has to be done before popping the item to enforce 
+   assumptions for BufPopItem regarding IdxW }
+  BufWriteCursorMoveToPrev(B);
+  { shorten the buffer by one char }
+  BufPopItem(B,e)
+End;
+
+{ insert one char after IdxW; thus, IdxW = O means prepend; IdxW = IdxE means 
+ append; move IdxW right }
+Procedure BufInsert( Var B : TBuf; cc : TChar );
+Var
+  k,i : TBufIndex;
+  e,e1,e2 : TBufItem;
+Begin
+  CheckCondition(BufNbFree(B) > 0,'Buf: cannot insert, buffer is full');
+  If BufWriteCursorIsAtEnd(B) Then
+    BufPushChar(B,cc)
+  Else
+  Begin
+    { e1: compute what will be the position data at new IdxW }
+    If BufWriteCursorIsAtStart(B) Then { prepend op; pos data left of first char }
+    Begin
+      BufGetFirst(e,B);
+      SetICharPosFromNext(e1,e)
+    End
+    Else { insert or append; pos data right from IdxW }
+    Begin
+      BufGetItemAtWriteCursor(e,B);
+      SetICharPosFromPrev(e1,e)
+    End;
+    { e2: item to swap from/to }
+    SetIChar(e2,cc,0,0);
+    { location of the new char }
+    k := NextIdx(B,B.IdxW);
+    { make some room for it }
+    i := k;
+    While i <> 0 Do
+    Begin
+      SwapIChar(B.Buf[i],e2);
+      i := NextIdx(B,i)
+    End;
+    { append currently saved char; is cc when just appending }
+    BufPushItem(B,e2);
+    { update all position data from the inserted char }
+    BufSetPositions(B,k,e1.Lnb,e1.Pos)
+  End;
+  { move right write index }
+  BufWriteCursorMoveToNext(B)
+End;
+
+
+{----------------------------------------------------------------------------}
+{ bulk discard                                                               }
+{----------------------------------------------------------------------------}
 
 { discard n element at the beginning of a buffer; these elements must 
  have been read already }
@@ -335,45 +650,26 @@ Begin
     Begin
       IdxB := IncIdx(IdxB,n);
       Len := Len - n;
-      LenR := LenR - n
+      LenR := LenR - n;
+      { IdxW pointed to a discarded char: reset it to "prepend" }
+      BufClipWriteCursor(B)
     End
   End
 End;
 
-{ store an element into a buffer }
-Procedure BufStore( Var B : TBuf; e : TBufItem );
-Begin
-  CheckCondition(BufNbFree(B) > 0,'Buf is full');
-  With B Do 
-  Begin
-    If Len = 0 Then
-      BufStoreFirst(B,e)
-    Else
-    Begin
-      IdxE := IncIdx(IdxE,1);
-      Len := Len + 1;
-      BufSet(B,IdxE,0,e)
-    End
-  End
-End;
 
-{ append a composite char to a buffer, computing its position from
- the previous element }
-Procedure BufAppendTChar( Var B : TBuf; cc : TChar );
-Var
-  p : TIChar; { char from which to compute the new position }
-  e : TIChar; { new char }
-  cc2 : TChar;
+{----------------------------------------------------------------------------}
+{ read/unread                                                                }
+{----------------------------------------------------------------------------}
+
+{ set all chars as read }
+Procedure BufSetAllRead( Var B : TBuf );
 Begin
-  If BufLen(B) > 0 Then
-    BufGetLast(p,B)
-  Else
+  With B Do
   Begin
-    ASCIIChar(cc2,NewLine);
-    SetIChar(p,cc2,0,0)
-  End;
-  NewICharFromPrev(e,p,cc);
-  BufStore(B,e)
+    IdxR := IdxE;
+    LenR := Len
+  End
 End;
 
 { discard all unread elements in a buffer }
@@ -386,18 +682,9 @@ Begin
     Else
     Begin
       IdxE := IdxR;
-      Len := NbBetween(B,IdxB,IdxE)
+      Len := NbBetween(IdxB,IdxE);
+      BufClipWriteCursor(B)
     End
-  End
-End;
-
-{ set all chars as read }
-Procedure BufSetAllRead( Var B : TBuf );
-Begin
-  With B Do
-  Begin
-    IdxR := IdxE;
-    LenR := Len
   End
 End;
 
@@ -440,25 +727,6 @@ Begin
   End
 End;
 
-{ delete from buffer B all characters equal to cc; reset the read 
- cursor }
-Procedure BufFilterOut( Var B : TBuf; cc : TChar );
-Var 
-  R : TBuf;
-  i : TBufIndex;
-Begin
-  BufInit(R);
-  i := FirstIdx(B);
-  While i <> 0 Do
-  Begin
-    With B.Buf[i] Do
-      If Val.Bytes <> cc.Bytes Then
-        BufAppendTChar(R,Val);
-    i := NextIdx(B,i)
-  End;
-  B := R
-End;
-
 { have two buffers different content? }
 Function BufDiff( B1,B2 : TBuf ) : Boolean;
 Var 
@@ -475,141 +743,6 @@ Begin
   BufDiff := Diff
 End;
 
-{----------------------------------------------------------------------------}
-{ Current pointer (CP)                                                       }
-{----------------------------------------------------------------------------}
-
-{ CP ranges from 0 to N, the number of chars in the buffer;
- - in terms of display, the blinking cursor is on char CP+1, that is, from the 
-   first char to the char right after the last char 
- - insertions are made before char CP+1
- - deletion by backspace are made at char CP; no deletion is possible when CP
-   is zero 
- }
-
-{ Is CP at its starting position? meaning inserting is prepending, and delete
- by backspace is not possible }
-Function BufCPIsAtStart( B : TBuf ) : Boolean;
-Begin
-  BufCPIsAtStart := B.CP = 0
-End;
-
-{ Is CP at its ending position? meaning inserting is appending, and delete by
- backspace deletes the last char; note that if the buffer is empty, this 
- function returns True }
-Function BufCPIsAtEnd( B : TBuf ) : Boolean;
-Begin
-  BufCPIsAtEnd := B.CP = B.IdxE
-End;
-
-{ advance CP by one char }
-Procedure BufNextCP( Var B : TBuf );
-Begin
-  CheckCondition(Not BufCPIsAtEnd(B),'Buf: CP already at end');
-  B.CP := NextIdx(B,B.CP)
-End;
-
-{ move backward CP by one char; CP = 0 means further insertions will be done at 
- the beginning }
-Procedure BufPrevCP( Var B : TBuf );
-Begin
-  CheckCondition(Not BufCPIsAtStart(B),'Buf: CP already at start');
-  B.CP := PrevIdx(B,B.CP)
-End;
-
-{ get the char at position CP }
-Procedure BufGetCharAtCP( Var e : TBufItem; B : TBuf );
-Begin
-  CheckCondition(Not BufCPIsAtStart(B),'Buf: CP is zero');
-  With B Do 
-    BufGet(e,B,CP,0)
-End;
-
-{ delete the char at current pointer CP }
-Procedure BufDeleteAtCP( Var B : TBuf );
-Var
-  i : TBufIndex;
-  e,ePrev : TBufItem;
-  dummy : TChar;
-Begin
-  CheckCondition(B.CP > 0,'Buf: cannot delete, CP is zero');
-  If BufCPIsAtEnd(B) Then { simple case: pop }
-    BufPop(e,B)
-  Else
-  Begin
-    { get ePrev, the IChar on which the location of the moved char must be 
-     based on }
-    If B.CP = B.IdxB Then { what is going to be deleted is the first char }
-    Begin
-      ASCIIChar(dummy,' ');
-      SetIChar(ePrev,dummy,0,0)
-    End
-    Else { not the first char: char before the deleted one is the reference }
-    Begin
-      BufGet(ePrev,B,PrevIdx(B,B.CP),0)
-    End;
-    { move left all chars from CP+1, by one char, overwriting the char at CP }
-    i := B.CP; { start with the location of the char to delete }
-    While NextIdx(B,i) <> 0 Do
-    Begin
-      BufGet(e,B,i,1); { i+1: char to move left by one spot }
-      NewICharFromPrev(e,ePrev,e.Val);
-      BufSet(B,i,0,e); { Buf[i] <- Buf[i+1] }
-      ePrev := e;
-      i := NextIdx(B,i);
-    End;
-    { shorten the buffer by one char }
-    BufPop(e,B)
-  End;
-  { update CP }
-  BufPrevCP(B)
-End;
-
-{ insert one char after CP; CP = O means prepend; CP = IdxE means append }
-Procedure BufInsertAtCP( Var B : TBuf; cc : TChar );
-Var
-  i : TBufIndex;
-  e,eNew,ePrev,eNext,ei,ej : TBufItem;
-  dummy : TChar;
-Begin
-  CheckCondition(BufNbFree(B) > 0,'Buf: cannot insert, buffer is full');
-  If BufCPIsAtEnd(B) Then { simple case: push }
-    BufAppendTChar(B,cc)
-  Else
-  Begin
-    { build eNew, the IChar to insert, with adequate position data }
-    If BufCPIsAtStart(B) Then { use what is going to be the next char }
-    Begin
-      BufGetFirst(eNext,B);
-      NewICharFromNext(eNew,eNext,cc)
-    End
-    Else { use what is going to be the char before the new one }
-    Begin
-      BufGetCharAtCP(ePrev,B);
-      NewICharFromPrev(eNew,ePrev,cc)
-    End;
-    { append a dummy char }
-    ASCIIChar(dummy,' ');
-    BufAppendTChar(B,dummy);
-    { move right all chars from CP+1 to the end, by one char }
-    i := NextIdx(B,B.CP); { start at CP+1 }
-    e := eNew; { in the loop, e is the char to store at position i }
-    While i <> 0 Do
-    Begin
-      { save char i into ei }
-      BufGet(ei,B,i,0); { i: char to move right by one spot  }
-      { reset its pos data using e, the char that will be just left of it }
-      NewICharFromPrev(ei,e,ei.Val);
-      { set e at spot i }
-      BufSet(B,i,1,e);
-      { char to insert next is now ei }
-      e := ei;
-      i := NextIdx(B,i)
-    End
-  End;
-  { update CP }
-  BufNextCP(B)
-End;
 
 {----------------------------------------------------------------------------}
 { Display                                                                    }
@@ -666,28 +799,15 @@ Begin
   BufDisplayLine := n
 End;
 
-{ display to screen the content of buffer B }
-Procedure BufToScreen( B : TBuf );
+{ output to echo and trace files the content of buffer B }
+Procedure BufToMirrorFiles( B : TBuf );
 Var 
   i : TBufIndex;
 Begin
   i := FirstIdx(B);
   While i <> 0 Do
   Begin
-    CWrite(B.Buf[i].Val.Bytes);
-    i := NextIdx(B,i)
-  End
-End;
-
-{ output to echo file the content of buffer B }
-Procedure BufToEchoFile( B : TBuf );
-Var 
-  i : TBufIndex;
-Begin
-  i := FirstIdx(B);
-  While i <> 0 Do
-  Begin
-    WriteToEchoFile(B.Buf[i].Val.Bytes);
+    WriteToMirrorFiles(B.Buf[i].Val.Bytes);
     i := NextIdx(B,i)
   End
 End;
@@ -703,15 +823,15 @@ Var
   i : 0..MaxBytesPerChar;
   s : TString;
 Begin
-  s := '<';
+  s := '(';
   For i := 1 to Length(cc.Bytes) Do
   Begin
     s := s + IntToShortString(Ord(cc.Bytes[i]));
     If i < Length(cc.Bytes) Then
       s := s + ','
   End;
-  s := s + '>';
-  WriteToEchoFile(s)
+  s := s + ')';
+  WriteToTraceFile(s)
 End;
 
 { dump the content of buffer B }
@@ -719,33 +839,24 @@ Procedure BufDump( B : TBuf );
 Var 
   i : TBufIndex;
 Begin
+  WriteToTraceFile('| BUF: ');
   i := FirstIdx(B);
   While i <> 0 Do
   Begin
-    WriteToEchoFile(IntToShortString(i) + ':');
+    WriteToTraceFile(IntToShortString(i) + ':');
     CharDump(B.Buf[i].Val);
-    WriteToEchoFile(' ');
+    WriteToTraceFile(' ');
     i := NextIdx(B,i)
   End;
-  WriteToEchoFile(' IdxR=' + IntToShortString(B.IdxR))
-End;
-
-{ dump Crt state }
-Procedure CrtDump;
-Var
-  i : TCrtCoord;
-  cc : TChar;
-Begin
-  With CrtRow Do
-  Begin
-    WriteToEchoFile(IntToShortString(Len) + ' ' + 
-        IntToShortString(LenBytes) + ' ');
-    For i := 1 to Len Do
-    Begin
-      CrtChar(CrtRow,i,cc);
-      CharDump(cc)
-    End
-  End
+  WritelnToTraceFile('');
+  WriteToTraceFile('| BUF: ');
+  WriteToTraceFile(' Len=' + IntToShortString(B.Len));
+  WriteToTraceFile(' IdxB=' + IntToShortString(B.IdxB));
+  WriteToTraceFile(' IdxE=' + IntToShortString(B.IdxE));
+  WriteToTraceFile(' LenR=' + IntToShortString(B.LenR));
+  WriteToTraceFile(' IdxR=' + IntToShortString(B.IdxR));
+  WriteToTraceFile(' IdxW=' + IntToShortString(B.IdxW));
+  WritelnToTraceFile('')
 End;
 
 End.

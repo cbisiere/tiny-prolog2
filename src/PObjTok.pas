@@ -22,7 +22,7 @@ Interface
 Uses
   ShortStr,
   Errs,
-  Trace,
+  CWrites,
   IChar,
   Memory,
   PObj,

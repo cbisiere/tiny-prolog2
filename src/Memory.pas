@@ -23,7 +23,7 @@ Uses
   ShortStr,
   Num,
   Errs,
-  Trace;
+  CWrites;
 
 {$IFDEF MSDOS}
 { TP4 p212: maximum size of a structured type is 65520 bytes }

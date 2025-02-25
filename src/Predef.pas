@@ -28,7 +28,7 @@ Uses
   Chars,
   Crt2,
   Files,
-  Trace,
+  CWrites,
   Common,
   IChar,
   Memory,

@@ -24,7 +24,7 @@ Uses
   Num,
   Errs,
   Files,
-  Trace,
+  CWrites,
   Memory,
   PObj,
   PObjTerm,

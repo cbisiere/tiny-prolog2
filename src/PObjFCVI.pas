@@ -27,7 +27,7 @@ Uses
   ShortStr,
   Num,
   Errs,
-  Trace,
+  CWrites,
   Memory,
   PObj,
   PObjList,

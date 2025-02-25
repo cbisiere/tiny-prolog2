@@ -24,7 +24,7 @@ Interface
 Uses
   Num,
   Errs,
-  Trace,
+  CWrites,
   Memory,
   PObj,
   PObjTerm,

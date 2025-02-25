@@ -56,66 +56,25 @@ Type
     Pos : TCharPos { position in the current line }
   End;
 
-Procedure SetIChar( Var e : TIChar; v : TChar; line : TLineNum; col : TCharPos );
-Procedure NewICharFromNext( Var e : TIChar; n : TIChar; v : TChar );
-Procedure NewICharFromPrev( Var e : TIChar; p : TIChar; v : TChar );
-
 Function IsTab( e : TIChar ) : Boolean;
 Function IsEol( e : TIChar ) : Boolean;
+Function IsChar( e : TIChar; cc : TChar ) : Boolean;
+
+Procedure SetICharVal( Var e : TIChar; v : TChar );
+Procedure SetICharPos( Var e : TIChar; line : TLineNum; col : TCharPos );
+Procedure SetIChar( Var e : TIChar; v : TChar; line : TLineNum; col : TCharPos );
+Procedure SwapIChar( Var e1,e2 : TIChar );
+
+Procedure SetICharPosFrom( Var e : TIChar; e1 : TIChar );
+Procedure SetICharPosFromNext( Var e : TIChar; n : TIChar );
+Procedure SetICharPosFromPrev( Var e : TIChar; p : TIChar );
 
 Implementation
 
-{ set a character }
-Procedure SetIChar( Var e : TIChar; v : TChar; line : TLineNum; 
-    col : TCharPos );
-Begin
-  With e Do
-  Begin
-    Val := v;
-    Lnb := line;
-    Pos := col
-  End
-End;
 
-{ set a character e with a given value v, computing its position data from the 
- next character n; this function is meant to be called when prepending a char, 
- otherwise, if that char is a NewLine, its position will be  wrong (and set 
- to 1) as we do not know the length of the line this NewLine is the end of }
-Procedure NewICharFromNext( Var e : TIChar; n : TIChar; v : TChar );
-Begin
-  e := n;
-  With e Do
-  Begin
-    If v.Bytes = NewLine Then { v is a new line, belonging to the previous line }
-    Begin
-      Lnb := Lnb - 1;
-      Pos := 1 { probably wrong, but we do not have enough info }
-    End
-    Else { previous char in the same input line }
-      Pos := Pos - 1;
-    Val := v
-  End
-End;
-
-{ set a character e with a given value v, computing its position 
- data from a previous character p }
-Procedure NewICharFromPrev( Var e : TIChar; p : TIChar; v : TChar );
-Begin
-  e := p;
-  With e Do
-  Begin
-    If (Val.Bytes = EndOfInput) Or (v.Bytes = EndOfInput) Then
-      Pass
-    Else If Val.Bytes = NewLine Then { first char after a new line }
-    Begin
-      Lnb := Lnb + 1;
-      Pos := 1
-    End
-    Else { new char in the same input line }
-      Pos := Pos + 1;
-    Val := v
-  End
-End;
+{----------------------------------------------------------------------------}
+{ char test/set                                                              }
+{----------------------------------------------------------------------------}
 
 { true if character e is a tab }
 Function IsTab( e : TIChar ) : Boolean;
@@ -145,6 +104,87 @@ End;
 Procedure SetToEndOfInput( Var e : TIChar );
 Begin
   e.Val.Bytes := EndOfInput
+End;
+
+{ test the char part }
+Function IsChar( e : TIChar; cc : TChar ) : Boolean;
+Begin
+  IsChar := e.Val.Bytes = cc.Bytes
+End;
+
+{----------------------------------------------------------------------------}
+{ basic set functions                                                        }
+{----------------------------------------------------------------------------}
+
+{ set a character's value }
+Procedure SetICharVal( Var e : TIChar; v : TChar );
+Begin
+  With e Do
+    Val := v
+End;
+
+{ set a character's position }
+Procedure SetICharPos( Var e : TIChar; line : TLineNum; col : TCharPos );
+Begin
+  With e Do
+  Begin
+    Lnb := Line;
+    Pos := Col
+  End
+End;
+
+{ set a character }
+Procedure SetIChar( Var e : TIChar; v : TChar; line : TLineNum; 
+    col : TCharPos );
+Begin
+  SetICharVal(e,v);
+  SetICharPos(e,line,col)
+End;
+
+{ swap two characters }
+Procedure SwapIChar( Var e1,e2 : TIChar );
+Var
+  tmp : TIChar;
+Begin
+  tmp := e1;
+  e1 := e2;
+  e2 := tmp
+End;
+
+
+{----------------------------------------------------------------------------}
+{ position calculation                                                       }
+{----------------------------------------------------------------------------}
+
+{ set a character's position from another character }
+Procedure SetICharPosFrom( Var e : TIChar; e1 : TIChar );
+Begin
+  SetICharPos(e,e1.Lnb,e1.Pos)
+End;
+
+{ set a character's position based on the previous character }
+Procedure SetICharPosFromPrev( Var e : TIChar; p : TIChar );
+Begin
+  If IsEndOfInput(p) Or IsEndOfInput(e) Then
+    SetICharPos(e,p.Lnb,p.Pos)
+  Else If IsEol(p) Then { first char after a new line }
+    SetICharPos(e,p.Lnb+1,1)
+  Else { new char in the same input line }
+    SetICharPos(e,p.Lnb,p.Pos+1)
+End;
+
+{ set a character's position based on the next character; this procedure is 
+ meant to be called when prepending a char, otherwise, if that char is a 
+ NewLine, its position will be  wrong (and set to 1) as we do not know the 
+ length of the line this NewLine is the end of }
+Procedure SetICharPosFromNext( Var e : TIChar; n : TIChar );
+Begin
+  If IsEndOfInput(n) Or IsEndOfInput(e) Then
+    SetICharPos(e,n.Lnb,n.Pos)
+  Else If IsEol(e) Then
+    SetICharPos(e,n.Lnb-1,1) { Pos=1 may be wrong, but we do not have enough info }
+  Else 
+    SetICharPos(e,n.Lnb,n.Pos-1) { previous char in the same input line }
 End;
 
 End.

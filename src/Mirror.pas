@@ -1,69 +1,50 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   File        : Trace.pas                                                  }
+{   File        : Mirror.pas                                                 }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
-{                            T R A C E   F I L E                             }
+{                           M I R R O R   F I L E S                          }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-{ Write to trace file for debugging purpose }
+{ Write to the mirror files, that is, echo file and trace file }
 
-Unit Trace;
+Unit Mirror;
 
 Interface
 
 Uses
   ShortStr,
-  Errs,
-  Files;
+  Trace,
+  Echo;
 
-Procedure TerminateTrace;
-Procedure WriteToTraceFile( s : TString );
-Procedure WritelnToTraceFile( s : TString );
+
+Procedure WriteToMirrorFiles( s : TString );
+Procedure WritelnToMirrorFiles( s : TString );
 
 Implementation
 {-----------------------------------------------------------------------------}
 
-Var
-  InitOk : Boolean;
-  TraceFile : TOFile;
-  TraceIsOn : Boolean;
-
-Const
-  TRACE_FILE : TShortPath = 'trace.txt';
-
-{ close the trace file }
-Procedure TerminateTrace;
+{ write a char to the trace and echo systems }
+Procedure WriteToMirrorFiles( s : TString );
 Begin
-  CloseOFile(TRACE_FILE, TraceFile)
+  WriteToEchoFile(s);
+  WriteToTraceFile(s)
 End;
 
-{ write to the echo file if trace is on }
-Procedure WriteToTraceFile( s : TString );
+{ writeln a char to the trace and echo systems }
+Procedure WritelnToMirrorFiles( s : TString );
 Begin
-  If TraceIsOn Then
-    WriteToFile(TRACE_FILE,TraceFile,s)
+  WritelnToEchoFile(s);
+  WritelnToTraceFile(s)
 End;
 
-{ writeln to the echo file if trace is on }
-Procedure WritelnToTraceFile( s : TString );
-Begin
-  If TraceIsOn Then
-    WritelnToFile(TRACE_FILE,TraceFile,s)
-End;
-
-{ initialize the trace system }
-Begin
-  InitOk := OpenForWrite(TRACE_FILE, TraceFile);
-  CheckCondition(InitOk,'cannot open trace file');
-  TraceIsOn := True
 End.

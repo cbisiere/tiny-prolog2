@@ -1,23 +1,23 @@
 {----------------------------------------------------------------------------}
 {                                                                            }
 {   Application : PROLOG II                                                  }
-{   File        : Trace.pas                                                  }
+{   File        : Echo.pas                                                   }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
 {   Updated     : 2023                                                       }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
-{                            T R A C E   F I L E                             }
+{                              E C H O   F I L E                             }
 {                                                                            }
 {----------------------------------------------------------------------------}
 
 {$R+} { Range checking on. }
 {$V-} { No strict type checking for strings. }
 
-{ Write to trace file for debugging purpose }
+{ Write to echo file }
 
-Unit Trace;
+Unit Echo;
 
 Interface
 
@@ -26,44 +26,44 @@ Uses
   Errs,
   Files;
 
-Procedure TerminateTrace;
-Procedure WriteToTraceFile( s : TString );
-Procedure WritelnToTraceFile( s : TString );
+Procedure TerminateEcho;
+Procedure WriteToEchoFile( s : TString );
+Procedure WritelnToEchoFile( s : TString );
 
 Implementation
 {-----------------------------------------------------------------------------}
 
 Var
   InitOk : Boolean;
-  TraceFile : TOFile;
-  TraceIsOn : Boolean;
+  EchoFile : TOFile;
+  EchoIsOn : Boolean;
 
 Const
-  TRACE_FILE : TShortPath = 'trace.txt';
+  ECHO_FILE : TShortPath = 'echo.txt';
 
-{ close the trace file }
-Procedure TerminateTrace;
+{ close the echo file }
+Procedure TerminateEcho;
 Begin
-  CloseOFile(TRACE_FILE, TraceFile)
+  CloseOFile(ECHO_FILE, EchoFile)
 End;
 
 { write to the echo file if trace is on }
-Procedure WriteToTraceFile( s : TString );
+Procedure WriteToEchoFile( s : TString );
 Begin
-  If TraceIsOn Then
-    WriteToFile(TRACE_FILE,TraceFile,s)
+  If EchoIsOn Then
+    WriteToFile(ECHO_FILE,EchoFile,s)
 End;
 
 { writeln to the echo file if trace is on }
-Procedure WritelnToTraceFile( s : TString );
+Procedure WritelnToEchoFile( s : TString );
 Begin
-  If TraceIsOn Then
-    WritelnToFile(TRACE_FILE,TraceFile,s)
+  If EchoIsOn Then
+    WritelnToFile(ECHO_FILE,EchoFile,s)
 End;
 
-{ initialize the trace system }
+{ initialize the echo system }
 Begin
-  InitOk := OpenForWrite(TRACE_FILE, TraceFile);
-  CheckCondition(InitOk,'cannot open trace file');
-  TraceIsOn := True
+  InitOk := OpenForWrite(ECHO_FILE, EchoFile);
+  CheckCondition(InitOk,'cannot open echo file');
+  EchoIsOn := True
 End.

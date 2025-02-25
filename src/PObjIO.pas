@@ -39,12 +39,13 @@ Uses
   Num,
   Errs,
   Chars,
-  Crt2,
   Files,
-  Readline,
+  Trace,
+  Crt2,
+  CLI,
   IChar,
   Buffer,
-  Trace,
+  CWrites,
   Common,
   Memory,
   PObj,
@@ -617,12 +618,12 @@ Begin
             If GetOneTCharNL(FI_CBUF,cc,FI_ENCO) Then
               If Stream_GetEcho Then
                 CWriteChar(cc);
-          BufAppendTChar(FI_IBUF,cc)
+          BufPushChar(FI_IBUF,cc)
         End;
       DEV_TERMINAL:
         Begin
           ASCIIChar(cc,EndOfInput);
-          BufAppendTChar(FI_IBUF,cc)
+          BufPushChar(FI_IBUF,cc)
         End
       End
     End;
@@ -799,15 +800,15 @@ Procedure Stream_Dump( f : StreamPtr );
 Begin
   With f^ Do
   Begin
-    WritelnToEchoFile('State of stream #' + PosIntToShortString(FI_DESC));
-    WritelnToEchoFile(' FI_ALIA: ' + Stream_GetShortAlias(f));
-    WritelnToEchoFile(' Path: ' + Stream_GetShortPath(f));
-    WritelnToEchoFile(' FI_IBUF: ');
+    WritelnToTraceFile('State of stream #' + PosIntToShortString(FI_DESC));
+    WritelnToTraceFile(' FI_ALIA: ' + Stream_GetShortAlias(f));
+    WritelnToTraceFile(' Path: ' + Stream_GetShortPath(f));
+    WritelnToTraceFile(' FI_IBUF: ');
     BufDump(FI_IBUF);
-    WritelnToEchoFile('');
-    WritelnToEchoFile(' FI_CBUF: ');
-    WritelnToEchoFile(FI_CBUF);
-    WritelnToEchoFile('')
+    WritelnToTraceFile('');
+    WritelnToTraceFile(' FI_CBUF: ');
+    WritelnToTraceFile(FI_CBUF);
+    WritelnToTraceFile('')
   End
 End;
 

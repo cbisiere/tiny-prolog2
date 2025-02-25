@@ -28,10 +28,14 @@ Uses
   DateTime,
   Errs,
   Chars,
-  Crt2,
-  Readline,
   Files,
   Trace,
+  Crt2,
+  CEdit,
+  CLI,
+  Echo,
+  Mirror,
+  CWrites,
   Common,
   IChar,
   Buffer,
@@ -74,6 +78,7 @@ Uses
 Procedure Die;
 Begin
   CWriteln;
+  TerminateEcho;
   TerminateTrace;
   HaltProgram
 End;
@@ -121,7 +126,7 @@ Begin
     Edinburgh:
       Prompt := '?- ';
     End;
-    CWrite(Prompt);
+    CLISetPrompt(Prompt);
     ReadFromConsole(P);
     If ErrorState = USER_INTERRUPT Then
       Die;

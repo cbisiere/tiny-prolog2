@@ -85,6 +85,7 @@ Function AreCompatibleEncodings( Enc1,Enc2: TEncoding ) : Boolean;
 Procedure UpdateContainerEncoding( Var Cont : TEncoding; Enc : TEncoding );
 
 Procedure ASCIIChar( Var cc : TChar; c : Char );
+Function IsMultibyte( cc : TChar ) : Boolean;
 Function IsIn( cc : TChar; E : CharSet ) : Boolean;
 
 
@@ -192,6 +193,13 @@ Begin
   cc.Bytes := c;
   cc.Encoding := ASCII
 End;
+
+{ is a character multibyte? }
+Function IsMultibyte( cc : TChar ) : Boolean;
+Begin
+  IsMultibyte := Length(cc.Bytes) > 1
+End;
+
 
 { is TChar cc in a set of 1-byte characters? }
 Function IsIn( cc : TChar; E : CharSet ) : Boolean;

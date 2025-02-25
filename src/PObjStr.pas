@@ -24,7 +24,7 @@ Uses
   Num,
   Errs,
   Chars,
-  Trace,
+  CWrites,
   Common,
   Memory,
   PObj;
