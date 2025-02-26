@@ -375,7 +375,7 @@ End;
 Procedure BufClipWriteCursor( Var B : TBuf );
 Begin
   If Not BufWriteCursorIsSane(B) Then
-    BufWriteCursorIsAtStart(B)
+    BufSetWriteCursorAtStart(B)
 End;
 
 

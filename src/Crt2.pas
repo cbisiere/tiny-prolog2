@@ -471,5 +471,6 @@ End;
 { initialize the unit }
 Begin
   CrtScreenWidth := GetScreenWidth;
-  CrtScreenHeight := GetScreenHeight
+  CrtScreenHeight := GetScreenHeight;
+  CrtResetBroken
 End.
