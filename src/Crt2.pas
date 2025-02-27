@@ -125,7 +125,6 @@ Procedure CrtWrite( cc : TChar );
 Function CrtCharWrapSize( cc : TChar ) : Byte;
 Function CrtCharWidthOnScreen( cc : TChar ) : Byte;
 
-Function CrtFits( bytes : PosInt; cc : TChar ) : Boolean;
 Function CrtWraps( bytes : PosInt; cc : TChar ) : Boolean;
 
 Procedure CrtWriteChar( cc : TChar );
@@ -380,15 +379,11 @@ Begin
     CrtCharWidthOnScreen := 1
 End;
 
-{ return true if cc fits into the current screen row, which already contains
- bytes bytes }
-Function CrtFits( bytes : PosInt; cc : TChar ) : Boolean;
-Begin
-  CrtFits := bytes + CrtCharWrapSize(cc) <= CrtScreenWidth
-End;
-
 { return true if displaying cc triggers Crt to display a line break, when 
- the line already contains bytes bytes }
+ the line already contains bytes bytes; note that the '>='' comparison (instead 
+ of the more natural '>') implies that the last column is never used; however,
+ using this last column would be tricky as spurious line breaks would be
+ generated) }
 Function CrtWraps( bytes : PosInt; cc : TChar ) : Boolean;
 Begin
   CrtWraps := bytes + CrtCharWrapSize(cc) >= CrtScreenWidth
@@ -402,24 +397,19 @@ End;
 { these simple procedures are meant to be use by the output subsystem; the 
  command line editor requires more complex display procedures }
 { these procedures assume that, even when broken, WhereX is still the total 
- number of bytes of all the chars left of cursor }
+ number of bytes (minus 1) of all the chars left of cursor }
 
 { write a char on screen, breaking the line when the screen is full or when
  the char itself if NewLine; remember that the input subsystem replaces CR, LF, 
  and CRLF with (NewLine) (LF), so CR should only appear when we add it 
  ourselves, which we avoid doing }
 Procedure CrtWriteChar( cc : TChar );
-Var
-  Fits : Boolean; { cc fits on the current screen line }
-  Wraps : Boolean; { writing cc triggers an automatic line break }
 Begin
   If cc.Bytes = NewLine Then
     CrtWriteln
   Else
   Begin
-    Fits := CrtFits(WhereX,cc);
-    Wraps := CrtWraps(WhereX,cc);
-    If Not Fits And Not Wraps Then { avoid breaking multibyte chars }
+    If CrtWraps(WhereX-1,cc) Then { avoid breaking multibyte chars }
       CrtWriteln;
     CrtWrite(cc)
   End
