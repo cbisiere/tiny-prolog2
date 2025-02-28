@@ -23,6 +23,7 @@ Uses
   ShortStr,
   Errs,
   Chars,
+  Num,
   Files,
   Memory,
   PObjStr,
@@ -49,14 +50,17 @@ Const
 
 
 { parse the command line parameters }
-Procedure ParseCL( Var Syntax : TSyntax; Var SkipStartFile : Boolean;
-    Var HasUserFilePar : Boolean; Var Filename : TShortPath );
+Procedure ParseCL( Var CodePage : TCodePage; Var Syntax : TSyntax; 
+    Var SkipStartFile : Boolean; Var HasUserFilePar : Boolean; 
+    Var Filename : TShortPath );
 Var  
+  code : Integer; { string to number result code }
   y : TSyntax;
   i : Byte;
   par : TString;
   KnownPar, HasSyntaxPar : Boolean;
 Begin
+  CodePage := 0;
   Syntax := DEFAULT_PROLOG_SYNTAX;
   HasSyntaxPar := False;
   SkipStartFile := False;
@@ -69,35 +73,62 @@ Begin
     Begin
       KnownPar := False;
       Delete(par,1,1);
-      { syntax parameter }
+      { syntax, e.g. '-PII' }
       For y := PrologIIc To Edinburgh Do
       Begin
         If StartFile[y] = par Then
         Begin
           If HasSyntaxPar Then
+          Begin
             ParameterError('Syntax parameter cannot be used more than once');
+            Exit
+          End;
           Syntax := y;
           HasSyntaxPar := True;
           KnownPar := True
         End
       End;
-      { other parameters }
+      { debug, '-D' }
       If Not KnownPar Then
         If par = 'D' Then
         Begin
           SkipStartFile := True;
           KnownPar := True
         End;
+      { codepage, e.g. '-C850'; 0 means not set }
       If Not KnownPar Then
-        ParameterError('Unknown option')
+        If par[1] = 'C' Then
+        Begin
+          Delete(par,1,1);
+          If Length(par) = 0 Then
+          Begin
+            ParameterError('Missing codepage');
+            Exit
+          End;
+          CodePage := ShortStringToPosInt(par,code);
+          If code <> 0 Then
+          Begin
+            ParameterError('Invalid codepage: ''' + par + '''');
+            Exit
+          End;
+          KnownPar := True
+        End;
+      If Not KnownPar Then
+      Begin
+        ParameterError('Unknown option');
+        Exit
+      End
     End
     Else
     Begin
       { user file }
       If HasUserFilePar Then
-        ParameterError('file already set');
+      Begin
+        ParameterError('File already set');
+        Exit
+      End;
       HasUserFilePar := True;
-      Filename := par;
+      Filename := par
     End
   End;
 
@@ -137,7 +168,8 @@ End;
 Function CreateProgram : ProgPtr;
 Var 
   P : ProgPtr;
-  y : TSyntax; 
+  CodePage : TCodePage;
+  y : TSyntax;
   SkipStartFile : Boolean;
   HasUserFilePar : Boolean; 
   UserFilename : TShortPath;
@@ -145,8 +177,9 @@ Var
   DummyOk : Boolean;
   UserWorldName : StrPtr;
 Begin
-  ParseCL(y,SkipStartFile,HasUserFilePar,UserFilename);
-  If Error Then Exit;
+  ParseCL(CodePage,y,SkipStartFile,HasUserFilePar,UserFilename);
+  If CodePage <> 0 Then
+    SetCodePage(CodePage);
   P := Prog_New(y);
   AddGCRoot(TObjectPtr(P));
   SetCurrentProgram(P);

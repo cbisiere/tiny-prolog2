@@ -14,7 +14,6 @@
 
 {$IFDEF MSDOS}
 {$U-} { Ctrl-C does not interrupt program execution }
-{$N+} { support for 8087 math coprocessor }
 {$M 65520,0,589840 } { stack (max 65520), heap low, heap high (def 640k) }
 {$ENDIF}
 

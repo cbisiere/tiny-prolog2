@@ -294,6 +294,28 @@ C:\src> TPC /B /$N+ tprolog2
 ```
 The `/$N+` directive specifies that a 8087 maths coprocessor is present and must be used. 
 
+When running `tprolog2` on DOS, you may have to use the codepage parameter `-C`, as e.g. `-C850` for latin codepage:
+
+```
+C:\SRC\chcp
+The current codepage is 858.
+The system codepage (properly) is: 437.
+C:\SRC\tprolog2 -C8S8
+>
+```
+
+Supported codepages are:
+
+Codepage | Character set
+--- | ---
+`437`   | MS-DOS Latin US
+`850`   | DOS Latin 1
+`858`   | IBM 00858 (850 w/ euro sign)
+`20127` | US ASCII
+`28591` | ISO 8859-1 (Latin 1)
+`0`, `65001` | UTF-8
+
+
 ### Free Pascal Compiler
 
 To compile the interpreter with the [Free Pascal Compiler](https://en.wikipedia.org/wiki/Free_Pascal) (FPC), compile `src/tprolog2 ` in Turbo Pascal mode:

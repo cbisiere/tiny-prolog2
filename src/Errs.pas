@@ -135,7 +135,8 @@ End;
 { a parameter (command line) error occurred; display a message }
 Procedure ParameterError( msg : TString );
 Begin
-  RaiseError(PARAMETER_ERROR,'Command line error: ' + msg)
+  RaiseError(PARAMETER_ERROR,'Command line error: ' + msg);
+  SetQuitOn(1)
 End;
 
 { broken encoding; display a message }

@@ -60,6 +60,8 @@ Const
   MaxBytesPerChar = 4;
 
 Type 
+  { code page, e.g. 437, 850, 858, 65000, 65001 }
+  TCodePage = PosInt;
   { supported encodings; when analyzing a stream of characters, we can be more
    precise as we collect more evidence, moving e.g. from UNDECIDED to ASCII and
    then to UTF8; some transitions are impossible and trigger an error, as e.g.
@@ -89,6 +91,7 @@ Function IsMultibyte( cc : TChar ) : Boolean;
 Function IsIn( cc : TChar; E : CharSet ) : Boolean;
 
 
+Procedure SetCodePage( c : TCodePage );
 Function UpdatableEncoding( Cont,Enc : TEncoding ) : Boolean;
 Function GetSystemCEncoding: TEncoding;
 Function CodePointToShortString( v : TCodePoint ) : TString;
@@ -101,6 +104,9 @@ Function GetOneTCharNL( Var s : TString; Var cc : TChar;
 Implementation
 {-----------------------------------------------------------------------------}
 
+Var
+  CodePage : TCodePage; { current code page }
+
 {$IFDEF MSDOS}
 Type TSystemCodePage = Word;
 Function GetSystemCodepage: TSystemCodePage;
@@ -109,22 +115,32 @@ Begin
 End;
 {$ENDIF}
 
+{ set what is the code page of the current terminal; does *not* change the 
+ actual code page }
+Procedure SetCodePage( c : TCodePage );
+Begin
+  CodePage := c
+End;
+
+{ get system encoding; 
+ - codes are what Free Pascal's GetSystemCodepage returns; see
+   https://www.freepascal.org/docs-html/rtl/unixcp/unixcpmap.html
+ - compared to codepage 850, codepage 858 changes D5 from a dotless i to the 
+   euro sign, which does not change what Prolog consider as a letter }
 Function GetSystemCEncoding: TEncoding;
 Var
-  CodePage : Word;
   Enc : TEncoding;
-Begin
-  CodePage := GetSystemCodepage;
+Begin 
   Case CodePage Of
   437: 
     Enc := CP437;
-  850: 
+  850,858:
     Enc := CP850;
   20127:
     Enc := ASCII;
   28591: 
     Enc := ISO8859;
-  0: 
+  0:
     Enc := UTF8;
   Else
     If CodePage = 65001 Then { TP: case constant must within integer range }
@@ -418,4 +434,6 @@ Begin
   GetOneTCharNL := res
 End;
 
+Begin
+  SetCodePage(GetSystemCodepage)
 End.
