@@ -134,13 +134,21 @@ Procedure CrtDump;
 
 Implementation
 {-----------------------------------------------------------------------------}
-{ TP4/FPC compatibility code }
-{$IFDEF MSDOS}
+{ Crt's screen size variables not available in TP4, nor in Fpc's Win32-64 }
+{$IFDEF TPC}
+{$DEFINE NOSCREEN}
+{$ENDIF}
+{$IFDEF WIN32}
+{$DEFINE NOSCREEN}
+{$ENDIF}
+{$IFDEF WIN64}
+{$DEFINE NOSCREEN}
+{$ENDIF}
 
+{$IFDEF NOSCREEN}
 Const
   ScreenWidth = 80;
   ScreenHeight = 25;
-
 {$ENDIF}
 {-----------------------------------------------------------------------------}
 

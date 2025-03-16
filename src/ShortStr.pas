@@ -47,8 +47,7 @@ Function StartsCount( s : TString; E : CharSet ) : TStringSize;
 Implementation
 {-----------------------------------------------------------------------------}
 { TP4/FPC compatibility code }
-{$IFDEF MSDOS}
-
+{$IFNDEF FPC}
 { trim whitespace from the beginning of a string }
 Function TrimLeft( s : TString ) : TString;
 Var 
@@ -66,7 +65,6 @@ Begin
     Delete(s,1,c);
   TrimLeft := s
 End;
-
 {$ENDIF}
 {-----------------------------------------------------------------------------}
 

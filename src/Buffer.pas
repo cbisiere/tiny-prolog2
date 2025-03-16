@@ -55,7 +55,7 @@ Uses
 
 Const
   { input buffer size }
-{$IFDEF MSDOS}
+{$IFDEF MM_TINY}
   BufSize = 255;
 {$ELSE}
   BufSize = 4096; { so, more than two 80x25 screens }

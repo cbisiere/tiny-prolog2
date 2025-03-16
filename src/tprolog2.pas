@@ -12,7 +12,22 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 
+{ supported compilers: Free Pascal, Turbo Pascal 4 }
+{$IFNDEF FPC}
+{$DEFINE TPC}
+{$ENDIF}
+
+{ TP: make sure CPU16 is defined }
 {$IFDEF MSDOS}
+{$DEFINE CPU16}
+{$ENDIF}
+
+{ tight memory constraints? }
+{$IFDEF CPU16}
+{$DEFINE MM_TINY}
+{$ENDIF}
+
+{$IFDEF TPC}
 {$U-} { Ctrl-C does not interrupt program execution }
 {$M 65520,0,589840 } { stack (max 65520), heap low, heap high (def 640k) }
 {$ENDIF}

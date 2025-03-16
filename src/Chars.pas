@@ -39,7 +39,7 @@ Unit Chars;
 Interface
 
 Uses
-{$IFNDEF MSDOS}
+{$IFDEF UNIX}
   Unixcp,
 {$ENDIF}
   ShortStr,
@@ -107,12 +107,21 @@ Implementation
 Var
   CodePage : TCodePage; { current code page }
 
-{$IFDEF MSDOS}
+{ GetSystemCodepage: Unixcp has it right away; FPC on non-unixes has 
+ DefaultSystemCodepage; TP has none }
+{$IFNDEF UNIX}
+{$IFDEF FPC}
+Function GetSystemCodepage: TSystemCodePage;
+Begin
+  GetSystemCodepage := DefaultSystemCodepage
+End;
+{$ELSE}
 Type TSystemCodePage = Word;
 Function GetSystemCodepage: TSystemCodePage;
 Begin
-  GetSystemCodepage := 28591
+  GetSystemCodepage := 28591 { ISO-8859-1 aka Latin1 }
 End;
+{$ENDIF}
 {$ENDIF}
 
 { set what is the code page of the current terminal; does *not* change the 

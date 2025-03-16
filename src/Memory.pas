@@ -25,7 +25,7 @@ Uses
   Errs,
   CWrites;
 
-{$IFDEF MSDOS}
+{$IFDEF CPU16}
 { TP4 p212: maximum size of a structured type is 65520 bytes }
 Const
   GetMemMaxSize = 65521; { see TP4 pdf p. 443 }
@@ -36,7 +36,12 @@ Type
 {$ELSE}
 Const
   GetMemMaxSize = 4294967295; { 2^32 - 1 }
-  MaxChildren = 1073741000; { 4-bytes pointers + small metadata overhead }
+  { maximum number of child objects (see TObject below); on some platforms (at 
+   least Windows) Fpc enforces a 2Gb limit on data element, so assuming that 
+   the number of children is limited by a maximum allocation size of 4Gb for a
+   single item on the heap triggers a compilation error on TObject ("Error: 
+   Data element too large"); the value below is overkill anyway }
+  MaxChildren = 536870000; { 4-bytes pointers + small metadata overhead }
  Type
   TObjectSize = PtrUInt; { size of a single object, in bytes }
   TObjectChild = PosInt; { child index or counter }
@@ -124,7 +129,7 @@ Implementation
 { TP4/FPC compatibility code to ensure that failed heap allocations 
  returns Nil }
 
-{$IFDEF MSDOS}
+{$IFDEF TPC}
 {$F+} Function HeapFunc( Size : Word) : Integer; {$F-} 
 Begin
   HeapFunc := 1
@@ -943,8 +948,8 @@ End;
 { initialize the memory management unit                                      }
 {----------------------------------------------------------------------------}
 Begin
-{$IFDEF MSDOS}
-HeapError:=@HeapFunc;
+{$IFDEF TPC}
+  HeapError:=@HeapFunc;
 {$ENDIF}
   MM_CURRENT_SERIAL := 0;
   InitMalloc;

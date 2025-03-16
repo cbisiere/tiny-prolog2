@@ -20,7 +20,7 @@ Unit DateTime;
 Interface
 
 Uses 
-{$IFNDEF MSDOS}
+{$IFDEF FPC}
   SysUtils,
   DateUtils,
 {$ENDIF}
@@ -70,7 +70,7 @@ Begin
 End;
 
 { Unix timestamp }
-{$IFDEF MSDOS}
+{$IFNDEF FPC}
 Function UnixTime : LongInt;
 Var
   Hour,Min,Sec,HSec : Word;

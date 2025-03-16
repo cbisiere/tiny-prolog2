@@ -22,12 +22,12 @@ Interface
 Uses
   ShortStr;
 
-{$IFDEF MSDOS}
+{$IFDEF TPC}
 Const
   MaxWord = 65535; { 2^16 - 1 }
   MaxPosInt = 2147483647; { 2^31 - 1 }
 Type 
-  { Word is too small on MDSOS, eg to store UTF-8 codepoints; so we use 4-byte
+  { Word is too small on MSDOS, e.g. to store UTF-8 codepoints; so we use 4-byte
    signed integer instead }
   PosInt = LongInt; 
   LongLongInt = Real; { simulate a very LongInt }
