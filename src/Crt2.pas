@@ -75,6 +75,7 @@ Interface
 Uses
   Common,
   Crt,
+  CrtSize,
   ShortStr,
   Chars,
   Num,
@@ -82,7 +83,7 @@ Uses
   Trace;
 
 Const
-  TRACE_CRT = False;
+  TRACE_CRT = True;
 
 Const
   CrtScreenMaxWidth = 255;
@@ -97,9 +98,8 @@ Type
   TCrtColumnCount = 0..CrtScreenMaxWidth;
   TCrtRowCount = 0..CrtScreenMaxHeight;
 
-Var
-  CrtScreenWidth : TCrtCoordX;
-  CrtScreenHeight : TCrtCoordY;
+Function CrtGetScreenWidth : TCrtCoordX;
+Function CrtGetScreenHeight : TCrtCoordY;
 
 Function CrtIsBroken( y : TCrtCoordY ) : Boolean;
 
@@ -134,15 +134,33 @@ Procedure CrtDump;
 
 Implementation
 {-----------------------------------------------------------------------------}
-{ TP4/FPC compatibility code }
-{$IFDEF MSDOS}
 
-Const
-  ScreenWidth = 80;
-  ScreenHeight = 25;
+{----------------------------------------------------------------------------}
+{ screen size                                                                }
+{----------------------------------------------------------------------------}
 
-{$ENDIF}
-{-----------------------------------------------------------------------------}
+{ screen width in number of 1-byte characters }
+Function CrtGetScreenWidth : TCrtCoordX;
+Begin
+  If CrtSizeScreenWidth < 1 Then
+    CrtGetScreenWidth := 1
+  Else If CrtSizeScreenWidth > CrtScreenMaxWidth Then
+    CrtGetScreenWidth := CrtScreenMaxWidth
+  Else
+    CrtGetScreenWidth := CrtSizeScreenWidth
+End;
+
+{ screen height in number of rows }
+Function CrtGetScreenHeight : TCrtCoordY;
+Begin
+  If CrtSizeScreenHeight < 1 Then
+    CrtGetScreenHeight := 1
+  Else If CrtSizeScreenHeight > CrtScreenMaxHeight Then
+    CrtGetScreenHeight := CrtScreenMaxHeight
+  Else
+    CrtGetScreenHeight := CrtSizeScreenHeight
+End;
+
 
 {----------------------------------------------------------------------------}
 { tracking of broken screen rows due to multibyte chars                      }
@@ -171,7 +189,7 @@ Procedure CrtBrokenInsLine( y : TCrtCoordY );
 Var
   i : TCrtCoordY;
 Begin
-  For i := CrtScreenHeight DownTo y+1 Do
+  For i := CrtGetScreenHeight DownTo y+1 Do
     CrtBroken[i] := CrtBroken[i-1];
   CrtBroken[y] := False
 End;
@@ -181,9 +199,9 @@ Procedure CrtBrokenDelLine( y : TCrtCoordY );
 Var
   i : TCrtCoordY;
 Begin
-  For i := y To CrtScreenHeight-1 Do
+  For i := y To CrtGetScreenHeight-1 Do
     CrtBroken[i] := CrtBroken[i+1];
-  CrtBroken[CrtScreenHeight] := False
+  CrtBroken[CrtGetScreenHeight] := False
 End;
 
 { no line is broken }
@@ -191,7 +209,7 @@ Procedure CrtResetBroken;
 Var
   y : TCrtCoordY;
 Begin
-  For y := 1 to CrtScreenHeight Do
+  For y := 1 to CrtGetScreenHeight Do
     CrtBroken[y] := False
 End;
 
@@ -204,14 +222,15 @@ End;
 Procedure CrtTrace( s : TString );
 Begin
   If TRACE_CRT Then
-    WritelnToTraceFile('Crt: ' + s)
+    WritelnToTraceFile('Crt (' + IntToShortString(WhereX) + ',' 
+        + IntToShortString(WhereY) + '): '+ s)
 End;
 
 { move cursor at the beginning of line i }
 Procedure CrtGotoXY( x : TCrtCoordX; y : TCrtCoordY );
 Begin
-  GotoXY(x,y);
   CrtTrace('GotoXY(' + IntToShortString(x) + ',' + IntToShortString(y) + ')');
+  GotoXY(x,y)
 End;
 
 { move cursor left by one char; CHECK: works when used more than once? }
@@ -242,18 +261,18 @@ End;
  line disappears cursor does not move }
 Procedure CrtInsLine;
 Begin
+  CrtTrace('InsLine');
   InsLine;
-  CrtBrokenInsLine(WhereY);
-  CrtTrace('InsLine')
+  CrtBrokenInsLine(WhereY)
 End;
 
 { delete the current line; lines below, if any, moves up, showing a blank line
  at the bottom; cursor does not move }
 Procedure CrtDelLine;
 Begin
+  CrtTrace('DelLine');
   DelLine;
-  CrtBrokenDelLine(WhereY);
-  CrtTrace('DelLine')
+  CrtBrokenDelLine(WhereY)
 End;
 
 { delete n lines; cursor does not move }
@@ -268,10 +287,10 @@ End;
 { clear the current line from cursor position; cursor does not move }
 Procedure CrtClrEol;
 Begin
+  CrtTrace('ClrEol');
   ClrEol;
   If WhereX = 1 Then
-    CrtSetBroken(WhereY,False);
-  CrtTrace('ClrEol')
+    CrtSetBroken(WhereY,False)
 End;
 
 { clear row y; move the cursor to the beginning }
@@ -287,9 +306,9 @@ Procedure CrtClrLines( y : TCrtCoordY; n : TCrtRowCount );
 Var
   i : TCrtCoordY;
 Begin
-  If y <= CrtScreenHeight Then
+  If y <= CrtGetScreenHeight Then
   Begin
-    For i := Min(y + n - 1,CrtScreenHeight) DownTo y Do
+    For i := Min(y + n - 1,CrtGetScreenHeight) DownTo y Do
       CrtClrLine(i)
   End
 End;
@@ -297,59 +316,43 @@ End;
 { clear the whole screen; cursor moves to top-left corner }
 Procedure CrtClrSrc;
 Begin
+  CrtTrace('ClrScr');
   ClrScr;
-  CrtResetBroken;
-  CrtTrace('ClrScr')
+  CrtResetBroken
 End;
 
 { emit a beep sound }
 Procedure CrtBeep;
 Begin
-  Write(#07); { bell }
-  CrtTrace('Beep')
+  CrtTrace('Beep');
+  Write(#07) { bell }
 End;
 
 { emit a backspace char }
 Procedure CrtBackspace;
 Begin
-  Write(#08);
-  CrtTrace('Backspace')
+  CrtTrace('Backspace');
+  Write(#08)
 End;
 
 { write a blank line }
 Procedure CrtWriteln;
 Begin
-  If WhereY = CrtScreenHeight Then
+  CrtTrace('Writeln');
+  If WhereY = CrtGetScreenHeight Then
     CrtBrokenDelLine(1)
   Else
     CrtSetBroken(WhereY + 1,False);
-  Writeln;
-  CrtTrace('Writeln')
+  Writeln
 End;
 
 { write a char; this breaks WhereX if the char is multibyte }
 Procedure CrtWrite( cc : TChar );
 Begin
+  CrtTrace('Write(''' + cc.Bytes + ''')');
   Write(cc.Bytes);
-  CrtSetBroken(WhereY,CrtIsBroken(WhereY) Or IsMultibyte(cc));
-  CrtTrace('Write(''' + cc.Bytes + ''')')
-End;
-
-
-{----------------------------------------------------------------------------}
-{ screen size                                                                }
-{----------------------------------------------------------------------------}
-
-{ screen width in number of 1-byte characters }
-Function GetScreenWidth : TCrtCoordX;
-Begin
-  GetScreenWidth := ScreenWidth
-End;
-
-{ screen height in number of rows }
-Function GetScreenHeight : TCrtCoordY;
-Begin
-  GetScreenHeight := ScreenHeight
+  CrtTrace('(WhereX,WhereY)');
+  CrtSetBroken(WhereY,CrtIsBroken(WhereY) Or IsMultibyte(cc))
 End;
 
 
@@ -383,10 +386,10 @@ End;
  the line already contains bytes bytes; note that the '>='' comparison (instead 
  of the more natural '>') implies that the last column is never used; however,
  using this last column would be tricky as spurious line breaks would be
- generated) }
+ generated); the 120-byte limit has been observed on macOs's iTerm2 }
 Function CrtWraps( bytes : PosInt; cc : TChar ) : Boolean;
 Begin
-  CrtWraps := bytes + CrtCharWrapSize(cc) >= CrtScreenWidth
+  CrtWraps := bytes + CrtCharWrapSize(cc) >= Min(120,CrtGetScreenWidth)
 End;
 
 
@@ -443,10 +446,10 @@ Begin
   WriteToTraceFile(' WhereY=' + IntToShortString(WhereY));
   WritelnToTraceFile('');
   WriteToTraceFile('|      ');
-  WriteToTraceFile(' CrtScreenWidth=' + IntToShortString(CrtScreenWidth));
-  WriteToTraceFile(' CrtScreenHeight=' + IntToShortString(CrtScreenHeight));
+  WriteToTraceFile(' CrtGetScreenWidth=' + IntToShortString(CrtGetScreenWidth));
+  WriteToTraceFile(' CrtGetScreenHeight=' + IntToShortString(CrtGetScreenHeight));
   WritelnToTraceFile('');
-  For y := 1 To CrtScreenHeight Do
+  For y := 1 To CrtGetScreenHeight Do
   Begin
     WriteToTraceFile(' ' + IntToShortString(Ord(CrtBroken[y])))
   End;
@@ -460,7 +463,5 @@ End;
 
 { initialize the unit }
 Begin
-  CrtScreenWidth := GetScreenWidth;
-  CrtScreenHeight := GetScreenHeight;
   CrtResetBroken
 End.

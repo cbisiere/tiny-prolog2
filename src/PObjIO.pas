@@ -492,7 +492,7 @@ Begin
         CWrite('Error at position ' + IntToShortString(e.Pos) + ': ' + msg)
       End;
       CWriteLn;
-      n := BufDisplayLine(FI_IBUF,(CrtScreenWidth div 3) * 2);
+      n := BufDisplayLine(FI_IBUF,(CrtGetScreenWidth div 3) * 2);
       If n > 0 Then
       Begin
         For i := 1 to n-1 Do

@@ -24,7 +24,7 @@
 Program TProlog2;
 
 Uses 
-  Crt, 
+  Crt,
   Dos,
   ShortStr,
   Num,
@@ -33,6 +33,7 @@ Uses
   Chars,
   Files,
   Trace,
+  CrtSize,
   Crt2,
   CEdit,
   CLI,

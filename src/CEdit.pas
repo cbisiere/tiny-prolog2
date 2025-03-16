@@ -50,6 +50,7 @@ Uses
   Trace,
   Mirror,
   Crt,
+  CrtSize,
   Crt2,
   IChar,
   Buffer;
@@ -71,7 +72,9 @@ Type
     ScreenY : TVirtCoordY; { Y-coordinate of the first line }
     NbLines : PosInt { number of screen line it would take to display it fully }
   End;
-  TVirtCoordYDelta = Integer; { change in virtual screen coordinate }
+  { change in virtual screen coordinate }
+  TVirtCoordXDelta = Integer; 
+  TVirtCoordYDelta = Integer;
 
 { state of the command line editor }
 Type
@@ -93,6 +96,8 @@ Type
 
 Procedure CEditInit( Var Ed : TEditor; s : TPrompt; y : TVirtCoordY );
 Procedure CEditSetBuffer( Var Ed : TEditor; B : TBuf );
+
+Procedure CEditHandleScreenResize( Var Ed : TEditor );
 
 Procedure CEditWritePromptToMirrorFiles( Ed : TEditor );
 
@@ -212,7 +217,7 @@ Begin
   Begin
     NbLines := NbLines 
         - Max(0,1-ScreenY) 
-        - Max(0,LayoutLastLine(l)-CrtScreenHeight);
+        - Max(0,LayoutLastLine(l)-CrtGetScreenHeight);
     ScreenY := Max(1,ScreenY)
   End
 End;
@@ -337,7 +342,7 @@ Begin
     If Updated Then
     Begin
       IdxA := PrevIdx(Buf,Buf.IdxW);
-      NbBytes := 0
+      NbBytes := 0 { not the first line, so no prompt }
     End;
     { update number of bytes in the active line, from start to IdxW }
     NbBytes := NbBytes + CrtCharWrapSize(cc)
@@ -426,18 +431,14 @@ Begin
   Ed.PrevLayout := Ed.Layout
 End;
 
-{ set the buffer of a command line editor, updating its state: the active 
- line (IdxA), the number of multibyte chars (NbMulti), and its screen 
- position (ScreenY) to show all the lines of the command line while ensuring 
- the active line is located inside the screen }
-Procedure CEditSetBuffer( Var Ed : TEditor; B : TBuf );
+{ recompute display state data (active line, number of lines, layout) from 
+ 1) the current buffer, and 2) a target y value (that may be changed by the
+ procedure for optimal CL placement on the screen) }
+Procedure CEditRecomputeLayoutData( Var Ed : TEditor; y : TVirtCoordY );
 Var
   n : PosInt;
 Begin
-  { set buffer }
-  Ed.Buf := B;
-  { sync state }
-  Ed.NbMulti := BufCountMultibyteChars(Ed.Buf);
+  { sync wrap data }
   CEditStateComputeActiveLine(Ed,n);
   CEditComputeNumberOfLines(Ed);
   { compute new Y position; do not scroll unless necessary, that is, show more
@@ -446,13 +447,27 @@ Begin
   Begin
     { compute screen position so the active line is on screen }
     { 1. move down, prompt at top }
-    ScreenY := Max(1,ScreenY); 
+    ScreenY := Max(1,y); 
     { 2. move up, last line at bottom }
-    ScreenY := ScreenY - Max(0,LayoutLastLine(Ed.Layout)-CrtScreenHeight);
+    ScreenY := ScreenY - Max(0,LayoutLastLine(Ed.Layout)-CrtGetScreenHeight);
     { 3. move down, ensuring that the active line is visible }
     ScreenY := ScreenY - Max(0,1-(ScreenY+n-1))
   End
 End;
+
+{ set the buffer of a command line editor, updating its state: the active 
+ line (IdxA), the number of multibyte chars (NbMulti), and its screen 
+ position (ScreenY) to show all the lines of the command line while ensuring 
+ the active line is located inside the screen }
+Procedure CEditSetBuffer( Var Ed : TEditor; B : TBuf );
+Begin
+  { set buffer }
+  Ed.Buf := B;
+  { sync all state data }
+  Ed.NbMulti := BufCountMultibyteChars(Ed.Buf);
+  CEditRecomputeLayoutData(Ed,Ed.Layout.ScreenY)
+End;
+
 
 {----------------------------------------------------------------------------}
 { CEditRefresh: primitives for displaying or refreshing the command line     }
@@ -461,7 +476,7 @@ End;
 { is row y, which may be negative or nul, within screen range? }
 Function RowIsVisible( y : TVirtCoordY ) : Boolean;
 Begin
-  RowIsVisible := (y >= 1) And (y <= CrtScreenHeight)
+  RowIsVisible := (y >= 1) And (y <= CrtGetScreenHeight)
 End;
 
 { scroll down by n lines, that is, move the screen contents up by n lines,
@@ -473,8 +488,8 @@ Procedure CEditScrollDown( n : PosInt );
 Var
   i : PosInt;
 Begin
-  If WhereY <> CrtScreenHeight Then { minimize cursor movements }
-    CrtGotoLine(CrtScreenHeight);
+  If WhereY <> CrtGetScreenHeight Then { minimize cursor movements }
+    CrtGotoLine(CrtGetScreenHeight);
   For i := 1 to n Do
     CrtWriteln
 End;
@@ -553,12 +568,13 @@ Begin
       If CrtWraps(b,cc) Then { must wrap before displaying cc }
       Begin
         CrtClrEol; { remove spurious chars at the end of the current line }
-        If WhereY = CrtScreenHeight Then { clip }
+        If WhereY = CrtGetScreenHeight Then { clip }
           Exit;
         CrtWriteln;
         b := 0
       End;
       { write the char, keeping track of the number of bytes on screen line }
+{//};CEditDump(Ed);
       CrtWrite(cc);
       b := b + CrtCharWrapSize(cc)
     End;
@@ -578,6 +594,7 @@ Begin
     Begin
       i := NextIdx(Buf,i);
       BufGetCharAt(cc,Buf,i);
+{//};CEditDump(Ed);
       CrtWrite(cc)
     End
 End;
@@ -643,6 +660,9 @@ Var
   b : PosInt; { byte counter on current line }
   i : TBufIndex;
   cc : TChar;
+  wx : TCrtCoordX;
+  wy : TVirtCoordY;
+  bb : TChar;
 Begin
   With Ed Do
   Begin
@@ -664,11 +684,13 @@ Begin
     Begin
       i := NextIdx(Buf,i);
       BufGetCharAt(cc,Buf,i);
+      {//};WritelnToTraceFile('(i=' + IntToShortString(i) + ',b=' + IntToShortString(b) + ',cc=' + cc.Bytes + ')');
       If CrtWraps(b,cc) Then { must wrap before displaying cc }
       Begin
+        {//};WritelnToTraceFile('Must wrap before char ' + IntToShortString(i));
         If vis Then
           CrtClrEol; { remove spurious chars at the end of the current line }
-        If y = CrtScreenHeight Then { clip }
+        If y = CrtGetScreenHeight Then { clip }
           Exit;
         { cc (virtually) displayed on next screen line }
         y := y + 1; 
@@ -686,7 +708,32 @@ Begin
       b := b + CrtCharWrapSize(cc);
       { finally, write the char, if visible }
       If vis Then
-        CrtWrite(cc)
+      Begin
+        wx := WhereX;
+        wy := WhereY;
+        {//};CEditDump(Ed);
+        CrtWrite(cc);
+        If (WhereY = wy + 1) Then
+        Begin
+          {//};WritelnToTraceFile('!break after writing UTF8!');
+          Halt(1);
+          y := y + 1;
+          vis := RowIsVisible(y);
+          If IsMultibyte(cc) Then { may have been a broken multibyte char }
+          Begin
+            { regret: clear the mess }
+            //CrtGotoXY(wx,wy);
+            //ASCIIChar(bb,'_');
+            //CrtWrite(bb);
+            //CrtClrEol;
+            CrtBackspace;
+            { write back, at the beginning of next line }
+            CrtGotoLine(wy + 1);
+            CrtWrite(cc)
+          End
+        End;
+
+      End
     End;
     CrtClrEol;
     CheckCondition(RowIsVisible(Layout.ScreenY+n-1),
@@ -707,7 +754,7 @@ Var
   y : TCrtCoordY;
 Begin
   y := WhereY;
-  If y < CrtScreenHeight Then
+  If y < CrtGetScreenHeight Then
     CEditSyncCursor(Ed,y + 1)
   Else
   Begin
@@ -767,7 +814,7 @@ End;
 { go to the next line while editing the CL, keeping layout data in sync }
 Procedure CEditWriteln( Var Ed : TEditor );
 Begin
-  If WhereY = CrtScreenHeight Then
+  If WhereY = CrtGetScreenHeight Then
     With Ed.Layout Do
       ScreenY := ScreenY - 1;
   CrtClrEol; { in case we are overwriting when refreshing part of the CL }
@@ -791,6 +838,7 @@ Begin
     Begin
       If m > 0 Then { the whole screen needs to move up }
       Begin
+        {//};WritelnToTraceFile('SCROLL');
         CEditScrollDown(m);
         PrevLayout.ScreenY := PrevLayout.ScreenY - m
       End;
@@ -830,6 +878,7 @@ Begin
   { update display, minimizing cursor movements }
   If ActiveDown Then
     CEditWriteln(Ed);
+{//};CEditDump(Ed);
   CrtWrite(cc);
   { not an append op: we must redraw from IdxW }
   If Not BufWriteCursorIsAtEnd(Ed.Buf) Then
@@ -916,6 +965,23 @@ Begin
 End;
 
 
+{ react to a screen resize if any }
+Procedure CEditHandleScreenResize( Var Ed : TEditor );
+Begin
+  If Not CrtSizeChanged Then
+    Exit;
+  CrtSizeChanged := False;
+  { update reported size }
+  CrtSizeSync;
+  { change: clear screen, with CL on top }
+  CEditRecomputeLayoutData(Ed,1);
+  CrtClrSrc;
+  { full refresh, no need to clear dirty areas }
+  Ed.PrevLayout.NbLines := 0;
+  CEditRefresh(Ed)
+End;
+
+
 {----------------------------------------------------------------------------}
 { CEditDump: debug                                                           }
 {----------------------------------------------------------------------------}
@@ -938,8 +1004,16 @@ Begin
     WriteToTraceFile(' NbBytesInPrompt=' + PosIntToShortString(NbBytesInPrompt));
     WriteToTraceFile(' Prompt=''' + Prompt + '''');
     WritelnToTraceFile('');
-    BufDump(Buf)
+    {//}//BufDump(Buf);
+    CrtDump
   End
 End;
 
+
+{----------------------------------------------------------------------------}
+{ init                                                                       }
+{----------------------------------------------------------------------------}
+
+Begin
+  CrtSizeSetSyncMode(CRT_SIZE_MODE_SYNC)
 End.

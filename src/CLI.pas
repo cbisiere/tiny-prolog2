@@ -362,6 +362,7 @@ Begin
   { command line editing }
   While Not Stop And Not Error Do
   Begin
+    CEditHandleScreenResize(Ed);
     If KeyPressed Then
     Begin
       BufInit(KbdBuf);
