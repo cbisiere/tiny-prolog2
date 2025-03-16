@@ -11,9 +11,7 @@
 {                          T O K E N   O B J E C T                           }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 Unit PObjTok;
 

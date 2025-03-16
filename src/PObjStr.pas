@@ -11,9 +11,7 @@
 {                      L O N G   S T R I N G S                               }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+}{ Range checking on. }
-{$V-}{ No strict type checking for strings. }
+{$I define.inc }
 
 Unit PObjStr;
 

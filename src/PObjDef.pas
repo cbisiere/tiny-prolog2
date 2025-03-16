@@ -11,9 +11,7 @@
 {               P R O L O G   O B J E C T S :   P R O G R A M                }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 { declarations for engine's main objects; they cannot be split across source 
  files as forward references to types must be under the same Type declaration }

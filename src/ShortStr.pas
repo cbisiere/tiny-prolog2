@@ -11,9 +11,7 @@
 {                         S H O R T   S T R I N G S                          }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 Unit ShortStr;
 

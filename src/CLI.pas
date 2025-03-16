@@ -11,9 +11,7 @@
 {                C O M M A N D   L I N E   I N T E R F A C E                 }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 { Command line editing, with command history:
  - edit starts at the X position, after an optional prompt;

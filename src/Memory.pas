@@ -11,9 +11,7 @@
 {                    G A R B A G E   C O L L E C T I O N                     }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 Unit Memory;
 

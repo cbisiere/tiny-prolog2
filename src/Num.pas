@@ -11,9 +11,7 @@
 {                        N U M E R I C A L   V A L U E S                     }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 Unit Num;
 

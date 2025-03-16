@@ -11,9 +11,7 @@
 {                                F I L E S                                   }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 { TODO: handle i/o errors }
 

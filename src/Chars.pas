@@ -11,9 +11,7 @@
 {                       M U L T I - B Y T E   C H A R                        }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 { multi-byte characters }
 

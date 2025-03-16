@@ -11,9 +11,7 @@
 {                  P R O L O G   O B J E C T :   W O R L D                   }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 { invariant:  current statement cannot be the Start statement }
 

@@ -13,9 +13,7 @@
 {          I N T E R F A C E   W I T H   M E M O R Y   M A N A G E R         }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 Unit PObj;
 

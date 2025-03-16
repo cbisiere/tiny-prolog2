@@ -11,9 +11,7 @@
 {                  R E S T O R A T I O N   S T A C K                         }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 Unit PObjRest;
 

@@ -13,9 +13,7 @@
 {   S Y S T E M   O F   E Q U A T I O N S   A N D  I N E Q U A T I O N S     }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 Unit PObjSys;
 

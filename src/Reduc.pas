@@ -19,9 +19,7 @@
 {               (quoted citations below are from this paper)                 }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 Unit Reduc;
 

@@ -11,9 +11,7 @@
 {                          E X P R E S S I O N S                             }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 { handle expressions with evaluable functions }
 

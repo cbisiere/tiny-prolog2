@@ -11,9 +11,7 @@
 {                       P R O L O G   E N G I N E                            }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 Unit Engine;
 

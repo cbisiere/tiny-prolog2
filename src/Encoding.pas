@@ -11,10 +11,7 @@
 {            E N C O D I N G   O F   C O M P O U N D   T E R M S             }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
-
+{$I define.inc }
 
 { encode and decode predicates, lists, etc., using the functional symbol F }
 

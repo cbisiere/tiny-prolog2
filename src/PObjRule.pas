@@ -11,9 +11,7 @@
 {                    P R O L O G   O B J E C T :   R U L E                   }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 { Prolog rule }
 

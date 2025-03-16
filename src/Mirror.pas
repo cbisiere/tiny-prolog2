@@ -11,9 +11,7 @@
 {                           M I R R O R   F I L E S                          }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 { Write to the mirror files, that is, echo file and trace file }
 
