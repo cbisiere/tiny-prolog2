@@ -13,8 +13,3 @@
 {$IFDEF MSDOS}
 {$DEFINE CPU16}
 {$ENDIF}
-
-{ tight memory constraints? }
-{$IFDEF CPU16}
-{$DEFINE MM_TINY}
-{$ENDIF}
