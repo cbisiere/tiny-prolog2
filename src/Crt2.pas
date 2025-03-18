@@ -71,8 +71,11 @@ Unit Crt2;
 Interface
 
 Uses
-  Common,
   Crt,
+{$IFDEF MSWINDOWS}
+  Windows,
+{$ENDIF}
+  Common,
   ShortStr,
   Chars,
   Num,
@@ -132,21 +135,42 @@ Procedure CrtDump;
 
 Implementation
 {-----------------------------------------------------------------------------}
-{ Crt's screen size variables not available in TP4, nor in Fpc's Win32-64 }
+{----------------------------------------------------------------------------}
+{ get initial screen size, clipped to the maximum size                       }
+{----------------------------------------------------------------------------}
+{ Turbo Pascal: initial screen size constants not available }
 {$IFDEF TPC}
-{$DEFINE NOSCREEN}
+Procedure CrtInit;
+Begin
+  CrtScreenWidth = 80;
+  CrtScreenHeight = 25
+End;
+{$ELSE}
+{ Fpc's Win32 and Win64: provided by API }
+{$IFDEF MSWINDOWS}
+Procedure CrtInit;
+Var
+  Info: TConsoleScreenBufferinfo;
+  Width,Height : DWord;
+Begin
+  Width := 80;
+  Height := 25;
+  If GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE),Info) Then
+  Begin
+    Width := Info.dwSize.X;
+    Height := Info.dwSize.Y
+  End;
+  CrtScreenWidth := Min(Width,CrtScreenMaxWidth);
+  CrtScreenHeight := Min(Height,CrtScreenMaxHeight)
+End;
+{$ELSE}
+{ initial screen size constants are available }
+Procedure CrtInit;
+Begin
+  CrtScreenWidth := Min(ScreenWidth,CrtScreenMaxWidth)
+  CrtScreenHeight := Min(ScreenHeight,CrtScreenMaxHeight)
+End;
 {$ENDIF}
-{$IFDEF WIN32}
-{$DEFINE NOSCREEN}
-{$ENDIF}
-{$IFDEF WIN64}
-{$DEFINE NOSCREEN}
-{$ENDIF}
-
-{$IFDEF NOSCREEN}
-Const
-  ScreenWidth = 80;
-  ScreenHeight = 25;
 {$ENDIF}
 {-----------------------------------------------------------------------------}
 
@@ -343,23 +367,6 @@ End;
 
 
 {----------------------------------------------------------------------------}
-{ screen size                                                                }
-{----------------------------------------------------------------------------}
-
-{ screen width in number of 1-byte characters }
-Function GetScreenWidth : TCrtCoordX;
-Begin
-  GetScreenWidth := ScreenWidth
-End;
-
-{ screen height in number of rows }
-Function GetScreenHeight : TCrtCoordY;
-Begin
-  GetScreenHeight := ScreenHeight
-End;
-
-
-{----------------------------------------------------------------------------}
 { wrap calculations                                                          }
 {----------------------------------------------------------------------------}
 
@@ -466,7 +473,6 @@ End;
 
 { initialize the unit }
 Begin
-  CrtScreenWidth := GetScreenWidth;
-  CrtScreenHeight := GetScreenHeight;
+  CrtInit;
   CrtResetBroken
 End.
