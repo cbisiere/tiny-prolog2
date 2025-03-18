@@ -11,9 +11,7 @@
 {                                F I L E S                                   }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 { TODO: handle i/o errors }
 
@@ -57,14 +55,9 @@ Implementation
 {-----------------------------------------------------------------------------}
 { TP4/FPC compatibility code }
 {$IFDEF FPC}
-
 Uses
   Sysutils;
-
-{$ENDIF}
-{$IFDEF MSDOS}
-{-----------------------------------------------------------------------------}
-
+{$ELSE}
 Const
   DirectorySeparator : Char = '\';
 
@@ -110,7 +103,6 @@ Begin
   {$I+}
   FileExists := (IOResult = 0) 
 End;
-
 {$ENDIF}
 {-----------------------------------------------------------------------------}
  

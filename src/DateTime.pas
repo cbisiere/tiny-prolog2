@@ -11,16 +11,14 @@
 {                          D A T E   &   T I M E                             }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 Unit DateTime;
 
 Interface
 
 Uses 
-{$IFNDEF MSDOS}
+{$IFDEF FPC}
   SysUtils,
   DateUtils,
 {$ENDIF}
@@ -70,7 +68,7 @@ Begin
 End;
 
 { Unix timestamp }
-{$IFDEF MSDOS}
+{$IFNDEF FPC}
 Function UnixTime : LongInt;
 Var
   Hour,Min,Sec,HSec : Word;

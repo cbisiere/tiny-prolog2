@@ -11,9 +11,7 @@
 {                          E N H A N C E D   C R T                           }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 { enhanced CRT procedures w/ partial support for multi-byte codepoints }
 
@@ -73,6 +71,10 @@ Unit Crt2;
 Interface
 
 Uses
+  Crt,
+{$IFDEF MSWINDOWS}
+  Windows,
+{$ENDIF}
   Common,
   Crt,
   CrtSize,

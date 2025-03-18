@@ -11,9 +11,7 @@
 {            P R O L O G   O B J E C T S :   E Q U A T I O N S               }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 Unit PObjEq;
 

@@ -11,9 +11,7 @@
 {                  P R E D E F I N E D   P R E D I C A T E S                 }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 Unit Predef;
 

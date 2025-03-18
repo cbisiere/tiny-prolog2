@@ -11,9 +11,7 @@
 {              P R O L O G   O B J E C T  :   S T A T E M E N T              }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 { statement and list of statements }
 

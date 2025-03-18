@@ -11,15 +11,11 @@
 {                           M A I N  P R O G R A M                           }
 {                                                                            }
 {----------------------------------------------------------------------------}
+{$I define.inc }
 
-{$IFDEF MSDOS}
-{$U-} { Ctrl-C does not interrupt program execution }
+{$IFDEF TPC}
 {$M 65520,0,589840 } { stack (max 65520), heap low, heap high (def 640k) }
 {$ENDIF}
-
-{$S+} { Stack checking on }
-{$R+} { Range checking on }
-{$V-} { No strict type checking for strings }
 
 Program TProlog2;
 

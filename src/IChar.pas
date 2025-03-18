@@ -11,9 +11,7 @@
 {                             I N P U T   C H A R                            }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 { multi-byte characters, with line number and character position tracing }
 

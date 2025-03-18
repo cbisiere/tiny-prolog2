@@ -11,9 +11,7 @@
 {                  C O M M A N D   L I N E   E D I T O R                     }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 { Edit a single command }
 

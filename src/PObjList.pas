@@ -11,9 +11,7 @@
 {          D O U B L E - L I N K E D   L I S T   O F   O B J E C T S         }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 Unit PObjList;
 

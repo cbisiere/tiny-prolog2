@@ -11,9 +11,7 @@
 {                     C I R C U L A R   B U F F E R                          }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{I define.inc }
 
 { circular buffer with read and write cursors }
 

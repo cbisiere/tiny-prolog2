@@ -11,9 +11,7 @@
 {                              T O K E N I Z E R                             }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 { Notes about the tokenizer:
 

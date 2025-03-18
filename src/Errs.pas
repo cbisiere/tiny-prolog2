@@ -11,9 +11,7 @@
 {                         E R R O R S  /  Q U I T                            }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 Unit Errs;
 

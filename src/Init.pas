@@ -11,9 +11,7 @@
 {                     I N I T I A L I S A T I O N S                          }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 Unit Init;
 

@@ -11,9 +11,7 @@
 {                   E N C O D I N G   O F   T U P L E S                      }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 
 { encode and decode tuples using the functional symbol F }

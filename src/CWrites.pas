@@ -11,9 +11,7 @@
 {                       W R I T E   T O   C O N S O L E                      }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 { Write to the console, duplicating output to an echo file }
 

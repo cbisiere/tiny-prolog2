@@ -11,9 +11,7 @@
 {                        N U M E R I C A L   V A L U E S                     }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 Unit Num;
 
@@ -22,12 +20,12 @@ Interface
 Uses
   ShortStr;
 
-{$IFDEF MSDOS}
+{$IFDEF TPC}
 Const
   MaxWord = 65535; { 2^16 - 1 }
   MaxPosInt = 2147483647; { 2^31 - 1 }
 Type 
-  { Word is too small on MDSOS, eg to store UTF-8 codepoints; so we use 4-byte
+  { Word is too small on MSDOS, e.g. to store UTF-8 codepoints; so we use 4-byte
    signed integer instead }
   PosInt = LongInt; 
   LongLongInt = Real; { simulate a very LongInt }

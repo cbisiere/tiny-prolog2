@@ -11,9 +11,7 @@
 {                       L I S T   O F   P O I N T E R S                      }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 Unit PObjLisA;
 

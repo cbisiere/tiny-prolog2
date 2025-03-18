@@ -11,9 +11,7 @@
 {                I N P U T   /   O U T P U T   S T R E A M S                 }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 { double-linked list (stack) of i/o entities, including regular files, buffers,
  and console; read or write characters from single-byte or UTF-8 stream }

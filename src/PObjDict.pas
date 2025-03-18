@@ -11,9 +11,7 @@
 {      P R O L O G   O B J E C T S :   D I C T I O N A R Y   E N T R Y       }
 {                                                                            }
 {----------------------------------------------------------------------------}
-
-{$R+} { Range checking on. }
-{$V-} { No strict type checking for strings. }
+{$I define.inc }
 
 Unit PObjDict;
 
