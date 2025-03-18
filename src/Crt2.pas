@@ -142,8 +142,8 @@ Implementation
 {$IFDEF TPC}
 Procedure CrtInit;
 Begin
-  CrtScreenWidth = 80;
-  CrtScreenHeight = 25
+  CrtScreenWidth := 80;
+  CrtScreenHeight := 25
 End;
 {$ELSE}
 { Fpc's Win32 and Win64: provided by API }
@@ -167,7 +167,7 @@ End;
 { initial screen size constants are available }
 Procedure CrtInit;
 Begin
-  CrtScreenWidth := Min(ScreenWidth,CrtScreenMaxWidth)
+  CrtScreenWidth := Min(ScreenWidth,CrtScreenMaxWidth);
   CrtScreenHeight := Min(ScreenHeight,CrtScreenMaxHeight)
 End;
 {$ENDIF}
