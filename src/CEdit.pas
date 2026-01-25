@@ -687,7 +687,6 @@ Begin
       BufGetCharAt(cc,Buf,i);
       If CrtWraps(b,cc) Then { must wrap before displaying cc }
       Begin
-        {//};WritelnToTraceFile('Must wrap before char ' + IntToShortString(i));
         If vis Then
           CrtClrEol; { remove spurious chars at the end of the current line }
         If y = CrtGetScreenHeight Then { clip }
@@ -826,7 +825,6 @@ Begin
     Begin
       If m > 0 Then { the whole screen needs to move up }
       Begin
-        {//};WritelnToTraceFile('SCROLL');
         CEditScrollDown(m);
         PrevLayout.ScreenY := PrevLayout.ScreenY - m
       End;
