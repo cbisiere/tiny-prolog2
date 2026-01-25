@@ -572,7 +572,6 @@ Begin
         b := 0
       End;
       { write the char, keeping track of the number of bytes on screen line }
-{//};CEditDump(Ed);
       CrtWrite(cc);
       b := b + CrtCharWrapSize(cc)
     End;
@@ -592,7 +591,6 @@ Begin
     Begin
       i := NextIdx(Buf,i);
       BufGetCharAt(cc,Buf,i);
-{//};CEditDump(Ed);
       CrtWrite(cc)
     End
 End;
@@ -680,9 +678,13 @@ Begin
     { for each char in the buffer }
     While (i <> Buf.IdxE) Do
     Begin
+      { screen size updated while redrawing the CL? emergency abort }
+      If CrtResizeIsPending Then
+      Begin
+        Exit
+      End;
       i := NextIdx(Buf,i);
       BufGetCharAt(cc,Buf,i);
-      {//};WritelnToTraceFile('(i=' + IntToShortString(i) + ',b=' + IntToShortString(b) + ',cc=' + cc.Bytes + ')');
       If CrtWraps(b,cc) Then { must wrap before displaying cc }
       Begin
         {//};WritelnToTraceFile('Must wrap before char ' + IntToShortString(i));
@@ -709,26 +711,14 @@ Begin
       Begin
         wx := WhereX;
         wy := WhereY;
-        {//};CEditDump(Ed);
+        { screen size updated while redrawing the CL? emergency abort }
+        If CrtResizeIsPending Then
+        Begin
+          Exit
+        End;
         CrtWrite(cc);
         If (WhereY = wy + 1) Then
         Begin
-          {//};WritelnToTraceFile('!break after writing UTF8!');
-          Halt(1);
-          y := y + 1;
-          vis := RowIsVisible(y);
-          If IsMultibyte(cc) Then { may have been a broken multibyte char }
-          Begin
-            { regret: clear the mess }
-            //CrtGotoXY(wx,wy);
-            //ASCIIChar(bb,'_');
-            //CrtWrite(bb);
-            //CrtClrEol;
-            CrtBackspace;
-            { write back, at the beginning of next line }
-            CrtGotoLine(wy + 1);
-            CrtWrite(cc)
-          End
         End;
 
       End
@@ -876,7 +866,6 @@ Begin
   { update display, minimizing cursor movements }
   If ActiveDown Then
     CEditWriteln(Ed);
-{//};CEditDump(Ed);
   CrtWrite(cc);
   { not an append op: we must redraw from IdxW }
   If Not BufWriteCursorIsAtEnd(Ed.Buf) Then
@@ -962,21 +951,24 @@ Begin
   CEditTrace(Ed,'Backward')
 End;
 
-
 { react to a screen resize if any }
 Procedure CEditHandleScreenResize( Var Ed : TEditor );
 Begin
-  If Not CrtSizeChanged Then
-    Exit;
-  CrtSizeChanged := False;
-  { update reported size }
-  CrtSizeSync;
-  { change: clear screen, with CL on top }
-  CEditRecomputeLayoutData(Ed,1);
-  CrtClrSrc;
-  { full refresh, no need to clear dirty areas }
-  Ed.PrevLayout.NbLines := 0;
-  CEditRefresh(Ed)
+  While CrtSizeChanged Do
+  Begin
+    { reset indicator, preparing for the next resize }
+    CrtSizeChanged := False;
+    { update reported size }
+    CrtSizeSync;
+    CrtFullScreen;
+    
+    { change: clear screen, with CL on top }
+    CEditRecomputeLayoutData(Ed,1);
+    CrtClrSrc;
+    { full refresh, no need to clear dirty areas }
+    Ed.PrevLayout.NbLines := 0;
+    CEditRefresh(Ed)
+  End
 End;
 
 
@@ -1002,7 +994,6 @@ Begin
     WriteToTraceFile(' NbBytesInPrompt=' + PosIntToShortString(NbBytesInPrompt));
     WriteToTraceFile(' Prompt=''' + Prompt + '''');
     WritelnToTraceFile('');
-    {//}//BufDump(Buf);
     CrtDump
   End
 End;

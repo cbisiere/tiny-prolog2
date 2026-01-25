@@ -72,11 +72,7 @@ Interface
 
 Uses
   Crt,
-{$IFDEF MSWINDOWS}
-  Windows,
-{$ENDIF}
   Common,
-  Crt,
   CrtSize,
   ShortStr,
   Chars,
@@ -102,6 +98,12 @@ Type
 
 Function CrtGetScreenWidth : TCrtCoordX;
 Function CrtGetScreenHeight : TCrtCoordY;
+
+Function CrtWindMinX : PosInt;
+Function CrtWindMinY : PosInt;
+Function CrtWindMaxX : PosInt;
+Function CrtWindMaxY : PosInt;
+Procedure CrtFullScreen;
 
 Function CrtIsBroken( y : TCrtCoordY ) : Boolean;
 
@@ -138,31 +140,70 @@ Implementation
 {-----------------------------------------------------------------------------}
 
 {----------------------------------------------------------------------------}
+{ window size                                                                }
+{----------------------------------------------------------------------------}
+
+{ X coordinate of the left edge }
+Function CrtWindMinX : PosInt;
+Begin
+{$IFDEF FPC}
+  CrtWindMinX := WindMinX
+{$ELSE}
+  CrtWindMinX := Lo(WindMin)
+{$ENDIF}
+End;
+
+{ Y coordinate of the top edge }
+Function CrtWindMinY : PosInt;
+Begin
+{$IFDEF FPC}
+  CrtWindMinY := WindMinY
+{$ELSE}
+  CrtWindMinY := Hi(WindMin)
+{$ENDIF}
+End;
+
+{ X coordinate of the right edge }
+Function CrtWindMaxX : PosInt;
+Begin
+{$IFDEF FPC}
+  CrtWindMaxX := WindMaxX
+{$ELSE}
+  CrtWindMaxX := Lo(WindMax)
+{$ENDIF}
+End;
+
+{ Y coordinate of the bottom edge }
+Function CrtWindMaxY : PosInt;
+Begin
+{$IFDEF FPC}
+  CrtWindMaxY := WindMaxY
+{$ELSE}
+  CrtWindMaxY := Hi(WindMax)
+{$ENDIF}
+End;
+
+
+{----------------------------------------------------------------------------}
 { screen size                                                                }
 {----------------------------------------------------------------------------}
 
 { screen width in number of 1-byte characters }
 Function CrtGetScreenWidth : TCrtCoordX;
 Begin
-  If CrtSizeScreenWidth < 1 Then
-    CrtGetScreenWidth := 1
-  Else If CrtSizeScreenWidth > CrtScreenMaxWidth Then
-    CrtGetScreenWidth := CrtScreenMaxWidth
-  Else
-    CrtGetScreenWidth := CrtSizeScreenWidth
+  CrtGetScreenWidth := Min(CrtWindMaxX,CrtScreenMaxWidth)
 End;
 
 { screen height in number of rows }
 Function CrtGetScreenHeight : TCrtCoordY;
 Begin
-  If CrtSizeScreenHeight < 1 Then
-    CrtGetScreenHeight := 1
-  Else If CrtSizeScreenHeight > CrtScreenMaxHeight Then
-    CrtGetScreenHeight := CrtScreenMaxHeight
-  Else
-    CrtGetScreenHeight := CrtSizeScreenHeight
+  CrtGetScreenHeight := Min(CrtWindMaxY,CrtScreenMaxHeight)
 End;
 
+Procedure CrtFullScreen;
+Begin
+  Window(1,1,CrtSizeScreenWidth,CrtSizeScreenHeight)
+End;
 
 {----------------------------------------------------------------------------}
 { tracking of broken screen rows due to multibyte chars                      }
@@ -220,11 +261,11 @@ End;
 { Crt primitives: calls to Crt procedures must go through this               }
 {----------------------------------------------------------------------------}
 
-{ dump crt op to trace file }
+{ trace crt op to trace file }
 Procedure CrtTrace( s : TString );
 Begin
   If TRACE_CRT Then
-    WritelnToTraceFile('Crt (' + IntToShortString(WhereX) + ',' 
+    WritelnToTraceFile('Crt(' + IntToShortString(WhereX) + ',' 
         + IntToShortString(WhereY) + '): '+ s)
 End;
 
@@ -353,7 +394,7 @@ Procedure CrtWrite( cc : TChar );
 Begin
   CrtTrace('Write(''' + cc.Bytes + ''')');
   Write(cc.Bytes);
-  CrtTrace('(WhereX,WhereY)');
+  CrtTrace('');
   CrtSetBroken(WhereY,CrtIsBroken(WhereY) Or IsMultibyte(cc))
 End;
 
@@ -443,14 +484,12 @@ Procedure CrtDump;
 Var
   y : TCrtCoordY;
 Begin
-  WriteToTraceFile('| CRT: ');
-  WriteToTraceFile(' WhereX=' + IntToShortString(WhereX));
-  WriteToTraceFile(' WhereY=' + IntToShortString(WhereY));
-  WritelnToTraceFile('');
-  WriteToTraceFile('|      ');
-  WriteToTraceFile(' CrtGetScreenWidth=' + IntToShortString(CrtGetScreenWidth));
-  WriteToTraceFile(' CrtGetScreenHeight=' + IntToShortString(CrtGetScreenHeight));
-  WritelnToTraceFile('');
+  WritelnToTraceFile('| CRT: ');
+  WritelnToTraceFile('  WhereX = ' + IntToShortString(WhereX));
+  WritelnToTraceFile('  WhereY = ' + IntToShortString(WhereY));
+  WritelnToTraceFile('  CrtWindMaxX = ' + IntToShortString(CrtWindMaxX));
+  WritelnToTraceFile('  CrtWindMaxY = ' + IntToShortString(CrtWindMaxY));
+  WriteToTraceFile('  ');
   For y := 1 To CrtGetScreenHeight Do
   Begin
     WriteToTraceFile(' ' + IntToShortString(Ord(CrtBroken[y])))

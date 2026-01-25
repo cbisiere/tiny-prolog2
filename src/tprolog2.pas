@@ -15,6 +15,8 @@
 
 {$IFDEF TPC}
 {$M 65520,0,589840 } { stack (max 65520), heap low, heap high (def 640k) }
+{$ELSE}
+{$M 4194304,0} { 4 MiB }
 {$ENDIF}
 
 Program TProlog2;
