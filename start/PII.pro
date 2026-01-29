@@ -52,6 +52,7 @@ bound(T) -> syscall(sysfree,T,false);
 "string"
 
 char-code(C,N) -> syscall(syscharcode,C,N);
+string-ident(S,I) -> syscall(sysstringident,S,I);
 
 "array"
 

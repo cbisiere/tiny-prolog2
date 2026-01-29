@@ -208,6 +208,7 @@ Function IsArray( I : IdPtr ) : Boolean;
 Function IsConstant( T : TermPtr ) : Boolean;
 Function IsInteger( T : TermPtr ) : Boolean;
 Function IsReal( T : TermPtr ) : Boolean;
+Function IsString( T : TermPtr ) : Boolean;
 Function IsIdentifier( T : TermPtr ) : Boolean;
 Function IsAtomic( T : TermPtr ) : Boolean;
 Function IsAnonymous( V : VarPtr ) : Boolean;
@@ -302,7 +303,7 @@ Begin
     TI_VALU := Nil;
     TI_DVAR := Nil;
     TI_SIZE := 0;
-    TI_QUOT := Quoted;
+    TI_QUOT := Quoted; { must be quoted when printed }
     TI_ASSI := False
   End;
   Ident_New := I
@@ -1053,6 +1054,12 @@ End;
 Function IsReal( T : TermPtr ) : Boolean;
 Begin
   IsReal := IsConstant(T) And (ConstType(ConstPtr(T)) = RealNumber)
+End;
+
+{ is term T a string constant? }
+Function IsString( T : TermPtr ) : Boolean;
+Begin
+  IsString := IsConstant(T) And (ConstType(ConstPtr(T)) = QString)
 End;
 
 { is term T an identifier? }

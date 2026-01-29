@@ -34,6 +34,7 @@ bound(T) -> syscall(sysfree,T,false);
 "string"
 
 char_code(C,N) -> syscall(syscharcode,C,N);
+string_ident(S,I) -> syscall(sysstringident,S,I);
 
 "array"
 

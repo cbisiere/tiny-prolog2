@@ -50,7 +50,8 @@ Uses
   PObjTok,
   PObjDef;
 
-Function IsUnquotedIdentifier( s : StrPtr; y : TSyntax ) : Boolean;
+Function IsValidUnquotedIdentifier( s : StrPtr; y : TSyntax ) : Boolean;
+Function SupportsQuotedIdentifiers( y : TSyntax ) : Boolean;
 
 Procedure ReadBlanks( f : StreamPtr );
 Function ReadString( f : StreamPtr ) : TokenPtr;
@@ -624,13 +625,15 @@ End;
 
 { return True if string s is a valid (unquoted) identifier in syntax y;
  TODO: what about identifiers made of graphic chars }
-Function IsUnquotedIdentifier( s : StrPtr; y : TSyntax ) : Boolean;
+Function IsValidUnquotedIdentifier( s : StrPtr; y : TSyntax ) : Boolean;
 Var 
   State : Byte;
+  Valid : Boolean; { is the current state a valid exit state? }
   Iter : StrIter;
   cc : TChar;
 Begin
-  IsUnquotedIdentifier := False;
+  IsValidUnquotedIdentifier := False;
+  Valid := False;
   If Str_Length(s) = 0 Then
     Exit;
   State := 0;
@@ -642,7 +645,10 @@ Begin
       Case State Of
       0:
         If IsLetter(cc) And Not IsBigLetter(cc) Then
-          State := 1
+        Begin
+          State := 1;
+          Valid := True
+        End
         Else
           Exit;
       1: { one small letter }
@@ -660,7 +666,10 @@ Begin
           Exit;
       1: { one letter }
         If IsLetter(cc) Then
-          State := 2
+        Begin
+          State := 2;
+          Valid := True
+        End
         Else
           Exit;
       2: { two letters }
@@ -685,14 +694,20 @@ Begin
           Exit;
       1: { one letter in a long word }
         If IsLetter(cc) Then
-          State := 2
+        Begin
+          State := 2;
+          Valid := True
+        End
         Else
           Exit;
       2: { a letter in a word }
         If IsLetter(cc) Then
           Pass
         Else If cc.Bytes = '-' Then
-          State := 3
+        Begin
+          State := 3;
+          Valid := False { e.g. 'a-' is not a valid identifier }
+        End
         Else If IsDigit(cc) Then
           State := 4
         Else If cc.Bytes = '''' Then
@@ -701,14 +716,20 @@ Begin
           Exit;
       3: { dash }
         If IsLetter(cc) Then
-          State := 2
+        Begin
+          State := 2;
+          Valid := True { 'a-b' is a valid identifier }
+        End
         Else
           Exit;
       4: { digits }
         If IsDigit(cc) Then
           Pass
         Else If cc.Bytes = '-' Then
-          State := 3
+        Begin
+          State := 3;
+          Valid := False
+        End
         Else If cc.Bytes = '''' Then
           State := 5
         Else
@@ -717,16 +738,27 @@ Begin
         If cc.Bytes = '''' Then
           Pass
         Else If cc.Bytes = '-' Then
-          State := 3
+        Begin
+          State := 3;
+          Valid := False
+        End
         Else
           Exit
       End
     End
   End;
-  IsUnquotedIdentifier := True
+  IsValidUnquotedIdentifier := Valid
 End;
 
-{ read a variable or an identifier (including single-quoted identifier) }
+{ return true if Prolog flavour y supports quoted identifiers }
+Function SupportsQuotedIdentifiers( y : TSyntax ) : Boolean;
+Begin
+  SupportsQuotedIdentifiers := y In [PrologIIp,Edinburgh]
+End;
+
+{ read a variable or an identifier (including single-quoted identifier when
+ the syntax allows it); throw an error if the string does not contain a valid
+ identifier }
 Function ReadVariableOrIdentifier( f : StreamPtr; y : TSyntax ) : TokenPtr;
 Var
   K : TokenPtr;
@@ -737,7 +769,12 @@ Begin
   ReadVariableOrIdentifier := Nil;
   { single-quoted identifier? note that surrounding quotes are NOT kept }
   K := ReadQuotedRunOfChars(f,'''',TOKEN_IDENT,False,True);
-  If K = Nil Then { nope }
+  { got one, but is it allowed? }
+  If (K <> Nil) And (Not SupportsQuotedIdentifiers(y)) Then
+    SyntaxError('this Prolog flavour does not support quoted identifiers');
+  If Error Then Exit;
+  { no quote: variable or unquoted identifier expected }
+  If K = Nil Then
   Begin
     K := Token_New(TOKEN_UNKNOWN);
     With K^ Do

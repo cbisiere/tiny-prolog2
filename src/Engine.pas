@@ -494,7 +494,7 @@ Var
           PP_BLOCK: { [BLOCK:2] block(T,G); insert goals in H: -> G -> B<H> }
             Begin
               { insert special goal }
-              B := BTerm_New(EmitShortIdent(P,SPECIAL_IDENT_BLOCK,False));
+              B := BTerm_New(EmitSpecialIdent(P,SPECIAL_IDENT_BLOCK,False));
               BTerm_SetHeader(B,H);
               Header_InsertGoalsToClear(H,B);
               { then, insert the goal to clear, as returned by the syscall }
@@ -568,7 +568,7 @@ Var
                 { insert the special goal meant to know when the goal G is 
                 cleared; the goal point back to this header, where the
                 handle variable V is stored }
-                B := BTerm_New(EmitShortIdent(P,SPECIAL_IDENT_FINDALL,False));
+                B := BTerm_New(EmitSpecialIdent(P,SPECIAL_IDENT_FINDALL,False));
                 BTerm_SetHeader(B,H);
                 Header_InsertGoalsToClear(H,B);
                 { then, insert the goal to clear, as returned by the syscall }

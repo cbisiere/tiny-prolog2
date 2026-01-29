@@ -205,11 +205,10 @@ Begin
       PopExprTerm(T2,TBottom);
       PopExprTerm(T1,TBottom);
       CheckCondition((T1<>Nil) And (T2<>Nil),
-          'ReduceTopExpr: unexpected Nil terms');
-      
+          'ReduceTopExpr: unexpected Nil terms')
     End
   End;
-  T := NewFunc2(P,Op_GetFunction(o),T1,T2,True);
+  T := NewFunc2(P,Op_GetFunction(o),T1,T2,False,True);
   PushExprTerm(T)
 End;
 
@@ -616,7 +615,7 @@ Begin
     Begin
       If Cut Then 
       Begin
-        T := EmitShortIdent(P,SPECIAL_IDENT_CUT,True);
+        T := EmitSpecialIdent(P,SPECIAL_IDENT_CUT,True);
         K := ReadProgramToken(P,f)
       End
       Else
@@ -630,7 +629,8 @@ Begin
       End
       Else
       Begin
-        T := EmitIdent(P,Token_GetStr(K),glob)
+        T := EmitIdent(P,Token_GetStr(K),True,glob);
+        CheckCondition(T <> Nil,'ReadPTerm: unable to create an identifier')
       End;
       K := ReadProgramToken(P,f);
       If Error Then Exit;

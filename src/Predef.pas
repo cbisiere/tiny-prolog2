@@ -112,6 +112,7 @@ Type
     PP_DIF,
     PP_UNIV,
     PP_ATOM_CHARS,
+    PP_STRING_IDENT,
     PP_ATOM_LENGTH,
     PP_NUMBER_CHARS,
     PP_FREEZE,
@@ -141,7 +142,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 60;
+  NB_PP = 61;
   MAX_PP_LENGHT = 21; { max string length }
 Type
   TPPRec = Record
@@ -208,6 +209,7 @@ Const
     (I:PP_DUMP;S:'sysdump';N:0),
     (I:PP_DIF;S:'sysdif';N:2),
     (I:PP_UNIV;S:'sysuniv';N:2), { '=..', Edinburgh only, p.221 }
+    (I:PP_STRING_IDENT;S:'sysstringident';N:2),
     (I:PP_ATOM_CHARS;S:'sysatomchars';N:2),
     (I:PP_ATOM_LENGTH;S:'sysatomlength';N:2),
     (I:PP_NUMBER_CHARS;S:'sysnumberchars';N:2),
@@ -246,7 +248,8 @@ Procedure RegisterPredefined( P : ProgPtr );
 Var 
   T : TermPtr;
 Begin
-  T := EmitIdent(P,Str_NewFromShortString(SPECIAL_IDENT_SYSCALL),True)
+  T := EmitIdent(P,Str_NewFromShortString(SPECIAL_IDENT_SYSCALL),True,True);
+  CheckCondition(T <> Nil,'RegisterPredefined: not a valid identifier')
 End;
 
 
@@ -718,7 +721,11 @@ Begin
   s := Str_New(Enc);
   Str_AppendChar(s,cc);
   If y = Edinburgh Then
-    Tc := EmitIdent(P,s,False)
+  Begin
+    Tc := EmitIdent(P,s,True,False);
+    CheckCondition(Tc <> Nil,
+        'ClearCharCode: unable to create an identifier from a char')
+  End
   Else
     Tc := EmitConst(P,s,CS,False);
   { unify the term c with this constant }
@@ -1595,6 +1602,44 @@ Begin
   ClearUniv := ReduceOneEq(T,L,GetDebugStream(P)) { TODO: backtrackable? }
 End;
 
+{ boum(hello,"hello"), string_ident("hello",hello)
+ Tested on PII+: the identifier in the string must use the simplified syntax, 
+ even when quoted, e.g. "aaa", "'aaa'" are valid, "123", "'123'" are not }
+Function ClearStringIdent( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  T1,T2 : TermPtr;
+Begin
+  ClearStringIdent := False;
+  T1 := EvalPArg(1,T);
+  T2 := EvalPArg(2,T);
+  { check at least one argument is bound }
+  If IsVariable(T1) And IsVariable(T2) Then
+  Begin
+    CWritelnWarning('at least one argument must be instantiated');
+    Exit
+  End;
+  { T1 is a string }
+  If IsString(T1) Then
+  Begin
+    T1 := StringToIdentifier(P,ConstPtr(T1));
+    If T1 = Nil Then { fails to create an identifier from the string }
+    Begin
+      CWritelnWarning('the string cannot be converted to an identifier');
+      Exit
+    End;
+    ClearStringIdent := ReduceOneEq(T1,T2,GetDebugStream(P));
+    Exit
+  End;
+  { T2 is an ident }
+  If IsIdentifier(T2) Then
+  Begin
+    ClearStringIdent := ReduceOneEq(T1,IdentifierToString(P,IdPtr(T2)),
+        GetDebugStream(P));
+    Exit
+  End
+  { wrong type of argument: silently fails (see date/1 in PIIv1 doc p23) }
+End;
+
 { atom_chars('hello',['h','e','l','l','o']) }
 Function ClearAtomChars( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
@@ -1774,7 +1819,11 @@ Begin
     s2 := Str_NewFromBytes(DirInfo.Name,GetSystemCEncoding);
     Str_Concat(s,s2);
     If GetSyntax(P) = Edinburgh Then { Edinburgh uses ident }
-      T1 := EmitIdent(P,s,False)
+    Begin
+      T1 := EmitIdent(P,s,True,False);
+      CheckCondition(T1 <> Nil,
+          'ClearExpandFileName: unable to create an identifier from a file name')
+    End
     Else
       T1 := EmitConst(P,s,CS,False);
     L := NewList2(P,T1,L);
@@ -2180,7 +2229,9 @@ Begin
                 Str_Append(s,'end_of_file')
               Else
                 Str_AppendChar(s,c);
-              Tr := EmitIdent(P,s,False)
+              Tr := EmitIdent(P,s,True,False);
+              CheckCondition(Tr <> Nil,
+                  'ClearIn: unable to create an identifier from a char')
             End
             Else
             Begin
@@ -2229,7 +2280,10 @@ Begin
       K := ReadVariableOrIdentifier(f,GetSyntax(P));
       Success := (Not Error) And (K <> Nil) And (Token_GetType(K) = TOKEN_IDENT);
       If Success Then
-        Tr := EmitIdent(P,Token_GetStr(K),False)
+      Begin
+        Tr := EmitIdent(P,Token_GetStr(K),True,False);
+        CheckCondition(Tr <> Nil,'ClearIn: unable to create an identifier')
+      End
     End;
   TYPE_TERM:
     Begin
@@ -2526,6 +2580,8 @@ Begin
     Ok := ClearEval(P,T);
   PP_UNIV:
     Ok := ClearUniv(P,T);
+  PP_STRING_IDENT:
+    Ok := ClearStringIdent(P,T);
   PP_ATOM_CHARS:
     Ok := ClearAtomChars(P,T);
   PP_ATOM_LENGTH:

@@ -49,6 +49,7 @@ pris(T) -> syscall(sysfree,T,false);
 "string"
 
 no-car(C,N) -> syscall(syscharcode,C,N);
+boum(I,S) -> syscall(sysstringident,S,I);
 
 "array"
 

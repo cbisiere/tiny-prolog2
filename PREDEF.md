@@ -98,6 +98,7 @@ Predicate | Action | Example
 Predicate | Action | Example
 --- | --- | ---
 `no-car(C,N)` / `char-code(C,N)` | match character `C` and code `N`; either `C` or `N` must be bound | `> char-code("A",n);` <br> `{ n=65 }` <br> `>`
+`boum(I,S)` / `string-ident(S,I)` | match identifier `I` and string `S`; either `I` or `S` must be bound | `> boum(abc,s);` <br> `{ s="abc" }` `-> boum(i,"abc");` <br> `{ i=abc }` <br> `>`
 
 ### Control
 

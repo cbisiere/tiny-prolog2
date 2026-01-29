@@ -115,7 +115,12 @@ Function EmitConst( P : ProgPtr; s : StrPtr; ty : TypePrologObj;
     glob : Boolean ) : TermPtr;
 Function EmitVariable( P : ProgPtr; s : StrPtr; anonymous : Boolean; 
     glob : Boolean ) : TermPtr;
-Function EmitIdent( P : ProgPtr; s : StrPtr; glob : Boolean ) : TermPtr;
+Function EmitIdent( P : ProgPtr; s : StrPtr; canQuote : Boolean; 
+    glob : Boolean ) : TermPtr;
+Function EmitIdentFromString( P : ProgPtr; C : ConstPtr;
+    glob : Boolean ) : TermPtr;
+Function EmitSpecialIdent( P : ProgPtr; ident : TString; 
+    glob : Boolean ) : TermPtr;
 Function EmitShortIdent( P : ProgPtr; ident : TString; 
     glob : Boolean ) : TermPtr;
 
@@ -434,23 +439,63 @@ Begin
   EmitVariable := TermPtr(V)
 End;
 
-{ return a new identifier as a term, from a string }
-Function EmitIdent( P : ProgPtr; s : StrPtr; glob : Boolean ) : TermPtr;
+{ return a new identifier as a term, from a string (w/o quotes); quote the 
+ identifier when allowed to (canQuote), possible (the syntax allows it) and 
+ necessary (the string does not contain a valid unquoted identifier); 
+ return Nil if a valid identifier cannot be created from the string. }
+Function EmitIdent( P : ProgPtr; s : StrPtr; canQuote : Boolean; 
+    glob : Boolean ) : TermPtr;
 Var
-  Quoted : Boolean;
+  mustQuote : Boolean;
   I : IdPtr;
 Begin
   EmitIdent := Nil;
-  Quoted := Not IsUnquotedIdentifier(s,GetSyntax(P));
-  I := InstallIdentifier(P^.PP_DIDE,s,Quoted,glob);
+  mustQuote := Not IsValidUnquotedIdentifier(s,GetSyntax(P));
+  If mustQuote 
+      And (Not canQuote Or Not SupportsQuotedIdentifiers(GetSyntax(P))) Then
+    Exit;
+  I := InstallIdentifier(P^.PP_DIDE,s,MustQuote,glob);
   EmitIdent := TermPtr(I)
 End;
 
-{ return a new identifier as a term, from a Pascal string }
-Function EmitShortIdent( P : ProgPtr; ident : TString; 
+{ create an identifier (as a term) from a string constant; the string is first 
+ unquoted, as only simplified ident syntax is allowed: "abc" and "'abc'" are 
+ allowed but "123" and "'123'" are not. return Nil if the unquoted string is 
+ not a valid, simplified syntax identifier }
+Function EmitIdentFromString( P : ProgPtr; C : ConstPtr;
+    glob : Boolean ) : TermPtr;
+Var
+  s : StrPtr;
+Begin
+  s := ConstGetStr(C);
+  If SupportsQuotedIdentifiers(GetSyntax(P)) And Str_IsQuoted(s,'''') Then
+  Begin
+    s := Str_Clone(s);
+    Str_Unquote(s,'''')
+  End;
+  EmitIdentFromString := EmitIdent(P,s,False,glob)
+End;
+
+{ return a new special identifier as a term, from a Pascal string; it is *not*
+ checked whether the identifier is valid or not, and the special identifier will
+ not be quoted }
+Function EmitSpecialIdent( P : ProgPtr; ident : TString; 
     glob : Boolean ) : TermPtr;
 Begin
-  EmitShortIdent := EmitIdent(P,Str_NewFromShortString(ident),glob)
+  EmitSpecialIdent := TermPtr(InstallIdentifier(P^.PP_DIDE,
+      Str_NewFromShortString(ident),False,glob))
+End;
+
+{ return a new identifier as a term, from a Pascal string; the string is 
+ expected to be (possibly after quoting) a valid identifier }
+Function EmitShortIdent( P : ProgPtr; ident : TString; 
+    glob : Boolean ) : TermPtr;
+Var 
+  T : TermPtr;
+Begin
+  T := EmitIdent(P,Str_NewFromShortString(ident),True,glob);
+  CheckCondition(T <> Nil,'EmitShortIdent: unable to create an identifier');
+  EmitShortIdent := T
 End;
 
 {-----------------------------------------------------------------------}

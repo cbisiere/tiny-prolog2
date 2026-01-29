@@ -92,6 +92,8 @@ Procedure Str_Append( s : StrPtr; ps : TString );
 Procedure Str_AppendChar( s : StrPtr; cc : TChar );
 Procedure Str_Concat(s1, s2: StrPtr);
 Function Str_Clone(s: StrPtr): StrPtr;
+Function Str_IsQuoted( s : StrPtr; quote : Char ) : Boolean;
+Procedure Str_Unquote( s : StrPtr; quote : Char );
 Procedure Str_SingleQuoteAndEscape( s : StrPtr );
 Procedure Str_DoubleQuoteAndEscape( s : StrPtr );
 Function Str_Comp(s1, S2: StrPtr): TComp;
@@ -101,6 +103,7 @@ Function Str_FirstChar( s : StrPtr; Var cc : TChar ) : Boolean;
 Function Str_LastChar( s : StrPtr; Var cc : TChar ) : Boolean;
 Function Str_StartsWith(s: StrPtr; E: CharSet): boolean;
 Function Str_EndsWith(s: StrPtr; E: CharSet): boolean;
+Procedure Str_DeleteLastChar( s : StrPtr );
 Procedure Str_DeleteLastCharUntil( s : StrPtr; StopChars : CharSet );
 
 Procedure Str_CWrite(s: StrPtr);
@@ -523,6 +526,43 @@ End;
 Function Str_Clone( s : StrPtr ) : StrPtr;
 Begin
   Str_Clone := StrPtr(DeepCopy(TObjectPtr(s)))
+End;
+
+{ is a string quoted? }
+Function Str_IsQuoted( s : StrPtr; quote : Char ) : Boolean;
+Begin
+  Str_IsQuoted := (Str_Length(s) >= 2) And Str_StartsWith(s,[quote]) 
+      And Str_EndsWith(s,[quote])
+End;
+
+{ in-place unquote a quoted string; de-double the quote char }
+Procedure Str_Unquote( s : StrPtr; quote : Char );
+Var 
+  s2 : StrPtr;
+  Iter : StrIter;
+  cc : TChar;
+  dummy : Boolean;
+  isQuote : Boolean; { is the last char inside the quoted string a quote? }
+Begin
+  s2 := Str_Clone(s);
+  Str_DeleteLastChar(s2); { delete the closing quote }
+  Str_Zap(s);
+  StrIter_ToStart(Iter,s2);
+  { skip the opening quote }
+  dummy := StrIter_NextChar(Iter,cc);
+  CheckCondition(cc.Bytes = quote,'Str_Unquote: missing opening quote');
+  { copy and de-double the chars inside the quoted string }
+  isQuote := False;
+  While (ErrorState <> ENCODING_ERROR) And StrIter_NextChar(Iter,cc) Do
+  Begin
+    If isQuote And (cc.Bytes = quote) Then { de-double }
+      isQuote := False
+    Else
+    Begin
+      Str_AppendChar(s,cc);
+      isQuote := (cc.Bytes = quote)
+    End
+  End
 End;
 
 { in-place quote and escape a string; double the quote char }

@@ -55,11 +55,13 @@ Uses
   Tuple;
 
 Function NewFunc2( P : ProgPtr; ident : TString; T1,T2 : TermPtr; 
-    glob : Boolean ) : TermPtr;
+    special,glob : Boolean ) : TermPtr;
 
 Function NewEmptyList( P : ProgPtr ) : TermPtr;
 Function NewList2( P : ProgPtr; T1,T2 : TermPtr ) : TermPtr;
 Function IsNil( T : TermPtr ) : Boolean;
+Function IdentifierToString( P : ProgPtr; I : IdPtr ) : TermPtr;
+Function StringToIdentifier( P : ProgPtr; C : ConstPtr ) : TermPtr;
 Function CommaExpToList( P : ProgPtr; T : TermPtr ) : TermPtr;
 Function TupleToList( P : ProgPtr; U : TermPtr ) : TermPtr;
 Function IdentifierToList( P : ProgPtr; I : IdPtr ) : TermPtr;
@@ -99,12 +101,16 @@ Implementation
 { return a new 1 or 2-argument predicate with identifier given as a Pascal 
  string made of 1-byte TChar: "ident: "ident(T1)" or "ident(T1,T2)" }
 Function NewFunc2( P : ProgPtr; ident : TString; T1,T2 : TermPtr; 
-    glob : Boolean ) : TermPtr;
+    special,glob : Boolean ) : TermPtr;
 Var
-  U : TermPtr;
+  U,T : TermPtr;
 Begin
   CheckCondition(T1 <> Nil,'NewFunc2: first argument is Nil');
-  U := NewTuple(EmitShortIdent(P,ident,glob));
+  If special Then
+    T := EmitSpecialIdent(P,ident,glob)
+  Else
+    T := EmitShortIdent(P,ident,glob);
+  U := NewTuple(T);
   SetTupleQueueTerm(U,T1);
   If T2 <> Nil Then
     SetTupleQueueTerm(TupleQueue(U),T2);
@@ -146,7 +152,7 @@ Begin
   NewList2 := Nil;
   If T2 = Nil Then
     T2 := NewEmptyList(P);
-  NewList2 := NewFunc2(P,'.',T1,T2,True)
+  NewList2 := NewFunc2(P,'.',T1,T2,True,True)
 End;
 
 { return True if term T is 'nil' }
@@ -159,6 +165,21 @@ End;
 {----------------------------------------------------------------------------}
 { conversions                                                                }
 {----------------------------------------------------------------------------}
+
+{ create a string constant "abc" (as a term) from an identifier 'abc' }
+Function IdentifierToString( P : ProgPtr; I : IdPtr ) : TermPtr;
+Begin
+  IdentifierToString := EmitConst(P,IdentifierGetStr(I),CS,False)
+End;
+
+{ create an identifier (as a term) from a string constant; the string is first 
+ unquoted, as only simplified ident syntax is allowed: "abc" and "'abc'" are 
+ allowed but "123" and "'123'" are not. return Nil if the unquoted string is 
+ not a valid, simplified syntax identifier }
+Function StringToIdentifier( P : ProgPtr; C : ConstPtr ) : TermPtr;
+Begin
+  StringToIdentifier := EmitIdentFromString(P,C,False)
+End;
 
 { create a new list a.b.c.nil from a comma-expression ','(a,','(b,c)) }
 Function CommaExpToList( P : ProgPtr; T : TermPtr ) : TermPtr;
@@ -193,7 +214,7 @@ End;
 Function StrToList( P : ProgPtr; s : StrPtr ) : TermPtr;
 Var
   sc : StrPtr;
-  L : TermPtr;
+  L,T : TermPtr;
   Iter : StrIter;
   cc : TChar;
 Begin
@@ -203,7 +224,9 @@ Begin
   Begin
     sc := Str_New(Str_GetEncodingContext(s));
     Str_AppendChar(sc,cc);
-    L := NewList2(P,EmitIdent(P,sc,True),L)
+    T := EmitIdent(P,sc,True,True);
+    CheckCondition(T <> Nil,'StrToList: unable to create an identifier');
+    L := NewList2(P,T,L)
   End;
   StrToList := L
 End;
@@ -236,7 +259,8 @@ Begin
 End;
 
 { create an identifier concatenating each character in a list; return Nil if 
- the term is not a list of characters }
+ the term is not a list of characters or if no valid identifier can be created
+ from the list of characters }
 Function ListToIdentifier( P : ProgPtr; T : TermPtr ) : TermPtr;
 Var
   s : StrPtr;
@@ -244,7 +268,7 @@ Begin
   ListToIdentifier := Nil;
   s := ListToStr(P,T);
   If s <> Nil Then
-    ListToIdentifier := EmitIdent(P,s,False)
+    ListToIdentifier := EmitIdent(P,s,True,False)
 End;
 
 { create a list of chars '1'.'2'.'3'.nil from a numerical constant 123; no
