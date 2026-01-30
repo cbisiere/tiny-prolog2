@@ -93,6 +93,7 @@ exml(S) -> syscall(sysoutm,S) ligne;
 ligne -> syscall(sysline);
 page -> syscall(sysclrsrc);
 clear -> page impasse;
+en-xy(E1,E2) -> syscall(sysgotoxy,E1,E2);
 
 "assign and eval"
 

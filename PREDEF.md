@@ -67,6 +67,7 @@ Predicate | Action | Example
 `in-car(C)`, `in-car'(C)`, `car-apres(C)`, `car-apres'(C)`, `in(T)`, `in-entier(N)`, `in-ident(I)`, `in-chaine(S)` / `in-char(C)`, `in-char'(C)`, `next-char(C)`, `next-char'(C)`, `in(T)`, `in-integer(N)`, `in-ident(I)`, `in-string(S)`, `in-real(R)` | read (or lookup) a character `C`, read a term `T`, an integer `N`, an identifier `I`, a string `S` or a real number `R`; non-primed predicates reading a character do not skip leading spaces; all the others do skip spaces | `> in-char(c);` <br> `{ c="\n" }` <br> `> in-char'(c);` <br> `a` <br> `{ c="a" }` <br> `>` <br>
 `ex(T)`, `exl(T)`, `exm(S)`, `exml(S)` / `out(T)`, `outl(T)`,`outm(S)`, `outml(S)` | write term `T`, without or with a newline, or a string `S` without double-quotes, without or with a new line | `> outml("Hello, world!");` <br> `Hello, world!` <br> `{  }` <br> `>`
 `ligne`, `page` / `line`, `page` | write a new line, or clear the screen |
+`en-xy(X,Y)` / `set-cursor(X,Y)` | move the text cursor to (0-based) column `X` and row `Y` |
 
 
 ### Evaluation

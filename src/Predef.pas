@@ -99,6 +99,7 @@ Type
     PP_OUT,
     PP_OUTM,
     PP_LINE,
+    PP_GOTOXY,
     PP_BACKTRACE,
     PP_CLRSRC,
     PP_EVAL,
@@ -142,7 +143,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 61;
+  NB_PP = 62;
   MAX_PP_LENGHT = 21; { max string length }
 Type
   TPPRec = Record
@@ -197,6 +198,7 @@ Const
     (I:PP_OUT;S:'sysout';N:1),
     (I:PP_OUTM;S:'sysoutm';N:1),
     (I:PP_LINE;S:'sysline';N:0),
+    (I:PP_GOTOXY;S:'sysgotoxy';N:2),
     (I:PP_BACKTRACE;S:'sysbacktrace';N:0),
     (I:PP_CLRSRC;S:'sysclrsrc';N:0),
     (I:PP_EVAL;S:'syseval';N:2),
@@ -508,6 +510,18 @@ Begin
   str := ConstGetShortString(C);
   v := ShortStringToPosInt(str,code);
   GetPosIntArg := code = 0
+End;
+
+{ get a positive integer argument n bounded in [b1,b2] }
+Function GetPosIntArgIn( n : Byte; T : TermPtr; b1,b2 : PosInt; 
+    Var v : PosInt ) : Boolean;
+Begin
+  GetPosIntArgIn := False;
+  If Not GetPosIntArg(n,T,v) Then
+    Exit;
+  If (v < b1) Or (v > b2) Then
+    Exit;
+  GetPosIntArgIn := True
 End;
 
 { get a codepoint argument n }
@@ -1720,26 +1734,16 @@ End;
 { op(700,xfx,"<",inf) } { TODO: implement full specs PII+ p137 }
 Function ClearOp( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
-  C1,C3 : ConstPtr;
+  C3 : ConstPtr;
   I2,I3,I4 : IdPtr;
   Id2,Id3,Id4 : TString;
-  str : TString;
-  v,code : Integer;
+  v : PosInt;
   o : OpPtr;
   ot : TOpType;
 Begin
   ClearOp := False;
   { 1: precedence (integer value between 1 and 1200) }
-  C1 := EvalPArgAsInt(1,T);
-  If C1 = Nil Then
-    Exit;
-  str := ConstGetShortString(C1);
-  If Length(str) > 4 Then
-    Exit;
-  Val(str,v,code);
-  If code <> 0 Then
-    Exit;
-  If (v < 0) Or (v > 1200) Then
+  If Not GetPosIntArgIn(1,T,1,1200,v) Then
     Exit;
   { 2: type of operator (identifier in a list) }
   I2 := EvalPArgAsIdent(2,T);
@@ -2143,6 +2147,22 @@ Function ClearLine( P : ProgPtr ) : Boolean;
 Begin
   Outln(CurrentOutput(P));
   ClearLine := True
+End;
+
+{ en-xy(0,15); PIIv1 specs limit X to [0,79] and Y to [0,23]; this 
+ implementation generalizes this to the screen limits (but not to the current
+ size); TODO: out-of-screen error messages? }
+Function ClearGotoXY( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  v1,v2 : PosInt;
+Begin
+  ClearGotoXY := False;
+  If Not GetPosIntArgIn(1,T,0,CrtGetScreenWidth-1,v1) Then
+    Exit;
+  If Not GetPosIntArgIn(2,T,0,CrtGetScreenHeight-1,v2) Then
+    Exit;
+  CrtGotoXY(v1+1,v2+1);
+  ClearGotoXY := True
 End;
 
 { clear }
@@ -2658,6 +2678,8 @@ Begin
     Ok := ClearOutm(P,T);
   PP_LINE:
     Ok := ClearLine(P);
+  PP_GOTOXY:
+    Ok := ClearGotoXY(P,T);
   PP_CLRSRC:
     Ok := ClearClrScr(P);
   PP_IN:

@@ -100,6 +100,7 @@ outl(T) -> out(T) line;
 outml(S) -> outm(S) line;
 page -> syscall(sysclrsrc);
 clear -> page fail;
+set-cursor(E1,E2) -> syscall(sysgotoxy,E1,E2);
 
 "assign and eval"
 
