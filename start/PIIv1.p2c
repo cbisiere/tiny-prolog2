@@ -57,13 +57,13 @@ def-tab(I,N) -> syscall(sysdefarray,I,N);
 
 "i/o"
 
-entree(F) -> syscall(sysfree,T,true) / syscall(sysinputis,F);
+entree(F) -> syscall(sysfree,F,true) / syscall(sysinputis,F) /;
 entree(F) -> syscall(sysselectinput,F) /;
 entree(F) -> syscall(sysopennew,F,read,S,nil);
 fermer-entree(F) -> syscall(syscloseinput,F);
 fermer-entree -> syscall(sysinputis,F) syscall(syscloseinput,F);
 
-sortie(F) -> syscall(sysfree,T,true) / syscall(sysoutputis,F) /;
+sortie(F) -> syscall(sysfree,F,true) / syscall(sysoutputis,F) /;
 sortie(F) -> syscall(sysselectoutput,F) /;
 sortie(F) -> syscall(sysopennew,F,write,S,nil);
 fermer-sortie -> syscall(sysoutputis,F) syscall(syscloseoutput,F);
