@@ -454,16 +454,16 @@ pterm = constant |
         "<", [term-list], ">" |
         "(", term, ")" ;       
 
-rule = pterm, "->", { pterm }, ";" ;
+rule = term, "->", { term }, ";" ;
 
-query = "->", { pterm }, ";" ;                                
+query = "->", { term }, ";" ;                                
 
 comment = string ;
 
 program = { comment | rule | query }, [";"] ;
 
 ```
-A `pterm` is a term that can appear at the highest level, that is, as a goal in a rule or query's body. Dotted lists cannot appear at this highest level. A rule's head must be a predicate.
+A `term` is a term that can appear at the highest level, that is, as a goal in a rule or query's body. A term can be a dotted list.
 
 
 ### Prolog II
@@ -559,7 +559,7 @@ pterm = constant |
 list-expr = expr, ["," , list-expr] | 
             expr, "|", expr ;
 
-rule = term, "->", { pterm }, ";" ;
+rule = term, "->", { term }, ";" ;
 
 query = "->", { pterm }, ";" ;
 

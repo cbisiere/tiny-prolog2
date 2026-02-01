@@ -789,7 +789,7 @@ Var
 Begin
   CompileRuleHead := Nil;
   PrepareExprParsing;
-  T := ReadPTerm(f,P,K,glob,Cut);
+  T := ReadTerm(f,P,K,glob,Cut);
   If Error Then Exit;
   TerminateExprParsing;
   CompileRuleHead := BTerm_New(T)
@@ -803,7 +803,7 @@ Var
 Begin
   CompileOneGoal := Nil;
   PrepareExprParsing;
-  T := ReadPTerm(f,P,K,glob,Cut);
+  T := ReadTerm(f,P,K,glob,Cut);
   If Error Then Exit;
   TerminateExprParsing;
   CompileOneGoal := BTerm_New(T)

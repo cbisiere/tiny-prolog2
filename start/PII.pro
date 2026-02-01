@@ -127,6 +127,7 @@ no-trace -> syscall(systrace,false);
 
 eq(X,X) ->;
 dif(X,Y) -> syscall(sysdif,X,Y);
+G1.G2 -> G1 G2;
 
 "evaluable functions; see Giannesini et al. 1985, p 144 \
 Note that expressions (e.g., 3 + 2) are not supported in Prolog II syntax; \
