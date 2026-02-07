@@ -237,7 +237,7 @@ Var
   { prepare header H for the initial attempt to clear its goal, by:
    1) setting its 'done' status to False if there is no way to clear it, 
    2) setting the rule to apply, if any;
-   return False if there is chance to clear the goal; only standard goals
+   return False if there is no chance to clear the goal; only standard goals
    may not be clearable so early, i.e., when no rule can be used;
    if Silent is True, do not print a warning if the goal is impossible to clear }
   Function FirstCandidate( H : HeadPtr; Silent : Boolean ) : Boolean;
@@ -966,7 +966,7 @@ Begin
   SetPrologFileForInput := f
 End;
 
-{ load rules and execute queries (if nay) from a Prolog file; if TryPath is 
+{ load rules and execute queries (if any) from a Prolog file; if TryPath is 
  True, try to use 1) if any, the directory of the program that contains this 
  insert; 2) the main program directory;
  Q is the query (if any) that triggered the loading, e.g. due to an "insert" 
