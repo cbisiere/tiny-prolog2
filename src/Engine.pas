@@ -367,6 +367,12 @@ Var
         If H = CutTarget Then
           CutTarget := Nil { cancel the target, to branch again the next header }
       End;
+
+      { If a non-fatal error has occurred we stop exploring additional branches 
+       down the stack and just backtrack to the start; TODO: handle errors with 
+       the block system }
+      If Error Then
+        Header_SetIsDone(H,True);
       
       { try to advance the new top header to the next candidate to clear the 
         goal at step H }
