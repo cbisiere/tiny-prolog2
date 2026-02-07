@@ -993,45 +993,39 @@ End;
 
 { return the number of arguments of a tuple, using the reduced system }
 Function ArgCount( T : TermPtr ) : PosInt;
-Var 
-  n : PosInt;
 Begin
-  n := 0;
+  ArgCount := 0;
   If T = Nil Then
     Exit;
   Case TypeOfTerm(T) Of
   FuncSymbol:
     Begin
-      n := 1 + ArgCount(Func_GetRight(FuncPtr(T)))
+      ArgCount := 1 + ArgCount(Func_GetRight(FuncPtr(T)))
     End;
   Variable:
     Begin
-      n := ArgCount(Red(T))
-    End;
-  End;
-  ArgCount := n
+      ArgCount := ArgCount(Red(T))
+    End
+  End
 End;
 
 { return the arity of a term, using the reduced system }
 Function GetArity( T : TermPtr ) : TArity;
-Var 
-  a : TArity;
 Begin
-  a := 0;
+  GetArity := 0;
   If T = Nil Then
     Exit;
   Case TypeOfTerm(T) Of
   FuncSymbol:
     Begin
       If AccessIdentifier(Func_GetLeft(FuncPtr(T))) <> Nil Then
-        a := ArgCount(Func_GetRight(FuncPtr(T)))
+        GetArity := ArgCount(Func_GetRight(FuncPtr(T)))
     End;
   Variable:
     Begin
-      a := GetArity(Red(T))
-    End;
-  End;
-  GetArity := a
+      GetArity := GetArity(Red(T))
+    End
+  End
 End;
 
 {-----------------------------------------------------------------------}
