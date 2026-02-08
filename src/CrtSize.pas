@@ -38,7 +38,7 @@ Uses
   Trace;
 
 Const
-  TRACE_CRT_SIZE = True;
+  TRACE_CRT_SIZE = False;
 
 { how changes of size are reported: synchronous (through an explicit sync call) 
  or asynchronous (screen size updated in real time) }

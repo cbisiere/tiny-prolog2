@@ -81,7 +81,7 @@ Uses
   Trace;
 
 Const
-  TRACE_CRT = True;
+  TRACE_CRT = False;
 
 Const
   CrtScreenMaxWidth = 255;
