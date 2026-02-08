@@ -215,7 +215,7 @@ Var
 { 
   NOTES:
   ------
- - edition starts at screen row WhereY, which is expected to be an empty ine 
+ - edition starts at screen row WhereY, which is expected to be an empty line 
  - return on Enter key, even if there are still keys in the keyboard; 
    buffer; remaining keys will be processed on further calls; this
    allows for sequential treatment of copy-paste text containing
