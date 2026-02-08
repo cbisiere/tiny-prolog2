@@ -363,7 +363,8 @@ Begin
   P^.PP_FILE := CreateDefaultStreams(GetSyntax(P))
 End;
 
-{ read a line from the keyboard }
+{ read a line from the keyboard; meant to be called from the REPL to read new
+ goals to clear, typed by the user after a Prolog prompt }
 Procedure ReadFromConsole( P : ProgPtr );
 Begin
   Stream_ReadLineFromKeyboard(GetInputConsole(P))
