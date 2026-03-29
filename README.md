@@ -101,11 +101,11 @@ while the following query displays the resulting constraints:
 -> dif(x,1);
 { x#1 }
 ```
-In Prolog II+, constraints are not part of the syntax anymore. Instead, `dif` is implemented as a predefined predicate.
+Starting from Prolog II version 2, constraints are not part of the syntax anymore. Instead, `dif` is implemented as a predefined predicate.
 
 ### Strings
 
-Strings are used as values or as comments. They must be double quoted. Inside a string, a double-quote must be doubled as `""`. Backslash `\`is a continuation character. Comments can appear anywhere outside of rules. String can have any length.
+Strings are used as values or, in Prolog II, as comments. They must be double quoted. Inside a string, a double-quote must be doubled as `""`. Comments can appear anywhere outside of rules. String can have any length. In Prolog II+, backslash `\` is a continuation character, allowing to break long lines.
 
 Querying the program
 
@@ -439,11 +439,9 @@ Note that using an explicit exponent for real numbers is mandatory, to avoid amb
 
 ### Marseille syntax
 
-Both Prolog II and Prolog II+ are based on the so-called "Marseille syntax", featuring the famous `->` symbol for rules, `/` for cut, dotted lists, and tuples. Expressions in syntaxes without operators (i.e., Prolog II), as shown below, is just a term.
+Both Prolog II and Prolog II+ are based on the so-called "Marseille syntax", featuring the famous `->` symbol for rules, dotted lists, and tuples. Expressions in syntaxes without operators (i.e., Prolog II), as shown below, is just a term.
 
 ```
-cut = "/" ;
-
 term = pterm, [".", term] ;
 
 term-list = term, [",", term-list] ;
@@ -465,10 +463,15 @@ program = { comment | rule | query }, [";"] ;
 ```
 A `term` is a term that can appear at the highest level, that is, as a goal in a rule or query's body. A term can be a dotted list.
 
+Note that "cut" is `/` in Prolog II, and `!` in Prolog II+.
 
 ### Prolog II
 
-The "old" Prolog II syntax uses Marseille syntax, allowing for dashes in identifiers. 
+The "old" Prolog II syntax uses Marseille syntax, allowing for dashes in identifiers, and uses `/` for the cut. 
+
+```
+cut = "/" ;
+```
 
 Unsurprisingly, this possibility had to be reversed in a later version, called Prolog II+, to allows for arithmetic expressions. For instance, `x1-y2` is a valid name for a _single_ variable in Prolog II, which would create ambiguities if arithmetic expressions were to be allowed. 
 
@@ -478,7 +481,7 @@ To be able to run the Prolog programs I wrote during the academic year, the Tiny
 
 As mentioned, the most peculiar part of the Prolog II syntax concerns variable names and identifiers. Variables start with a single letter, while identifiers start with at least two letters. 
 
-It also must be noted that even if the two books listed above define letters as 7-bit ASCII lowercase and uppercase letters only, one of the homework exercices I had to do (i.e., Nobel Prizes) happens to use dash-in-identifiers syntax (so, typical Prolog II) while some identifiers do contain accented characters. So I guess I used a version of Prolog II (predating II+) accepting accented letters. I am assuming that the set of letters in this hypothetical Prolog II version is the same as in Prolog II+.
+It also must be noted that even if the two books listed above define letters as 7-bit ASCII lowercase and uppercase letters only, one of the homework exercises I had to do (i.e., Nobel Prizes) happens to use dash-in-identifiers syntax (so, typical Prolog II) while some identifiers do contain accented characters. So I guess I used a version of Prolog II (predating II+) accepting accented letters. I am assuming that the set of letters in this hypothetical Prolog II version is the same as in Prolog II+.
 
 ```
 variable = short-word, { "-", word } ;
@@ -493,7 +496,7 @@ long-word = letter, word ;
 ```
 
 
-As shown in Colmerauer (1982), Prolog II (version 1) accepts optional contraints to rules and queries:
+As shown in Colmerauer (1982), Prolog II (version 1) accepts optional constraints to rules and queries:
 
 ```
 constraint = term, ("=" | "#"), term ;          

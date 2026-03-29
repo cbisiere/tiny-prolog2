@@ -4,7 +4,7 @@
 {   File        : Engine.pas                                                 }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022,2023,2024                                             }
+{   Updated     : 2022-2026                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -170,7 +170,7 @@ Begin
   TRACE_GOAL: Tag := 'Goal'
   End;
 
-  OutTraceMessage(GetTraceStream(P),GetSyntax(P),Tag,Depth,Branch,
+  PutTraceMessage(GetTraceStream(P),GetSyntax(P),Tag,Depth,Branch,
       Header_GetTermToClear(H))
 End;
 
@@ -195,12 +195,21 @@ Var
 
   { display on Crt constraints only about the variables in the query }
   Procedure WriteQuerySolution;
+  Var
+    f : StreamPtr;
   Begin
-    OutQuerySolution(GetOutputConsole(P),Q);
-    CWriteLn
+    f := GetOutputConsole(P);
+    PutQuerySolution(f,GetSyntax(P),Q);
+    { line break after the solution must sync (reset) the character position,
+     so further calls to set_line_cursor/1 or out/1 and friends work }
+    Stream_OutNewLine(f)
   End;
 
-  { emit a warning that the current goal cannot be cleared }
+  { emit a warning that the current goal cannot be cleared; since this is 
+   abnormal behavior, we do not reset the character position after the line
+   break, to preserve the logic of the Prolog program (even if the screen is
+   likely to be mangled); FIXME: in PII+, warnings messages are cut and
+   line continuation characters are used }
   Procedure WarningNoRuleToApply( I : IdPtr; a : TArity );
   Var
     s : StrPtr;
@@ -759,9 +768,15 @@ End;
 
 { execute query Q }
 Procedure AnswerQuery( P : ProgPtr; Q : QueryPtr; Echo : Boolean );
+Var
+  f : StreamPtr;
 Begin
   If Echo Then
-    OutOneQuery(GetOutputConsole(P),Q);
+  Begin
+    f := GetOutputConsole(P);
+    PutOneQuery(f,GetSyntax(P),Q);
+    Stream_LineBreak(f)
+  End;
   Clock(P,Q)
 End;
 
@@ -847,14 +862,14 @@ Begin
   Stop := False;
   { common tokens ending a series of queries or rules }
   StopTokens := [TOKEN_END_OF_INPUT,TOKEN_STRING];
-  If GetSyntax(P) In [PrologIIc,PrologII] Then
+  If GetSyntax(P) In [PrologIIv1,PrologIIv2] Then
     StopTokens := StopTokens + [TOKEN_SEMICOLON]; 
   Repeat
     Case Token_GetType(K) Of
     TOKEN_END_OF_INPUT:
       Stop := True;
     TOKEN_SEMICOLON:
-      If GetSyntax(P) In [PrologIIc,PrologII] Then { Prolog II termination }
+      If GetSyntax(P) In [PrologIIv1,PrologIIv2] Then { Prolog II termination }
         Stop := True
       Else
         SyntaxError(TokenStr[TOKEN_SEMICOLON] + ' not expected here');
@@ -912,7 +927,7 @@ Begin
       RuntimeError('insertion loop: ''' + ShortPath + '''');
     Exit
   End;
-  f := Stream_New(Path,Path,DEV_FILE,MODE_READ,True,False);
+  f := CreateNewStream(P,Path,Path,DEV_FILE,MODE_READ,True,False);
   If Not Stream_IsOpen(f) Then
   Begin
     If RaiseAnError Then
@@ -1005,7 +1020,7 @@ Begin
   { do not close the input file in case of error, as the error handler 
     needs it to display an excerpt of the input data }
   If Error Then Exit;
-  CloseAndDeleteStream(P,f)
+  CloseStream(P,f)
 End;
 
 End.

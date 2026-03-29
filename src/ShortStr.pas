@@ -4,7 +4,7 @@
 {   File        : ShortStr.pas                                               }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022,2023,2024                                             }
+{   Updated     : 2022-2026                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -19,7 +19,8 @@ Interface
 
 {$IFDEF FPC}
 Uses
-  Sysutils;
+  Sysutils,
+  StrUtils; { DupeString }
 {$ENDIF}
 
 { longest non dynamic string }
@@ -30,10 +31,7 @@ Type
   TString = String[StringMaxSize];
   TStringSize = 0..StringMaxSize;
 
-Const
-  { 'end of line' in MSDOS text files }
-  CRLF : Array[1..2] Of Char = (#13,#10);
-
+Function DuplicateString( s : TString; n : TStringSize ) : TString;
 Function TrimLeftSpaces( s : TString ) : TString;
 Function RAlign( s : TString; width : TStringSize ) : TString;
 Function IntToShortString( v : Integer ) : TString;
@@ -46,6 +44,17 @@ Implementation
 {-----------------------------------------------------------------------------}
 { TP4/FPC compatibility code }
 {$IFNDEF FPC}
+{ return n copies of a string }
+Function DupeString( s : TString; n : Integer ) : TString;
+Var 
+  i : Integer;
+  rs : TString;
+Begin
+  rs := '';
+  For i := 1 to n Do
+    rs := rs + s;
+  DupeString := rs
+End;
 { trim whitespace from the beginning of a string }
 Function TrimLeft( s : TString ) : TString;
 Var 
@@ -65,6 +74,12 @@ Begin
 End;
 {$ENDIF}
 {-----------------------------------------------------------------------------}
+
+{ return n copies of a string }
+Function DuplicateString( s : TString; n : TStringSize ) : TString;
+Begin
+  DuplicateString := DupeString(s,n)
+End;
 
 { trim whitespace from the beginning of a string }
 Function TrimLeftSpaces( s : TString ) : TString;

@@ -4,7 +4,7 @@
 {   File        : Parse.pas                                                  }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2023                                                       }
+{   Updated     : 2022-2026                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -20,6 +20,7 @@ Interface
 Uses
   ShortStr,
   Errs,
+  Chars,
   IChar,
   Memory,
   PObj,
@@ -436,7 +437,7 @@ Var
   y : TSyntax;
 Begin
   y := GetSyntax(P);
-  If y In [PrologIIc,PrologII] Then { no expressions in old PrologII syntax }
+  If y In [PrologIIv1,PrologIIv2] Then { no expressions in old PrologIIv2 syntax }
     ReadOneExpr := ReadPTerm(f,P,K,glob,Cut)
   Else
     ReadOneExpr := ReadExpr(f,P,K,TStackTop,OpStackTop,MaxPred,glob,Cut)
@@ -772,7 +773,7 @@ End;
 { highest-level (rules and query) procedures and functions                   }
 {----------------------------------------------------------------------------}
 
-{ compile a system of equations and inequations (PrologIIc only) }
+{ compile a system of equations and inequations (PrologIIv1 only) }
 Function CompileSystem( f : StreamPtr; P : ProgPtr; Var K : TokenPtr; 
     glob : Boolean ) : EqPtr;
 Begin
@@ -989,6 +990,7 @@ Var
   K : TokenPtr;
   line : TLineNum;
   col : TCharPos;
+  e : TIChar;
 Begin
   ParseOneTerm := Nil;
   K := ReadProgramToken(P,f);
@@ -1001,7 +1003,8 @@ Begin
    (and all the spaces before) so that in_char will read the first char after 
    the term }
   Token_GetLocation(K,line,col);
-  Stream_UngetChars(f,line,col)
+  TICharSet(e,CC_BLANK_SPACE,line,col); { dummy IChar used to undo }
+  Stream_UngetChars(f,e)
 End;
 
 

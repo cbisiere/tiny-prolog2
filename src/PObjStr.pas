@@ -4,7 +4,7 @@
 {   File        : PObjStr.pas                                                }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2023                                                       }
+{   Updated     : 2022-2026                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -21,6 +21,7 @@ Uses
   ShortStr,
   Num,
   Errs,
+  Trace,
   Chars,
   CWrites,
   Common,
@@ -35,12 +36,15 @@ Uses
  program are very short, we set a small value to save space }
 Const
   StrCharsMaxLen = 15;
+
 Type 
-  TStrCharsLen = 0..StrCharsMaxLen;
-  TStrChars = Record
+  TStrCharsLen = 0..StrCharsMaxLen; { number of characters in a data chunk }
+  TStrChars = Record { data chunk }
     Len : TStrCharsLen;
     Chars : Array[TStrCharsLen] Of TChar
   End;
+  TStrDataCount = PosInt; { number of data chunks }
+  TStrLength = PosInt; { total number of characters }
 
 { GC-managed string that can grow; 
   invariants: 1) all chunks but the last are full; 2) no chunks are empty, 
@@ -56,10 +60,10 @@ Type
     ST_FDAT: StrDataPtr; { first chunk }
     ST_LDAT: StrDataPtr; { last chunk }
     { extra data: }
-    ST_NDAT: Longint; { number of chunks }
+    ST_NDAT: TStrDataCount; { number of chunks }
     ST_CONT: TEncoding; { encoding of the stream this string is part of }
     ST_ENCO: TEncoding; { actual encoding of the string }
-    ST_TLEN: Longint { total length in number of TChars }
+    ST_TLEN: TStrLength { total length in number of TChars }
   End;
 
   TObjStrData = Record
@@ -80,9 +84,11 @@ Type
 
 Function Str_New( Context : TEncoding ) : StrPtr;
 Function Str_NewFromShortString(ps: TString): StrPtr;
-Function Str_NewFromBytes( bytes : TString; Enc : TEncoding ) : StrPtr;
+Function Str_NewFromBytes( bytes : TString; Enc : TEncoding; 
+    Style : TEolStyle ) : StrPtr;
 
-Function Str_Length(s: StrPtr): longint;
+Function Str_Length(s: StrPtr): TStrLength;
+Function Str_LengthAsShortString( s : StrPtr ) : TString;
 Function Str_GetEncodingContext( s : StrPtr ) : TEncoding;
 Function Str_GetEncoding( s : StrPtr ) : TEncoding;
 
@@ -90,6 +96,7 @@ Function Str_GetShortStringTruncate(s: StrPtr): TString;
 Function Str_AsShortString( s: StrPtr ): TString;
 Procedure Str_Append( s : StrPtr; ps : TString );
 Procedure Str_AppendChar( s : StrPtr; cc : TChar );
+Procedure Str_AppendLineBreak( s : StrPtr );
 Procedure Str_Concat(s1, s2: StrPtr);
 Function Str_Clone(s: StrPtr): StrPtr;
 Function Str_IsQuoted( s : StrPtr; quote : Char ) : Boolean;
@@ -103,10 +110,13 @@ Function Str_FirstChar( s : StrPtr; Var cc : TChar ) : Boolean;
 Function Str_LastChar( s : StrPtr; Var cc : TChar ) : Boolean;
 Function Str_StartsWith(s: StrPtr; E: CharSet): boolean;
 Function Str_EndsWith(s: StrPtr; E: CharSet): boolean;
+Procedure Str_DeleteLastChars( s : StrPtr; n : TStrLength );
 Procedure Str_DeleteLastChar( s : StrPtr );
 Procedure Str_DeleteLastCharUntil( s : StrPtr; StopChars : CharSet );
 
-Procedure Str_CWrite(s: StrPtr);
+Procedure Str_CWrite( s: StrPtr );
+
+Procedure Str_Trace( s : StrPtr );
 
 Procedure StrIter_ToStart( Var Iter : StrIter; s : StrPtr );
 Procedure StrIter_ToEnd( Var Iter : StrIter; s : StrPtr );
@@ -143,7 +153,7 @@ Begin
   With s^ Do
   Begin
     ST_FDAT := StrData_New;
-    ST_ENCO := UNDECIDED;
+    ST_ENCO := ENC_UNDECIDED;
     ST_LDAT := ST_FDAT;
     ST_NDAT := 1;
     ST_TLEN := 0
@@ -171,13 +181,19 @@ End;
 {-----------------------------------------------------------------------}
 
 { return the length of a string, in number of chars }
-Function Str_Length( s : StrPtr ) : LongInt;
+Function Str_Length( s : StrPtr ) : TStrLength;
 Begin
   Str_Length := s^.ST_TLEN
 End;
 
+{ return the length of a string as a short string }
+Function Str_LengthAsShortString( s : StrPtr ) : TString;
+Begin
+  Str_LengthAsShortString := PosIntToShortString(Str_Length(s))
+End;
+
 { return the number of chunks in a string }
-Function Str_NumberOfStrData( s : StrPtr ) : LongInt;
+Function Str_NumberOfStrData( s : StrPtr ) : TStrDataCount;
 Begin
   Str_NumberOfStrData := s^.ST_NDAT
 End;
@@ -349,7 +365,7 @@ Begin
   Str_StartsWith := False;
   If Not Str_FirstChar(s,cc) Then
     Exit;
-  Str_StartsWith := IsIn(cc,E)
+  Str_StartsWith := TCharIsIn(cc,E)
 End;
 
 { string ends with a char in a set of 1-byte chars }
@@ -360,7 +376,7 @@ Begin
   Str_EndsWith := False;
   If Not Str_LastChar(s,cc) Then
     Exit;
-  Str_EndsWith := IsIn(cc,E)
+  Str_EndsWith := TCharIsIn(cc,E)
 End;
 
 { return the (possibly truncated) value of a Str as a Pascal string }
@@ -373,8 +389,8 @@ Begin
   ps := '';
   StrIter_ToStart(Iter,s);
   While StrIter_NextChar(Iter,cc) And 
-      (Length(ps) + Length(cc.Bytes) <= StringMaxSize) Do
-    ps := ps + cc.Bytes;
+      (Length(ps) + TCharGetLength(cc) <= StringMaxSize) Do
+    ps := ps + TCharGetBytes(cc);
   Str_GetShortStringTruncate := ps
 End;
 
@@ -435,14 +451,20 @@ Begin
   End
 End;
 
-{ delete the last char of a chunk, assuming it contains at least one char }
-Procedure StrData_DeleteLastChar( sd : StrDataPtr );
+{ delete the last n chars from a chunk, assuming it contains at least n chars }
+Procedure StrData_DeleteLastChars( sd : StrDataPtr; n : TStrCharsLen );
 Begin
   With sd^.SD_DATA Do
   Begin
-    CheckCondition(Len > 0,'StrData_DeleteLastChar: chunk is empty');
-    Len := Len - 1
+    CheckCondition(Len >= n,'StrData_DeleteLastChars: chunk is too short');
+    Len := Len - n
   End
+End;
+
+{ delete the last char of a chunk, assuming it contains at least one char }
+Procedure StrData_DeleteLastChar( sd : StrDataPtr );
+Begin
+  StrData_DeleteLastChars(sd,1)
 End;
 
 { append a TChar to a string, creating a new chuck when needed; update the
@@ -463,11 +485,20 @@ Begin
     StrData_AppendChar(sd,cc);
     Str_AppendData(s,sd)
   End;
-  { infer encoding }
-  UpdateContainerEncoding(s^.ST_ENCO,cc.Encoding);
-  If ErrorState = ENCODING_ERROR Then Exit;
-  If Not AreCompatibleEncodings(s^.ST_CONT,s^.ST_ENCO) Then
-    SyntaxError('incompatible character encodings') { FIXME: could be a "user input" error  }
+  { infer encoding, if any }
+  If Not TCharIsSoftMark(cc) Then
+  Begin
+    UpdateContainerEncoding(s^.ST_ENCO,TCharGetEncoding(cc));
+    If ErrorState = ENCODING_ERROR Then Exit;
+    If Not AreCompatibleEncodings(s^.ST_CONT,s^.ST_ENCO) Then
+      SyntaxError('incompatible character encodings') { FIXME: could be a "user input" error  }
+  End
+End;
+
+{ append a line break }
+Procedure Str_AppendLineBreak( s : StrPtr );
+Begin
+  Str_AppendChar(s,CC_END_OF_LINE) { soft mark }
 End;
 
 { append s2 to s1 }
@@ -490,7 +521,7 @@ Begin
   CheckCondition(s <> Nil, 'Cannot append to a Nil string');
   For i := 1 To Length(ps) Do
   Begin
-    ASCIIChar(cc,ps[i]);
+    TCharSetFromAscii(cc,ps[i]);
     Str_AppendChar(s,cc)
   End
 End;
@@ -501,23 +532,25 @@ Function Str_NewFromShortString( ps : TString ) : StrPtr;
 Var 
   s : StrPtr;
 Begin
-  s := Str_New(ASCII);
+  s := Str_New(ENC_ASCII);
   Str_Append(s,ps);
   Str_NewFromShortString := s
 End;
 
 { create a new string from a series of bytes stored into a Pascal string; the
- function decomposes the bytes into TChars; the encoding context is Enc; usages
- must be limited to cases of string coming from the environment (command line or
- OS function returning file paths), encoded in a possibly non-ASCII encoding }
-Function Str_NewFromBytes( bytes : TString; Enc : TEncoding ) : StrPtr;
+ function decomposes the bytes into TChars; the encoding context is Enc; the Eol
+ style is Style; usages must be limited to cases of string coming from the 
+ environment (command line or OS function returning file paths), encoded in a 
+ possibly non-ASCII encoding }
+Function Str_NewFromBytes( bytes : TString; Enc : TEncoding; 
+    Style : TEolStyle ) : StrPtr;
 Var 
   s : StrPtr;
   cc : TChar;
 Begin
   s := Str_New(Enc);
   While (ErrorState <> ENCODING_ERROR) And 
-      (Length(bytes) > 0) And GetOneTCharNL(bytes,cc,Enc) Do
+      (Length(bytes) > 0) And TCharGetOne(bytes,cc,Enc,Style) Do
     Str_AppendChar(s,cc);
   Str_NewFromBytes := s
 End;
@@ -550,17 +583,17 @@ Begin
   StrIter_ToStart(Iter,s2);
   { skip the opening quote }
   dummy := StrIter_NextChar(Iter,cc);
-  CheckCondition(cc.Bytes = quote,'Str_Unquote: missing opening quote');
+  CheckCondition(TCharIs(cc,quote),'Str_Unquote: missing opening quote');
   { copy and de-double the chars inside the quoted string }
   isQuote := False;
   While (ErrorState <> ENCODING_ERROR) And StrIter_NextChar(Iter,cc) Do
   Begin
-    If isQuote And (cc.Bytes = quote) Then { de-double }
+    If isQuote And TCharIs(cc,quote) Then { de-double }
       isQuote := False
     Else
     Begin
       Str_AppendChar(s,cc);
-      isQuote := (cc.Bytes = quote)
+      isQuote := TCharIs(cc,quote)
     End
   End
 End;
@@ -578,16 +611,16 @@ Begin
   StrIter_ToStart(Iter,s2);
   While (ErrorState <> ENCODING_ERROR) And StrIter_NextChar(Iter,cc) Do 
   Begin
-    If cc.Bytes = quote Then
+    If TCharIs(cc,quote) Then
     Begin
       Str_Append(s,quote);
       Str_Append(s,quote)
     End
-    Else If cc.Bytes = NewLine Then { FIXME: use the output CRLF mode? }
+    Else If TCharIsEol(cc) Then { FIXME: use the output CRLF mode? }
       Str_Append(s,'\n')
-    Else If cc.Bytes = #$08 Then
+    Else If TCharIs(cc,#$08) Then
       Str_Append(s,'\b')
-    Else If cc.Bytes = #$09 Then
+    Else If TCharIs(cc,#$09) Then
       Str_Append(s,'\t')
     Else
       Str_AppendChar(s,cc)
@@ -661,23 +694,40 @@ Begin
       And (Str_GetShortStringTruncate(s) = c)
 End;
 
-{ delete the last char of a string; for efficiency reasons encoding is not 
- updated, even if it could (e.g. when the operation deletes the only multi-byte 
- character of a UTF-8 string); FIXME: update encoding by tracking the number of
- multi-byte characters }
-Procedure Str_DeleteLastChar( s : StrPtr );
+{ delete the last n char of a string, assuming it contains at least n chars; 
+ for efficiency reasons encoding is not updated, even if it could (e.g. when 
+ the operation deletes all the multi-byte character of a UTF-8 string); 
+ FIXME: update encoding by tracking the number of multi-byte characters }
+Procedure Str_DeleteLastChars( s : StrPtr; n : TStrLength );
 Var
   sd : StrDataPtr;
+  m : TStrCharsLen;
 Begin
-  CheckCondition(Str_Length(s) > 0,'Str_DeleteLastChar: empty');
-  sd := Str_GetLastStrData(s);
-  if (Str_NumberOfStrData(s) > 1) And (StrData_Len(sd) = 1) Then
-    Str_DeleteLastData(s)
-  Else
+  CheckCondition(Str_Length(s) >= n,'Str_DeleteLastChars: too short');
+  While n > 0 Do
   Begin
-    StrData_DeleteLastChar(sd);
-    s^.ST_TLEN := s^.ST_TLEN - 1
+    sd := Str_GetLastStrData(s);
+    { check whether we can get rid of the whole chunk; a string must have at 
+     least one chunk }
+    If (Str_NumberOfStrData(s) > 1) And (StrData_Len(sd) <= n) Then
+    Begin
+      n := n - StrData_Len(sd);
+      Str_DeleteLastData(s)
+    End
+    Else
+    Begin
+      m := Min(n,StrData_Len(sd)); { nb of chars to delete in the chunk }
+      StrData_DeleteLastChars(sd,m);
+      s^.ST_TLEN := s^.ST_TLEN - m;
+      n := n - m
+    End
   End
+End;
+
+{ delete the last char of a string }
+Procedure Str_DeleteLastChar( s : StrPtr );
+Begin
+  Str_DeleteLastChars(s,1)
 End;
 
 { delete last char of a string until empty or any of the 1-byte characters in 
@@ -686,7 +736,7 @@ Procedure Str_DeleteLastCharUntil( s : StrPtr; StopChars : CharSet );
 Var 
   cc : TChar;
 Begin
-  While Str_LastChar(s,cc) And Not IsIn(cc,StopChars) Do 
+  While Str_LastChar(s,cc) And Not TCharIsIn(cc,StopChars) Do 
     Str_DeleteLastChar(s)
 End;
 
@@ -703,6 +753,26 @@ Begin
   StrIter_ToStart(Iter,s);
   While StrIter_NextChar(Iter,cc) Do 
     CWriteChar(cc)
+End;
+
+{-----------------------------------------------------------------------}
+{ debug                                                                 }
+{-----------------------------------------------------------------------}
+
+{ write a string to trace file }
+Procedure Str_Trace( s : StrPtr );
+Var
+  Iter : StrIter;
+  cc : TChar;
+Begin
+  WriteToTraceFile('Length=' + Str_LengthAsShortString(s) + ' ');
+  StrIter_ToStart(Iter,s);
+  While StrIter_NextChar(Iter,cc) Do
+  Begin
+    TCharDump(cc);
+    WriteToTraceFile(' ')
+  End;
+  WritelnToTraceFile('')
 End;
 
 End.

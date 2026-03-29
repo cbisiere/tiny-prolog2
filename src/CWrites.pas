@@ -4,7 +4,7 @@
 {   File        : CWrites.pas                                                }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2023                                                       }
+{   Updated     : 2022-2026                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -44,7 +44,7 @@ Implementation
 { write a char to the terminal }
 Procedure CWriteChar( cc : TChar );
 Begin
-  WriteToMirrorFiles(cc.Bytes);
+  WriteToMirrorFiles(TCharGetBytes(cc));
   CrtWriteChar(cc)
 End;
 

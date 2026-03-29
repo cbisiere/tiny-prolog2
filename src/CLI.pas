@@ -4,7 +4,7 @@
 {   File        : CLI.pas                                                    }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022-2025                                                  }
+{   Updated     : 2022-2026                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -51,7 +51,8 @@ Uses
   CEdit;
 
 Procedure CLISetPrompt( Prompt : TPrompt );
-Procedure ReadLnKbd( Var B : TBuf; Var Encoding : TEncoding );
+Procedure ReadLnKbd( Var B : TBuf; Var Encoding : TEncoding; 
+    Var Style : TEolStyle );
 Function CtrlC : Boolean;
 
 Implementation
@@ -74,7 +75,6 @@ Type
   End;
 
 Var 
-  CC_BLANK_SPACE,CC_NEW_LINE : TChar; { pre-defined composite characters}
   CLIPrompt : TPrompt; { prompt, set by main }
 
 
@@ -112,8 +112,9 @@ End;
  human can type; as a result, no multi-byte characters will be split between 
  different calls to that function; note that when the user paste text at the 
  prompt, this function might return several chars;
- replace CR, LF, and CRLF with NewLine }
-Procedure ReadRunOfTChars( Var B : TBuf; Var Encoding : TEncoding );
+ replace CR, LF, and CRLF with EOL }
+Procedure ReadRunOfTChars( Var B : TBuf; Var Encoding : TEncoding; 
+    Var Style : TEolStyle );
 Var
   s : TCharBytes; { small read buffer }
   cc : TChar; { recognized TChar }
@@ -131,7 +132,7 @@ Begin
     If Not Done Then
       If BufNbFree(B) > 0 Then
         { get one TChar }
-        If GetOneTCharNL(s,cc,Encoding) Then
+        If TCharGetOne(s,cc,Encoding,Style) Then
           BufPushChar(B,cc)
         Else
           SyntaxError('character not recognized')
@@ -221,9 +222,11 @@ Var
    allows for sequential treatment of copy-paste text containing
    several Enter keys;
  - detect encoding if Encoding is still unknown, impose it otherwise;
- - B must not contain any NewLine
+ - ditto for EOL style
+ - B must not contain any EOL
  }
-Procedure ReadLnKbd( Var B : TBuf; Var Encoding : TEncoding );
+Procedure ReadLnKbd( Var B : TBuf; Var Encoding : TEncoding; 
+    Var Style : TEolStyle );
 Var
   Ed : TEditor; { the CL editor used to edit buffer B }
   Stop : Boolean;
@@ -259,17 +262,17 @@ Var
 
   { Enter key has been hit (or came in through a paste operation); even if the
    edit cursor is not at the end of the command line, the whole command line
-   is submitted for execution, with a <NewLine> appended at the end;
+   is submitted for execution, with a EOL appended at the end;
    TODO: check a paste (including a NL) in the middle of the edited command 
    line }
   Procedure EnterKey;
   Begin
     If BufLen(Ed.Buf) > 0 Then
       PushToHistory(Hist,Ed.Buf);
-    { prepare the command line to submit: NewLine must be part of the input, 
-     so that: "> in_char(c);<NewLine>" sets c to NewLine; see PII+ R 5-4 }
+    { prepare the command line to submit: EOL must be part of the input, 
+     so that: "> in_char(c);<EOL>" sets c to EOL; see PII+ R 5-4 }
     B := Ed.Buf;
-    BufPushChar(B,CC_NEW_LINE);
+    BufPushChar(B,CC_END_OF_LINE);
     { since the command line is submitted, we can now output the whole  
      command line to the mirror files }
     CEditWritePromptToMirrorFiles(Ed);
@@ -299,43 +302,43 @@ Var
       cc := e.Val;
       { command line buffer full: force a submit }
       If BufNbFree(B) = 1 Then { the free char is used for the inserted NL }
-        cc := CC_NEW_LINE;
+        cc := CC_END_OF_LINE;
       { process the char}
-      If cc.Bytes = Newline Then { Enter }
+      If TCharIsEol(cc) Then { Enter }
       Begin
         EnterKey;
         Stop := True
       End
-      Else If cc.Bytes = CTRL_C Then { Ctrl-C }
+      Else If TCharIs(cc,CTRL_C) Then { Ctrl-C }
       Begin
         Stop := True;
         UserInterrupt
       End
-      Else If cc.Bytes = #08 Then { Backspace }
+      Else If TCharIs(cc,#08) Then { Backspace }
         CEditDelete(Ed)
-      Else If cc.Bytes = #09 Then { tab }
+      Else If TCharIs(cc,#09) Then { tab }
         Tab
-      Else If (cc.Bytes =  #00) 
+      Else If (TCharIs(cc,#00)) 
           And (BufNbUnread(R) > 0) Then { extended or func. key }
       Begin { command history }
         BufGetRead(e2,R,1);
         cc2 := e2.Val;
-        If cc2.Bytes = #72 Then
+        If TCharIs(cc2,#72) Then
         Begin
           BufRead(e2,R);
           UpArrow
         End
-        Else If cc2.Bytes = #80 Then
+        Else If TCharIs(cc2,#80) Then
         Begin
           BufRead(e2,R);
           DownArrow
         End
-        Else If cc2.Bytes = #75 Then { left arrow }
+        Else If TCharIs(cc2,#75) Then { left arrow }
         Begin
           BufRead(e2,R);
           CEditBackward(Ed)
         End
-        Else If cc2.Bytes = #77 Then { right arrow }
+        Else If TCharIs(cc2,#77) Then { right arrow }
         Begin
           BufRead(e2,R);
           CEditForward(Ed)
@@ -343,7 +346,7 @@ Var
       End;
       { insert if there are at least 2 free places (recomputing soft breaks may
        consume an extra place) and not a control char }
-      If (BufNbFree(B) > 1) And (Not IsIn(cc,[#00..#31,#127])) Then
+      If (BufNbFree(B) > 1) And TCharIsPrintable(cc) Then
         CEditInsert(Ed,cc)
     End
   End;
@@ -364,7 +367,7 @@ Begin
     If KeyPressed Then
     Begin
       BufInit(KbdBuf);
-      ReadRunOfTChars(KbdBuf,Encoding);
+      ReadRunOfTChars(KbdBuf,Encoding,Style);
       ProcessInputBuffer(KbdBuf,Stop)
     End
   End
@@ -372,8 +375,6 @@ End;
 
 { initialize }
 Begin
-  ASCIIChar(CC_BLANK_SPACE,' ');
-  ASCIIChar(CC_NEW_LINE,NewLine);
   BufInit(KbdBuf);
   ResetHistory(Hist);
   CLISetPrompt('')

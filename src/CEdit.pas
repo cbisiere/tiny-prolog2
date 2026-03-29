@@ -4,7 +4,7 @@
 {   File        : CEdit.pas                                                  }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022-2025                                                  }
+{   Updated     : 2022-2026                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -152,7 +152,7 @@ Begin
   With Ed Do
     For i := 1 to Length(Prompt) Do
     Begin
-      ASCIIChar(cc,Prompt[i]);
+      TCharSetFromAscii(cc,Prompt[i]);
       CrtWriteChar(cc)
     End
 End;
@@ -373,7 +373,7 @@ Procedure CEditStateInsert( Var Ed : TEditor; cc : TChar;
     Var ActiveDown : Boolean );
 Begin
   { update the multibyte char counter }
-  If IsMultibyte(cc) Then
+  If TCharIsMultibyte(cc) Then
     Ed.NbMulti := Ed.NbMulti + 1;
   { insert the char, updating the write index }
   BufInsert(Ed.Buf,cc);
@@ -404,7 +404,7 @@ Begin
     { save the char up for deletion }
     BufGetCharAt(cc,Buf,Buf.IdxW);
     { update the multibyte char counter }
-    If IsMultibyte(cc) Then
+    If TCharIsMultibyte(cc) Then
       NbMulti := NbMulti - 1;
     { delete the char, updating the write index }
     BufDelete(Buf);
@@ -853,7 +853,7 @@ Begin
   CEditTrace(Ed,'Set')
 End;
 
-{ insert char cc after write index; cc is not a NewLine }
+{ insert char cc after write index; cc is not EOL }
 Procedure CEditInsert( Var Ed : TEditor; cc : TChar );
 Var 
   ActiveDown : Boolean; { active line moved down? }

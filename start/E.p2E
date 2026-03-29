@@ -123,6 +123,9 @@ outl(T) :- out(T), line.
 outml(S) :- outm(S), line.
 page :- syscall(sysclrsrc).
 clear :- page, fail.
+set_line_width(N) :- syscall(syssetlinewidth,N).
+line_width(N) :- syscall(sysgetlinewidth,N).
+set_line_cursor(N) :- syscall(syssetlinecursor,N).
 
 "string"
 

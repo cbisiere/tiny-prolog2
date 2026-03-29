@@ -4,7 +4,7 @@
 {   File        : Debug.pas                                                  }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022,2023,2024                                             }
+{   Updated     : 2022-2026                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -74,7 +74,7 @@ Begin
   If Token_GetStr(K) <> Nil Then
   Begin
     Stream_WriteShortString(f,': ');
-    OutString(f,Token_GetStr(K))
+    Stream_WriteLongString(f,Token_GetStr(K))
   End
 End;
 
@@ -100,17 +100,17 @@ Var
   y : TSyntax;
 Begin
   CheckCondition(CurrentProgram <> Nil,'WriteExtraData: program not set');
-  y := PrologIIc; { syntax for debug output }
+  y := PrologIIv1; { syntax for debug output }
   Case PObjectType(p) Of
   PR:
     Begin
       Stream_WriteShortString(f,IntToShortString(PRp^.PP_LEVL));
       Stream_WriteShortString(f,' ');
       y := GetSyntax(PRp);
-      If y = PrologIIc Then
-        Stream_WriteShortString(f,'PrologII version 1')
-      Else If y = PrologII Then
-        Stream_WriteShortString(f,'PrologII version 2')
+      If y = PrologIIv1 Then
+        Stream_WriteShortString(f,'PrologIIv2 version 1')
+      Else If y = PrologIIv2 Then
+        Stream_WriteShortString(f,'PrologIIv2 version 2')
       Else If y = PrologIIp Then
         Stream_WriteShortString(f,'PrologII+')
       Else If y = Edinburgh Then
@@ -119,7 +119,7 @@ Begin
   RU:
     Begin
       Stream_WriteShortString(f,'Head: ');
-      OutTerm(f,y,BTerm_GetTerm(Rule_GetHead(Rup)))
+      PutTerm(f,y,BTerm_GetTerm(Rule_GetHead(Rup)))
     End;
   QU:
     Begin
@@ -129,47 +129,47 @@ Begin
     End;
   EQ:
     Begin
-      OutOneEquation(f,y,E)
+      PutOneEquation(f,y,E)
     End;
   BT:
     Begin
-      OutTerm(f,y,BTerm_GetTerm(Bp));
+      PutTerm(f,y,BTerm_GetTerm(Bp));
     End;
   CO:
     Begin
       Stream_WriteShortString(f,'''');
-      OutConst(f,Cp);
+      PutConst(f,y,Cp);
       Stream_WriteShortString(f,'''')
     End;
   ID:
     Begin
       Stream_WriteShortString(f,BoolToShortString(Ip^.TI_ASSI));
       Stream_WriteShortString(f,' ');
-      OutIdentifier(f,Ip)
+      PutIdentifier(f,y,Ip)
     End;
   FU:
     Begin
-      OutTerm(f,y,Tp);
+      PutTerm(f,y,Tp);
       If (FRed(Fp) <> Nil) Then
       Begin
         Stream_WriteShortString(f,'==');
-        OutTerm(f,y,FRed(Fp))
+        PutTerm(f,y,FRed(Fp))
       End
     End;
   VA:
     Begin
-      OutVarName(f,Vp);
+      PutVarName(f,y,Vp);
       If (VRed(Vp) <> Nil) Then
       Begin
         Stream_WriteShortString(f,'==');
-        OutTerm(f,y,VRed(Vp))
+        PutTerm(f,y,VRed(Vp))
       End
     End;
   DE:
     Begin
       Stream_WriteShortString(f,BoolToShortString(Dict_IsGlobal(Dp)));
       Stream_WriteShortString(f,' "');
-      OutString(f,Dict_GetStr(Dp));
+      Stream_WriteLongString(f,Dict_GetStr(Dp));
       Stream_WriteShortString(f,'"')
     End;
   HE:
@@ -178,7 +178,7 @@ Begin
     End;
   ST:
     Begin
-      OutString(f,s);
+      Stream_WriteLongString(f,s);
       Stream_WriteShortString(f,' (' + LongIntToShortString(Str_Length(s)) + ')')
     End;
   SD:
@@ -211,7 +211,7 @@ Var
   Access : IdPtr;
   Arity : TArity;
 Begin
-  y := PrologIIc; { syntax for header output }
+  y := PrologIIv1; { syntax for header output }
   Stream_WritelnShortString(f,'*** Header level ' + LongIntToShortString(Header_GetClock(H)) + ' ***');
 
   B := Header_GetGoalsToClear(H);
@@ -240,7 +240,7 @@ Begin
       Stream_WriteShortString(f,IdentifierGetShortString(Access));
       Stream_WriteShortString(f,'/');
       Stream_WriteShortString(f,PosIntToShortString(Arity));
-      Stream_Writeln(f)
+      Stream_LineBreak(f)
     End
   End;
 
@@ -248,7 +248,7 @@ Begin
   Stream_WriteShortString(f,'  Terms: -> ');
   While B <> Nil Do
   Begin
-    OutTerm(f,y,BTerm_GetTerm(B));
+    PutTerm(f,y,BTerm_GetTerm(B));
     If BTerm_GetHeader(B) <> Nil Then
       Stream_WriteShortString(f,'[' + LongIntToShortString(Header_GetClock(BTerm_GetHeader(B))) + ']');
     Stream_WriteShortString(f,' -> ');
@@ -285,8 +285,8 @@ Begin
     Stream_WritelnShortString(f,'Nil')
   Else
   Begin
-    OutOneRule(f,Header_GetRule(H));
-    Stream_Writeln(f)
+    PutOneRule(f,y,Header_GetRule(H));
+    Stream_LineBreak(f)
   End;
 
   { cut target, if any }
@@ -301,8 +301,8 @@ Begin
   If Header_GetSideCarTerm(H) <> Nil Then
   Begin
     Stream_WriteShortString(f,'  CHOIV: ');
-    OutTerm(f,y,Header_GetSideCarTerm(H));
-    Stream_Writeln(f)
+    PutTerm(f,y,Header_GetSideCarTerm(H));
+    Stream_LineBreak(f)
   End;
 
   { restore }
@@ -316,7 +316,7 @@ Begin
         Stream_WriteShortString(f,'.');
         U := RE_NEXT
       End;
-    Stream_Writeln(f)
+    Stream_LineBreak(f)
   End
 End;
 
@@ -354,18 +354,18 @@ Begin
       Stream_WriteShortString(f,'*')
     Else
       Stream_WriteShortString(f,' ');
-    OutVarName(f,V);
+    PutVarName(f,y,V);
     If VRed(V) <> Nil Then
     Begin
       Stream_WriteShortString(f,' = ');
-      OutTerm(f,y,VRed(V))
+      PutTerm(f,y,VRed(V))
     End;
     If WatchIneq(V) <> Nil Then
     Begin
       Stream_WriteShortString(f,', ');
-      OutOneEquation(f,y,WatchIneq(V))
+      PutOneEquation(f,y,WatchIneq(V))
     End;
-    Stream_Writeln(f);
+    Stream_LineBreak(f);
     e := Dict_GetNext(e)
   End
 End;
@@ -387,7 +387,8 @@ Begin
       s := GetIdentAsStr(IdPtr(Dict_GetTerm(e)),True)
     Else
       s := Dict_GetStr(e);
-    OutlnString(f,s);
+    Stream_WriteLongString(f,s);
+    Stream_LineBreak(f);
     e := Dict_GetNext(e)
   End
 End;

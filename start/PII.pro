@@ -100,7 +100,12 @@ outl(T) -> out(T) line;
 outml(S) -> outm(S) line;
 page -> syscall(sysclrsrc);
 clear -> page fail;
-set-cursor(E1,E2) -> syscall(sysgotoxy,E1,E2);
+set-cursor(N1,N2) -> syscall(sysgotoxy,N1,N2);
+
+"FIXME: names of following predicates are guessed from PII+ doc"
+set-line-width(N) -> syscall(syssetlinewidth,N);
+line-width(N) -> syscall(sysgetlinewidth,N);
+set-line-cursor(N) -> syscall(syssetlinecursor,N);
 
 "assign and eval"
 
@@ -129,9 +134,9 @@ eq(X,X) ->;
 dif(X,Y) -> syscall(sysdif,X,Y);
 G1.G2 -> G1 G2;
 
-"evaluable functions; see Giannesini et al. 1985, p 144 \
-Note that expressions (e.g., 3 + 2) are not supported in Prolog II syntax; \
-these declarations are used to evaluate val(T1,T2) predicates."
+"evaluable functions; see Giannesini et al. 1985, p 144 "
+"Note that expressions (e.g., 3 + 2) are not supported in Prolog II syntax; "
+"these declarations are used to evaluate val(T1,T2) predicates. "
 ->
     syscall(sysop,700,xfx,inf,inf)
     syscall(sysop,700,xfx,eql,eql)

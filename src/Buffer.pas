@@ -4,7 +4,7 @@
 {   File        : Buffer.pas                                                 }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022-2025                                                  }
+{   Updated     : 2022-2026                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -50,6 +50,9 @@ Uses
   IChar,
   Mirror,
   CWrites;
+
+Const
+  TRACE_BUFFER = False;
 
 Const
   { input buffer size }
@@ -116,7 +119,6 @@ Procedure BufInsert( Var B : TBuf; cc : TChar );
 Function BufDisplayLine( B : TBuf; max : TBufIndex ) : TBufIndex;
 Procedure BufToMirrorFiles( B : TBuf );
 
-Procedure CharDump( cc : TChar );
 Procedure BufDump( B : TBuf );
 
 Implementation
@@ -480,13 +482,13 @@ Begin
   BufGetChar(cc,B,i,0)
 End;
 
-{ IChar of index i in a buffer is the char cc }
+{ IChar of index i in a buffer is the char cc (same bytes) }
 Function BufIsChar( B : TBuf; i : TBufIndex; cc : TChar ) : Boolean;
 Var
   e : TBufItem;
 Begin
   BufGet(e,B,i,0);
-  BufIsChar := IsChar(e,cc)
+  BufIsChar := TICharIs(e,TCharGetBytes(cc))
 End;
 
 { set i-th char's position data from its previous char}
@@ -496,7 +498,7 @@ Var
 Begin
   k := PrevIdx(B,i);
   With B Do
-    SetICharPosFromPrev(Buf[i],Buf[k])
+    TICharSetPosFromPrev(Buf[i],Buf[k])
 End;
 
 { recalculate all character positions, starting from i-th character }
@@ -504,7 +506,7 @@ Procedure BufSetPositions( Var B : TBuf; i : TBufIndex;
     line : TLineNum; col : TCharPos );
 Begin
   { set position data of the first character }
-  SetICharPos(B.Buf[i],line,col);
+  TICharSetPos(B.Buf[i],line,col);
   { char next to i is the first to recalculate }
   i := NextIdx(B,i);
   While i <> 0 Do
@@ -514,18 +516,18 @@ Begin
   End
 End;
 
-{ append a composite char to a buffer, computing its position from
+{ append a char to a buffer, computing its position from
  the previous element }
 Procedure BufPushChar( Var B : TBuf; cc : TChar );
 Var
   p : TIChar; { previous char: from which to compute the new position }
   e : TIChar; { new char }
 Begin
-  SetIChar(e,cc,1,1); { default: line 1, char 1 }
+  TICharSet(e,cc,1,1); { default: line 1, char 1 }
   If BufLen(B) > 0 Then
   Begin
     BufGetLast(p,B);
-    SetICharPosFromPrev(e,p)
+    TICharSetPosFromPrev(e,p)
   End;
   BufPushItem(B,e)
 End;
@@ -542,7 +544,7 @@ Begin
   While (i <> 0) Do
   Begin
     BufGetCharAt(cc,B,i);
-    If IsMultibyte(cc) Then
+    If TCharIsMultibyte(cc) Then
       n := n + 1;
     i := NextIdx(B,i)
   End;
@@ -601,22 +603,22 @@ Begin
     If BufWriteCursorIsAtStart(B) Then { prepend op; pos data left of first char }
     Begin
       BufGetFirst(e,B);
-      SetICharPosFromNext(e1,e)
+      TICharSetPosFromNext(e1,e)
     End
     Else { insert or append; pos data right from IdxW }
     Begin
       BufGetItemAtWriteCursor(e,B);
-      SetICharPosFromPrev(e1,e)
+      TICharSetPosFromPrev(e1,e)
     End;
     { e2: item to swap from/to }
-    SetIChar(e2,cc,0,0);
+    TICharSet(e2,cc,0,0);
     { location of the new char }
     k := NextIdx(B,B.IdxW);
     { make some room for it }
     i := k;
     While i <> 0 Do
     Begin
-      SwapIChar(B.Buf[i],e2);
+      TICharSwap(B.Buf[i],e2);
       i := NextIdx(B,i)
     End;
     { append currently saved char; is cc when just appending }
@@ -703,13 +705,26 @@ Begin
       LenR := LenR + 1
     End
   End;
-  BufGetRead(e,B,0)
+  BufGetRead(e,B,0);
+  If TRACE_BUFFER Then
+  Begin
+    TCharDump(e.Val);
+    WritelnToTraceFile(' +')
+  End
 End;
 
 { move the read index backward }
 Procedure BufUnread( Var B : TBuf );
+Var 
+  e : TBufItem;
 Begin
   CheckCondition(BufNbRead(B) > 0,'Buf: cannot unread');
+  If TRACE_BUFFER Then
+  Begin
+    BufGetRead(e,B,0);
+    TCharDump(e.Val);
+    WritelnToTraceFile(' -')
+  End;
   With B Do
   Begin
     If LenR = 1 Then
@@ -735,7 +750,7 @@ Begin
   i := FirstIdx(B1);
   While (i <> 0) And Not Diff Do 
   Begin
-    Diff := B1.Buf[i].Val.Bytes <> B2.Buf[i].Val.Bytes;
+    Diff := Not TCharSameBytes(B1.Buf[i].Val,B2.Buf[i].Val);
     i := NextIdx(B1,i)
   End;
   BufDiff := Diff
@@ -767,7 +782,7 @@ Begin
       While (m < max) And (j <> 0) Do
       Begin
         cols := CrtCharWidthOnScreen(Buf[j].Val);
-        If IsEol(Buf[j]) Or ((m + cols) > max) Then
+        If TICharIsEol(Buf[j]) Or ((m + cols) > max) Then
           j := 0
         Else
         Begin
@@ -780,7 +795,7 @@ Begin
       n := 0;
       While i <> 0 Do
       Begin
-        If IsEol(Buf[i]) Then { last char is Eol }
+        If TICharIsEol(Buf[i]) Then { last char is Eol }
           CWrite(' ')
         Else
           CWriteChar(Buf[i].Val);
@@ -801,11 +816,16 @@ End;
 Procedure BufToMirrorFiles( B : TBuf );
 Var 
   i : TBufIndex;
+  cc : TChar;
 Begin
   i := FirstIdx(B);
   While i <> 0 Do
   Begin
-    WriteToMirrorFiles(B.Buf[i].Val.Bytes);
+    cc := B.Buf[i].Val;
+    If TCharIsEol(cc) Then
+      WritelnToMirrorFiles('')
+    Else
+      WriteToMirrorFiles(TCharGetBytes(cc));
     i := NextIdx(B,i)
   End
 End;
@@ -814,23 +834,6 @@ End;
 {----------------------------------------------------------------------------}
 { Debug                                                                      }
 {----------------------------------------------------------------------------}
-
-{ dump the content of char cc }
-Procedure CharDump( cc : TChar );
-Var
-  i : 0..MaxBytesPerChar;
-  s : TString;
-Begin
-  s := '(';
-  For i := 1 to Length(cc.Bytes) Do
-  Begin
-    s := s + IntToShortString(Ord(cc.Bytes[i]));
-    If i < Length(cc.Bytes) Then
-      s := s + ','
-  End;
-  s := s + ')';
-  WriteToTraceFile(s)
-End;
 
 { dump the content of buffer B }
 Procedure BufDump( B : TBuf );
@@ -841,8 +844,10 @@ Begin
   i := FirstIdx(B);
   While i <> 0 Do
   Begin
-    WriteToTraceFile(IntToShortString(i) + ':');
-    CharDump(B.Buf[i].Val);
+    WriteToTraceFile(IntToShortString(i) + ': ');
+    WriteToTraceFile('[');
+    TICharDump(B.Buf[i]);
+    WriteToTraceFile(']');
     WriteToTraceFile(' ');
     i := NextIdx(B,i)
   End;

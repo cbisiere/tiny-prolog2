@@ -4,7 +4,7 @@
 {   File        : Errs.pas                                                   }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022,2023,2024                                             }
+{   Updated     : 2022-2026                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -27,6 +27,7 @@ Type
     SYNTAX_ERROR,
     RUNTIME_ERROR,
     ENCODING_ERROR,
+    EOL_ERROR,
     USER_INTERRUPT
   );
 
@@ -45,6 +46,7 @@ Procedure SyntaxError( msg : TString );
 Procedure RuntimeError( msg : TString );
 Procedure ParameterError( msg : TString );
 Procedure EncodingError( msg : TString );
+Procedure EolStyleError( msg : TString );
 Procedure UserInterrupt;
 Procedure Bug( msg : TString );
 
@@ -141,6 +143,12 @@ End;
 Procedure EncodingError( msg : TString );
 Begin
   RaiseError(ENCODING_ERROR,'Character encoding error: ' + msg)
+End;
+
+{ EOL style mixup; display a message }
+Procedure EolStyleError( msg : TString );
+Begin
+  RaiseError(EOL_ERROR,'Eol error: ' + msg)
 End;
 
 { user interruption }

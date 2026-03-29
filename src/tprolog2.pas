@@ -4,7 +4,7 @@
 {   File        : tprolog2.pas                                               }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2023                                                       }
+{   Updated     : 2022-2026                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -96,7 +96,7 @@ Begin
     Begin
       f := CurrentInput(P);
       Stream_DisplayErrorMessage(f,GetErrorMessage);
-      Stream_Close(f)
+      Stream_CloseFile(f)
     End
     Else
     Begin
@@ -111,24 +111,11 @@ End;
 
 { Read Evaluate Print Loop }
 Procedure REPL( P : ProgPtr );
-Var
-  Prompt : TString;
 Begin
   Repeat
     HandleErrorIfAny(P);
     ResetIO(P);
     ReleaseMemory(P);
-    Case GetSyntax(P) Of
-    PrologIIc:
-      Prompt := 'c> ';
-    PrologII:
-      Prompt := '> ';
-    PrologIIp:
-      Prompt := '+> ';
-    Edinburgh:
-      Prompt := '?- ';
-    End;
-    CLISetPrompt(Prompt);
     ReadFromConsole(P);
     If ErrorState = USER_INTERRUPT Then
       Die;

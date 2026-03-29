@@ -4,7 +4,7 @@
 {   File        : Reduc.pas                                                  }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2023                                                       }
+{   Updated     : 2022-2026                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -223,10 +223,10 @@ Var
         If Not Abnormal Then
         Begin
           Stream_WriteShortString(TraceStream,'UNIFIED: ');
-          OutTerm(TraceStream,PrologII,Tg); { FIXME: syntax }
+          PutTerm(TraceStream,PrologIIv2,Tg); { FIXME: syntax }
           Stream_WriteShortString(TraceStream,' = '); 
-          OutTerm(TraceStream,PrologII,Td); 
-          Stream_Writeln(TraceStream)
+          PutTerm(TraceStream,PrologIIv2,Td); 
+          Stream_LineBreak(TraceStream)
         End
       End
     End; { Unify }

@@ -4,17 +4,17 @@ This page lists the predefined predicates implemented so far in the supported fl
 
 ## Prolog II
 
-First columns of the tables below give the French and English versions of the predefined predicates described in the row.
+In each row of the tables below, the first column lists Version 1 (in French) and _Version 2_ (in English) of the predefined predicates described in the row.
 
 ### Worlds
 Predicate | Action | Example
 --- | --- | ---
-`monde(W)` /`world(W)`| unify `W` with the name of the current world | `> world(W);` <br> `{ W="Normal" }` <br> `>`
-`new-subworld(W)` | create a new subworld below the current world, and go down to it | `> new-subworld("Facts");` <br> `{  }` <br> `> world(W);` <br> `{ W="Facts" }` <br> `>`
-`tuer-monde(W)` / `kill-subworld(W)` | delete subworld `W` only if it has no subworlds itself | `> world(W);` <br> `{ W="Facts" }` <br> `> climb;` <br> `> kill-subworld("Facts");` <br> `{  }` <br> `>`
-`purger(W)` / `purge(W)` | same as above, but delete inconditionally    | 
-`monter(W)`, `monter`/ `climb(W)`, `climb` | go up the parent word; fail if `W ` is not the parent world |
-`descendre(W)` / `down(W)` | go down to subword `W` of the current word; creates subworld `W` if it does not exist (French v1 only)
+`monde(W)` <br><br> _`world(W)`_ | unify `W` with the name of the current world | `> world(W);` <br> `{ W="Normal" }` <br> `>`
+_`new-subworld(W)`_ | create a new subworld below the current world, and go down to it | `> new-subworld("Facts");` <br> `{  }` <br> `> world(W);` <br> `{ W="Facts" }` <br> `>`
+`tuer-monde(W)` <br><br> _`kill-subworld(W)`_ | delete subworld `W` only if it has no subworlds itself | `> world(W);` <br> `{ W="Facts" }` <br> `> climb;` <br> `> kill-subworld("Facts");` <br> `{  }` <br> `>`
+`purger(W)` <br><br> _`purge(W)`_ | same as above, but delete inconditionally    | 
+`monter(W)`, `monter`<br><br> _`climb(W)`, `climb`_ | go up the parent word; fail if `W` is not the parent world |
+`descendre(W)` <br><br> _`down(W)`_ | go down to subword `W` of the current word; creates subworld `W` if it does not exist (French v1 only)
 
 ### Statements
 
@@ -22,21 +22,21 @@ Worlds are populated with statements, that is, comments and rules. In each world
 
 Predicate | Action | Example
 --- | --- | ---
-`descendre(N)`,`descendre` / `down(N)`,`down` | move the index downward by `N` or by 1 | 
-`monter(N)` / `up(N)` | move the index upward by `N` | 
-`haut` / `top` | move the index up to the first statement | 
-`bas` / `bottom` | move the index down to the last statement | 
-`supprimer(N)` / `suppress(N)` | suppress `N` statement from the current statement; the statement after the last suppressed statement becomes the current statement | 
+`descendre(N)`,`descendre` <br><br> _`down(N)`,`down`_ | move the index downward by `N` or by 1 | 
+`monter(N)` <br><br> _`up(N)`_ | move the index upward by `N` | 
+`haut` <br><br> _`top`_ | move the index up to the first statement | 
+`bas` <br><br> _`bottom`_ | move the index down to the last statement | 
+`supprimer(N)` <br><br> _`suppress(N)`_ | suppress `N` statement from the current statement; the statement after the last suppressed statement becomes the current statement | 
 
 ### Rules
 
 Predicate | Action | Example
 --- | --- | ---
- `lister(N)`, `lister` / `list(N)`,`list` | display on the current input `N` (or all) rules, starting from the current statement
-`tete(I)` / `find-rule(I)` | move the index to the first rule with access `I` |
-`inserer(F)`, `inserer` / `insert(F)`, `insert` | insert statements before the current index, from file with path `F` or from the current input unit, until an empty statement is read, that is `;;` 
-`ajout(<H,Q>)` / `assert(H,Q)` | insert a new rule with head `H` and queue `Q` at the beginning of the group of rules having the same identifier and arity, or at the end of the current world ; `H`is a predicate or an identifier, `Q` is a list of terms | `> assert(data(1),nil) list;` <br> `data(1) ->;` <br> `{  }`<br> `>`
-`regle(H,Q)` / `rule(H,Q)` | give all the rules such that `H` and `Q` unify with a rule head and queue (as a list), respectively, at the time the predefined predicate was first cleared | `> assert(data(2),nil);` <br> `{ }` <br> `> assert(data(1),nil);`  <br> `{ }` <br> `> rule(data(n),nil);` <br> `{ n=1 }` <br> `{ n=2 }` <br> `>`
+ `lister(N)`, `lister` <br><br> _`list(N)`,`list`_ | display on the current input `N` (or all) rules, starting from the current statement
+`tete(I)` <br><br> _`find-rule(I)`_ | move the index to the first rule with access `I` |
+`inserer(F)`, `inserer` <br><br> _`insert(F)`, `insert`_ | insert statements before the current index, from file with path `F` or from the current input unit, until an empty statement is read, that is `;;` 
+`ajout(<H,Q>)` <br><br> _`assert(H,Q)`_ | insert a new rule with head `H` and queue `Q` at the beginning of the group of rules having the same identifier and arity, or at the end of the current world ; `H`is a predicate or an identifier, `Q` is a list of terms | `> assert(data(1),nil) list;` <br> `data(1) ->;` <br> `{  }`<br> `>`
+`regle(H,Q)` <br><br> _`rule(H,Q)`_ | give all the rules such that `H` and `Q` unify with a rule head and queue (as a list), respectively, at the time the predefined predicate was first cleared | `> assert(data(2),nil);` <br> `{ }` <br> `> assert(data(1),nil);`  <br> `{ }` <br> `> rule(data(n),nil);` <br> `{ n=1 }` <br> `{ n=2 }` <br> `>`
 
 ### Input / Output
 
@@ -44,46 +44,49 @@ Prolog II uses a system of stacked input and output units.
 
 Predicate | Action | Example
 --- | --- | ---
-`entree(F)`, `sortie(F)` / `input-is(F)`, `output-is(F)` | unify `F` with the current input (output) unit | `> input-is(f);` <br> `{ f="console" }` <br> `>`
-`entree(F)`, `sortie(F)` / `input(F)`, `output(F)` | if `F` is not in the input (output) stack yet, open it and stack it; set `F` as the current input (output) unit | `> output("num.txt")` `out(123)` `close-output;` <br> `{  }` <br> `> input("num.txt")` `in-integer(n);` <br> `{ n=123 }` <br> `>` <br>
-`ferme-entree(F)`, `ferme-entree`, `ferme-sortie(F)`, `ferme-sortie` / `close-input(F)`, `close-input`,`close-output(F)`, `close-output` | close the input (output) unit `F` or the current input (output) unit
-`tampon-neuf(G)`, `new-buffer(G)` | open a new read/write buffer, clear goal `G` and then close the buffer
+`entree(F)`, `sortie(F)` <br><br> _`input-is(F)`, `output-is(F)`_ | unify `F` with the current input (output) unit | `> input-is(f);` <br> `{ f="console" }` <br> `>`
+`entree(F)`, `sortie(F)` <br><br> _`input(F)`, `output(F)`_ | if `F` is not in the input (output) stack yet, open it and stack it; set `F` as the current input (output) unit | `> output("num.txt")` `out(123)` `close-output;` <br> `{  }` <br> `> input("num.txt")` `in-integer(n);` <br> `{ n=123 }` <br> `>` <br>
+`ferme-entree(F)`, `ferme-entree`, `ferme-sortie(F)`, `ferme-sortie` <br><br> _`close-input(F)`, `close-input`,`close-output(F)`, `close-output`_ | close the input (output) unit `F` or the current input (output) unit
+`tampon-neuf(G)` <br><br> _`new-buffer(G)`_ | open a new read/write buffer, clear goal `G` and then close the buffer
+`lg-ligne(N)` <br><br> _`set-line-width(N), line-width(N)`_ | set / get the maximum line width of the current output unit to be `N` characters
+`pos(N)` <br><br> _`set-line-cursor(N)`_ | move the output cursor on the current output unit to character `N`
+
 
 ### Terms: tests
 
 Predicate | Action | Example
 --- | --- | ---
-`ident(I)` / `ident(I)` | succeed if `I` is an ident | `> ident(yellow);` <br> `{  }` <br> `>`
-`entier(N)` / `integer(N)` | succeed if `N` is an integer | `> integer(1);` <br> `{  }` <br> `>`
-`dot(L)` / `dot(L)` | succeed if `L` is a list | `> dot(1.nil);` <br> `{  }` <br> `>`
-`tuple(U)` / `tuple(U)` | succeed if `U` is a tuple | `> tuple(<x,y>);` <br> `{  }` <br> `>`
-`libre(T)` / `free(T)` | succeed if `T` is free | `> free(x);` <br> `{  }` <br> `>`
-`pris(T)` / `bound(T)` | succeed if `T` is bound | `> eq(x,1) bound(x);` <br> `{ x=1 }` <br> `>`
+`ident(I)` <br><br> _`ident(I)`_ | succeed if `I` is an ident | `> ident(yellow);` <br> `{  }` <br> `>`
+`entier(N)` <br><br> _`integer(N)`_ | succeed if `N` is an integer | `> integer(1);` <br> `{  }` <br> `>`
+`dot(L)` <br><br> _`dot(L)`_ | succeed if `L` is a list | `> dot(1.nil);` <br> `{  }` <br> `>`
+`tuple(U)` <br><br> _`tuple(U)`_ | succeed if `U` is a tuple | `> tuple(<x,y>);` <br> `{  }` <br> `>`
+`libre(T)` <br><br> _`free(T)`_ | succeed if `T` is free | `> free(x);` <br> `{  }` <br> `>`
+`pris(T)` <br><br> _`bound(T)`_ | succeed if `T` is bound | `> eq(x,1) bound(x);` <br> `{ x=1 }` <br> `>`
 
 ### Terms: read and write
 
 Predicate | Action | Example
 --- | --- | ---
-`in-car(C)`, `in-car'(C)`, `car-apres(C)`, `car-apres'(C)`, `in(T)`, `in-entier(N)`, `in-ident(I)`, `in-chaine(S)` / `in-char(C)`, `in-char'(C)`, `next-char(C)`, `next-char'(C)`, `in(T)`, `in-integer(N)`, `in-ident(I)`, `in-string(S)`, `in-real(R)` | read (or lookup) a character `C`, read a term `T`, an integer `N`, an identifier `I`, a string `S` or a real number `R`; non-primed predicates reading a character do not skip leading spaces; all the others do skip spaces | `> in-char(c);` <br> `{ c="\n" }` <br> `> in-char'(c);` <br> `a` <br> `{ c="a" }` <br> `>` <br>
-`ex(T)`, `exl(T)`, `exm(S)`, `exml(S)` / `out(T)`, `outl(T)`,`outm(S)`, `outml(S)` | write term `T`, without or with a newline, or a string `S` without double-quotes, without or with a new line | `> outml("Hello, world!");` <br> `Hello, world!` <br> `{  }` <br> `>`
-`ligne`, `page` / `line`, `page` | write a new line, or clear the screen |
-`en-xy(X,Y)` / `set-cursor(X,Y)` | move the text cursor to (0-based) column `X` and row `Y` |
+`in-car(C)`, `in-car'(C)`, `car-apres(C)`, `car-apres'(C)`, `in(T)`, `in-entier(N)`, `in-ident(I)`, `in-chaine(S)` <br><br> _`in-char(C)`, `in-char'(C)`, `next-char(C)`, `next-char'(C)`, `in(T)`, `in-integer(N)`, `in-ident(I)`, `in-string(S)`, `in-real(R)`_ | read (or lookup) a character `C`, read a term `T`, an integer `N`, an identifier `I`, a string `S` or a real number `R`; non-primed predicates reading a character do not skip leading spaces; all the others do skip spaces | `> in-char(c);` <br> `{ c="\n" }` <br> `> in-char'(c);` <br> `a` <br> `{ c="a" }` <br> `>` <br>
+`ex(T)`, `exl(T)`, `exm(S)`, `exml(S)` <br><br> _`out(T)`, `outl(T)`,`outm(S)`, `outml(S)`_ | write term `T`, without or with a newline, or a string `S` without double-quotes, without or with a new line | `> outml("Hello, world!");` <br> `Hello, world!` <br> `{  }` <br> `>`
+`ligne`, `page` <br><br> _`line`, `page`_ | write a new line, or clear the screen |
+`en-xy(X,Y)` <br><br> _`set-cursor(X,Y)`_ | move the text cursor to (0-based) column `X` and row `Y` |
 
 
 ### Evaluation
 
 Predicate | Action | Example
 --- | --- | ---
-`affecter(I,T)` / `assign(I,T)` | assign value `T` to identifier `I`; the identifier becomes a global, persistent variable whose value is `T` | `> assign(greetings,"hello");` <br> `{  }` <br> `> outml(greetings);` <br> `hello` <br> `{  }` <br> `>`
-`val(E,V)` / `val(E,V)` | evaluate expression `E` and unify the result with `V` | `> val(add(5,mul(3,2)),x);` <br> `{ x=11 }` <br> `>` 
-`eg(X,Y)`, `dif(X,Y)` / `eq(X,Y)`, `dif(X,Y)` | term `X` is equal to (or different from) term `Y` | `> dif(x,1);` <br> `{ x#1 }` <br> `>`
+`affecter(I,T)` <br><br> _`assign(I,T)`_ | assign value `T` to identifier `I`; the identifier becomes a global, persistent variable whose value is `T` | `> assign(greetings,"hello");` <br> `{  }` <br> `> outml(greetings);` <br> `hello` <br> `{  }` <br> `>`
+`val(E,V)` <br><br> _`val(E,V)`_ | evaluate expression `E` and unify the result with `V` | `> val(add(5,mul(3,2)),x);` <br> `{ x=11 }` <br> `>` 
+`eg(X,Y)`, `dif(X,Y)` <br><br> _`eq(X,Y)`, `dif(X,Y)`_ | term `X` is equal to (or different from) term `Y` | `> dif(x,1);` <br> `{ x#1 }` <br> `>`
 
 ### Operators
 
 Operator | Type | Precedence | Example
 --- | --- | --- | ---
 `inf` | xfx | 700 | 
-`eq` / `eql` | xfx | 700 | 
+`eq` <br> _`eql`_ | xfx | 700 | 
 `add`,`sub` | yfx | 500 | 
 `mul`,`div` | yfx | 400 | 
 `add`,`sub` | fx | 200 | 
@@ -92,37 +95,37 @@ Operator | Type | Precedence | Example
 
 Predicate | Action | Example
 --- | --- | ---
-`def-tab(I,N)` / `def-array(I,N)` | define an array `I` of size `N`; array's index ranges from `1` to `N`; all elements are initialized to `0` | `> def-array(stack,100);` <br> `{ }` <br> `> assign(stack(1),hello);` <br> `{ }` <br> `> val(stack(1),v);` <br> `{ v=hello }` <br> `>`
+`def-tab(I,N)` <br><br> _`def-array(I,N)`_ | define an array `I` of size `N`; array's index ranges from `1` to `N`; all elements are initialized to `0` | `> def-array(stack,100);` <br> `{ }` <br> `> assign(stack(1),hello);` <br> `{ }` <br> `> val(stack(1),v);` <br> `{ v=hello }` <br> `>`
 
 ### Strings
 
 Predicate | Action | Example
 --- | --- | ---
-`no-car(C,N)` / `char-code(C,N)` | match character `C` and code `N`; either `C` or `N` must be bound | `> char-code("A",n);` <br> `{ n=65 }` <br> `>`
-`boum(I,S)` / `string-ident(S,I)` | match identifier `I` and string `S`; either `I` or `S` must be bound | `> boum(abc,s);` <br> `{ s="abc" }` `-> boum(i,"abc");` <br> `{ i=abc }` <br> `>`
+`no-car(C,N)` <br><br> _`char-code(C,N)`_ | match character `C` and code `N`; either `C` or `N` must be bound | `> char-code("A",n);` <br> `{ n=65 }` <br> `>`
+`boum(I,S)` <br><br> _`string-ident(S,I)`_ | match identifier `I` and string `S`; either `I` or `S` must be bound | `> boum(abc,s);` <br> `{ s="abc" }` `-> boum(i,"abc");` <br> `{ i=abc }` <br> `>`
 
 ### Control
 
 Predicate | Action | Example
 --- | --- | ---
-`geler(V,G)` / `freeze(V,G)`| postpone the clearing of goal `G` as long as `V` is free |
-`bloc(T,G)`,`fin-bloc(T)` / `block(T,G)`,`bloc-exit(T)` | `block(T,G)` creates a scope for clearing goal `G`, labelled with `T`; when clearing a goal within one or several block scopes, `block-exit(T)` finds the first scope whose label unifies with `T`, and then proceeds to execute the first goal after the `block/2` that opened that scope; moreover, all the choice points within that scope are suppressed      |
-`impasse`, `fail` | fail, without displaying a warning that the goal does not exist
+`geler(V,G)` <br><br> _`freeze(V,G)`_ | postpone the clearing of goal `G` as long as `V` is free |
+`bloc(T,G)`,`fin-bloc(T)` <br><br> _`block(T,G)`,`bloc-exit(T)`_ | `block(T,G)` creates a scope for clearing goal `G`, labelled with `T`; when clearing a goal within one or several block scopes, `block-exit(T)` finds the first scope whose label unifies with `T`, and then proceeds to execute the first goal after the `block/2` that opened that scope; moreover, all the choice points within that scope are suppressed      |
+`impasse` <br><br> _`fail`_ | fail, without displaying a warning that the goal does not exist
 
 
 ### Session
 
 Predicate | Action | Example
 --- | --- | ---
-`adieu` / `quit` | quit without saving | `> quit;` <br> `bye!` <br> `{  }` <br> `$`
-`echo`, `sourd` / `echo`, `no-echo` | set the echo state on or off; when echo is on, inserted Prolog files are echoed to console | 
-`trace`, `sans-trace` / `trace`, `no-trace` | set the trace state on or off; when trace is on, cleared goals are displayed | 
+`adieu` <br><br> _`quit`_ | quit without saving | `> quit;` <br> `bye!` <br> `{  }` <br> `$`
+`echo`, `sourd` <br><br> _`echo`, `no-echo`_ | set the echo state on or off; when echo is on, inserted Prolog files are echoed to console | 
+`trace`, `sans-trace` <br><br> _`trace`, `no-trace`_ | set the trace state on or off; when trace is on, cleared goals are displayed | 
 
 ### Date and Time
 
 Predicate | Action | Example
 --- | --- | ---
-`time(V)` | unify `V` with the number of seconds elapsed since the beginning of the day, as an integer value | `> time(V);` <br> `{ v=34084 }` <br> `$`
+_`time(V)`_ | unify `V` with the number of seconds elapsed since the beginning of the day, as an integer value | `> time(V);` <br> `{ v=34084 }` <br> `$`
 
 
 ## Prolog II+, Marseille syntax

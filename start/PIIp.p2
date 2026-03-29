@@ -43,14 +43,14 @@ def_array(I,N) -> syscall(sysdefarray,I,N);
 "i/o"
 
 input_is(F) -> syscall(sysinputis,F);
-input(F) -> syscall(sysselectinput,F) /;
+input(F) -> syscall(sysselectinput,F) !;
 input(F) -> syscall(sysopennew,F,read,S,nil);
 close_input -> syscall(sysinputis,F) close_input(F);
 close_input(F) -> syscall(syscloseinput,F);
 clear_input -> syscall(sysclearinput);
 
 output_is(F) -> syscall(sysoutputis,F);
-output(F) -> syscall(sysselectoutput,F) /;
+output(F) -> syscall(sysselectoutput,F) !;
 output(F) -> syscall(sysopennew,F,write,S,nil);
 close_output -> syscall(sysoutputis,F) close_output(F);
 close_output(F) -> syscall(syscloseoutput,F);
@@ -80,6 +80,9 @@ outl(T) -> out(T) line;
 outml(S) -> outm(S) line;
 page -> syscall(sysclrsrc);
 clear -> page fail;
+set_line_width(N) -> syscall(syssetlinewidth,N);
+line_width(N) -> syscall(sysgetlinewidth,N);
+set_line_cursor(N) -> syscall(syssetlinecursor,N);
 
 "assign, eval, operators"
 

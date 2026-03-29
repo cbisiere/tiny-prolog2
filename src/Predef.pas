@@ -4,7 +4,7 @@
 {   File        : Predef.pas                                                 }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022,2023,2024   s                                          }
+{   Updated     : 2022-2026                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -100,6 +100,9 @@ Type
     PP_OUTM,
     PP_LINE,
     PP_GOTOXY,
+    PP_GET_LINE_WIDTH,
+    PP_SET_LINE_WIDTH,
+    PP_SET_LINE_CURSOR,
     PP_BACKTRACE,
     PP_CLRSRC,
     PP_EVAL,
@@ -143,12 +146,12 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 62;
-  MAX_PP_LENGHT = 21; { max string length }
+  NB_PP = 65;
+  MAX_PP_LENGTH = 21; { max string length }
 Type
   TPPRec = Record
     I : TPP; { identifier }
-    S : String[MAX_PP_LENGHT]; { identifier as string }
+    S : String[MAX_PP_LENGTH]; { identifier as string }
     N : Byte; { number of arguments }
   End;
   TPPArray = Array[1..NB_PP] Of TPPRec;
@@ -199,6 +202,9 @@ Const
     (I:PP_OUTM;S:'sysoutm';N:1),
     (I:PP_LINE;S:'sysline';N:0),
     (I:PP_GOTOXY;S:'sysgotoxy';N:2),
+    (I:PP_GET_LINE_WIDTH;S:'sysgetlinewidth';N:1),
+    (I:PP_SET_LINE_WIDTH;S:'syssetlinewidth';N:1),
+    (I:PP_SET_LINE_CURSOR;S:'syssetlinecursor';N:1),
     (I:PP_BACKTRACE;S:'sysbacktrace';N:0),
     (I:PP_CLRSRC;S:'sysclrsrc';N:0),
     (I:PP_EVAL;S:'syseval';N:2),
@@ -530,8 +536,10 @@ Begin
   GetCodePointArg := GetPosIntArg(n,T,cp)
 End;
 
-{ get a stream from argument n, or Nil }
-Function GetStreamArg( P : ProgPtr; n : Byte; T : TermPtr ) : StreamPtr;
+{ get a stream from argument n, or Nil; if Mode is not MODE_ANY, then search
+ only for streams in mode Mode }
+Function GetStreamArg( P : ProgPtr; n : Byte; T : TermPtr; 
+    Mode : TStreamMode ) : StreamPtr;
 Var
   f : StreamPtr;
   Alias : TAlias;
@@ -539,10 +547,10 @@ Var
 Begin
   f := Nil;
   If GetPosIntArg(n,T,Desc) Then { case 1: file descriptor }
-    f := GetStreamByDescriptor(P,Desc)
+    f := GetStreamByDescriptorAndMode(P,Desc,Mode)
   Else { case 2: alias; leave quotes if any }
     If GetShortAtomArgAsStr(n,T,True,Alias) Then 
-      f := GetStreamByAlias(P,Alias);
+      f := GetStreamByAliasAndMode(P,Alias,Mode);
   GetStreamArg := f
 End;
 
@@ -581,7 +589,7 @@ Begin
   Ident := IdentifierGetStr(IdPtr(T2));
 
   { predicate identifier is not too long }
-  If Str_Length(Ident) > MAX_PP_LENGHT Then
+  If Str_Length(Ident) > MAX_PP_LENGTH Then
     Exit;
 
   { predicate is known }
@@ -726,7 +734,7 @@ Begin
    FIXME: not super-clean, as we should be able to identify the stream from 
    which the goal char_code came }
   Enc := Stream_GetEncoding(CurrentOutput(P));
-  If Not CodePointToTChar(cp,cc,Enc) Then
+  If Not TCharSetFromCodePoint(cc,cp,Enc) Then
   Begin
     CWriteLnWarning('invalid codepoint');
     Exit
@@ -1004,9 +1012,12 @@ Begin
   World_SetCurrentStatement(GetCurrentWorld(P),Rule_GetStatement(R));
 End;
 
-{ list(10) or list }
+{ list(10) or list; note: we do not update cursor position or use line 
+ continuation character (TODO: to be tested on PII+) }
 Function ClearList( P : ProgPtr; T : TermPtr ) : Boolean;
 Var 
+  f : StreamPtr;
+  y : TSyntax;
   n : PosInt;
   W : WorldPtr;
   S : StmtPtr;
@@ -1027,14 +1038,17 @@ Begin
     S := Statement_FindNextOfType(S,[Comment,Rule]);
 
   { print }
+  f := CurrentOutput(P);
+  y := GetSyntax(P);
   While (S <> Nil) And ((n > 0) Or ListAll) Do
   Begin
     Case Statement_GetType(S) Of
     Comment:
-      OutOneComment(CurrentOutput(P),CommPtr(Statement_GetObject(S)));
+      PutOneComment(f,y,CommPtr(Statement_GetObject(S)));
     Rule:
-      OutOneRule(CurrentOutput(P),RulePtr(Statement_GetObject(S)));
+      PutOneRule(f,y,RulePtr(Statement_GetObject(S)));
     End;
+    Stream_LineBreak(f);
     If Not ListAll Then
       n := n - 1;
     S := Statement_FindNextOfType(S,[Comment,Rule]);
@@ -1049,7 +1063,7 @@ End;
 { suppress(10) : suppress 10 statements starting at the current statement; the 
  current statement is set to the next non-deleted statement; only the
  current world is affected (see Manuel d'Utilisation, section 3.2, page 5);
- PrologII only }
+ PrologIIv2 only }
 Function ClearSuppress( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   n : PosInt;
@@ -1701,7 +1715,7 @@ Begin
   End;
 
   { create a constant from the length of s }
-  sn := Str_NewFromShortString(LongIntToShortString(Str_Length(s)));
+  sn := Str_NewFromShortString(Str_LengthAsShortString(s));
   If Not NormalizeConstant(sn,IntegerNumber) Then
     Bug('atom_length: fail to normalize length');
   T1 := EmitConst(P,sn,CI,False);
@@ -1820,7 +1834,7 @@ Begin
   Begin
     { build the full path }
     s := Str_Clone(Path);
-    s2 := Str_NewFromBytes(DirInfo.Name,GetSystemCEncoding);
+    s2 := Str_NewFromBytes(DirInfo.Name,GetSystemEncoding,GetSystemEolStyle);
     Str_Concat(s,s2);
     If GetSyntax(P) = Edinburgh Then { Edinburgh uses ident }
     Begin
@@ -1854,7 +1868,7 @@ Begin
     CWriteLnWarning('not supported in Edinburgh mode');
     Exit
   End;
-  f := Stream_NewBuffer(BufferAlias(y));
+  f := Stream_NewBuffer(BufferAlias(y),LineContinuation(y),DefaultLineWidth(y));
   If f = Nil Then
   Begin
     CWriteLnWarning('fail to create a new buffer');
@@ -1873,7 +1887,7 @@ Begin
     CWriteLnWarning('not supported in Edinburgh mode');
     Exit
   End;
-  DeleteTopBuffer(P);
+  CloseTopBuffer(P);
   ClearDelBuffer := True
 End;
 
@@ -1884,7 +1898,7 @@ End;
 { select a stream as the current one if it exists, otherwise fails;
  used to implement input/output("data.txt"); silently fails when the stream 
  does not exist; when it exists and has a mode different from Mode, switch the
- stream to the new mode }
+ stream to the new mode without changing its position in the stack of streams }
 Function ClearSelectStream( P : ProgPtr; T : TermPtr; 
     Mode : TStreamMode ) : Boolean;
 Var
@@ -1896,38 +1910,46 @@ Begin
     CWriteLnWarning('not supported in Edinburgh mode');
     Exit
   End;
-  f := GetStreamArg(P,1,T);
+  { first chance: steam already having the target mode (so we always catch the 
+   correct console when the stream is a console) }
+  f := GetStreamArg(P,1,T,Mode);
+  { second chance for files or buffers: mode switching }
+  If f = Nil Then
+    f := GetStreamArg(P,1,T,MODE_ANY);
   If f = Nil Then
     Exit;
-  If Stream_IsLocked(f) Then
-  Begin
-    CWriteWarning('file already in use: ''');
-    Str_CWrite(Stream_GetAlias(f));
-    CWrite('''');
-    CWriteLn;
-    Exit
-  End;
-  SetStreamAsCurrent(P,f);
   { if target mode is different from the file's current mode, switch it }
   If (Stream_GetDeviceType(f) In [DEV_FILE,DEV_BUFFER]) 
       And (Stream_GetMode(f) <> Mode) Then
   Begin
-    Stream_Close(f);
+    { is closing allowed? No if it is a Prolog program }
+    If Stream_IsLocked(f) Then
+    Begin
+      CWriteWarning('file to select already in use: ''');
+      Str_CWrite(Stream_GetAlias(f));
+      CWrite('''');
+      CWriteLn;
+      Exit
+    End;
+    { switch mode }
+    Stream_CloseFile(f);
     Stream_SetMode(f,Mode)
   End;
+  SetStreamAsCurrent(P,f);
   ClearSelectStream := True
 End;
 
 { close_input("data.txt"), close_output("data.txt"); since a user filename 
  cannot be opened in more than one mode, only one syscall is needed; do nothing
- if it is a terminal (PII+ p.130: "unless it is the console or a window") }
+ if it is a terminal (PII+ p.130: "unless it is the console or a window");
+ FIXME: PII: can we close a buffer? }
 Function ClearCloseUserFile( P : ProgPtr; T : TermPtr; 
     Mode : TStreamMode ) : Boolean;
 Var
   f : StreamPtr;
 Begin
   ClearCloseUserFile := False;
-  f := GetStreamArg(P,1,T);
+  f := GetStreamArg(P,1,T,Mode);
   If f = Nil Then
   Begin
     CWriteLnWarning('unknown file');
@@ -1938,21 +1960,13 @@ Begin
   Begin
     If Stream_IsLocked(f) Then
     Begin
-      CWriteWarning('file already in use: ''');
+      CWriteWarning('file to close already in use: ''');
       Str_CWrite(Stream_GetAlias(f));
       CWrite('''');
       CWriteLn;
       Exit
     End;
-    If Stream_GetMode(f) <> Mode Then
-    Begin
-      CWriteWarning('file not opened in this mode: ''');
-      Str_CWrite(Stream_GetAlias(f));
-      CWrite('''');
-      CWriteLn;
-      Exit
-    End;
-    CloseAndDeleteStream(P,f)
+    CloseStream(P,f)
   End;
   ClearCloseUserFile := True
 End;
@@ -2062,7 +2076,7 @@ Begin
   End;
 
   { create the new user stream }
-  f := Stream_New(Alias,Path,DEV_FILE,Mode,False,True);
+  f := CreateNewStream(P,Alias,Path,DEV_FILE,Mode,False,True);
   If f = Nil Then
   Begin
     CWriteWarning('fail to create stream: ''');
@@ -2138,38 +2152,150 @@ End;
 { outm("hello"), or put_char('a'); TODO: put_char(Stream,Char) }
 Function ClearOutm( P : ProgPtr; T : TermPtr ) : Boolean;
 Begin
-  OutTermBis(CurrentOutput(P),GetSyntax(P),GetPArg(1,T),False,False);
+  OutTermUnquoted(CurrentOutput(P),GetSyntax(P),GetPArg(1,T));
   ClearOutm := True
 End;
 
-{ line }
+{ line, updating current char position }
 Function ClearLine( P : ProgPtr ) : Boolean;
 Begin
-  Outln(CurrentOutput(P));
+  Stream_OutNewLine(CurrentOutput(P));
   ClearLine := True
 End;
 
-{ en-xy(0,15); PIIv1 specs limit X to [0,79] and Y to [0,23]; this 
- implementation generalizes this to the screen limits (but not to the current
- size); TODO: out-of-screen error messages? }
+{ en-xy(0,15), set-cursor(0,15), set_cursor(1,16);
+ Notes:
+ - As PIIv1 doc p. 8 shows that PIIv1 uses a 0-based coordinate system, we 
+   assume that it is also the case for PIIv2. PII+ uses a 1-based coordinate 
+   system (see PII+ p. R 5-11).
+ - PIIv1 limits X to [0,79] and Y to [0,23], w/o mentioning that the actual 
+   screen size or the current line width (set by lg-ligne/1) is also a limit. 
+   In contrast, PII+ p. R 5-11 seems to state that these limits are taken into 
+   account. We assume this is the case for all Prolog flavors. 
+ - Experiments show that set_cursor/2 has no effect in PII+. It seems that PII+
+   starts in graphics mode (see e.g. current_file/3), in which indeed 
+   set_cursor/2 has no effects. I do not know how to switch to console 
+   (text) mode. }
 Function ClearGotoXY( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   v1,v2 : PosInt;
+  MaxWidth : TLineWidth;
+  Base : 0..1; { coordinate of the first line/column }
+  f : StreamPtr;
 Begin
   ClearGotoXY := False;
-  If Not GetPosIntArgIn(1,T,0,CrtGetScreenWidth-1,v1) Then
+  If GetSyntax(P) In [PrologIIv1,PrologIIv2] Then
+    Base := 0
+  Else
+    Base := 1;
+  f := GetOutputConsole(P);
+  MaxWidth := Min(Stream_GetLineWidth(f),CrtGetScreenWidth);
+  If Not GetPosIntArgIn(1,T,Base,MaxWidth-1+Base,v1) Then
     Exit;
-  If Not GetPosIntArgIn(2,T,0,CrtGetScreenHeight-1,v2) Then
+  If Not GetPosIntArgIn(2,T,Base,CrtGetScreenHeight-1+Base,v2) Then
     Exit;
-  CrtGotoXY(v1+1,v2+1);
+  CrtGotoXY(v1+1-Base,v2+1-Base);
   ClearGotoXY := True
 End;
 
-{ clear }
+{ line-width(40), line_width(40)
+ Notes:
+ - applies to the current output file, whatever its type
+ - PIIv1: doc seems to imply that the argument of lg-ligne/1 must be set, so
+   there would be no way to get the current line width }
+Function ClearGetLineWidth( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  T1,T2 : TermPtr;
+  f : StreamPtr;
+  Width : TLineWidth;
+  s : StrPtr;
+Begin
+  ClearGetLineWidth := False;
+  { 1: line width (usually a free variable) }
+  T1 := EvalPArg(1,T);
+  { get the current line width }
+  f := CurrentOutput(P);
+  Width := Stream_GetLineWidth(f);
+  { create a constant from the line width }
+  s := Str_NewFromShortString(LongIntToShortString(Width));
+  If Not NormalizeConstant(s,IntegerNumber) Then
+    Exit;
+  T2 := EmitConst(P,s,CI,False);
+  ClearGetLineWidth := ReduceOneEq(T1,T2,GetDebugStream(P))
+End;
+
+{ lg-ligne(40), set-line-width(40), set_line_width(40) 
+ Notes:
+ - applies to the current output file, whatever its type
+ - no minimum is mentioned in the docs, we set it to 5 to accommodate the most 
+   demanding Prolog version, PII: 3-space left margin, truncations of 
+   identifiers, identifiers starting with two letters vs. variable names;
+ - PIIv2: not documented, not even sure set-line-width/1 exists }
+Function ClearSetLineWidth( P : ProgPtr; T : TermPtr ) : Boolean;
+Const
+  PROLOG_MIN_LINE_WIDTH = 5;
+Var
+  f : StreamPtr;
+  v : PosInt;
+  MaxWidth : TLineWidth;
+Begin
+  ClearSetLineWidth := False;
+  { 1: new line width (integer) }
+  MaxWidth := MaximumLineWidth(GetSyntax(P));
+  If Not GetPosIntArgIn(1,T,PROLOG_MIN_LINE_WIDTH,MaxWidth,v) Then
+  Begin
+    CWriteWarning('argument must be an integer value between ');
+    CWrite(PosIntToShortString(PROLOG_MIN_LINE_WIDTH));
+    CWriteWarning(' and ');
+    CWrite(PosIntToShortString(MaxWidth));
+    CWriteLn;
+    Exit
+  End;
+  { set the line width of the current output stream }
+  f := CurrentOutput(P);
+  Stream_SetLineWidth(f,v);
+  ClearSetLineWidth := True
+End;
+
+{ pos(20), set-line-cursor(40), set_line_cursor(40)
+ Notes:
+ - FIXME: PIIv2: no doc, not even sure set-line-cursor/1 exists 
+ - we assumes it applies to the current output unit, whatever its type (console, 
+ file...) }
+Function ClearSetLineCursor( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  f : StreamPtr;
+  v : PosInt;
+  Pos, Width : TLineWidth;
+Begin
+  ClearSetLineCursor := False;
+  { current output stream }
+  f := CurrentOutput(P);
+  { current character position (first character is in position 1) }
+  Pos := Stream_GetCharacterPosition(f);
+  { stream's current line width}
+  Width := Stream_GetLineWidth(f);
+  { 1: new position on the current line }
+  If Not GetPosIntArgIn(1,T,Pos,Width,v) Then
+  Begin
+    CWriteWarning('argument must be an integer value between ');
+    CWrite(PosIntToShortString(Pos));
+    CWrite(' and ');
+    CWrite(PosIntToShortString(Width));
+    CWriteLn;
+    Exit
+  End;
+  { write blank spaces if any (no spaces to write is still a success) }
+  If v-Pos > 0 Then
+    Stream_OutNChar(f,CC_BLANK_SPACE,v-Pos);
+  ClearSetLineCursor := True
+End;
+
+{ page/0: if the current output is a console, clear the screen and move input 
+ cursor to the top-left }
 Function ClearClrScr( P : ProgPtr ) : Boolean;
 Begin
-  If OutputIsConsole(P) Then
-    CrtClrSrc;
+  Stream_Page(CurrentOutput(P));
   ClearClrScr := True
 End;
 
@@ -2178,7 +2304,8 @@ End;
 { in                                                                         }
 {----------------------------------------------------------------------------}
 
-{ read_term(Stream,T), get_char(Stream,C), next_char(Stream,C)... }
+{ read_term(Stream,T), get_char(Stream,C), next_char(Stream,C)...; 
+ note: silently fails if Stream exists but is not an input stream }
 Function ClearIn( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   T2,Tr : TermPtr;
@@ -2186,27 +2313,18 @@ Var
   SkipSpaces : Boolean;
   LookAhead : Boolean; { advance read requested, undo all the reads }
   f : StreamPtr;
-  c : TChar;
   cp : TCodePoint;
   K : TokenPtr;
-  e : TIChar;
+  e,e1 : TIChar;
   Success : Boolean;
   s : StrPtr;
   ss : TString;
 Begin
   ClearIn := False;
-  { 1: stream }
-  f := GetStreamArg(P,1,T);
+  { 1: input stream }
+  f := GetStreamArg(P,1,T,MODE_READ);
   If f = Nil Then
     Exit;
-  If Stream_GetMode(f) <> MODE_READ Then
-  Begin
-    CWriteWarning('stream not open for read: ''');
-    Str_CWrite(Stream_GetAlias(f));
-    CWrite('''');
-    CWriteLn;
-    Exit
-  End;
   { 2: variable }
   T2 := GetPArg(2,T);
   { 3: what type of data to read }
@@ -2229,13 +2347,13 @@ Begin
     ReadBlanks(f);
 
   { undo point  }
-  Stream_NextIChar(f,e);
+  Stream_NextChar(f,e);
 
   { read target in Tr}
   Case What Of
   TYPE_CHAR,TYPE_CODE_CHAR:
     Begin
-      Stream_GetChar(f,c);
+      Stream_GetChar(f,e1);
       Success := Not Error;
       If Success Then
       Begin
@@ -2245,27 +2363,27 @@ Begin
             s := Stream_NewStr(f);
             If GetSyntax(P) = Edinburgh Then { Edinburgh: return a one-char atom }
             Begin
-              If c.Bytes = EndOfInput Then
+              If TICharIsEndOfInput(e1) Then
                 Str_Append(s,'end_of_file')
               Else
-                Str_AppendChar(s,c);
+                Str_AppendChar(s,e1.Val);
               Tr := EmitIdent(P,s,True,False);
               CheckCondition(Tr <> Nil,
                   'ClearIn: unable to create an identifier from a char')
             End
             Else
             Begin
-              Str_AppendChar(s,c);
+              Str_AppendChar(s,e1.Val);
               Tr := EmitConst(P,s,CS,False)
             End
           End;
         TYPE_CODE_CHAR:
           Begin
-            If (GetSyntax(P) = Edinburgh) And (c.Bytes = EndOfInput) Then
+            If (GetSyntax(P) = Edinburgh) And (TICharIsEndOfInput(e1)) Then
               ss := '-1'
             Else
             Begin
-              If Not TCharToCodePoint(c,cp) Then { TODO: check }
+              If Not TICharToCodePoint(e1,cp) Then { TODO: check }
                 Exit;
               ss := CodePointToShortString(cp)
             End;
@@ -2323,7 +2441,7 @@ Begin
 
   { undo read when requested or in case of failure }
   If LookAhead Or Not Success Then
-    Stream_UngetChars(f,e.Lnb,e.Pos);
+    Stream_UngetChars(f,e);
 
   ClearIn := Success
 End;
@@ -2680,6 +2798,12 @@ Begin
     Ok := ClearLine(P);
   PP_GOTOXY:
     Ok := ClearGotoXY(P,T);
+  PP_GET_LINE_WIDTH:
+    Ok := ClearGetLineWidth(P,T);
+  PP_SET_LINE_WIDTH:
+    Ok := ClearSetLineWidth(P,T);
+  PP_SET_LINE_CURSOR:
+    Ok := ClearSetLineCursor(P,T);
   PP_CLRSRC:
     Ok := ClearClrScr(P);
   PP_IN:

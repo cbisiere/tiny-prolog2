@@ -4,7 +4,7 @@
 {   File        : Crt2.pas                                                   }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022-2025                                                  }
+{   Updated     : 2022-2026                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -392,10 +392,10 @@ End;
 { write a char; this breaks WhereX if the char is multibyte }
 Procedure CrtWrite( cc : TChar );
 Begin
-  CrtTrace('Write(''' + cc.Bytes + ''')');
-  Write(cc.Bytes);
+  CrtTrace('Write ' + TCharToDebugShortString(cc));
+  Write(TCharGetBytes(cc));
   CrtTrace('');
-  CrtSetBroken(WhereY,CrtIsBroken(WhereY) Or IsMultibyte(cc))
+  CrtSetBroken(WhereY,CrtIsBroken(WhereY) Or TCharIsMultibyte(cc))
 End;
 
 
@@ -410,16 +410,16 @@ End;
  taking a single screen "column" }
 Function CrtCharWrapSize( cc : TChar ) : Byte;
 Begin
-  If cc.Bytes = #09 Then
+  If TCharIs(cc,#09) Then
     CrtCharWrapSize := CrtTabSize + 1 { weird, but this is what I observe }
   Else
-    CrtCharWrapSize := Length(cc.Bytes)
+    CrtCharWrapSize := TCharGetLength(cc)
 End;
 
 { number of columns the char takes on the screen }
 Function CrtCharWidthOnScreen( cc : TChar ) : Byte;
 Begin
-  If cc.Bytes = #09 Then
+  If TCharIs(cc,#09) Then
     CrtCharWidthOnScreen := CrtTabSize + 1 { weird, see above }
   Else
     CrtCharWidthOnScreen := 1
@@ -446,12 +446,12 @@ End;
  number of bytes (minus 1) of all the chars left of cursor }
 
 { write a char on screen, breaking the line when the screen is full or when
- the char itself if NewLine; remember that the input subsystem replaces CR, LF, 
- and CRLF with (NewLine) (LF), so CR should only appear when we add it 
+ the char itself if EOL; remember that the input subsystem replaces CR, LF, 
+ and CRLF with EOL (that is, LF), so CR should only appear when we add it 
  ourselves, which we avoid doing }
 Procedure CrtWriteChar( cc : TChar );
 Begin
-  If cc.Bytes = NewLine Then
+  If TCharIsEol(cc) Then
     CrtWriteln
   Else
   Begin
@@ -469,7 +469,7 @@ Var
 Begin
   For i := 1 to Length(s) Do
   Begin
-    ASCIIChar(cc,s[i]);
+    TCharSetFromAscii(cc,s[i]);
     CrtWriteChar(cc)
   End
 End;

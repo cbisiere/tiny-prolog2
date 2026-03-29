@@ -4,7 +4,7 @@
 {   File        : Init.pas                                                   }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022,2023,2024                                             }
+{   Updated     : 2022-2026                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -44,7 +44,7 @@ Const
   StartFile : TStartFile = ('PIIv1','PII','PIIp','E'); { must be ASCII only }
 
 Const
-  DEFAULT_PROLOG_SYNTAX : TSyntax = PrologII;
+  DEFAULT_PROLOG_SYNTAX : TSyntax = PrologIIv2;
 
 
 { parse the command line parameters }
@@ -72,7 +72,7 @@ Begin
       KnownPar := False;
       Delete(par,1,1);
       { syntax, e.g. '-PII' }
-      For y := PrologIIc To Edinburgh Do
+      For y := PrologIIv1 To Edinburgh Do
       Begin
         If StartFile[y] = par Then
         Begin
@@ -136,7 +136,7 @@ Begin
     If EndsWith(Filename,'.pl') Then
       Syntax := Edinburgh
     Else
-    For y := PrologIIc To Edinburgh Do
+    For y := PrologIIv1 To Edinburgh Do
       If EndsWith(Filename,'.' + FileExt[y]) Then
         Syntax := y
   End
@@ -191,7 +191,8 @@ Begin
   { load the user file }
   If Not Error And HasUserFilePar Then
   Begin
-    StrUserFilename := Str_NewFromBytes(UserFilename,GetSystemCEncoding);
+    StrUserFilename := Str_NewFromBytes(UserFilename,
+        GetSystemEncoding,GetSystemEolStyle);
     AddGCRoot(TObjectPtr(StrUserFilename)); { protect this string from GC }
     LoadUserFile(P,StrUserFilename)
   End;

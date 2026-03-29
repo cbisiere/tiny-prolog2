@@ -4,7 +4,7 @@
 {   File        : PObjDef.pas                                                }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022,2023,2024                                             }
+{   Updated     : 2022-2026                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -39,10 +39,10 @@ Uses
 Type 
   TILevel = Integer; { file insertion level (0 is command line) }
   TSyntax = (
-    PrologIIc,  { Prolog II version 1 (with constraints) }
-    PrologII,   { Prolog II version 2 }
-    PrologIIp,  { Prolog II+ Marseille syntax }
-    Edinburgh   { Prolog II+ Edinburgh syntax }
+    PrologIIv1,  { Prolog II version 1 (with constraints) }
+    PrologIIv2,  { Prolog II version 2 (predicates in English) }
+    PrologIIp,   { Prolog II+ Marseille syntax }
+    Edinburgh    { Prolog II+ Edinburgh syntax }
   );
 
 Type 

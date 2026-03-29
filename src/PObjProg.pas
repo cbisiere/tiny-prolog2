@@ -4,7 +4,7 @@
 {   File        : PObjProg.pas                                               }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022,2023,2024                                             }
+{   Updated     : 2022-2026                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -22,6 +22,7 @@ Uses
   Num,
   Errs,
   Files,
+  CLI,
   CWrites,
   Memory,
   PObj,
@@ -60,6 +61,10 @@ Const
     (Base:'Base';Supervisor:'Supervisor';User:'Normal')
   );
 
+Function LineContinuation( y : TSyntax ) : TLineContinuation;
+Function DefaultLineWidth( y : TSyntax ) : TLineWidth;
+Function MaximumLineWidth( y : TSyntax ) : TLineWidth;
+
 Function Prog_New( y : TSyntax ) : ProgPtr;
 
 Procedure SetEcho( P : ProgPtr; state : Boolean );
@@ -74,6 +79,10 @@ Function GetDebugStream( P : ProgPtr ) : StreamPtr;
 Function BufferAlias( y : TSyntax ) : TAlias;
 Function ConsoleAlias( y : TSyntax ) : TAlias;
 
+Function CreateNewStream( P : ProgPtr; Alias : TAlias; Path : TPath; 
+    Dev : TIODeviceType; Mode : TStreamMode; 
+    Locked, WithDesc : Boolean ) : StreamPtr;
+
 Function CurrentInput( P : ProgPtr ) : StreamPtr;
 Function CurrentOutput( P : ProgPtr ) : StreamPtr;
 Function OutputIsConsole( P : ProgPtr ) : Boolean;
@@ -84,11 +93,15 @@ Function GetStreamByPath( P : ProgPtr; Path : TPath ) : StreamPtr;
 Function GetStreamByMode( P : ProgPtr; Mode : TStreamMode ) : StreamPtr;
 Function GetStreamByDescriptor( P : ProgPtr; 
     Desc : TFileDescriptor ) : StreamPtr;
+Function GetStreamByDescriptorAndMode( P : ProgPtr; 
+    Desc : TFileDescriptor; Mode : TStreamMode ) : StreamPtr;
 Function GetStreamByAlias( P : ProgPtr; Alias : TAlias ) : StreamPtr;
-Procedure CloseAndDeleteStream( P : ProgPtr; f : StreamPtr );
+Function GetStreamByAliasAndMode( P : ProgPtr; Alias : TAlias; 
+    Mode : TStreamMode ) : StreamPtr;
+Procedure CloseStream( P : ProgPtr; f : StreamPtr );
 Procedure PushStream( P : ProgPtr; f : StreamPtr );
 Procedure SetStreamAsCurrent( P : ProgPtr; f : StreamPtr );
-Procedure DeleteTopBuffer( P : ProgPtr );
+Procedure CloseTopBuffer( P : ProgPtr );
 Procedure ResetIO( P : ProgPtr );
 Procedure ReadFromConsole( P : ProgPtr );
 
@@ -145,12 +158,40 @@ Implementation
 { helpers                                                               }
 {-----------------------------------------------------------------------}
 
-{ return the alias for a buffer }
+{ return the line continuation style under Prolog syntax y }
+Function LineContinuation( y : TSyntax ) : TLineContinuation;
+Begin
+  If y In [PrologIIv1,PrologIIv2] Then 
+    LineContinuation := CONT_NONE
+  Else
+    LineContinuation := CONT_BACKSLASH { PII+ p.131 }
+End;
+
+{ return the default output line width under Prolog syntax y }
+Function DefaultLineWidth( y : TSyntax ) : TLineWidth;
+Begin
+  If y In [PrologIIv1,PrologIIv2] Then 
+    DefaultLineWidth := 72 { PIIv1 p. 8 }
+  Else
+    DefaultLineWidth := 80 { PII+ p. R 5 - 13, p.135 }
+End;
+
+{ return the maximum line width under Prolog syntax y }
+Function MaximumLineWidth( y : TSyntax ) : TLineWidth;
+Begin
+  If y In [PrologIIv1,PrologIIv2] Then 
+    MaximumLineWidth := 128 { PIIv1 p. 8 }
+  Else
+    MaximumLineWidth := 400 { PII+ p. R 5 - 13, p.135 }
+End;
+
+{ return the alias for a buffer; all buffers in the stack have the same alias,
+ so primitive like output("buffer") will always select the top buffer }
 Function BufferAlias( y : TSyntax ) : TAlias;
 Var
   ShortAlias : TString;
 Begin
-  If y = PrologIIc Then
+  If y = PrologIIv1 Then
     ShortAlias := 'tampon'
   Else
     ShortAlias := 'buffer';
@@ -163,24 +204,20 @@ Begin
   ConsoleAlias := Str_NewFromShortString('console')
 End;
 
-
-{ create the default streams for a Prolog engine using syntax y }
+{ create the default streams for a Prolog engine using syntax y; no default
+ buffer is needed, see examples in PIIv1 doc p7 and pIIv2 doc p150 }
 Function CreateDefaultStreams( y : TSyntax ) : StreamPtr;
 Var 
-  f,f2,f3 : StreamPtr;
+  f,f2 : StreamPtr;
+  Width : TLineWidth;
 Begin
   f := Nil;
+  Width := DefaultLineWidth(y);
   { top read: default input }
-  f := Stream_NewConsole(ConsoleAlias(y),MODE_READ);
+  f := Stream_NewConsole(ConsoleAlias(y),MODE_READ,Width);
   { top write: default output }
-  f2 := Stream_NewConsole(ConsoleAlias(y),MODE_WRITE); 
+  f2 := Stream_NewConsole(ConsoleAlias(y),MODE_WRITE,Width); 
   Streams_Chain(f,f2);
-  If y In [PrologII,PrologIIc] Then
-  Begin
-    { new-buffer not mandatory (TBC)}
-    f3 := Stream_NewBuffer(BufferAlias(y)); 
-    Streams_Chain(f2,f3)
-  End;
   CreateDefaultStreams := f
 End;
 
@@ -270,6 +307,18 @@ End;
 { streams                                                               }
 {-----------------------------------------------------------------------}
 
+{ create a new stream }
+Function CreateNewStream( P : ProgPtr; Alias : TAlias; Path : TPath; 
+    Dev : TIODeviceType; Mode : TStreamMode; 
+    Locked, WithDesc : Boolean ) : StreamPtr;
+Var
+  y : TSyntax;
+Begin
+  y := GetSyntax(P);
+  CreateNewStream := Stream_New(Alias,Path,Dev,Mode,Locked,WithDesc,
+      LineContinuation(y),DefaultLineWidth(y))
+End;
+
 { return the current input stream }
 Function CurrentInput( P : ProgPtr ) : StreamPtr;
 Begin
@@ -325,18 +374,33 @@ Begin
   GetStreamByAlias := Streams_LookupByAlias(P^.PP_FILE,Alias)
 End;
 
+{ return a stream having file descriptor Desc and mode Mode, or Nil }
+Function GetStreamByDescriptorAndMode( P : ProgPtr; 
+    Desc : TFileDescriptor; Mode : TStreamMode ) : StreamPtr;
+Begin
+  GetStreamByDescriptorAndMode := 
+      Streams_LookupByDescriptorAndMode(P^.PP_FILE,Desc,Mode)
+End;
+
+{ return a stream having alias Alias and mode Mode, or Nil }
+Function GetStreamByAliasAndMode( P : ProgPtr; Alias : TAlias; 
+    Mode : TStreamMode ) : StreamPtr;
+Begin
+  GetStreamByAliasAndMode := Streams_LookupByAliasAndMode(P^.PP_FILE,Alias,Mode)
+End;
+
 { push stream f (not yet in the stack) at the top of the stack }
 Procedure PushStream( P : ProgPtr; f : StreamPtr );
 Begin
   Streams_Push(P^.PP_FILE,f)
 End;
 
-{ close and remove a stream from the stack }
-Procedure CloseAndDeleteStream( P : ProgPtr; f : StreamPtr );
+{ remove a file or buffer stream from the stack }
+Procedure CloseStream( P : ProgPtr; f : StreamPtr );
 Begin
   CheckCondition(Not Stream_IsConsole(f),
-      'CloseAndDeleteStream: attempt to delete a console');
-  Stream_Close(f);
+      'CloseStream: attempt to delete a console');
+  Stream_CloseFile(f);
   Streams_Unchain(P^.PP_FILE,f)
 End;
 
@@ -347,26 +411,54 @@ Begin
 End;
 
 { delete the highest buffer in the stack }
-Procedure DeleteTopBuffer( P : ProgPtr );
+Procedure CloseTopBuffer( P : ProgPtr );
 Var
   f : StreamPtr;
 Begin
   f := Streams_LookupByDevice(P^.PP_FILE,DEV_BUFFER);
-  CheckCondition(f <> Nil,'DelBuffer: no buffer');
-  CloseAndDeleteStream(P,f)
+  CheckCondition(f <> Nil,'CloseTopBuffer: no buffer');
+  CloseStream(P,f)
 End;
 
-{ reset the program stream set }
+{ reset the program stream set, except the consoles to preserve 
+ persistent settings (line width) }
 Procedure ResetIO( P : ProgPtr );
+Var
+  f,fn : StreamPtr; { current stream, next stream }
 Begin
-  Streams_CloseAll(P^.PP_FILE);
-  P^.PP_FILE := CreateDefaultStreams(GetSyntax(P))
+  f := P^.PP_FILE;
+  while f <> Nil Do
+  Begin
+    fn := Streams_GetNext(f);
+    If Not Stream_IsConsole(f) Then
+      CloseStream(P,f);
+    f := fn
+  End
+End;
+
+{ set the prompt depending on the Prolog version }
+Procedure SetPrompt( P : ProgPtr );
+Var
+  Prompt : TString;
+Begin
+  Case GetSyntax(P) Of
+  PrologIIv1:
+    Prompt := 'c> ';
+  PrologIIv2:
+    Prompt := '> ';
+  PrologIIp:
+    Prompt := '+> ';
+  Edinburgh:
+    Prompt := '?- ';
+  End;
+  CLISetPrompt(Prompt)
 End;
 
 { read a line from the keyboard; meant to be called from the REPL to read new
  goals to clear, typed by the user after a Prolog prompt }
 Procedure ReadFromConsole( P : ProgPtr );
 Begin
+  SetPrompt(P);
   Stream_ReadLineFromKeyboard(GetInputConsole(P))
 End;
 

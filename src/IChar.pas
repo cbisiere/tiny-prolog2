@@ -4,7 +4,7 @@
 {   File        : IChar.pas                                                  }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2023                                                       }
+{   Updated     : 2022-2026                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -13,7 +13,7 @@
 {----------------------------------------------------------------------------}
 {$I define.inc }
 
-{ multi-byte characters, with line number and character position tracing }
+{ multi-byte characters, with line number and character position tracking }
 
 {
   ASSUMPTIONS AND LIMITS:
@@ -31,15 +31,11 @@ Interface
 
 Uses
   Chars,
-  Common;
-
-Const
-  { code for 'end of input' (ASCII SUB / Ctrl-Z); 
-   this character is returned from various functions when input is exhausted  
-   (Eof for files, Eol for keyboard input); it is also honored when present   
-   in the input 
-   see: https://en.wikipedia.org/wiki/Substitute_character }
-  EndOfInput = #$1A;                       
+  Common,
+  ShortStr,
+  Num,
+  Errs,
+  Trace;
 
 { basic types }
 Type 
@@ -54,75 +50,123 @@ Type
     Pos : TCharPos { position in the current line }
   End;
 
-Function IsTab( e : TIChar ) : Boolean;
-Function IsEol( e : TIChar ) : Boolean;
-Function IsChar( e : TIChar; cc : TChar ) : Boolean;
+Function TICharGetEncoding( e : TIChar ) : TEncoding;
+Function TICharGetByte( e : TIChar; i : TCharByteIndex ) : Char;
+Function TICharGetLength( e : TIChar ) : TCharByteIndex;
+Function TICharIs( e : TIChar; b : TCharBytes ) : Boolean;
+Function TICharIsSoftMark( e : TIChar ) : Boolean;
+Function TICharIsIn( e : TIChar; EE : CharSet ) : Boolean;
+Function TICharIsTab( e : TIChar ) : Boolean;
+Function TICharIsEndOfInput( e : TIChar ) : Boolean;
+Function TICharIsEol( e : TIChar ) : Boolean;
+Function TICharIsSpace( e : TIChar ) : Boolean;
 
-Procedure SetICharVal( Var e : TIChar; v : TChar );
-Procedure SetICharPos( Var e : TIChar; line : TLineNum; col : TCharPos );
-Procedure SetIChar( Var e : TIChar; v : TChar; line : TLineNum; col : TCharPos );
-Procedure SwapIChar( Var e1,e2 : TIChar );
+Procedure TICharSetChar( Var e : TIChar; v : TChar );
+Procedure TICharSetPos( Var e : TIChar; line : TLineNum; col : TCharPos );
+Procedure TICharSet( Var e : TIChar; v : TChar; line : TLineNum; col : TCharPos );
+Procedure TICharSwap( Var e1,e2 : TIChar );
+Function TICharToCodePoint( e : TIChar; Var cp : TCodePoint ) : Boolean;
 
-Procedure SetICharPosFrom( Var e : TIChar; e1 : TIChar );
-Procedure SetICharPosFromNext( Var e : TIChar; n : TIChar );
-Procedure SetICharPosFromPrev( Var e : TIChar; p : TIChar );
+Procedure TICharSetPosFrom( Var e : TIChar; e1 : TIChar );
+Procedure TICharSetPosFromNext( Var e : TIChar; n : TIChar );
+Procedure TICharSetPosFromPrev( Var e : TIChar; p : TIChar );
+
+Function TICharToDebugShortString( e : TIChar ) : TString;
+Procedure TICharDump( e : TIChar );
 
 Implementation
 
 
 {----------------------------------------------------------------------------}
-{ char test/set                                                              }
+{ get/test                                                                   }
 {----------------------------------------------------------------------------}
 
-{ true if character e is a tab }
-Function IsTab( e : TIChar ) : Boolean;
+{ get encoding }
+Function TICharGetEncoding( e : TIChar ) : TEncoding;
 Begin
-  IsTab := e.Val.Bytes = #09
+  TICharGetEncoding := TCharGetEncoding(e.Val)
 End;
 
-{ true if character e is an end of line }
-Function IsEol( e : TIChar ) : Boolean;
+{ get byte number i }
+Function TICharGetByte( e : TIChar; i : TCharByteIndex ) : Char;
 Begin
-  IsEol := e.Val.Bytes = NewLine
+  TICharGetByte := TCharGetByte(e.Val,i)
 End;
 
-{ true if character e is an end of input }
-Function IsEndOfInput( e : TIChar ) : Boolean;
+{ number of bytes in a character }
+Function TICharGetLength( e : TIChar ) : TCharByteIndex;
 Begin
-  IsEndOfInput := e.Val.Bytes = EndOfInput
-End;
-
-{ set a character to Eol }
-Procedure SetToEol( Var e : TIChar );
-Begin
-  e.Val.Bytes := NewLine
-End;
-
-{ set a character to Eof }
-Procedure SetToEndOfInput( Var e : TIChar );
-Begin
-  e.Val.Bytes := EndOfInput
+  TICharGetLength := TCharGetLength(e.Val)
 End;
 
 { test the char part }
-Function IsChar( e : TIChar; cc : TChar ) : Boolean;
+Function TICharIs( e : TIChar; b : TCharBytes ) : Boolean;
 Begin
-  IsChar := e.Val.Bytes = cc.Bytes
+  TICharIs := TCharIs(e.Val,b)
 End;
 
+{ true if e is a soft mark }
+Function TICharIsSoftMark( e : TIChar ) : Boolean;
+Begin
+  TICharIsSoftMark := TCharIsSoftMark(e.Val)
+End;
+
+{ true if character e in in char set EE }
+Function TICharIsIn( e : TIChar; EE : CharSet ) : Boolean;
+Begin
+  TICharIsIn := TCharIsIn(e.Val,EE)
+End;
+
+{ true if character e is a tab }
+Function TICharIsTab( e : TIChar ) : Boolean;
+Begin
+  TICharIsTab := TCharIs(e.Val,#09)
+End;
+
+{ true if character e is an end of input mark }
+Function TICharIsEndOfInput( e : TIChar ) : Boolean;
+Begin
+  TICharIsEndOfInput := TCharIsEndOfInput(e.Val)
+End;
+
+{ true if character e is an end of line }
+Function TICharIsEol( e : TIChar ) : Boolean;
+Begin
+  TICharIsEol := TCharIsEol(e.Val)
+End;
+
+{ true if character e is a space character }
+Function TICharIsSpace( e : TIChar ) : Boolean;
+Begin
+  TICharIsSpace := TCharIsSpace(e.Val)
+End;
+
+
 {----------------------------------------------------------------------------}
-{ basic set functions                                                        }
+{ set                                                                        }
 {----------------------------------------------------------------------------}
 
+{ set a character to Eol }
+Procedure TICharSetToEol( Var e : TIChar );
+Begin
+  e.Val := CC_END_OF_LINE
+End;
+
+{ set a character to Eof }
+Procedure TICharSetToEndOfInput( Var e : TIChar );
+Begin
+  e.Val := CC_END_OF_INPUT
+End;
+
 { set a character's value }
-Procedure SetICharVal( Var e : TIChar; v : TChar );
+Procedure TICharSetChar( Var e : TIChar; v : TChar );
 Begin
   With e Do
     Val := v
 End;
 
 { set a character's position }
-Procedure SetICharPos( Var e : TIChar; line : TLineNum; col : TCharPos );
+Procedure TICharSetPos( Var e : TIChar; line : TLineNum; col : TCharPos );
 Begin
   With e Do
   Begin
@@ -132,15 +176,15 @@ Begin
 End;
 
 { set a character }
-Procedure SetIChar( Var e : TIChar; v : TChar; line : TLineNum; 
+Procedure TICharSet( Var e : TIChar; v : TChar; line : TLineNum; 
     col : TCharPos );
 Begin
-  SetICharVal(e,v);
-  SetICharPos(e,line,col)
+  TICharSetChar(e,v);
+  TICharSetPos(e,line,col)
 End;
 
 { swap two characters }
-Procedure SwapIChar( Var e1,e2 : TIChar );
+Procedure TICharSwap( Var e1,e2 : TIChar );
 Var
   tmp : TIChar;
 Begin
@@ -149,40 +193,64 @@ Begin
   e2 := tmp
 End;
 
+Function TICharToCodePoint( e : TIChar; Var cp : TCodePoint ) : Boolean;
+Begin
+  TICharToCodePoint := TCharToCodePoint(e.Val,cp)
+End;
 
 {----------------------------------------------------------------------------}
 { position calculation                                                       }
 {----------------------------------------------------------------------------}
 
 { set a character's position from another character }
-Procedure SetICharPosFrom( Var e : TIChar; e1 : TIChar );
+Procedure TICharSetPosFrom( Var e : TIChar; e1 : TIChar );
 Begin
-  SetICharPos(e,e1.Lnb,e1.Pos)
+  TICharSetPos(e,e1.Lnb,e1.Pos)
 End;
 
-{ set a character's position based on the previous character }
-Procedure SetICharPosFromPrev( Var e : TIChar; p : TIChar );
+{ set a character's position based on the previous character; note that EOF is
+ treated as a regular character, one position after the last character of the 
+ stream }
+Procedure TICharSetPosFromPrev( Var e : TIChar; p : TIChar );
 Begin
-  If IsEndOfInput(p) Or IsEndOfInput(e) Then
-    SetICharPos(e,p.Lnb,p.Pos)
-  Else If IsEol(p) Then { first char after a new line }
-    SetICharPos(e,p.Lnb+1,1)
+  CheckCondition(Not TICharIsEndOfInput(p),
+      'TICharSetPosFromPrev: prev is EOF');
+  If TICharIsEol(p) Then { first char after a new line }
+    TICharSetPos(e,p.Lnb+1,1)
   Else { new char in the same input line }
-    SetICharPos(e,p.Lnb,p.Pos+1)
+    TICharSetPos(e,p.Lnb,p.Pos+1)
 End;
 
 { set a character's position based on the next character; this procedure is 
- meant to be called when prepending a char, otherwise, if that char is a 
- NewLine, its position will be  wrong (and set to 1) as we do not know the 
- length of the line this NewLine is the end of }
-Procedure SetICharPosFromNext( Var e : TIChar; n : TIChar );
+ meant to be called when prepending a char, otherwise, if that char is  
+ EOL, its position will be  wrong (and set to 1) as we do not know the 
+ length of the line this EOL is the end of; note that EOF is treated as a 
+ regular character, one position after the last character of the stream }
+Procedure TICharSetPosFromNext( Var e : TIChar; n : TIChar );
 Begin
-  If IsEndOfInput(n) Or IsEndOfInput(e) Then
-    SetICharPos(e,n.Lnb,n.Pos)
-  Else If IsEol(e) Then
-    SetICharPos(e,n.Lnb-1,1) { Pos=1 may be wrong, but we do not have enough info }
+  CheckCondition(Not TICharIsEndOfInput(e),
+      'TICharSetPosFromNext: char is EOF');
+  If TICharIsEol(e) Then
+    TICharSetPos(e,n.Lnb-1,1) { Pos=1 may be wrong, but we do not have enough info }
   Else 
-    SetICharPos(e,n.Lnb,n.Pos-1) { previous char in the same input line }
+    TICharSetPos(e,n.Lnb,n.Pos-1) { previous char in the same input line }
+End;
+
+{----------------------------------------------------------------------------}
+{ Debug                                                                      }
+{----------------------------------------------------------------------------}
+
+{ dump the content of char e }
+Function TICharToDebugShortString( e : TIChar ) : TString;
+Begin
+  TICharToDebugShortString := PosIntToShortString(e.Lnb) + ':' + 
+      PosIntToShortString(e.Pos) + ':' + TCharToDebugShortString(e.Val)
+End;
+
+{ dump the content of char e }
+Procedure TICharDump( e : TIChar );
+Begin
+  WriteToTraceFile(TICharToDebugShortString(e))
 End;
 
 End.

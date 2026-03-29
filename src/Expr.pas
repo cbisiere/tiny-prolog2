@@ -4,7 +4,7 @@
 {   File        : Expr.pas                                                   }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022,2023,2024                                             }
+{   Updated     : 2022-2026                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -442,8 +442,8 @@ Begin
             r := Ord(ParVal[1].Val >= ParVal[2].Val); { TODO: order on strings, etc.}
             IsInt := True
           End
-          Else If ((func = 'eq') And (y = PrologIIc) 
-              Or (func = 'eql') And (y <> PrologIIc)) 
+          Else If ((func = 'eq') And (y = PrologIIv1) 
+              Or (func = 'eql') And (y <> PrologIIv1)) 
               And (n = 2) Then { PII+ p.110: automatic type conversion }
           Begin
             r := Ord(ParVal[1].Val = ParVal[2].Val);

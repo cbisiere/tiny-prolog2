@@ -4,7 +4,7 @@
 {   File        : Encoding.pas                                               }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022,2023,2024                                             }
+{   Updated     : 2022-2026                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -239,7 +239,7 @@ Var
   Th,Tq : TermPtr;
 Begin
   ListToStr := Nil;
-  s := Str_New(UNDECIDED);
+  s := Str_New(ENC_UNDECIDED);
   While Not IsNil(T) Do
   Begin
     If Not ProtectedGetList(T,Th,Tq,True) Then

@@ -4,7 +4,7 @@
 {   File        : Unparse.pas                                                }
 {   Author      : Christophe Bisiere                                         }
 {   Date        : 1988-01-07                                                 }
-{   Updated     : 2022,2023,2024                                             }
+{   Updated     : 2022-2026                                                  }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -45,23 +45,24 @@ Uses
   Tuple,
   Encoding;
 
-Procedure OutString( f : StreamPtr; s : StrPtr );
-Procedure OutlnString( f : StreamPtr; s : StrPtr );
-Procedure Outln( f : StreamPtr );
-Procedure OutConst( f : StreamPtr; C : ConstPtr );
-Procedure OutIdentifier( f : StreamPtr; I : IdPtr );
-Procedure OutVarName( f : StreamPtr; V : VarPtr );
-Procedure OutOneEquation( f : StreamPtr; y : TSyntax; E : EqPtr );
-Procedure OutQuerySolution( f : StreamPtr; Q : QueryPtr );
-Procedure OutTermBis( f : StreamPtr; y : TSyntax; T : TermPtr; 
-    ArgList,Quotes : Boolean );
-Procedure OutTerm( f : StreamPtr; y : TSyntax; T : TermPtr );
-Procedure OutOneRule( f : StreamPtr; R : RulePtr );
-Procedure OutOneQuery( f : StreamPtr; Q : QueryPtr );
-Procedure OutOneComment( f : StreamPtr; C : CommPtr );
-Procedure OutTraceMessage( f : StreamPtr; y : TSyntax; Tag : TString;
+{ write, ignoring the line width system }
+Procedure PutConst( f : StreamPtr; y : TSyntax; C : ConstPtr );
+Procedure PutIdentifier( f : StreamPtr; y : TSyntax; I : IdPtr );
+Procedure PutVarName( f : StreamPtr; y : TSyntax; V : VarPtr );
+Procedure PutTerm( f : StreamPtr; y : TSyntax; T : TermPtr );
+Procedure PutOneEquation( f : StreamPtr; y : TSyntax; E : EqPtr );
+Procedure PutQuerySolution( f : StreamPtr; y : TSyntax; Q : QueryPtr );
+Procedure PutOneRule( f : StreamPtr; y : TSyntax; R : RulePtr );
+Procedure PutOneQuery( f : StreamPtr; y : TSyntax; Q : QueryPtr );
+Procedure PutOneComment( f : StreamPtr; y : TSyntax; C : CommPtr );
+Procedure PutTraceMessage( f : StreamPtr; y : TSyntax; Tag : TString;
     Depth : LongInt; Branch : Longint; ClearT : TermPtr );
 
+{ write, using the line width system }
+Procedure OutTerm( f : StreamPtr; y : TSyntax; T : TermPtr );
+Procedure OutTermUnquoted( f : StreamPtr; y : TSyntax; T : TermPtr );
+
+{ debug }
 Procedure DumpSystemFromDict( DV : DictPtr );
 
 Implementation
@@ -78,11 +79,14 @@ Type
   End;
 Const
   OSyntax : TOSyntaxElement = (
-    (RuleArrow:' ->';GoalArrow:'';RuleEnd:';';QueryStart:'->';QueryEnd:';'),
-    (RuleArrow:' ->';GoalArrow:'';RuleEnd:';';QueryStart:'->';QueryEnd:';'),
-    (RuleArrow:' ->';GoalArrow:'';RuleEnd:';';QueryStart:'->';QueryEnd:';'),
-    (RuleArrow:'';GoalArrow:' :-';RuleEnd:'.';QueryStart:':-';QueryEnd:'.')
+    (RuleArrow:'->';GoalArrow:'';RuleEnd:';';QueryStart:'->';QueryEnd:';'),
+    (RuleArrow:'->';GoalArrow:'';RuleEnd:';';QueryStart:'->';QueryEnd:';'),
+    (RuleArrow:'->';GoalArrow:'';RuleEnd:';';QueryStart:'->';QueryEnd:';'),
+    (RuleArrow:'';GoalArrow:':-';RuleEnd:'.';QueryStart:':-';QueryEnd:'.')
   );
+
+Var
+  CC_LINE_CONTINUATION : TChar; { backslash }
 
 {----------------------------------------------------------------------------}
 {                                                                            }
@@ -412,30 +416,173 @@ Begin
 End;
 
 {----------------------------------------------------------------------------}
-{ write                                                                      }
+{ formatter                                                                  }
 {----------------------------------------------------------------------------}
 
-Procedure WriteTermBis( y : TSyntax; s : StrPtr; T : TermPtr; 
-    InList,ArgList,Quotes : Boolean; 
-    Reduce : Boolean; g : TSerial; depth : PosInt ); Forward;
+{ to format a Prolog object properly, we first create a long string with soft
+ marks: 
+ - atom begin (with length as payload) (extended to arrows)
+ - top-level term begin and end (to generate left margin in PII when 
+   breaking a term) }
+
+{-----------------------------------------------------------------------}
+{ output a Prolog objects represented by a string containing soft marks }
+{-----------------------------------------------------------------------}
+
+{ output on a stream a string containing soft marks (e.g. line breaks), 
+ and also applying Prolog's formatting rules regarding line width; current 
+ cursor position is updated }
+Procedure OutFormatted( f : StreamPtr; y : TSyntax; sf : StrPtr );
+Var
+  Iter : StrIter;
+  cc : TChar;
+  InTopTerm, InAtom : Boolean;
+  ToAtomEnd : TSoftMarkPayload; { number of within-atom chars left }
+Begin
+  { initialize state }
+  InTopTerm := False;
+  InAtom := False;
+  ToAtomEnd := 0;
+  { loop over all characters or soft marks }
+  StrIter_ToStart(Iter,sf);
+  While StrIter_NextChar(Iter,cc) Do
+  Begin
+    If TCharIsSoftMark(cc) Then
+    Begin
+      Case TCharGetSoftMarkCode(cc) Of
+      SOFT_MARK_END_OF_LINE:
+        Begin
+          Stream_OutNewLine(f)
+        End;
+      SOFT_MARK_ATOM_BEGIN:
+        Begin
+          CheckCondition(Not InAtom,'Formatter: unclosed ATOM');
+          InAtom := True;
+          ToAtomEnd := TCharGetSoftMarkPayload(cc);
+          { PII: *try* not to break atoms }
+          If (y In [PrologIIv1,PrologIIv2]) And 
+              (ToAtomEnd > Stream_RemainingSpacesInLine(f)) Then 
+            Stream_OutNewLine(f)
+        End;
+      SOFT_MARK_TOP_TERM_BEGIN:
+        Begin
+          CheckCondition(Not InTopTerm,'Formatter: unclosed TERM');
+          InTopTerm := True
+        End;
+      SOFT_MARK_TOP_TERM_END:
+        Begin
+          CheckCondition(InTopTerm,'Formatter: unopened TERM');
+          InTopTerm := False
+        End;
+      End
+    End
+    Else { regular char (possibly a line break)}
+    Begin
+      If InAtom Then
+      Begin
+        If (y In [PrologIIv1,PrologIIv2]) Then
+        Begin
+          If Stream_RemainingSpacesInLine(f) > 0 Then { else: truncation }
+            Stream_OutChar(f,cc)
+        End
+        Else
+        Begin
+          { continuation; note that the number of spaces left might be zero if 
+           set_line_width/1 is shortened to a value lower than the length of 
+           the current line is }
+          If (Stream_RemainingSpacesInLine(f) <= 1) Then
+          Begin
+            Stream_OutChar(f,CC_LINE_CONTINUATION);
+            Stream_OutNewLine(f)
+          End;
+          Stream_OutChar(f,cc);
+        End;
+        { ok, one more atom char has been treated }
+        ToAtomEnd := ToAtomEnd - 1;
+        If ToAtomEnd = 0 Then
+          InAtom := False
+      End
+      Else
+      Begin
+        If Stream_RemainingSpacesInLine(f) = 0 Then { line is full }
+        Begin
+          Stream_OutNewLine(f);
+          If (y In [PrologIIv1,PrologIIv2]) And InTopTerm Then { PII left margin }
+            Stream_OutNChar(f,CC_BLANK_SPACE,3);
+        End;
+        Stream_OutChar(f,cc)
+      End
+    End
+  End
+End;
+
+{-----------------------------------------------------------------------}
+{ write Prolog objects: text                                            }
+{-----------------------------------------------------------------------}
+
+{ write Ascii characters (passed in a short string) }
+Procedure WriteShortString( s : StrPtr; v : TString );
+Begin
+  Str_Append(s,v)
+End;
+
+{ write a string (passed in a long string) }
+Procedure WriteString( s : StrPtr; s2 : StrPtr );
+Begin
+  Str_Concat(s,s2)
+End;
+
+{ write a line break (soft mark) }
+Procedure WriteLineBreak( s : StrPtr );
+Begin
+  Str_AppendLineBreak(s)
+End;
+
+{-----------------------------------------------------------------------}
+{ write Prolog objects: atoms                                           }
+{-----------------------------------------------------------------------}
+
+{ write an atom, preceded by a soft mark }
+Procedure WriteAtom( s : StrPtr; s2 : StrPtr );
+Var
+  cc : TChar;
+Begin
+  TCharSetSoftMark(cc,SOFT_MARK_ATOM_BEGIN,Str_Length(s2));
+  Str_AppendChar(s,cc);
+  WriteString(s,s2)
+End;
+
+{ write an atom passed as a short, applying Prolog's formatting rules }
+Procedure WriteAtomFromShortString( s : StrPtr; v : TString );
+Begin
+  WriteAtom(s,Str_NewFromShortString(v))
+End;
 
 { write the name of a user or temporary variable }
 Procedure WriteVarName( s : StrPtr; V : VarPtr );
 Begin
-  Str_Concat(s,GetVarNameAsStr(V))
+  WriteAtom(s,GetVarNameAsStr(V))
 End;
 
 { write a constant }
 Procedure WriteConst( s : StrPtr; C : ConstPtr; Quote : Boolean );
 Begin
-  Str_Concat(s,GetConstAsStr(C,Quote))
+  WriteAtom(s,GetConstAsStr(C,Quote))
 End;
 
 { write an identifier }
 Procedure WriteIdentifier( s : StrPtr; I : IdPtr; Quotes : Boolean );
 Begin
-  Str_Concat(s,GetIdentAsStr(I,Quotes))
+  WriteAtom(s,GetIdentAsStr(I,Quotes))
 End;
+
+{-----------------------------------------------------------------------}
+{ write Prolog objects: terms                                           }
+{-----------------------------------------------------------------------}
+
+Procedure WriteTermBis( y : TSyntax; s : StrPtr; T : TermPtr; 
+    InList,ArgList,Quotes : Boolean; 
+    Reduce : Boolean; g : TSerial; depth : PosInt ); Forward;
 
 { write a comma-separated list of arguments in tuple U }
 Procedure WriteArgument( y : TSyntax; s : StrPtr; U : TermPtr; 
@@ -448,7 +595,7 @@ Begin
   T := ProtectedGetTupleQueue(U,Reduce);
   If T <> Nil Then
   Begin
-    Str_Append(s,',');
+    WriteShortString(s,',');
     WriteArgument(y,s,T,Quotes,Reduce,g,depth)
   End
 End;
@@ -458,14 +605,14 @@ Procedure WriteTuple( y : TSyntax; s : StrPtr; U : TermPtr;
     Quotes : Boolean; Reduce : Boolean; g : TSerial; depth : PosInt );
 Begin
   If y = Edinburgh Then
-    Str_Append(s,'<>(')
+    WriteShortString(s,'<>(')
   Else
-    Str_Append(s,'<');
+    WriteShortString(s,'<');
   WriteArgument(y,s,U,Quotes,Reduce,g,depth);
   If y = Edinburgh Then
-    Str_Append(s,')')
+    WriteShortString(s,')')
   Else
-    Str_Append(s,'>')
+    WriteShortString(s,'>')
 End;
 
 { write a term, that could be within a list (InList), or an argument of a 
@@ -500,13 +647,18 @@ Begin
     { already seen and the string representation is available? just return it }
     If s2 <> Nil Then
     Begin
-      Str_Concat(s,s2)
+      WriteString(s,s2)
     End
     Else { seen but no display yet? that is an infinite loop we must break }
     Begin
+      { note: we assume that the parser is not supposed to be capable of 
+       reading infinite trees; this is not mentioned in PII doc (p8), but 
+       explicit in PII+ doc R 2 -11 (p65); we still treat the integer in this
+       notation as an atom, though, to be consistent with the way Prolog 
+       numerical constants are displayed }
       m := Term_GetDepth(T);
-      Str_Append(s,'*');
-      Str_Append(s,PosIntToShortString(depth-m))
+      WriteShortString(s,'*');
+      WriteAtomFromShortString(s,PosIntToShortString(depth-m))
     End
   End
   Else
@@ -538,9 +690,9 @@ Begin
     Begin
       If IsNil(T) Then
         If y = Edinburgh Then
-          Str_Append(s2,'[]')
+          WriteShortString(s2,'[]')
         Else
-          Str_Append(s2,'nil')
+          WriteAtomFromShortString(s2,'nil')
       Else
         WriteIdentifier(s2,IT,Quotes)
     End;
@@ -551,36 +703,36 @@ Begin
   FuncSymbol:
     Begin
       If IsEmptyTuple(T) Then
-        Str_Append(s2,'<>')
+        WriteShortString(s2,'<>')
       Else If ProtectedGetList(T,T1,T2,Reduce) Then { t is t1.t2 }
       Begin
         If ArgList Then 
-          Str_Append(s2,'(');
+          WriteShortString(s2,'(');
         If (y = Edinburgh) And (Not InList) Then
-          Str_Append(s2,'[');
+          WriteShortString(s2,'[');
         WriteTermBis(y,s2,T1,False,True,Quotes,Reduce,g,depth+1);
         If y <> Edinburgh Then { display as dotted list }
         Begin
-          Str_Append(s2,'.');
+          WriteShortString(s2,'.');
           WriteTermBis(y,s2,T2,True,False,Quotes,Reduce,g,depth+1)
         End
         Else If IsNil(T2) Then { t is t1.nil }
         Begin
-          Str_Append(s2,']')
+          WriteShortString(s2,']')
         End
         Else If ProtectedIsList(T2,Reduce) Then { t = t1.t2 where t2 is a list }
         Begin
-          Str_Append(s2,',');
+          WriteShortString(s2,',');
           WriteTermBis(y,s2,T2,True,False,Quotes,Reduce,g,depth+1)
         End
         Else { t = t1.t2 where t2 is a not list }
         Begin
-          Str_Append(s2,'|');
+          WriteShortString(s2,'|');
           WriteTermBis(y,s2,T2,False,False,Quotes,Reduce,g,depth+1);
-          Str_Append(s2,']')
+          WriteShortString(s2,']')
         End;
         If ArgList Then 
-          Str_Append(s2,')')
+          WriteShortString(s2,')')
       End
       Else { a non-empty tuple that is not a list }
       Begin 
@@ -590,9 +742,9 @@ Begin
             (Not IsNil(Th)) Then { <ident,a,b,...> == ident(a,b,...) }
         Begin
           WriteIdentifier(s2,ITh,Quotes);
-          Str_Append(s2,'(');
+          WriteShortString(s2,'(');
           WriteArgument(y,s2,Tq,Quotes,Reduce,g,depth+1);
-          Str_Append(s2, ')')
+          WriteShortString(s2, ')')
         End
         Else { <e> or <a,b,...> where a not an identifier or a is 'nil' }
         Begin
@@ -601,7 +753,7 @@ Begin
       End
     End
   End;
-  Str_Concat(s,s2);
+  WriteString(s,s2);
   Term_SetDisplay(T,s2)
 End;
 
@@ -623,6 +775,10 @@ Begin
   WriteTermBis(y,s,T,InList,ArgList,Quotes,Reduce,g,1)
 End;
 
+{-----------------------------------------------------------------------}
+{ write Prolog objects: high-level objects (rules, comments, solutions) }
+{-----------------------------------------------------------------------}
+
 { write a single equation or inequation }
 Procedure WriteOneEquation( y : TSyntax; s : StrPtr; E : EqPtr; 
     Reduce : Boolean );
@@ -630,11 +786,11 @@ Begin
   WriteTerm(y,s,Eq_GetLhs(E),False,False,True,Reduce);
   Case Eq_GetType(E) Of
   REL_EQUA:
-    Str_Append(s,'=');
+    WriteShortString(s,'=');
   REL_INEQ:
-    Str_Append(s,'#');
+    WriteShortString(s,'#');
   REL_FROZ:
-    Str_Append(s,'?'); { TODO: PII+ displays a list of frozen goals }
+    WriteShortString(s,'?'); { TODO: PII+ displays a list of frozen goals }
   End;
   WriteTerm(y,s,Eq_GetRhs(E),False,False,True,Reduce)
 End;
@@ -649,7 +805,7 @@ Begin
     If Not Eq_IsTrivial(E) Then
     Begin
       If Comma Then 
-        Str_Append(s,', ');
+        WriteShortString(s,', ');
       Comma := True;
       WriteOneEquation(y,s,E,False)
     End;
@@ -658,14 +814,15 @@ Begin
 End;
 
 { write a list of equations or inequations; source code only }
-Procedure WriteSystem( y : TSyntax; s : StrPtr; E : EqPtr; Backward : Boolean );
+Procedure WriteSystem( y : TSyntax; s : StrPtr; E : EqPtr; 
+    Backward : Boolean );
 Var 
   Comma : Boolean;
 Begin
   Comma := False;
-  Str_Append(s,'{ ');
+  WriteShortString(s,'{ ');
   WriteEquations(y,s,E,Comma,Backward);
-  Str_Append(s,' }')
+  WriteShortString(s,' }')
 End;
 
 { write a reduced system for a list of variables DV; if Curl then curly braces 
@@ -681,14 +838,21 @@ Begin
   Rest_Restore(L)
 End;
 
-{ write BTerm B (as part of a rule's queue or goals) }
+{ write BTerm B (as part of a rule's queue or goals), enclosed in soft marks }
 Procedure WriteOneBTerm( y : TSyntax; s : StrPtr; B : BTermPtr  );
+Var
+  cc : TChar;
 Begin
-  WriteTerm(y,s,BTerm_GetTerm(B),False,False,True,False)
+  TCharSetSoftMark(cc,SOFT_MARK_TOP_TERM_BEGIN,0);
+  Str_AppendChar(s,cc);
+  WriteTerm(y,s,BTerm_GetTerm(B),False,False,True,False);
+  TCharSetSoftMark(cc,SOFT_MARK_TOP_TERM_END,0);
+  Str_AppendChar(s,cc)
 End;
 
 { write a list of BTerms (rule's queue or goals) }
-Procedure WriteTerms( y : TSyntax; s : StrPtr; B : BTermPtr; sep : TString );
+Procedure WriteTerms( y : TSyntax; s : StrPtr; B : BTermPtr; 
+    LineBreak : Boolean; sep : TString );
 Var 
   First : Boolean;
   Procedure DoWriteTerms( B : BTermPtr );
@@ -698,8 +862,10 @@ Var
       If Not First Then
       Begin
         If y = Edinburgh Then
-          Str_Append(s,',');
-        Str_Append(s,sep)
+          WriteShortString(s,',');
+        If LineBreak Then
+          WriteLineBreak(s);
+        WriteShortString(s,sep)
       End;
       WriteOneBTerm(y,s,B);
       First := False;
@@ -711,53 +877,65 @@ Begin
   DoWriteTerms(B)
 End;
 
-{ write a single rule }
-Procedure WriteOneRule( s : StrPtr; R : RulePtr  );
+{ write a single rule, using its native Prolog syntax; we use 
+ WriteAtomFromShortString to avoid having a line break between the two 
+ characters of an arrow, as the parser would fail to read it back }
+Procedure WriteOneRule( y : TSyntax; s : StrPtr; R : RulePtr  );
 Var 
   B : BTermPtr;
-  prefix : TString;
-  y : TSyntax;
+  indent : TString;
 Begin
-  y := Rule_GetSyntax(R);
-  prefix := NewLine + '        ';
+  indent := '     ';
   B := Rule_GetHead(R);
   WriteOneBTerm(y,s,B);
-  Str_Append(s,OSyntax[y].RuleArrow);
+  If Length(OSyntax[y].RuleArrow) > 0 Then
+  Begin
+    WriteShortString(s,' ');
+    WriteAtomFromShortString(s,OSyntax[y].RuleArrow)
+  End;
   B := Rule_GetQueue(R);
   if B <> Nil Then
   Begin
-    Str_Append(s,OSyntax[y].GoalArrow);
-    Str_Append(s,prefix)
+    If Length(OSyntax[y].GoalArrow) > 0 Then
+    Begin
+      WriteShortString(s,' ');
+      WriteAtomFromShortString(s,OSyntax[y].GoalArrow)
+    End;
+    WriteLineBreak(s);
+    WriteShortString(s,indent)
   End;
-  WriteTerms(y,s,B,prefix);
+  WriteTerms(y,s,B,True,indent);
   If Rule_GetEqs(R) <> Nil Then
   Begin
-    Str_Append(s,', ');
+    WriteShortString(s,', ');
     WriteSystem(y,s,Rule_GetEqs(R),False)
   End;
-  Str_Append(s,OSyntax[y].RuleEnd)
+  WriteShortString(s,OSyntax[y].RuleEnd)
 End;
 
 { write a single comment }
-Procedure WriteOneComment( s : StrPtr; C : CommPtr );
+Procedure WriteOneComment( y : TSyntax; s : StrPtr; C : CommPtr );
 Begin
   WriteConst(s,Comment_GetConst(C),True)
 End;
 
-{ write a query }
-Procedure WriteOneQuery( s : StrPtr; Q : QueryPtr );
-Var
-  y : TSyntax;
+{ write a query; we use WriteAtomFromShortString to avoid having a line break 
+ between the two characters of an arrow, as the parser would fail to read it 
+ back }
+Procedure WriteOneQuery( y : TSyntax; s : StrPtr; Q : QueryPtr );
 Begin
-  y := Query_GetSyntax(Q);
-  Str_Append(s,OSyntax[y].QueryStart + ' ');
-  WriteTerms(y,s,Query_GetTerms(Q),' ');
+  If Length(OSyntax[y].QueryStart) > 0 Then
+  Begin
+    WriteAtomFromShortString(s,OSyntax[y].QueryStart);
+    WriteShortString(s,' ')
+  End;
+  WriteTerms(y,s,Query_GetTerms(Q),False,' ');
   If Query_GetSys(Q) <> Nil Then
   Begin
-    Str_Append(s,' ');
+    WriteShortString(s,' ');
     WriteSystem(y,s,Query_GetSys(Q),False)
   End;
-  Str_Append(s,OSyntax[y].QueryEnd);
+  WriteShortString(s,OSyntax[y ].QueryEnd)
 End;
 
 
@@ -765,145 +943,149 @@ End;
 { output using long strings                                                  }
 {----------------------------------------------------------------------------}
 
-{ write a string to stream f }
-Procedure OutString( f : StreamPtr; s : StrPtr );
-Begin
-  CheckCondition(f <> Nil,'OutString: Nil');
-  If Stream_IsConsole(f) Then
-    Str_CWrite(s)
-  Else
-    Stream_WriteStr(f,s)
-End;
+{ handles writing Prolog terms to screen or files, echo and trace files,  
+ preventing breaking multi-byte characters on screen; final line breaks are 
+ expected to be handled by callers }
 
-{ write a string followed by a carriage return; do not alter the
-  string passed as parameter }
-Procedure OutlnString( f : StreamPtr; s : StrPtr );
-Begin
-  CheckCondition(f <> Nil,'OutlnString: Nil');
-  If Stream_IsConsole(f) Then
-  Begin
-    Str_CWrite(s);
-    CWriteLn
-  End
-  Else
-    Stream_WriteLnStr(f,s)
-End;
+{-----------------------------------------------------------------------}
+{ "put": write, ignoring the line width system                          }
+{-----------------------------------------------------------------------}
 
-{ line }
-Procedure Outln( f : StreamPtr );
-Var 
-  s : StrPtr;
-Begin
-  s := Stream_NewStr(f);
-  OutlnString(f,s)
-End;
+{ these write functions ignore the line width system, as for now we impose 
+ no requirement to be able to read the output back using in/1 and friends }
 
-Procedure OutConst( f : StreamPtr; C : ConstPtr );
+{ print one constant (debugging) }
+Procedure PutConst( f : StreamPtr; y : TSyntax; C : ConstPtr );
 Var 
   s : StrPtr;
 Begin
   s := Stream_NewStr(f);
   WriteConst(s,C,True); { with quotes }
-  OutString(f,s)
+  Stream_WriteLongString(f,s)
 End;
 
-Procedure OutIdentifier( f : StreamPtr; I : IdPtr );
+{ print one identifier (debugging) }
+Procedure PutIdentifier( f : StreamPtr; y : TSyntax; I : IdPtr );
 Var 
   s : StrPtr;
 Begin
   s := Stream_NewStr(f);
   WriteIdentifier(s,I,True);
-  OutString(f,s)
+  Stream_WriteLongString(f,s)
 End;
 
-Procedure OutVarName( f : StreamPtr; V : VarPtr );
+{ print one variable name (debugging) }
+Procedure PutVarName( f : StreamPtr; y : TSyntax; V : VarPtr );
 Var 
   s : StrPtr;
 Begin
   s := Stream_NewStr(f);
   WriteVarName(s,V);
-  OutString(f,s)
+  Stream_WriteLongString(f,s)
+End;
+
+{ output a term }
+Procedure PutTerm( f : StreamPtr; y : TSyntax; T : TermPtr );
+Var 
+  s : StrPtr;
+Begin
+  s := Stream_NewStr(f);
+  WriteTerm(y,s,T,False,False,True,True);
+  Stream_WriteLongString(f,s)
 End;
 
 { print one equation (debugging) }
-Procedure OutOneEquation( f : StreamPtr; y : TSyntax; E : EqPtr );
+Procedure PutOneEquation( f : StreamPtr; y : TSyntax; E : EqPtr );
 Var 
   s : StrPtr;
 Begin
   s := Stream_NewStr(f);
   WriteOneEquation(y,s,E,False); { source code }
-  OutString(f,s)
+  Stream_WriteLongString(f,s)
 End;
 
-{ output the reduced system for the variables in the current query }
-Procedure OutQuerySolution( f : StreamPtr; Q : QueryPtr );
+{ output the reduced system for the variables in the current query (engine) }
+Procedure PutQuerySolution( f : StreamPtr; y : TSyntax; Q : QueryPtr );
 Var
   s : StrPtr;
 Begin
   s := Stream_NewStr(f);
-  WriteSolution(Query_GetSyntax(Q),s,Query_GetDict(Q));
-  OutString(f,s)
+  WriteSolution(y,s,Query_GetDict(Q));
+  Stream_WriteLongString(f,s)
 End;
 
-{ output a term that is not an argument of a predicate, using the reduced 
- system }
-Procedure OutTermBis( f : StreamPtr; y : TSyntax; T : TermPtr; 
-    ArgList,Quotes : Boolean );
+{ write one rule, using its native syntax (list/1) }
+Procedure PutOneRule( f : StreamPtr; y : TSyntax; R : RulePtr );
 Var 
   s : StrPtr;
 Begin
   s := Stream_NewStr(f);
-  WriteTerm(y,s,T,False,ArgList,Quotes,True);
-  OutString(f,s)
+  WriteOneRule(Rule_GetSyntax(R),s,R);
+  Stream_WriteLongString(f,s)
 End;
 
-{ output a term }
-Procedure OutTerm( f : StreamPtr; y : TSyntax; T : TermPtr );
-Begin
-  OutTermBis(f,y,T,False,True)
-End;
-
-Procedure OutOneRule( f : StreamPtr; R : RulePtr );
+{ write one query, using its native syntax }
+Procedure PutOneQuery( f : StreamPtr; y : TSyntax; Q : QueryPtr );
 Var 
   s : StrPtr;
 Begin
   s := Stream_NewStr(f);
-  WriteOneRule(s,R);
-  OutlnString(f,s)
+  WriteOneQuery(Query_GetSyntax(Q),s,Q);
+  Stream_WriteLongString(f,s)
 End;
 
-Procedure OutOneQuery( f : StreamPtr; Q : QueryPtr );
+{ write one comment (list/1) }
+Procedure PutOneComment( f : StreamPtr; y : TSyntax; C : CommPtr );
 Var 
   s : StrPtr;
 Begin
   s := Stream_NewStr(f);
-  WriteOneQuery(s,Q);
-  OutlnString(f,s)
+  WriteOneComment(y,s,C);
+  Stream_WriteLongString(f,s)
 End;
 
-Procedure OutOneComment( f : StreamPtr; C : CommPtr );
-Var 
-  s : StrPtr;
-Begin
-  s := Stream_NewStr(f);
-  WriteOneComment(s,C);
-  OutlnString(f,s)
-End;
-
-Procedure OutTraceMessage( f : StreamPtr; y : TSyntax; Tag : TString; 
+{ write a trace message (engine) }
+Procedure PutTraceMessage( f : StreamPtr; y : TSyntax; Tag : TString; 
     Depth : LongInt; Branch : Longint; ClearT : TermPtr );
 Var
   s : StrPtr;
 Begin
   s := Stream_NewStr(f);
-  Str_Append(s,Tag);
-  Str_Append(s,': (');
-  Str_Append(s,LongIntToShortString(Depth));
-  Str_Append(s,',');
-  Str_Append(s,LongIntToShortString(Branch));
-  Str_Append(s,') ');
+  WriteShortString(s,Tag);
+  WriteShortString(s,': (');
+  WriteShortString(s,LongIntToShortString(Depth));
+  WriteShortString(s,',');
+  WriteShortString(s,LongIntToShortString(Branch));
+  WriteShortString(s,') ');
   WriteTerm(y,s,ClearT,False,False,False,True);
-  OutlnString(f,s)
+  Stream_WriteLongString(f,s);
+  Stream_LineBreak(f)
 End;
 
+{-----------------------------------------------------------------------}
+{ "Out": write, using the line width system                             }
+{-----------------------------------------------------------------------}
+
+{ output a term }
+Procedure OutTerm( f : StreamPtr; y : TSyntax; T : TermPtr );
+Var 
+  s : StrPtr;
+Begin
+  s := Stream_NewStr(f);
+  WriteTerm(y,s,T,False,False,True,True);
+  OutFormatted(f,y,s)
+End;
+
+{ output a term without quotes }
+Procedure OutTermUnquoted( f : StreamPtr; y : TSyntax; T : TermPtr );
+Var 
+  s : StrPtr;
+Begin
+  s := Stream_NewStr(f);
+  WriteTerm(y,s,T,False,False,False,True);
+  OutFormatted(f,y,s)
+End;
+
+Begin
+  TCharSetFromAscii(CC_LINE_CONTINUATION,'\')
 End.
