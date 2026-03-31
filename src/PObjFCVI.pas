@@ -25,6 +25,7 @@ Uses
   ShortStr,
   Num,
   Errs,
+  Dump,
   CWrites,
   Memory,
   PObj,
@@ -1334,12 +1335,16 @@ Begin
   InstallIdentifier := I
 End;
 
+{-----------------------------------------------------------------------}
+{ dump                                                                  }
+{-----------------------------------------------------------------------}
+
 { dump all objects representing a term; not loop proof }
 Procedure DumpTermObjects( T : TermPtr; Tag : Char );
 Begin
   If T = Nil Then
     Exit;
-  CWrite(Tag + ' ');
+  WriteToDumpFile(Tag + ' ');
   DumpObject(TObjectPtr(T),False);
   Case TypeOfTerm(T) Of
   Identifier: { TODO: Arrays }

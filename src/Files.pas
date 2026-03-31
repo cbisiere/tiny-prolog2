@@ -38,8 +38,12 @@ Function OSFilename( Filename : TShortPath ) : TShortPath;
 { file info }
 Function FileExistsOnDisk( Filename : TShortPath ): Boolean;
 
+{ erase on disk }
+Procedure EraseFile( Var TheFile : File );
+
 { input files: }
 Function OpenForRead( Filename : TShortPath; Var TxtFile : TIFile ) : Boolean;
+Function OpenForAppend( Filename : TShortPath; Var TxtFile : TOFile ) : Boolean;
 Function OpenForWrite( Filename : TShortPath; Var TxtFile : TOFile ) : Boolean;
 Procedure FlushFile( Filename : TShortPath; Var TxtFile : TOFile );
 Procedure CloseIFile( Filename : TShortPath; Var TxtFile : TIFile );
@@ -153,6 +157,14 @@ Begin
   FileExistsOnDisk := FileExists(OSFilename(Filename))
 End;
 
+{ erase a file on disk; the file must be closed }
+Procedure EraseFile( Var TheFile : File );
+Begin
+  {$I-}
+  Erase(TheFile)
+  {$I+}
+End;
+
 { open a text file: read mode }
 Function OpenForRead( Filename : TShortPath; Var TxtFile : TIFile ) : Boolean;
 Begin
@@ -163,7 +175,18 @@ Begin
   OpenForRead := IOResult = 0
 End;
 
-{ open a text file: write mode }
+{ open an existing text file: append mode }
+Function OpenForAppend( Filename : TShortPath; Var TxtFile : TOFile ) : Boolean;
+Begin
+  Assign(TxtFile,OSFilename(Filename));
+  {$I-}
+  Append(TxtFile);
+  {$I+}
+  OpenForAppend := IOResult = 0
+End;
+
+{ open a text file: write mode; if a file with the same name already exists,
+ it is deleted first }
 Function OpenForWrite( Filename : TShortPath; Var TxtFile : TOFile ) : Boolean;
 Begin
   Assign(TxtFile,OSFilename(Filename));

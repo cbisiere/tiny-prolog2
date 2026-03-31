@@ -19,6 +19,7 @@ Interface
 
 Uses
   Errs,
+  Dump,
   CWrites,
   Memory,
   PObj,
@@ -295,18 +296,18 @@ End;
 
 Procedure Eq_Dump( E : EqPtr );
 Begin
-  CWrite(PtrToName(TObjectPtr(E)));
-  CWrite(': ');
-  CWrite(PtrToName(TObjectPtr(Eq_GetLhs(E))));
+  WriteToDumpFile(PtrToName(TObjectPtr(E)));
+  WriteToDumpFile(': ');
+  WriteToDumpFile(PtrToName(TObjectPtr(Eq_GetLhs(E))));
   Case Eq_GetType(E) Of 
   REL_EQUA:
-    CWrite(' = ');
+    WriteToDumpFile(' = ');
   REL_INEQ:
-    CWrite(' <> ');
+    WriteToDumpFile(' <> ');
   REL_FROZ:
-    CWrite(' ?? ')
+    WriteToDumpFile(' ?? ')
   End;
-  CWrite(PtrToName(TObjectPtr(Eq_GetRhs(E))))
+  WriteToDumpFile(PtrToName(TObjectPtr(Eq_GetRhs(E))))
 End;
 
 Procedure Eqs_Dump( E : EqPtr );
@@ -314,7 +315,7 @@ Begin
   While E <> Nil Do
   Begin
     Eq_Dump(E);
-    CWriteln;
+    WriteLineBreakToDumpFile;
     E := Eqs_GetNext(E)
   End
 End;

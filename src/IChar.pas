@@ -35,7 +35,7 @@ Uses
   ShortStr,
   Num,
   Errs,
-  Trace;
+  Dump;
 
 { basic types }
 Type 
@@ -237,7 +237,7 @@ Begin
 End;
 
 {----------------------------------------------------------------------------}
-{ Debug                                                                      }
+{ dump                                                                       }
 {----------------------------------------------------------------------------}
 
 { dump the content of char e }
@@ -250,7 +250,7 @@ End;
 { dump the content of char e }
 Procedure TICharDump( e : TIChar );
 Begin
-  WriteToTraceFile(TICharToDebugShortString(e))
+  WriteToDumpFile(TICharToDebugShortString(e))
 End;
 
 End.

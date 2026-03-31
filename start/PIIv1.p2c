@@ -70,9 +70,6 @@ fermer-sortie -> syscall(sysoutputis,F) syscall(syscloseoutput,F);
 
 tampon-neuf(T) -> syscall(sysnewbuffer) T syscall(sysdelbuffer);
 
-echo -> syscall(sysecho,true);
-sourd -> syscall(sysecho,false);
-
 "in"
 
 in-car(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,false,false);
@@ -110,8 +107,18 @@ impasse -> syscall(sysfail);
 
 "trace"
 
-trace -> syscall(systrace,true);
-sans-trace -> syscall(systrace,false);
+trace -> syscall(sysonoff,trace,true);
+sans-trace -> syscall(sysonoff,trace,false);
+
+"paper"
+
+papier -> syscall(sysonoff,paper,true);
+sans-papier -> syscall(sysonoff,paper,false);
+
+"echo"
+
+echo -> syscall(sysonoff,echo,true);
+sourd -> syscall(sysonoff,echo,false);
 
 "helpers"
 
@@ -136,8 +143,8 @@ G1.G2 -> G1 G2;
 
 "debug: additional rules (not in PII)"
 
-debug -> syscall(sysdebug,true);
-no-debug -> syscall(sysdebug,false);
+debug -> syscall(sysonoff,debug,true);
+sans-debug -> syscall(sysonoff,debug,false);
 
 bt -> syscall(sysbacktrace);
 dump -> syscall(sysdump);

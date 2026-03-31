@@ -35,7 +35,7 @@ Uses
   BaseUnix, { to handle dynamic resize }
 {$ENDIF}
   ShortStr,
-  Trace;
+  Dump;
 
 Const
   TRACE_CRT_SIZE = False;
@@ -74,7 +74,7 @@ Var
 Procedure CrtSizeTrace;
 Begin
   If TRACE_CRT_SIZE Then
-    WritelnToTraceFile('CrtSize(' + IntToShortString(CrtSizeCurrentWidth) + ',' 
+    WritelnToDumpFile('CrtSize(' + IntToShortString(CrtSizeCurrentWidth) + ',' 
         + IntToShortString(CrtSizeCurrentHeight) + ')')
 End;
 
@@ -189,20 +189,20 @@ End;
 
 
 {----------------------------------------------------------------------------}
-{ debug                                                                      }
+{ dump                                                                       }
 {----------------------------------------------------------------------------}
 
-{ display debug data }
+{ dump Crt size data }
 Procedure CrtSizeDump;
 Begin
-  WritelnToTraceFile('| CRT SIZE: ');
-  WritelnToTraceFile(' SignalCount = ' + IntToShortString(SignalCount));
-  WritelnToTraceFile(' CrtSizeScreenWidth = ' + IntToShortString(CrtSizeScreenWidth));
-  WritelnToTraceFile(' CrtSizeScreenHeight = ' + IntToShortString(CrtSizeScreenHeight));
-  WritelnToTraceFile(' CrtSizeCurrentWidth = ' + IntToShortString(CrtSizeCurrentWidth));
-  WritelnToTraceFile(' CrtSizeCurrentHeight = ' + IntToShortString(CrtSizeCurrentHeight));
-  WritelnToTraceFile(' CrtSizeChanged = ' + BoolToShortString(CrtSizeChanged));
-  WritelnToTraceFile('')
+  WritelnToDumpFile('| CRT SIZE: ');
+  WritelnToDumpFile(' SignalCount = ' + IntToShortString(SignalCount));
+  WritelnToDumpFile(' CrtSizeScreenWidth = ' + IntToShortString(CrtSizeScreenWidth));
+  WritelnToDumpFile(' CrtSizeScreenHeight = ' + IntToShortString(CrtSizeScreenHeight));
+  WritelnToDumpFile(' CrtSizeCurrentWidth = ' + IntToShortString(CrtSizeCurrentWidth));
+  WritelnToDumpFile(' CrtSizeCurrentHeight = ' + IntToShortString(CrtSizeCurrentHeight));
+  WritelnToDumpFile(' CrtSizeChanged = ' + BoolToShortString(CrtSizeChanged));
+  WriteLineBreakToDumpFile
 End;
 
 

@@ -175,9 +175,10 @@ Type
     { extra data: }
     PP_LEVL : TILevel; { current file insertion level (0 is command-line) }
     PP_SYNT : TSyntax; { current active syntax }
+    PP_PAPE : Boolean; { paper is on/off }
     PP_ECHO : Boolean; { echo is on/off }
     PP_TRAC : Boolean; { trace is on/off }
-    PP_DEBG : Boolean { debug is on/off }
+    PP_DEBG : Boolean  { debug is on/off }
   End;
 
 Function Statement_GetWorld( S : StmtPtr ) : WorldPtr;

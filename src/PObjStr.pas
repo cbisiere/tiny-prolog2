@@ -21,7 +21,7 @@ Uses
   ShortStr,
   Num,
   Errs,
-  Trace,
+  Dump,
   Chars,
   CWrites,
   Common,
@@ -116,12 +116,12 @@ Procedure Str_DeleteLastCharUntil( s : StrPtr; StopChars : CharSet );
 
 Procedure Str_CWrite( s: StrPtr );
 
-Procedure Str_Trace( s : StrPtr );
-
 Procedure StrIter_ToStart( Var Iter : StrIter; s : StrPtr );
 Procedure StrIter_ToEnd( Var Iter : StrIter; s : StrPtr );
 Function StrIter_NextChar( Var Iter : StrIter; Var cc : TChar ) : Boolean;
 Function StrIter_PrevChar( Var Iter : StrIter; Var cc : TChar ) : Boolean;
+
+Procedure Str_Dump( s : StrPtr );
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -741,7 +741,7 @@ Begin
 End;
 
 {-----------------------------------------------------------------------}
-{ methods: display on screen (and to echo file)                         }
+{ methods: display on screen (and to paper file)                         }
 {-----------------------------------------------------------------------}
 
 { write a string to Crt }
@@ -756,23 +756,23 @@ Begin
 End;
 
 {-----------------------------------------------------------------------}
-{ debug                                                                 }
+{ dump                                                                  }
 {-----------------------------------------------------------------------}
 
-{ write a string to trace file }
-Procedure Str_Trace( s : StrPtr );
+{ write a string to the dump file }
+Procedure Str_Dump( s : StrPtr );
 Var
   Iter : StrIter;
   cc : TChar;
 Begin
-  WriteToTraceFile('Length=' + Str_LengthAsShortString(s) + ' ');
+  WriteToDumpFile('Length=' + Str_LengthAsShortString(s) + ' ');
   StrIter_ToStart(Iter,s);
   While StrIter_NextChar(Iter,cc) Do
   Begin
     TCharDump(cc);
-    WriteToTraceFile(' ')
+    WriteToDumpFile(' ')
   End;
-  WritelnToTraceFile('')
+  WriteLineBreakToDumpFile
 End;
 
 End.

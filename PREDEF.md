@@ -118,8 +118,10 @@ Predicate | Action | Example
 Predicate | Action | Example
 --- | --- | ---
 `adieu` <br><br> _`quit`_ | quit without saving | `> quit;` <br> `bye!` <br> `{  }` <br> `$`
-`echo`, `sourd` <br><br> _`echo`, `no-echo`_ | set the echo state on or off; when echo is on, inserted Prolog files are echoed to console | 
+`echo`, `sourd` <br><br> _`echo`, `no-echo`_ | set the echo state on or off; when echo is on, anything read from, or written to disk files or buffers are echoed to the console | 
 `trace`, `sans-trace` <br><br> _`trace`, `no-trace`_ | set the trace state on or off; when trace is on, cleared goals are displayed | 
+`papier`, `sans-papier` <br><br> _`paper`, `no-paper`_ | set the paper state on or off; when paper is on, anything written to the console is also written to a special file (``"imprimante.text"`` / _``"printer.txt"``_)  | 
+`debug`, `sans-debug` <br><br> _`debug`, `no-debug`_ | set the debug state on or off; when debug is on, unification attempts are displayed; these predicates did not exist in Prolog II version 1 and 2, and have been added for convenience  | 
 
 ### Date and Time
 

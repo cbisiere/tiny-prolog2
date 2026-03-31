@@ -22,6 +22,7 @@ Uses
   ShortStr,
   Num,
   Errs,
+  Dump,
   CWrites,
   Memory,
   PObj,
@@ -94,7 +95,7 @@ Function Term_OneIsNil( T : TermPtr; T1 : TermPtr ) : Boolean;
 { misc. }
 Procedure SwapTerms( Var T1, T2 : TermPtr );
 
-{ debug }
+{ dump }
 Procedure Term_Dump( T : TermPtr );
 
 Implementation
@@ -276,9 +277,9 @@ End;
 Procedure Term_Dump( T : TermPtr );
 Begin
   DumpObject(TObjectPtr(T),False);
-  CWrite(' TT_CALL: ');
+  WriteToDumpFile(' TT_CALL: ');
   ListA_DumpList(Term_GetListA(T));
-  CWriteLn
+  WriteLineBreakToDumpFile
 End;
 
 Begin

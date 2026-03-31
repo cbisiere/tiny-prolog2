@@ -38,7 +38,8 @@ Uses
   Errs,
   Chars,
   Files,
-  Trace,
+  Echo,
+  Dump,
   Crt2,
   CLI,
   IChar,
@@ -156,6 +157,7 @@ Procedure Stream_Page( f : StreamPtr );
 
 { stream: write that ignore the line width system }
 Procedure Stream_LineBreak( f : StreamPtr );
+Procedure Stream_WriteChar( f : StreamPtr; cc : TChar );
 Procedure Stream_WriteLongString( f : StreamPtr; s : StrPtr );
 Procedure Stream_WriteShortString( f : StreamPtr; s : TString );
 Procedure Stream_WritelnShortString( f : StreamPtr; s : TString );
@@ -208,10 +210,6 @@ Procedure Streams_Unchain( Var top : StreamPtr; f : StreamPtr );
 Procedure Streams_Push( Var top : StreamPtr; f : StreamPtr );
 Procedure Streams_MoveToTop( Var top : StreamPtr; f : StreamPtr );
 
-{ echo state }
-Function Stream_GetEcho : Boolean;
-Procedure Stream_SetEcho( state : Boolean );
-
 { stack: debug }
 Procedure Streams_Dump( top : StreamPtr );
 
@@ -236,24 +234,6 @@ Begin
   Path := Str_Clone(Filename);
   Str_DeleteLastCharUntil(Path,[GetDirectorySeparator,'/']);
   Path_ExtractPath := Path
-End;
-
-
-{-----------------------------------------------------------------------}
-{ global "echo" state                                                   }
-{-----------------------------------------------------------------------}
-
-Var
-  Echo : Boolean;
-
-Function Stream_GetEcho : Boolean;
-Begin
-  Stream_GetEcho := Echo
-End;
-
-Procedure Stream_SetEcho( state : Boolean );
-Begin
-  Echo := State
 End;
 
 {-----------------------------------------------------------------------}
@@ -800,8 +780,13 @@ Begin
           cc := CC_END_OF_INPUT;
           If Length(FI_CBUF) > 0 Then
             If TCharGetOne(FI_CBUF,cc,FI_ENCO,FI_EOLS) Then { get a char }
-              If Stream_GetEcho Then
-                CWriteChar(cc);
+              If GetEchoState Then
+              Begin
+                { spec. of echo/0 is: : write on console what is read or 
+                 written to disk files or buffers }
+                If Not Stream_IsConsole(f) Then
+                  CWriteChar(cc) { note: this will take care of paper/0 }
+              End;
           BufPushChar(FI_IBUF,cc)
         End;
       DEV_TERMINAL:
@@ -951,7 +936,7 @@ For a console, it implies that:
 { private methods: write bytes to a stream                              }
 {-----------------------------------------------------------------------}
 
-{ handles writing to screen or files, mirroring to echo and trace files, 
+{ handles writing to screen or files, honoring to echo and paper features, 
  assuming none of the characters to print is a soft mark (or an equivalent,
  actual character, as \n) }
 
@@ -963,7 +948,11 @@ Begin
       DEV_TERMINAL:
         CWrite(s);
       DEV_FILE,DEV_BUFFER:
-        WriteToFile(Stream_GetShortPath(f),FI_OFIL,s)
+        Begin
+          If GetEchoState Then
+            CWrite(s);
+          WriteToFile(Stream_GetShortPath(f),FI_OFIL,s)
+        End
     End
 End;
 
@@ -975,7 +964,11 @@ Begin
       DEV_TERMINAL:
         CWriteLn;
       DEV_FILE,DEV_BUFFER:
-        WritelnToFile(Stream_GetShortPath(f),FI_OFIL,'')
+        Begin
+          If GetEchoState Then
+            CWriteLn;
+          WritelnToFile(Stream_GetShortPath(f),FI_OFIL,'')
+        End
     End
 End;
 
@@ -1031,6 +1024,16 @@ Begin
   Stream_WriteNewLine(f)
 End;
 
+{ write a single TChar to an output stream, honoring line break soft marks, 
+ ignoring other soft marks }
+Procedure Stream_WriteChar( f : StreamPtr; cc : TChar );
+Begin
+  If TCharIsEol(cc) Then
+    Stream_LineBreak(f)
+  Else If Not TCharIsSoftMark(cc) Then
+    Stream_WriteBytes(f,TCharGetBytes(cc))
+End;
+
 { write a long stream while honoring line break soft marks, ignoring other 
  soft marks }
 Procedure Stream_WriteLongString( f : StreamPtr; s : StrPtr ) ;
@@ -1040,12 +1043,7 @@ Var
 Begin
   StrIter_ToStart(Iter,s);
   While StrIter_NextChar(Iter,cc) Do
-  Begin
-    If TCharIsEol(cc) Then
-      Stream_WriteNewLine(f)
-    Else If Not TCharIsSoftMark(cc) Then
-      Stream_WriteBytes(f,TCharGetBytes(cc))
-  End
+    Stream_WriteChar(f,cc)
 End;
 
 { write a short string of ascii chars to an output stream  }
@@ -1070,23 +1068,23 @@ Begin
 End;
 
 {----------------------------------------------------------------------------}
-{ Debug                                                                      }
+{ dump                                                                       }
 {----------------------------------------------------------------------------}
 
 Procedure Stream_Dump( f : StreamPtr );
 Begin
   With f^ Do
   Begin
-    WritelnToTraceFile('State of stream #' + PosIntToShortString(FI_DESC));
-    WritelnToTraceFile(' FI_ALIA: ' + Stream_GetShortAlias(f));
-    WritelnToTraceFile(' Path: ' + Stream_GetShortPath(f));
-    WritelnToTraceFile(' FI_MODE: ' + IntToShortString(Ord(FI_MODE)));
-    { WritelnToTraceFile(' FI_IBUF: ');
+    WritelnToDumpFile('State of stream #' + PosIntToShortString(FI_DESC));
+    WritelnToDumpFile(' FI_ALIA: ' + Stream_GetShortAlias(f));
+    WritelnToDumpFile(' Path: ' + Stream_GetShortPath(f));
+    WritelnToDumpFile(' FI_MODE: ' + IntToShortString(Ord(FI_MODE)));
+    { WritelnToDumpFile(' FI_IBUF: ');
     BufDump(FI_IBUF);
-    WritelnToTraceFile('');
-    WritelnToTraceFile(' FI_CBUF: ');
-    WritelnToTraceFile(FI_CBUF);
-    WritelnToTraceFile('') }
+    WriteLineBreakToDumpFile;
+    WritelnToDumpFile(' FI_CBUF: ');
+    WritelnToDumpFile(FI_CBUF);
+    WriteLineBreakToDumpFile }
   End
 End;
 
@@ -1302,14 +1300,14 @@ Begin
 End;
 
 {----------------------------------------------------------------------------}
-{ Debug                                                                      }
+{ dump                                                                       }
 {----------------------------------------------------------------------------}
 
 Procedure Streams_Dump( top : StreamPtr );
 Var
   f : StreamPtr;
 Begin
-  WritelnToTraceFile('STREAM STACK:');
+  WritelnToDumpFile('STREAM STACK:');
   f := top;
   While f <> Nil Do
   Begin
@@ -1323,7 +1321,6 @@ End;
 {----------------------------------------------------------------------------}
 
 Begin
-  Stream_SetEcho(False);
   FreeDesc := 1;
   BufferCount := 0
 End.

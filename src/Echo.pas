@@ -8,60 +8,39 @@
 {                                                                            }
 {----------------------------------------------------------------------------}
 {                                                                            }
-{                              E C H O   F I L E                             }
+{                            E C H O   S T A T E                             }
 {                                                                            }
 {----------------------------------------------------------------------------}
 {$I define.inc }
 
-{ Write to echo file }
+{ global echo state (must be sync'ed with Prolog engine's internal state) }
 
 Unit Echo;
 
 Interface
 
-Uses
-  ShortStr,
-  Errs,
-  Files;
-
-Procedure TerminateEcho;
-Procedure WriteToEchoFile( s : TString );
-Procedure WritelnToEchoFile( s : TString );
+Function GetEchoState : Boolean;
+Procedure SetEchoState( state : Boolean );
 
 Implementation
 {-----------------------------------------------------------------------------}
 
 Var
-  InitOk : Boolean;
-  EchoFile : TOFile;
   EchoIsOn : Boolean;
 
-Const
-  ECHO_FILE : TShortPath = 'echo.txt';
-
-{ close the echo file }
-Procedure TerminateEcho;
+{ is echo on? }
+Function GetEchoState : Boolean;
 Begin
-  CloseOFile(ECHO_FILE, EchoFile)
+  GetEchoState := EchoIsOn
 End;
 
-{ write to the echo file if trace is on }
-Procedure WriteToEchoFile( s : TString );
+{ set the echo state }
+Procedure SetEchoState( state : Boolean );
 Begin
-  If EchoIsOn Then
-    WriteToFile(ECHO_FILE,EchoFile,s)
+ EchoIsOn := state
 End;
 
-{ writeln to the echo file if trace is on }
-Procedure WritelnToEchoFile( s : TString );
+{ initialize the echo state }
 Begin
-  If EchoIsOn Then
-    WritelnToFile(ECHO_FILE,EchoFile,s)
-End;
-
-{ initialize the echo system }
-Begin
-  InitOk := OpenForWrite(ECHO_FILE, EchoFile);
-  CheckCondition(InitOk,'cannot open echo file');
-  EchoIsOn := True
+  EchoIsOn := False
 End.

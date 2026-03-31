@@ -20,11 +20,13 @@ Interface
 Uses
   ShortStr,
   Errs,
+  Dump,
   CWrites,
   IChar,
   Memory,
   PObj,
-  PObjStr;
+  PObjStr,
+  PObjIO;
 
 { Tokens; spaces and comments are always allowed between tokens }
 Type
@@ -119,6 +121,7 @@ Function Token_IsAnonymous( K : TokenPtr ) : Boolean;
 Procedure Token_SetAnonymous( K : TokenPtr; anonymous : Boolean );
 
 Function Token_GetTypeAsShortString( K : TokenPtr ) : TString;
+Procedure Token_Dump( K : TokenPtr );
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -214,6 +217,27 @@ End;
 Function Token_GetTypeAsShortString( K : TokenPtr ) : TString;
 Begin
   Token_GetTypeAsShortString := TokenStr[Token_GetType(K)]
+End;
+
+{-----------------------------------------------------------------------}
+{ dump                                                                  }
+{-----------------------------------------------------------------------}
+
+Procedure Token_Dump( K : TokenPtr );
+Begin
+  WriteToDumpFile('(');
+  WriteToDumpFile(IntToShortString(K^.TK_LINE));
+  WriteToDumpFile(',');
+  WriteToDumpFile(IntToShortString(K^.TK_CHAR));
+  WriteToDumpFile(') ');
+  WriteToDumpFile(Token_GetTypeAsShortString(K));
+  If Token_GetStr(K) <> Nil Then
+  Begin
+    WriteToDumpFile(': ');
+    Str_Dump(Token_GetStr(K))
+  End
+  Else
+    WriteToDumpFile('')
 End;
 
 End.

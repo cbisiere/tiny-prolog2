@@ -104,10 +104,17 @@ close_output :- output_is(F), close_output(F).
 close_output(F) :- syscall(syscloseoutput,F).
 flush :- syscall(sysflush).
 
-echo :- syscall(sysecho,true).
-no_echo :- syscall(sysecho,false).
-trace :- syscall(systrace,true).
-no_trace :- syscall(systrace,false).
+echo :- syscall(sysonoff,echo,true).
+no_echo :- syscall(sysonoff,echo,false).
+
+paper :- syscall(sysonoff,paper,true).
+no_paper :- syscall(sysonoff,paper,false).
+
+trace :- syscall(sysonoff,trace,true).
+no_trace :- syscall(sysonoff,trace,false).
+
+debug :- syscall(sysonoff,debug,true).
+no_debug :- syscall(sysonoff,debug,false).
 
 "in: PII+"
 
@@ -150,13 +157,6 @@ fail :- syscall(sysfail).
 "date/time"
 
 get_time(V) :- syscall(systime,V,epoch,real).
-
-"debug"
-
-bt :- syscall(sysbacktrace).
-dump :- syscall(sysdump).
-debug :- syscall(sysdebug,true).
-no_debug :- syscall(sysdebug,false).
 
 "helpers"
 
@@ -208,3 +208,8 @@ is(X,Y) :- val(Y,X).
 '@>='(X,Y) :- val('@>='(X,Y),1).
 '@=<'(X,Y) :- val('@=<'(X,Y),1).
 '=:='(X,Y) :- val(eql(X,Y),1).
+
+"debug: additional rules (not in PII+)"
+
+bt :- syscall(sysbacktrace).
+dump :- syscall(sysdump).

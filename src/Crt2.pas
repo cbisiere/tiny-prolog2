@@ -78,7 +78,7 @@ Uses
   Chars,
   Num,
   Errs,
-  Trace;
+  Dump;
 
 Const
   TRACE_CRT = False;
@@ -123,7 +123,7 @@ Procedure CrtClrSrc;
 
 Procedure CrtBeep;
 Procedure CrtBackspace;
-Procedure CrtWriteln;
+Procedure CrtWriteLn;
 Procedure CrtWrite( cc : TChar );
 
 Function CrtCharWrapSize( cc : TChar ) : Byte;
@@ -265,7 +265,7 @@ End;
 Procedure CrtTrace( s : TString );
 Begin
   If TRACE_CRT Then
-    WritelnToTraceFile('Crt(' + IntToShortString(WhereX) + ',' 
+    WritelnToDumpFile('Crt(' + IntToShortString(WhereX) + ',' 
         + IntToShortString(WhereY) + '): '+ s)
 End;
 
@@ -379,7 +379,7 @@ Begin
 End;
 
 { write a blank line }
-Procedure CrtWriteln;
+Procedure CrtWriteLn;
 Begin
   CrtTrace('Writeln');
   If WhereY = CrtGetScreenHeight Then
@@ -452,11 +452,11 @@ End;
 Procedure CrtWriteChar( cc : TChar );
 Begin
   If TCharIsEol(cc) Then
-    CrtWriteln
+    CrtWriteLn
   Else
   Begin
     If CrtWraps(WhereX-1,cc) Then { avoid breaking multibyte chars }
-      CrtWriteln;
+      CrtWriteLn;
     CrtWrite(cc)
   End
 End;
@@ -476,25 +476,25 @@ End;
 
 
 {----------------------------------------------------------------------------}
-{ debug                                                                      }
+{ dump                                                                       }
 {----------------------------------------------------------------------------}
 
-{ display debug data }
+{ dump Crt state }
 Procedure CrtDump;
 Var
   y : TCrtCoordY;
 Begin
-  WritelnToTraceFile('| CRT: ');
-  WritelnToTraceFile('  WhereX = ' + IntToShortString(WhereX));
-  WritelnToTraceFile('  WhereY = ' + IntToShortString(WhereY));
-  WritelnToTraceFile('  CrtWindMaxX = ' + IntToShortString(CrtWindMaxX));
-  WritelnToTraceFile('  CrtWindMaxY = ' + IntToShortString(CrtWindMaxY));
-  WriteToTraceFile('  ');
+  WritelnToDumpFile('| CRT: ');
+  WritelnToDumpFile('  WhereX = ' + IntToShortString(WhereX));
+  WritelnToDumpFile('  WhereY = ' + IntToShortString(WhereY));
+  WritelnToDumpFile('  CrtWindMaxX = ' + IntToShortString(CrtWindMaxX));
+  WritelnToDumpFile('  CrtWindMaxY = ' + IntToShortString(CrtWindMaxY));
+  WriteToDumpFile('  ');
   For y := 1 To CrtGetScreenHeight Do
   Begin
-    WriteToTraceFile(' ' + IntToShortString(Ord(CrtBroken[y])))
+    WriteToDumpFile(' ' + IntToShortString(Ord(CrtBroken[y])))
   End;
-  WritelnToTraceFile('')
+  WriteLineBreakToDumpFile
 End;
 
 

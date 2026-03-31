@@ -43,9 +43,12 @@ Uses
   Num,
   Errs,
   Chars,
-  Trace,
+  Dump,
+  Echo,
+  Paper,
   Crt,
   Crt2,
+  CWrites,
   IChar,
   Buffer,
   CEdit;
@@ -189,13 +192,13 @@ Procedure HistoryDump( H : THistory );
 Var 
   i : THIndex;
 Begin
-  WritelnToTraceFile('| HIST: ');
+  WritelnToDumpFile('| HIST: ');
   With H Do
   Begin
     If Len > 0 Then
       For i := 1 To Len Do
       Begin
-        WriteToTraceFile('| HIST '+IntToShortString(i)+': ');
+        WriteToDumpFile('| HIST '+IntToShortString(i)+': ');
         BufDump(H.Str[i])
       End
   End
@@ -274,11 +277,14 @@ Var
     B := Ed.Buf;
     BufPushChar(B,CC_END_OF_LINE);
     { since the command line is submitted, we can now output the whole  
-     command line to the mirror files }
-    CEditWritePromptToMirrorFiles(Ed);
-    BufToMirrorFiles(B);
-    { visual feedback: new line }
-    CrtWriteln
+     command line (already visible on screen) to the paper file }
+    If GetPaperState Then
+      Begin
+        CEditWritePromptToPaperFile(Ed);
+        BufToPaperFile(B) { note: ends with a line break soft mark }
+      End;
+    { visual feedback: new line (skip the paper file, see above) }
+    CrtWriteLn
   End;
 
   { convert tab into spaces }

@@ -56,9 +56,6 @@ close_output -> syscall(sysoutputis,F) close_output(F);
 close_output(F) -> syscall(syscloseoutput,F);
 flush -> syscall(sysflush);
 
-echo -> syscall(sysecho,true);
-no_echo -> syscall(sysecho,false);
-
 "in"
 
 in_char(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,false,false);
@@ -104,15 +101,25 @@ fail -> syscall(sysfail);
 "Note: I cannot figure out the actual time reference used by PII+ Windows"
 time(V) -> syscall(systime,V,epoch,integer); 
 
+"trace"
+
+trace -> syscall(sysonoff,trace,true);
+no_trace -> syscall(sysonoff,trace,false);
+
 "debug"
 
-trace -> syscall(systrace,true);
-no_trace -> syscall(systrace,false);
-debug -> syscall(sysdebug,true);
-no_debug -> syscall(sysdebug,false);
+debug -> syscall(sysonoff,debug,true);
+no_debug -> syscall(sysonoff,debug,false);
 
-bt -> syscall(sysbacktrace);
-dump -> syscall(sysdump);
+"paper"
+
+paper -> syscall(sysonoff,paper,true);
+no_paper -> syscall(sysonoff,paper,false);
+
+"echo"
+
+echo -> syscall(sysonoff,echo,true);
+no_echo -> syscall(sysonoff,echo,false);
 
 "helpers"
 
@@ -141,3 +148,8 @@ not(X) ->;
     op(200,fx,+,add)
     op(200,fx,-,sub)
     op(200,xfy,^,'^');
+
+"debug: additional rules (not in PII+)"
+
+bt -> syscall(sysbacktrace);
+dump -> syscall(sysdump);

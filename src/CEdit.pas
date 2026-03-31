@@ -45,8 +45,8 @@ Uses
   Num,
   Errs,
   Chars,
-  Trace,
-  Mirror,
+  Dump,
+  Paper,
   Crt,
   CrtSize,
   Crt2,
@@ -97,7 +97,7 @@ Procedure CEditSetBuffer( Var Ed : TEditor; B : TBuf );
 
 Procedure CEditHandleScreenResize( Var Ed : TEditor );
 
-Procedure CEditWritePromptToMirrorFiles( Ed : TEditor );
+Procedure CEditWritePromptToPaperFile( Ed : TEditor );
 
 Procedure CEditSet( Var Ed : TEditor; B : TBuf  );
 
@@ -116,7 +116,7 @@ Procedure CEditTrace( Ed : TEditor; s : TString );
 Begin
   If TRACE_CEDIT Then
   Begin
-    WritelnToTraceFile('CEdit: ' + s);
+    WritelnToDumpFile('CEdit: ' + s);
     CEditDump(Ed);
     CrtDump
   End
@@ -157,10 +157,10 @@ Begin
     End
 End;
 
-{ write the prompt to the mirror (trace, echo) files }
-Procedure CEditWritePromptToMirrorFiles( Ed : TEditor );
+{ write the prompt to the paper file }
+Procedure CEditWritePromptToPaperFile( Ed : TEditor );
 Begin
-  WriteToMirrorFiles(Ed.Prompt)
+  WriteToPaperFile(Ed.Prompt)
 End;
 
 
@@ -489,7 +489,7 @@ Begin
   If WhereY <> CrtGetScreenHeight Then { minimize cursor movements }
     CrtGotoLine(CrtGetScreenHeight);
   For i := 1 to n Do
-    CrtWriteln
+    CrtWriteLn
 End;
 
 { erase lines that must be cleared following a change in layout; we only 
@@ -568,7 +568,7 @@ Begin
         CrtClrEol; { remove spurious chars at the end of the current line }
         If WhereY = CrtGetScreenHeight Then { clip }
           Exit;
-        CrtWriteln;
+        CrtWriteLn;
         b := 0
       End;
       { write the char, keeping track of the number of bytes on screen line }
@@ -805,7 +805,7 @@ Begin
     With Ed.Layout Do
       ScreenY := ScreenY - 1;
   CrtClrEol; { in case we are overwriting when refreshing part of the CL }
-  CrtWriteln
+  CrtWriteLn
 End;
 
 { scroll down when necessary, preparing the display of the CL  } 
@@ -971,27 +971,27 @@ End;
 
 
 {----------------------------------------------------------------------------}
-{ CEditDump: debug                                                           }
+{ dump                                                                       }
 {----------------------------------------------------------------------------}
 
 { dump the state of editor Ed }
 Procedure CEditDump( Ed : TEditor );
 Begin
-  WriteToTraceFile('| CEDIT: ');
+  WriteToDumpFile('| CEDIT: ');
   With Ed Do
   Begin
-    WriteToTraceFile(' ScreenY=' + IntToShortString(Layout.ScreenY));
-    WriteToTraceFile(' NbLines=' + IntToShortString(Layout.NbLines));
-    WriteToTraceFile(' old.ScreenY=' + IntToShortString(PrevLayout.ScreenY));
-    WriteToTraceFile(' old.NbLines=' + IntToShortString(PrevLayout.NbLines));
-    WritelnToTraceFile('');
-    WriteToTraceFile('|        ');
-    WriteToTraceFile(' IdxA=' + IntToShortString(IdxA));
-    WriteToTraceFile(' NbBytes=' + PosIntToShortString(NbBytes));
-    WriteToTraceFile(' NbMulti=' + PosIntToShortString(NbMulti));
-    WriteToTraceFile(' NbBytesInPrompt=' + PosIntToShortString(NbBytesInPrompt));
-    WriteToTraceFile(' Prompt=''' + Prompt + '''');
-    WritelnToTraceFile('');
+    WriteToDumpFile(' ScreenY=' + IntToShortString(Layout.ScreenY));
+    WriteToDumpFile(' NbLines=' + IntToShortString(Layout.NbLines));
+    WriteToDumpFile(' old.ScreenY=' + IntToShortString(PrevLayout.ScreenY));
+    WriteToDumpFile(' old.NbLines=' + IntToShortString(PrevLayout.NbLines));
+    WriteLineBreakToDumpFile;
+    WriteToDumpFile('|        ');
+    WriteToDumpFile(' IdxA=' + IntToShortString(IdxA));
+    WriteToDumpFile(' NbBytes=' + PosIntToShortString(NbBytes));
+    WriteToDumpFile(' NbMulti=' + PosIntToShortString(NbMulti));
+    WriteToDumpFile(' NbBytesInPrompt=' + PosIntToShortString(NbBytesInPrompt));
+    WriteToDumpFile(' Prompt=''' + Prompt + '''');
+    WriteLineBreakToDumpFile;
     CrtDump
   End
 End;

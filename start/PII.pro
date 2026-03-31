@@ -76,9 +76,6 @@ flush -> syscall(sysflush);
 
 new-buffer(T) -> syscall(sysnewbuffer) T syscall(sysdelbuffer);
 
-echo -> syscall(sysecho,true);
-no-echo -> syscall(sysecho,false);
-
 "in"
 
 in-char(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,false,false);
@@ -123,10 +120,20 @@ fail -> syscall(sysfail);
 
 time(V) -> syscall(systime,V,startofday,integer);
 
-"debug"
+"trace"
 
-trace -> syscall(systrace,true);
-no-trace -> syscall(systrace,false);
+trace -> syscall(sysonoff,trace,true);
+no-trace -> syscall(sysonoff,trace,false);
+
+"paper"
+
+paper -> syscall(sysonoff,paper,true);
+no-paper -> syscall(sysonoff,paper,false);
+
+"echo"
+
+echo -> syscall(sysonoff,echo,true);
+no-echo -> syscall(sysonoff,echo,false);
 
 "helpers"
 
@@ -151,8 +158,8 @@ G1.G2 -> G1 G2;
 
 "debug: additional rules (not in PII)"
 
-debug -> syscall(sysdebug,true);
-no-debug -> syscall(sysdebug,false);
+debug -> syscall(sysonoff,debug,true);
+no-debug -> syscall(sysonoff,debug,false);
 
 bt -> syscall(sysbacktrace);
 dump -> syscall(sysdump);

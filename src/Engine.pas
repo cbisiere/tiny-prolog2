@@ -23,6 +23,7 @@ Uses
   Errs,
   CLI,
   Files,
+  Echo,
   CWrites,
   Memory,
   PObj,
@@ -49,7 +50,7 @@ Uses
   Unparse,
   Reduc,
   Parse,
-  Debug,
+  Dumper,
   Predef;
 
 { file suffix: for PII+ and Edinburgh, see PII+ doc p297 }
@@ -837,7 +838,7 @@ Begin
     If Error Then Exit;
     Q := ParseOneQuery(f,P,K);
     If Error Then Exit;
-    EchoQuery := Not Stream_IsConsole(f) And Not Stream_GetEcho 
+    EchoQuery := Not Stream_IsConsole(f) And Not GetEchoState 
         And World_IsUserLand(GetCurrentWorld(P));
     AnswerQuery(P,Q,EchoQuery);
     If Error Then Exit;

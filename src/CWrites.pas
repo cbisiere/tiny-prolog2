@@ -13,7 +13,7 @@
 {----------------------------------------------------------------------------}
 {$I define.inc }
 
-{ Write to the console, duplicating output to an echo file }
+{ Write to the console, and also, when requested, to the paper file }
 
 Unit CWrites;
 
@@ -24,7 +24,7 @@ Uses
   ShortStr,
   Num,
   Errs,
-  Mirror,
+  Paper,
   Crt2;
 
 
@@ -41,24 +41,26 @@ Procedure CWriteLnWarning( s : TString );
 Implementation
 {-----------------------------------------------------------------------------}
 
-{ write a char to the terminal }
+{ write a TChar to the terminal, ignoring soft marks other than line breaks }
 Procedure CWriteChar( cc : TChar );
 Begin
-  WriteToMirrorFiles(TCharGetBytes(cc));
-  CrtWriteChar(cc)
+  If TCharIsEol(cc) Then
+    CWriteLn
+  Else If Not TCharIsSoftMark(cc) Then
+    CWrite(TCharGetBytes(cc))
 End;
 
 { write a string of 1-byte chars to the terminal }
 Procedure CWrite( s : TString );
 Begin
-  WriteToMirrorFiles(s);
+  WriteToPaperFile(s);
   CrtWriteShortString(s)
 End;
 
 { write a new line to the terminal }
 Procedure CWriteLn;
 Begin
-  WritelnToMirrorFiles('');
+  WritelnToPaperFile('');
   CrtWriteLn
 End;
 

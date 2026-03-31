@@ -22,6 +22,9 @@ Uses
   Num,
   Errs,
   Files,
+  Paper,
+  Echo,
+  Dump,
   CLI,
   CWrites,
   Memory,
@@ -67,13 +70,15 @@ Function MaximumLineWidth( y : TSyntax ) : TLineWidth;
 
 Function Prog_New( y : TSyntax ) : ProgPtr;
 
+Procedure SetPaper( P : ProgPtr; state : Boolean );
+Function GetPaper( P : ProgPtr ) : Boolean;
 Procedure SetEcho( P : ProgPtr; state : Boolean );
 Function GetEcho( P : ProgPtr ) : Boolean;
 Procedure SetTrace( P : ProgPtr; state : Boolean );
 Function GetTrace( P : ProgPtr ) : Boolean;
+Function GetTraceStream( P : ProgPtr ) : StreamPtr;
 Procedure SetDebug( P : ProgPtr; state : Boolean );
 Function GetDebug( P : ProgPtr ) : Boolean;
-Function GetTraceStream( P : ProgPtr ) : StreamPtr;
 Function GetDebugStream( P : ProgPtr ) : StreamPtr;
 
 Function BufferAlias( y : TSyntax ) : TAlias;
@@ -246,26 +251,38 @@ Begin
     PP_LEVL := 0;
     PP_PATH := Nil;
     PP_SYNT := y;
-    PP_ECHO := Stream_GetEcho;
-    PP_TRAC := False;
-    PP_DEBG := False
+    PP_PAPE := GetPaperState;
+    PP_ECHO := GetEchoState;
+    PP_DEBG := False;
+    PP_TRAC := False
   End;
   Prog_New := P
 End;
 
 {-----------------------------------------------------------------------}
-{ debug                                                                 }
+{ on / off global states                                                }
 {-----------------------------------------------------------------------}
+
+Procedure SetPaper( P : ProgPtr; state : Boolean );
+Begin
+  SetPaperState(state);
+  P^.PP_PAPE := GetPaperState { maintain engine state for later saving }
+End;
+
+Function GetPaper( P : ProgPtr ) : Boolean;
+Begin
+  GetPaper := GetPaperState
+End;
 
 Procedure SetEcho( P : ProgPtr; state : Boolean );
 Begin
-  Stream_SetEcho(state);
-  P^.PP_ECHO := Stream_GetEcho
+  SetEchoState(state);
+  P^.PP_ECHO := GetEchoState { maintain engine state for later saving }
 End;
 
 Function GetEcho( P : ProgPtr ) : Boolean;
 Begin
-  GetEcho := Stream_GetEcho
+  GetEcho := GetEchoState
 End;
 
 Procedure SetTrace( P : ProgPtr; state : Boolean );
@@ -278,6 +295,15 @@ Begin
   GetTrace := P^.PP_TRAC
 End;
 
+{ return the trace stream or Nil if the trace system is off }
+Function GetTraceStream( P : ProgPtr ) : StreamPtr;
+Begin
+  If GetTrace(P) Then
+    GetTraceStream := GetOutputConsole(P)
+  Else
+    GetTraceStream := Nil
+End;
+
 Procedure SetDebug( P : ProgPtr; state : Boolean );
 Begin
   P^.PP_DEBG := state
@@ -288,17 +314,11 @@ Begin
   GetDebug := P^.PP_DEBG
 End;
 
-{ return the trace stream }
-Function GetTraceStream( P : ProgPtr ) : StreamPtr;
-Begin
-  GetTraceStream := GetOutputConsole(P)
-End;
-
-{ return the debug stream or Nil if debug is off }
+{ return the debug stream or Nil if the debug system is off }
 Function GetDebugStream( P : ProgPtr ) : StreamPtr;
 Begin
   If GetDebug(P) Then
-    GetDebugStream := GetTraceStream(P)
+    GetDebugStream := GetOutputConsole(P)
   Else
     GetDebugStream := Nil
 End;

@@ -56,7 +56,7 @@ Uses
   Expr,
   Tokenize,
   Parse,
-  Debug;
+  Dumper;
 
 Type
   TPP = (
@@ -109,9 +109,7 @@ Type
     PP_OP,
     PP_ASSIGN,
     PP_DEF_ARRAY,
-    PP_ECHO,
-    PP_TRACE,
-    PP_DEBUG,
+    PP_SET_STATE,
     PP_DUMP,
     PP_DIF,
     PP_UNIV,
@@ -146,7 +144,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 65;
+  NB_PP = 63;
   MAX_PP_LENGTH = 21; { max string length }
 Type
   TPPRec = Record
@@ -211,9 +209,7 @@ Const
     (I:PP_OP;S:'sysop';N:4), { TODO: 3-arg version }
     (I:PP_ASSIGN;S:'sysassign';N:2),
     (I:PP_DEF_ARRAY;S:'sysdefarray';N:2),
-    (I:PP_ECHO;S:'sysecho';N:1),
-    (I:PP_TRACE;S:'systrace';N:1),
-    (I:PP_DEBUG;S:'sysdebug';N:1),
+    (I:PP_SET_STATE;S:'sysonoff';N:2),
     (I:PP_DUMP;S:'sysdump';N:0),
     (I:PP_DIF;S:'sysdif';N:2),
     (I:PP_UNIV;S:'sysuniv';N:2), { '=..', Edinburgh only, p.221 }
@@ -410,6 +406,47 @@ Begin
   End;
   GetBoolean := True
 End;
+
+
+{ on-off states }
+Type
+  TPrologState = (STATE_ECHO,STATE_PAPER,STATE_TRACE,STATE_DEBUG);
+
+{ return in Result the state argument passed as an identifier in argument n 
+ of a predicate; return false if the argument is not a type identifier }
+Function GetOnOffStateName( n : Byte; T : TermPtr; 
+  Var Result : TPrologState ) : Boolean;
+Var
+  I : IdPtr;
+  s : TString;
+Begin
+  GetOnOffStateName := False;
+  I := EvalPArgAsIdent(n,T);
+  If I = Nil Then
+  Begin
+    CWriteLnWarning('incorrect argument: on/off state expected');
+    Exit
+  End;
+  s := IdentifierGetShortString(I);
+  If s = 'echo' Then
+    Result := STATE_ECHO
+  Else If s = 'paper' Then
+    Result := STATE_PAPER
+  Else If s = 'trace' Then
+    Result := STATE_TRACE
+  Else If s = 'debug' Then
+    Result := STATE_DEBUG
+  Else
+  Begin
+    CWriteWarning('invalid on/off state argument: ''');
+    CWrite(s);
+    CWrite('''');
+    CWriteLn;
+    Exit
+  End;
+  GetOnOffStateName := True
+End;
+
 
 { type to read or return }
 Type
@@ -2447,52 +2484,52 @@ Begin
 End;
 
 {----------------------------------------------------------------------------}
-{ trace, debug                                                               }
+{ set on/off states: echo, trace, paper, debug                               }
 {----------------------------------------------------------------------------}
 
-{ echo; no-echo }
-Function ClearEcho( P : ProgPtr; T : TermPtr ) : Boolean;
+{ switch a global on/off state }
+Function ClearOnOffState( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
-  State : Boolean;
+  StateName : TPrologState;
+  StateValue : Boolean;
 Begin
-  ClearEcho := False;
-  { 1: true/false }
-  If Not GetBoolean(1,T,State) Then
+  ClearOnOffState := False;
+  { 1: state name }
+  If Not GetOnOffStateName(1,T,StateName) Then
     Exit;
-  SetEcho(P,State);
-  ClearEcho := True
+  { 2: state value: true/false }
+  If Not GetBoolean(2,T,StateValue) Then
+    Exit;
+  { set the on/off state }
+  Case StateName Of
+  { echo, no_echo: 
+   write on console what is read or written from disk files or buffers }
+  STATE_ECHO:
+    SetEcho(P,StateValue);
+  { paper, no_paper:
+   write in a special file what appears on screen }
+  STATE_PAPER:
+    SetPaper(P,StateValue);
+  { trace, no_trace:
+   write on console all rule calls }
+  STATE_TRACE:
+    SetTrace(P,StateValue);
+  { debug, no_trace:
+   additional unification info }
+  STATE_DEBUG:
+    SetDebug(P,StateValue);
+  End;
+  ClearOnOffState := True
 End;
 
-{ trace; no-trace }
-Function ClearTrace( P : ProgPtr; T : TermPtr ) : Boolean;
-Var
-  State : Boolean;
-Begin
-  ClearTrace := False;
-  { 1: true/false }
-  If Not GetBoolean(1,T,State) Then
-    Exit;
-  SetTrace(P,State);
-  ClearTrace := True
-End;
-
-{ debug; no-debug }
-Function ClearDebug( P : ProgPtr; T : TermPtr ) : Boolean;
-Var
-  State : Boolean;
-Begin
-  ClearDebug := False;
-  { 1: true/false }
-  If Not GetBoolean(1,T,State) Then
-    Exit;
-  SetDebug(P,State);
-  ClearDebug := True
-End;
+{----------------------------------------------------------------------------}
+{ more debugging info                                                        }
+{----------------------------------------------------------------------------}
 
 { bt }
 Function ClearBacktrace( P : ProgPtr; Q : QueryPtr ) : Boolean;
 Begin
-  DumpBacktrace(GetOutputConsole(P),Q);
+  DumpBacktrace(Q);
   ClearBacktrace := True
 End;
 
@@ -2808,12 +2845,8 @@ Begin
     Ok := ClearClrScr(P);
   PP_IN:
     Ok := ClearIn(P,T);
-  PP_ECHO:
-    Ok := ClearEcho(P,T);
-  PP_TRACE:
-    Ok := ClearTrace(P,T);
-  PP_DEBUG:
-    Ok := ClearDebug(P,T);
+  PP_SET_STATE:
+    Ok := ClearOnOffState(P,T);
   PP_BACKTRACE:
     Ok := ClearBacktrace(P,Q);
   PP_DUMP:

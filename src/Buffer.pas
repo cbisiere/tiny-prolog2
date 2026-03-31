@@ -44,11 +44,11 @@ Uses
   ShortStr,
   Num,
   Chars,
-  Trace,
+  Dump,
   Crt2,
   Errs,
+  Paper,
   IChar,
-  Mirror,
   CWrites;
 
 Const
@@ -117,7 +117,7 @@ Procedure BufDelete( Var B : TBuf );
 Procedure BufInsert( Var B : TBuf; cc : TChar );
 
 Function BufDisplayLine( B : TBuf; max : TBufIndex ) : TBufIndex;
-Procedure BufToMirrorFiles( B : TBuf );
+Procedure BufToPaperFile( B : TBuf );
 
 Procedure BufDump( B : TBuf );
 
@@ -709,7 +709,7 @@ Begin
   If TRACE_BUFFER Then
   Begin
     TCharDump(e.Val);
-    WritelnToTraceFile(' +')
+    WritelnToDumpFile(' +')
   End
 End;
 
@@ -723,7 +723,7 @@ Begin
   Begin
     BufGetRead(e,B,0);
     TCharDump(e.Val);
-    WritelnToTraceFile(' -')
+    WritelnToDumpFile(' -')
   End;
   With B Do
   Begin
@@ -812,8 +812,8 @@ Begin
   BufDisplayLine := n
 End;
 
-{ output to echo and trace files the content of buffer B }
-Procedure BufToMirrorFiles( B : TBuf );
+{ output to the paper file the content of buffer B }
+Procedure BufToPaperFile( B : TBuf );
 Var 
   i : TBufIndex;
   cc : TChar;
@@ -823,16 +823,16 @@ Begin
   Begin
     cc := B.Buf[i].Val;
     If TCharIsEol(cc) Then
-      WritelnToMirrorFiles('')
+      WritelnToPaperFile('')
     Else
-      WriteToMirrorFiles(TCharGetBytes(cc));
+      WriteToPaperFile(TCharGetBytes(cc));
     i := NextIdx(B,i)
   End
 End;
 
 
 {----------------------------------------------------------------------------}
-{ Debug                                                                      }
+{ dump                                                                       }
 {----------------------------------------------------------------------------}
 
 { dump the content of buffer B }
@@ -840,26 +840,26 @@ Procedure BufDump( B : TBuf );
 Var 
   i : TBufIndex;
 Begin
-  WriteToTraceFile('| BUF: ');
+  WriteToDumpFile('| BUF: ');
   i := FirstIdx(B);
   While i <> 0 Do
   Begin
-    WriteToTraceFile(IntToShortString(i) + ': ');
-    WriteToTraceFile('[');
+    WriteToDumpFile(IntToShortString(i) + ': ');
+    WriteToDumpFile('[');
     TICharDump(B.Buf[i]);
-    WriteToTraceFile(']');
-    WriteToTraceFile(' ');
+    WriteToDumpFile(']');
+    WriteToDumpFile(' ');
     i := NextIdx(B,i)
   End;
-  WritelnToTraceFile('');
-  WriteToTraceFile('| BUF: ');
-  WriteToTraceFile(' Len=' + IntToShortString(B.Len));
-  WriteToTraceFile(' IdxB=' + IntToShortString(B.IdxB));
-  WriteToTraceFile(' IdxE=' + IntToShortString(B.IdxE));
-  WriteToTraceFile(' LenR=' + IntToShortString(B.LenR));
-  WriteToTraceFile(' IdxR=' + IntToShortString(B.IdxR));
-  WriteToTraceFile(' IdxW=' + IntToShortString(B.IdxW));
-  WritelnToTraceFile('')
+  WriteLineBreakToDumpFile;
+  WriteToDumpFile('| BUF: ');
+  WriteToDumpFile(' Len=' + IntToShortString(B.Len));
+  WriteToDumpFile(' IdxB=' + IntToShortString(B.IdxB));
+  WriteToDumpFile(' IdxE=' + IntToShortString(B.IdxE));
+  WriteToDumpFile(' LenR=' + IntToShortString(B.LenR));
+  WriteToDumpFile(' IdxR=' + IntToShortString(B.IdxR));
+  WriteToDumpFile(' IdxW=' + IntToShortString(B.IdxW));
+  WriteLineBreakToDumpFile
 End;
 
 End.

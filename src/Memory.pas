@@ -485,7 +485,7 @@ Begin
   If extra Then
   Begin
     CWrite(' ')
-    {//;WriteExtraData(p)}
+    {//;DumpExtraData(p)}
   End;
   CWriteLn
 End;
@@ -611,10 +611,10 @@ Begin
   If p = Nil Then
   Begin
     CWrite('Runtime Error: Memory exhausted');
-    CWriteln;
+    CWriteLn;
     PrintMemoryStats;
     CWrite('Halting');
-    CWriteln;
+    CWriteLn;
     HaltProgram
   End;
   GetMemForObject := p

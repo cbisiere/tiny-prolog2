@@ -23,12 +23,13 @@ Uses
   Chars,
   Num,
   Files,
+  Paper,
   Memory,
   PObjStr,
   PObjDef,
   PObjProg,
   PObjIO,
-  Debug,
+  Dumper,
   Predef,
   Engine;
 
@@ -42,6 +43,17 @@ Type
   TStartFile = Array[TSyntax] Of String[5];
 Const 
   StartFile : TStartFile = ('PIIv1','PII','PIIp','E'); { must be ASCII only }
+
+{ name of the paper file }
+Type 
+  TPaperFile = Array[TSyntax] Of String[15];
+Const  
+  PaperFile : TPaperFile = (
+    'imprimante.text',
+    'printer.txt', { FIXME: just a guess }
+    'prolog.log',
+    'prolog.log'
+  );
 
 Const
   DEFAULT_PROLOG_SYNTAX : TSyntax = PrologIIv2;
@@ -86,7 +98,7 @@ Begin
           KnownPar := True
         End
       End;
-      { debug, '-D' }
+      { debug, '-D': do not load the start file }
       If Not KnownPar Then
         If par = 'D' Then
         Begin
@@ -178,6 +190,7 @@ Begin
   ParseCL(CodePage,y,SkipStartFile,HasUserFilePar,UserFilename);
   If CodePage <> 0 Then
     SetCodePage(CodePage);
+  SetPaperFilename(PaperFile[y]);
   P := Prog_New(y);
   AddGCRoot(TObjectPtr(P));
   SetCurrentProgram(P);

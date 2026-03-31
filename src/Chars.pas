@@ -43,7 +43,7 @@ Uses
   ShortStr,
   Num,
   Errs,
-  Trace;
+  Dump;
 
 { soft marks:
  - end-of-line: in the input system, 1) CR, LF and CR-LF in files, and 2) CR in 
@@ -167,7 +167,7 @@ Function TCharSetFromCodePoint( Var cc : TChar; cp : TCodePoint;
 Function TCharGetOne( Var s : TString; Var cc : TChar; 
     Var Enc : TEncoding; Var Style : TEolStyle ) : Boolean;
 
-{ TChar: debug }
+{ TChar: dump }
 Function TCharToDebugShortString( cc : TChar ) : TString;
 Procedure TCharDump( cc : TChar );
 
@@ -798,10 +798,10 @@ Begin
 End;
 
 {----------------------------------------------------------------------------}
-{ Debug                                                                      }
+{ dump                                                                       }
 {----------------------------------------------------------------------------}
 
-{ dump the content of char cc }
+{ string representation of char cc }
 Function TCharToDebugShortString( cc : TChar ) : TString;
 Var
   i : 0..MaxBytesPerChar;
@@ -831,9 +831,8 @@ End;
 { dump the content of char cc }
 Procedure TCharDump( cc : TChar );
 Begin
-  WriteToTraceFile(TCharToDebugShortString(cc))
+  WriteToDumpFile(TCharToDebugShortString(cc))
 End;
-
 
 {----------------------------------------------------------------------------}
 { Init                                                                       }

@@ -19,6 +19,7 @@ Interface
 
 Uses
   Errs,
+  Dump,
   CWrites,
   Memory,
   PObj,
@@ -170,20 +171,20 @@ End;
 
 Procedure ListA_DumpOne( L : ListAPtr );
 Begin
-  CWrite('(' + PtrToName(ListA_GetObject(L)) + ',' 
+  WriteToDumpFile('(' + PtrToName(ListA_GetObject(L)) + ',' 
       + PtrToName(ListA_GetAddr(L)^) + ')')
 End;
 
 Procedure ListA_DumpList( L : ListAPtr );
 Begin
-  CWrite('[ ');
+  WriteToDumpFile('[ ');
   While L <> Nil Do
   Begin
     ListA_DumpOne(L);
-    CWrite(' ');
+    WriteToDumpFile(' ');
     L := ListA_GetNext(L)
   End;
-  CWrite(']')
+  WriteToDumpFile(']')
 End;
 
 End.

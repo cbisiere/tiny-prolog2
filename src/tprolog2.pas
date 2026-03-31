@@ -30,13 +30,13 @@ Uses
   Errs,
   Chars,
   Files,
-  Trace,
+  Dump,
   CrtSize,
   Crt2,
   CEdit,
   CLI,
+  Paper,
   Echo,
-  Mirror,
   CWrites,
   Common,
   IChar,
@@ -71,17 +71,25 @@ Uses
   Tokenize,
   Expr,
   Parse,
-  Debug,
+  Dumper,
   Predef,
   Engine,
   Init;
 
 { cleanup and die }
-Procedure Die;
+Procedure Die( P : ProgPtr );
 Begin
-  CWriteln;
-  TerminateEcho;
-  TerminateTrace;
+  CWriteLn;
+  { turn off echo }
+  SetEcho(P,False);
+  { turn off debug }
+  SetDebug(P,False);
+  { shut down the paper system }
+  SetPaper(P,False);
+  ClosePaperFile;
+  { close the dump file }
+  CloseDumpFile;
+  { do die }
   HaltProgram
 End;
 
@@ -101,11 +109,11 @@ Begin
     Else
     Begin
       CWrite(GetErrorMessage);
-      CWriteln
+      CWriteLn
     End
   End;
   If QuitRequested Then
-    Die;
+    Die(P);
   ResetError
 End;
 
@@ -118,7 +126,7 @@ Begin
     ReleaseMemory(P);
     ReadFromConsole(P);
     If ErrorState = USER_INTERRUPT Then
-      Die;
+      Die(P);
     ProcessCommandLine(P)
   Until False
 End;
