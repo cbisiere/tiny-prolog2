@@ -20,7 +20,7 @@
   -----------------------
   1) TCharPos: Integer
     maximum number of characters in an input line = MAXINT;
-    However, everything should work with a larger type (e.g., LongInt). 
+    However, everything should work with a larger type (e.g., PosInt). 
     Note that input files are read char by char so the length of each 
     input line is not limited to BufSize.
 }

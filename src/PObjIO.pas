@@ -94,7 +94,7 @@ Type
     FI_TYPE : TIODeviceType;         { file, buffer, or console?               }
     FI_OPEN : Boolean;               { is the stream ready for i/o?            }
     FI_LOCK : Boolean;               { user is not allowed to close atm        }
-    FI_CHAR : LongInt;               { number of bytes read/written so far     }
+    FI_CHAR : PosInt;                { number of bytes read/written so far     }
     FI_ENCO : TEncoding;             { character encoding of the stream        }
     FI_EOLS : TEolStyle;             { type of EOL (CR,LF...)                  }
     FI_CONT : TLineContinuation;     { type of line continuation, if any       }

@@ -108,7 +108,7 @@ End;
  - syscall set More to True if they want to be called again }
 Function ExecutionSysCallOk( P : ProgPtr; Q : QueryPtr; T : TermPtr; 
     Var V,G : TermPtr; Var L : RestPtr; 
-    SuccessCount : LongInt; Var Choices : Pointer; 
+    SuccessCount : PosInt; Var Choices : Pointer; 
     Var Predef : TPP; Var More : Boolean ) : Boolean;
 Var
   Ok : Boolean;

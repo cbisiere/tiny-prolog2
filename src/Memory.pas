@@ -51,6 +51,7 @@ Const
 Type 
   TObjectTypeIndex = 1..MaxNbObjectTypes;
   TObjectName = String[2];
+  TObjectID = PosInt; { unique object identifier }
   TypeMark = Boolean;
   TSerial = PosInt; { serial number to support object marking } 
 
@@ -62,13 +63,13 @@ Type
     PO_MAGI : Integer;          { magic number (debug) }
     PO_FREE : Boolean;          { object's memory has been freed (debug) }
     PO_TYPE : TObjectTypeIndex; { type of object }
-    PO_GUID : LongInt;          { object globally unique identifier (for convenience and sorting) }
+    PO_GUID : TObjectID;        { object globally unique identifier (for convenience and sorting) }
     PO_SIZE : TObjectSize;      { size in bytes (including metadata) }
     PO_NPTR : TObjectChild; { number of PObject pointers (which must immediately follow the metadata) }
     { deep copy }
     PO_DPOK : Boolean;          { deep copy of this object is allowed }
     PO_COPY : TObjectPtr;       { pointer to a copy made during a deep copy; warning: copy may have been GC'ed }
-    PO_CUID : LongInt;          { GUID of the copy, or 0; for display purpose, as the copy may not exist }
+    PO_CUID : TObjectID;        { GUID of the copy, or 0; for display purpose, as the copy may not exist }
     PO_NCOP : Integer;          { copy number - FIXME: may overflow }
     PO_NDEE : TObjectChild; { number of pointers of objects to deep copy (must be less of equal than PO_NPTR) }
     { garbage collection }
@@ -90,7 +91,7 @@ Function DeclareObjectType( ObjName : TObjectName ) : TObjectTypeIndex;
 
 { object accessors }
 Function ObjectType( p : TObjectPtr ) : TObjectTypeIndex;
-Function ObjectGuid( p : TObjectPtr ) : LongInt;
+Function ObjectGuid( p : TObjectPtr ) : TObjectID;
 Procedure CheckIsObject( p : TObjectPtr; prompt : TString );
 Function ObjectCopyNumber( p : TObjectPtr ) : Integer;
 Function PtrToName( p : TObjectPtr ) : TString;
@@ -150,7 +151,7 @@ End;
 Type 
   TMemSize = LongLongInt; { large amount of memory, in bytes }
 
-  TObjectCount = LongInt; { number of objects, non negative }
+  TObjectCount = PosInt; { number of objects, non negative }
 
   TMemObject = Record
     IsSet : Boolean; { this table entry is set }
@@ -386,12 +387,12 @@ Begin
   ObjectCopyNumber := p^.PO_META.PO_NCOP
 End;
 
-Function ObjectGuid( p : TObjectPtr ) : LongInt;
+Function ObjectGuid( p : TObjectPtr ) : TObjectID;
 Begin
   ObjectGuid := p^.PO_META.PO_GUID
 End;
 
-Procedure SetObjectGuid( p : TObjectPtr; guid : LongInt);
+Procedure SetObjectGuid( p : TObjectPtr; guid : TObjectID );
 Begin
   p^.PO_META.PO_GUID := guid
 End;
@@ -430,19 +431,19 @@ End;
 { debug / dump                                                               }
 {----------------------------------------------------------------------------}
 
-Function FindObjectById( guid : LongInt ) : TObjectPtr; Forward;
+Function FindObjectById( guid : TObjectID ) : TObjectPtr; Forward;
 
 { global object ID to string }
-Function GuidToShortString( guid : LongInt ) : TString;
+Function GuidToShortString( guid : TObjectID ) : TString;
 Begin
-  GuidToShortString := '#' + LongIntToShortString(guid)
+  GuidToShortString := '#' + PosIntToShortString(guid)
 End;
 
 { object pointer to object name }
 Function PtrToName( p : TObjectPtr ) : TString;
 Var
   s : TString;
-  guid : LongInt;
+  guid : TObjectID;
 Begin
   If (p = Nil) Then
     s := '-'
@@ -541,7 +542,7 @@ Begin
 End;
 
 { find the object with guid id in the object store, or Nil }
-Function FindObjectById( guid : LongInt ) : TObjectPtr;
+Function FindObjectById( guid : TObjectID ) : TObjectPtr;
 Var
   p : TObjectPtr;
   Found : Boolean;
@@ -561,7 +562,7 @@ End;
 Procedure RegisterObject( p : TObjectPtr );
 Var
   nxt : TObjectPtr;
-  guid : LongInt;
+  guid : TObjectID;
 Begin
   CheckCondition(Not OngoingGC Or Not GetRegistrationState,
       'RegisterObject: object registration during GC');

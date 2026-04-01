@@ -133,7 +133,7 @@ Function GetAtomArgAsStr( n : Byte; T : TermPtr;
 
 Function ClearPredef( Predef : TPP; P : ProgPtr; Q : QueryPtr; 
     T : TermPtr; Var V,G : TermPtr; 
-    Var L : RestPtr; SuccessCount : LongInt; Var Choices : Pointer; 
+    Var L : RestPtr; SuccessCount : PosInt; Var Choices : Pointer; 
     Var More : Boolean ) : Boolean;
 
 Implementation
@@ -1194,7 +1194,7 @@ End;
  variable), at the time of first call (logical update view); if Retract is True, 
  suppress the rule upon success }
 Function ClearRule( P : ProgPtr; T : TermPtr; TwoParam : Boolean; 
-    Retract : Boolean; Var L : RestPtr; SuccessCount : LongInt; 
+    Retract : Boolean; Var L : RestPtr; SuccessCount : PosInt; 
     Var Choices : Pointer; Var More : Boolean ) : Boolean;
 Var
   T1,T2 : TermPtr;
@@ -2582,7 +2582,7 @@ End;
    - convert Choices to a Prolog list and unify it with the "l" argument 
   }
 Function ClearFindAll( P : ProgPtr; T : TermPtr; 
-    Var V,G : TermPtr; SuccessCount : LongInt; 
+    Var V,G : TermPtr; SuccessCount : PosInt; 
     Var Choices : Pointer; Var More : Boolean ) : Boolean;
 Var
   T1,T2,T3,L : TermPtr;
@@ -2734,7 +2734,7 @@ End;
  Code(Arg1,...,ArgN), except insert; G returns the new goal to freeze or clear }
 Function ClearPredef( Predef : TPP; P : ProgPtr; Q : QueryPtr; 
     T : TermPtr; Var V,G : TermPtr; 
-    Var L : RestPtr; SuccessCount : LongInt; Var Choices : Pointer; 
+    Var L : RestPtr; SuccessCount : PosInt; Var Choices : Pointer; 
     Var More : Boolean ) : Boolean;
 Var
   Ok : Boolean;

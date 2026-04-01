@@ -80,7 +80,7 @@ Procedure PutOneRule( f : StreamPtr; y : TSyntax; R : RulePtr );
 Procedure PutOneQuery( f : StreamPtr; y : TSyntax; Q : QueryPtr );
 Procedure PutOneComment( f : StreamPtr; y : TSyntax; C : CommPtr );
 Procedure PutTraceMessage( f : StreamPtr; y : TSyntax; Tag : TString;
-    Depth : LongInt; Branch : Longint; ClearT : TermPtr );
+    Depth : PosInt; Branch : PosInt; ClearT : TermPtr );
 
 { write, using the line width system }
 Procedure OutTerm( f : StreamPtr; y : TSyntax; T : TermPtr );
@@ -424,7 +424,7 @@ Var
   PV : TObjectPtr Absolute V;
   s : StrPtr;
   k : Integer;
-  guid : LongInt;
+  guid : TObjectID;
 Begin
   CheckCondition(TypeOfTerm(TV) = Variable,
     'GetVarNameAsStr(V): V is not a variable');
@@ -1183,18 +1183,18 @@ Begin
   Stream_WriteLongString(f,s)
 End;
 
-{ print a trace message (engine) }
+{ print a trace message (engine); FIXME: Depth is actually of type TClock  }
 Procedure PutTraceMessage( f : StreamPtr; y : TSyntax; Tag : TString; 
-    Depth : LongInt; Branch : Longint; ClearT : TermPtr );
+    Depth : PosInt; Branch : PosInt; ClearT : TermPtr );
 Var
   s : StrPtr;
 Begin
   s := Stream_NewStr(f);
   UnparseShortString(s,Tag);
   UnparseShortString(s,': (');
-  UnparseShortString(s,LongIntToShortString(Depth));
+  UnparseShortString(s,PosIntToShortString(Depth));
   UnparseShortString(s,',');
-  UnparseShortString(s,LongIntToShortString(Branch));
+  UnparseShortString(s,PosIntToShortString(Branch));
   UnparseShortString(s,') ');
   UnparseTerm(y,s,ClearT,False,False,False,True);
   Stream_WriteLongString(f,s);
