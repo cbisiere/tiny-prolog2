@@ -467,7 +467,7 @@ Begin
   n := GetCharWhile(f,Stream_NewStr(f),[' '])
 End;
 
-{ skip any sequence of blank spaces and comments }
+{ skip any sequence of blank spaces (including line breaks) and comments }
 Procedure ReadSpaces( f : StreamPtr; y : TSyntax );
 Var
   e,e2 : TIChar;

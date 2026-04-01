@@ -127,10 +127,10 @@ End;
 {-----------------------------------------------------------------------}
 
 Begin
+  PaperFileIsOpen := False;
   { default paper file name }
   SetPaperFilename('prolog.log');
   { start with no paper }
-  PaperFileIsOpen := False;
   PaperIsOn := False;
   { first switch to On state did not happen yet }
   FirstSwitchToOn := False

@@ -687,6 +687,7 @@ Begin
   Stream_ResetInputBuffer(f);
   With f^ Do
     ReadLnKbd(FI_IBUF,FI_ENCO,FI_EOLS);
+  If Error Then Exit; { Ctrl-C? }
   { by design, ReadLnKbd stops on enter key (or user interrupt); as the goals
    to clear may use set_line_cursor/1 or out/1 and friends, we must reset
    the character position to 1 }
@@ -757,7 +758,7 @@ Var
 Begin
   With f^ Do
   Begin
-    { 1: if the last char read was EOF, leave the buffer as-is and return EOF }
+    { 1: check: reading past EOF is a bug }
     If (BufNbRead(FI_IBUF) > 0) Then
     Begin
       BufGetLastRead(e,FI_IBUF);
@@ -837,7 +838,7 @@ Begin
   Until Stop
 End;
 
-{ read the next non-blank character; may return EOL or EOF }
+{ read the next non-blank character; may return EOF }
 Procedure Stream_GetCharNb( f : StreamPtr; Var e : TIChar );
 Begin
   Repeat 

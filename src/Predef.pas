@@ -2376,6 +2376,7 @@ Begin
 
   { buffer in console input, when necessary }
   Stream_CheckConsoleInput(f,SkipSpaces);
+  If Error Then Exit; { Ctrl-C? }
 
   { skip blank characters when requested; even if a lookahead is requested, 
    leading spaces are not unread (PII+ p.126 reads: "Reads all blank 

@@ -108,6 +108,8 @@ Begin
     End
     Else
     Begin
+      If Not CrtIsCursorOnFirstCol Then
+        CWriteLn;
       CWrite(GetErrorMessage);
       CWriteLn
     End
@@ -126,7 +128,10 @@ Begin
     ReleaseMemory(P);
     ReadFromConsole(P);
     If ErrorState = USER_INTERRUPT Then
+    Begin
+      CWrite('Bye!');
       Die(P);
+    End;
     ProcessCommandLine(P)
   Until False
 End;

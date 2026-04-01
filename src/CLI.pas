@@ -318,7 +318,8 @@ Var
       Else If TCharIs(cc,CTRL_C) Then { Ctrl-C }
       Begin
         Stop := True;
-        UserInterrupt
+        UserInterrupt;
+        Exit
       End
       Else If TCharIs(cc,#08) Then { Backspace }
         CEditDelete(Ed)

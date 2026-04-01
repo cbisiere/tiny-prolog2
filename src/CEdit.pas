@@ -146,7 +146,7 @@ End;
 { write the prompt on screen, starting at visual cursor }
 Procedure CEditWritePrompt( Ed : TEditor );
 Var
-  i : 1..MaxPromptLength;
+  i : 0..MaxPromptLength; { prompt might be of length 0 }
   cc : TChar;
 Begin
   With Ed Do

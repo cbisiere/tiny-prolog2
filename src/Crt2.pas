@@ -110,6 +110,7 @@ Function CrtIsBroken( y : TCrtCoordY ) : Boolean;
 Procedure CrtGotoXY( x : TCrtCoordX; y : TCrtCoordY );
 Procedure CrtGotoLeft;
 Procedure CrtGotoRight;
+Function CrtIsCursorOnFirstCol : Boolean;
 Procedure CrtGotoFirstCol;
 Procedure CrtGotoLine( y : TCrtCoordY );
 
@@ -202,7 +203,7 @@ End;
 
 Procedure CrtFullScreen;
 Begin
-  Window(1,1,CrtSizeScreenWidth,CrtSizeScreenHeight)
+  Window(CrtWindMinX,CrtWindMinY,CrtSizeScreenWidth,CrtSizeScreenHeight)
 End;
 
 {----------------------------------------------------------------------------}
@@ -288,16 +289,22 @@ Begin
   CrtGotoXY(WhereX+1,WhereY)
 End;
 
+{ is cursor on the first column? }
+Function CrtIsCursorOnFirstCol : Boolean;
+Begin
+  CrtIsCursorOnFirstCol := WhereX = CrtWindMinX
+End;
+
 { move cursor to the beginning of the current line }
 Procedure CrtGotoFirstCol;
 Begin
-  CrtGotoXY(1,WhereY)
+  CrtGotoXY(CrtWindMinX,WhereY)
 End;
 
 { move cursor at the beginning of line i }
 Procedure CrtGotoLine( y : TCrtCoordY );
 Begin
-  CrtGotoXY(1,y)
+  CrtGotoXY(CrtWindMinX,y)
 End;
 
 { insert a blank line, moving the lines below down by one line; the last screen 
