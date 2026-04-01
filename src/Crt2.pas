@@ -144,13 +144,15 @@ Implementation
 { window size                                                                }
 {----------------------------------------------------------------------------}
 
+ { cf. TP4 doc p.303 }
+ 
 { X coordinate of the left edge }
 Function CrtWindMinX : PosInt;
 Begin
 {$IFDEF FPC}
   CrtWindMinX := WindMinX
 {$ELSE}
-  CrtWindMinX := Lo(WindMin)
+  CrtWindMinX := Lo(WindMin) + 1
 {$ENDIF}
 End;
 
@@ -160,7 +162,7 @@ Begin
 {$IFDEF FPC}
   CrtWindMinY := WindMinY
 {$ELSE}
-  CrtWindMinY := Hi(WindMin)
+  CrtWindMinY := Hi(WindMin) + 1
 {$ENDIF}
 End;
 
@@ -170,7 +172,7 @@ Begin
 {$IFDEF FPC}
   CrtWindMaxX := WindMaxX
 {$ELSE}
-  CrtWindMaxX := Lo(WindMax)
+  CrtWindMaxX := Lo(WindMax) + 1
 {$ENDIF}
 End;
 
@@ -180,7 +182,7 @@ Begin
 {$IFDEF FPC}
   CrtWindMaxY := WindMaxY
 {$ELSE}
-  CrtWindMaxY := Hi(WindMax)
+  CrtWindMaxY := Hi(WindMax) + 1
 {$ENDIF}
 End;
 
@@ -266,8 +268,10 @@ End;
 Procedure CrtTrace( s : TString );
 Begin
   If TRACE_CRT Then
+  Begin
     WritelnToDumpFile('Crt(' + IntToShortString(WhereX) + ',' 
         + IntToShortString(WhereY) + '): '+ s)
+  End
 End;
 
 { move cursor at the beginning of line i }
@@ -494,6 +498,8 @@ Begin
   WritelnToDumpFile('| CRT: ');
   WritelnToDumpFile('  WhereX = ' + IntToShortString(WhereX));
   WritelnToDumpFile('  WhereY = ' + IntToShortString(WhereY));
+  WritelnToDumpFile('  CrtWindMinX = ' + IntToShortString(CrtWindMinX));
+  WritelnToDumpFile('  CrtWindMinY = ' + IntToShortString(CrtWindMinY));
   WritelnToDumpFile('  CrtWindMaxX = ' + IntToShortString(CrtWindMaxX));
   WritelnToDumpFile('  CrtWindMaxY = ' + IntToShortString(CrtWindMaxY));
   WriteToDumpFile('  ');
