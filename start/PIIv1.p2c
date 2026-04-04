@@ -70,12 +70,16 @@ fermer-sortie -> syscall(sysoutputis,F) syscall(syscloseoutput,F);
 
 tampon-neuf(T) -> syscall(sysnewbuffer) T syscall(sysdelbuffer);
 
-"in"
+"in: char"
 
 in-car(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,false,false);
 in-car'(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,true,false);
 car-apres(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,false,true);
 car-apres'(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,true,true);
+fin-ligne(T) -> syscall(syssubeol,T);
+
+"in: others"
+
 in(T) -> syscall(sysinputis,S) syscall(sysin,S,T,term,true,false);
 in-entier(T) -> syscall(sysinputis,S) syscall(sysin,S,T,integer,true,false);
 in-ident(T) -> syscall(sysinputis,S) syscall(sysin,S,T,ident,true,false);
@@ -88,7 +92,7 @@ exl(T) -> syscall(sysout,T) ligne;
 exm(S) -> syscall(sysoutm,S);
 exml(S) -> syscall(sysoutm,S) ligne;
 ligne -> syscall(sysline);
-page -> syscall(sysclrsrc) impasse;
+page -> syscall(sysclrsrc);
 en-xy(N1,N2) -> syscall(sysgotoxy,N1,N2);
 lg-ligne(N) -> syscall(syssetlinewidth,N);
 pos(N) -> syscall(syssetlinecursor,N);

@@ -22,6 +22,7 @@ Uses
   Num,
   Errs,
   Files,
+  Chars,
   Paper,
   Echo,
   Dump,
@@ -155,6 +156,8 @@ Function GetProgramPath( P : ProgPtr ) : StrPtr;
 Procedure SetProgramPath( P : ProgPtr; path : StrPtr );
 Function GetSyntax( P : ProgPtr ) : TSyntax;
 Procedure SetSyntax( P : ProgPtr; y : TSyntax );
+Function GetSubChar( P : ProgPtr ) : TChar;
+Procedure SetSubChar( P : ProgPtr; cc : TChar );
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -251,6 +254,7 @@ Begin
     PP_LEVL := 0;
     PP_PATH := Nil;
     PP_SYNT := y;
+    PP_CHAR := CC_BLANK_SPACE; { default substitution char, see PIIv1 doc p.8}
     PP_PAPE := GetPaperState;
     PP_ECHO := GetEchoState;
     PP_DEBG := False;
@@ -843,6 +847,18 @@ End;
 Procedure SetSyntax( P : ProgPtr; y : TSyntax );
 Begin
   P^.PP_SYNT := y
+End;
+
+{ get the current substitution character for line breaks (PII only) }
+Function GetSubChar( P : ProgPtr ) : TChar;
+Begin
+  GetSubChar := P^.PP_CHAR
+End;
+
+{ set the current substitution character for line breaks (PII only) }
+Procedure SetSubChar( P : ProgPtr; cc : TChar );
+Begin
+  P^.PP_CHAR := cc
 End;
 
 End.

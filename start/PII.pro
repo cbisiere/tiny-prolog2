@@ -76,12 +76,16 @@ flush -> syscall(sysflush);
 
 new-buffer(T) -> syscall(sysnewbuffer) T syscall(sysdelbuffer);
 
-"in"
+"in: char"
 
 in-char(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,false,false);
 in-char'(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,true,false);
 next-char(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,false,true);
 next-char'(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,true,true);
+end-of-line(T) -> syscall(syssubeol,T); "FIXME: check name"
+
+"in: others"
+
 in(T) -> syscall(sysinputis,S) syscall(sysin,S,T,term,true,false);
 in-integer(T) -> syscall(sysinputis,S) syscall(sysin,S,T,integer,true,false);
 in-ident(T) -> syscall(sysinputis,S) syscall(sysin,S,T,ident,true,false);

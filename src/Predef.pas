@@ -90,6 +90,7 @@ Type
     PP_CLOSE_INPUT,
     PP_CLEAR_INPUT,
     PP_IN,
+    PP_SUB_EOL,
     PP_OUTPUT_IS,
     PP_CLOSE_OUTPUT,
     PP_FLUSH,
@@ -144,7 +145,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 63;
+  NB_PP = 64;
   MAX_PP_LENGTH = 21; { max string length }
 Type
   TPPRec = Record
@@ -190,6 +191,7 @@ Const
     (I:PP_CLOSE_INPUT;S:'syscloseinput';N:1),
     (I:PP_CLEAR_INPUT;S:'sysclearinput';N:0),
     (I:PP_IN;S:'sysin';N:5),
+    (I:PP_SUB_EOL;S:'syssubeol';N:1),
     (I:PP_OUTPUT_IS;S:'sysoutputis';N:1),
     (I:PP_CLOSE_OUTPUT;S:'syscloseoutput';N:1),
     (I:PP_FLUSH;S:'sysflush';N:0),
@@ -2341,6 +2343,41 @@ End;
 { in                                                                         }
 {----------------------------------------------------------------------------}
 
+
+{ fin-ligne(c), end-of-line(c)
+ - PIIv1
+ - possibly PIIv2 (name "end-of-line" is only a guess)
+ - From PIIv1 doc p8: transform EOL into c. Default to " ".
+   We interpret this as: substitute EOL by c only when clearing in-char/1 and
+   friends (i.e. in-char'/0, car-apres/0, car-apres'/0)
+ }
+Function ClearSubEOL( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  C : ConstPtr;
+  s : StrPtr;
+  cc : TChar;
+Begin
+  ClearSubEOL := False;
+  { 1: char (must be set) }
+  C := EvalPArgAsString(1,T);
+  If C = Nil Then
+  Begin
+    CWritelnWarning('EOL substitution must be a character');
+    Exit
+  End;
+  s := ConstGetStr(C);
+  If Str_Length(s) <> 1 Then
+  Begin
+    CWritelnWarning('EOL substitution must be exactly one character');
+    Exit
+  End;
+  If Not Str_FirstChar(s,cc) Then { note: this call must never return False }
+    Exit;
+  { set the substitution character }
+  SetSubChar(P,cc);
+  ClearSubEOL := True
+End;
+
 { read_term(Stream,T), get_char(Stream,C), next_char(Stream,C)...; 
  note: silently fails if Stream exists but is not an input stream }
 Function ClearIn( P : ProgPtr; T : TermPtr ) : Boolean;
@@ -2349,6 +2386,7 @@ Var
   What : TPrologDataType;
   SkipSpaces : Boolean;
   LookAhead : Boolean; { advance read requested, undo all the reads }
+  y : TSyntax;
   f : StreamPtr;
   cp : TCodePoint;
   K : TokenPtr;
@@ -2387,6 +2425,8 @@ Begin
   { undo point  }
   Stream_NextChar(f,e);
 
+  y := GetSyntax(P);
+
   { read target in Tr}
   Case What Of
   TYPE_CHAR,TYPE_CODE_CHAR:
@@ -2399,7 +2439,7 @@ Begin
         TYPE_CHAR:
           Begin
             s := Stream_NewStr(f);
-            If GetSyntax(P) = Edinburgh Then { Edinburgh: return a one-char atom }
+            If y = Edinburgh Then { Edinburgh: return a one-char atom }
             Begin
               If TICharIsEndOfInput(e1) Then
                 Str_Append(s,'end_of_file')
@@ -2411,13 +2451,16 @@ Begin
             End
             Else
             Begin
+              { PII: substitute EOL }
+              If (y in [PrologIIv1,PrologIIv2]) And (TICharIsEol(e1)) Then
+                e1.val := GetSubChar(P);
               Str_AppendChar(s,e1.Val);
               Tr := EmitConst(P,s,CS,False)
             End
           End;
         TYPE_CODE_CHAR:
           Begin
-            If (GetSyntax(P) = Edinburgh) And (TICharIsEndOfInput(e1)) Then
+            If (y = Edinburgh) And (TICharIsEndOfInput(e1)) Then
               ss := '-1'
             Else
             Begin
@@ -2846,6 +2889,8 @@ Begin
     Ok := ClearClrScr(P);
   PP_IN:
     Ok := ClearIn(P,T);
+  PP_SUB_EOL:
+    Ok := ClearSubEOL(P,T);
   PP_SET_STATE:
     Ok := ClearOnOffState(P,T);
   PP_BACKTRACE:
