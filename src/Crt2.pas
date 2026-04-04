@@ -125,14 +125,14 @@ Procedure CrtClrSrc;
 Procedure CrtBeep;
 Procedure CrtBackspace;
 Procedure CrtWriteLn;
-Procedure CrtWrite( cc : TChar );
+Procedure CrtWriteBytesOf( cc : TChar );
 
 Function CrtCharWrapSize( cc : TChar ) : Byte;
 Function CrtCharWidthOnScreen( cc : TChar ) : Byte;
 
 Function CrtWraps( bytes : PosInt; cc : TChar ) : Boolean;
 
-Procedure CrtWriteChar( cc : TChar );
+Procedure CrtWriteRegularChar( cc : TChar );
 Procedure CrtWriteShortString( s : TString );
 
 Procedure CrtDump;
@@ -401,7 +401,7 @@ Begin
 End;
 
 { write a char; this breaks WhereX if the char is multibyte }
-Procedure CrtWrite( cc : TChar );
+Procedure CrtWriteBytesOf( cc : TChar );
 Begin
   CrtTrace('Write ' + TCharToDebugShortString(cc));
   Write(TCharGetBytes(cc));
@@ -460,16 +460,12 @@ End;
  the char itself if EOL; remember that the input subsystem replaces CR, LF, 
  and CRLF with EOL (that is, LF), so CR should only appear when we add it 
  ourselves, which we avoid doing }
-Procedure CrtWriteChar( cc : TChar );
+Procedure CrtWriteRegularChar( cc : TChar );
 Begin
-  If TCharIsEol(cc) Then
-    CrtWriteLn
-  Else
-  Begin
-    If CrtWraps(WhereX-1,cc) Then { avoid breaking multibyte chars }
-      CrtWriteLn;
-    CrtWrite(cc)
-  End
+  CheckCondition(Not TCharIsSoftMark(cc),'CrtWriteRegularChar: soft mark');
+  If CrtWraps(WhereX-1,cc) Then { avoid breaking multibyte chars }
+    CrtWriteLn;
+  CrtWriteBytesOf(cc)
 End;
 
 { write a string of 1-byte characters on screen }
@@ -481,7 +477,7 @@ Begin
   For i := 1 to Length(s) Do
   Begin
     TCharSetFromAscii(cc,s[i]);
-    CrtWriteChar(cc)
+    CrtWriteRegularChar(cc)
   End
 End;
 

@@ -934,25 +934,25 @@ For a console, it implies that:
  }
 
 {-----------------------------------------------------------------------}
-{ private methods: write bytes to a stream                              }
+{ private methods: write to a stream                                    }
 {-----------------------------------------------------------------------}
 
 { handles writing to screen or files, honoring to echo and paper features, 
  assuming none of the characters to print is a soft mark (or an equivalent,
  actual character, as \n) }
 
-{ write a short string of bytes to an output stream }
-Procedure Stream_WriteBytes( f : StreamPtr; s : TString );
+{ write a TChar }
+Procedure Stream_WriteRegularChar( f : StreamPtr; cc : TChar );
 Begin
   With f^ Do
     Case FI_TYPE Of
       DEV_TERMINAL:
-        CWrite(s);
+        CWriteRegularChar(cc);
       DEV_FILE,DEV_BUFFER:
         Begin
           If GetEchoState Then
-            CWrite(s);
-          WriteToFile(Stream_GetShortPath(f),FI_OFIL,s)
+            CWriteRegularChar(cc);
+          WriteToFile(Stream_GetShortPath(f),FI_OFIL,TCharGetBytes(cc))
         End
     End
 End;
@@ -992,7 +992,7 @@ End;
  the current lne }
 Procedure Stream_OutChar( f : StreamPtr; cc : TChar );
 Begin
-  Stream_WriteBytes(f,TCharGetBytes(cc));
+  Stream_WriteRegularChar(f,cc);
   Stream_IncCharacterPosition(f,1)
 End;
 
@@ -1032,7 +1032,7 @@ Begin
   If TCharIsEol(cc) Then
     Stream_LineBreak(f)
   Else If Not TCharIsSoftMark(cc) Then
-    Stream_WriteBytes(f,TCharGetBytes(cc))
+    Stream_WriteRegularChar(f,cc)
 End;
 
 { write a long stream while honoring line break soft marks, ignoring other 

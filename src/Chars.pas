@@ -133,6 +133,7 @@ Function TCharGetSoftMarkPayload( cc : TChar ) : TSoftMarkPayload;
 { TChar: regular characters: init }
 Procedure TCharSetBytes( Var cc : TChar; b : TCharBytes );
 Procedure TCharSetEncoding( Var cc : TChar; Enc : TEncoding );
+Procedure TCharSet( Var cc : TChar; b : TCharBytes; Enc : TEncoding );
 Procedure TCharSetFromAscii( Var cc : TChar; c : Char );
 
 { TChar: regular characters }
@@ -369,6 +370,14 @@ End;
 Procedure TCharSetEncoding( Var cc : TChar; Enc : TEncoding );
 Begin
   TCharSetAsSoftMark(cc,False);
+  cc.Character.Encoding := Enc
+End;
+
+{ set cc's bytes and encoding in one go }
+Procedure TCharSet( Var cc : TChar; b : TCharBytes; Enc : TEncoding );
+Begin
+  TCharSetAsSoftMark(cc,False);
+  cc.Character.Bytes := b;
   cc.Character.Encoding := Enc
 End;
 
@@ -715,28 +724,29 @@ Begin
     Exit
   End;
 
-  { start by assuming we have a single-byte char }
-  c := s[1];
-  TCharSetBytes(cc,c);
-  TCharSetEncoding(cc,Enc);
-
-  { input is known to be a stream of 1-byte chars }
+  { input is already known to be a stream of 1-byte chars }
   If Enc In [ENC_SINGLE_BYTE,ENC_CP437,ENC_CP850,ENC_ISO8859] Then
   Begin
+    TCharSet(cc,s[1],Enc);
     Success(1);
     Exit
   End;
 
   { encoding is either undecided, ASCII or UTF-8 } 
+  c := s[1]; { so we can use it in a case selector }
   Case c Of 
   #$00..#$7F: { 7-bit ASCII char }
     Begin
-      TCharSetEncoding(cc,ENC_ASCII);
+      { when possible, update context encoding }
       If Enc = ENC_UNDECIDED Then
-        Enc := ENC_ASCII
+        Enc := ENC_ASCII;
+      { set the character }
+      TCharSet(cc,s[1],ENC_ASCII);
+      Success(1);
+      Exit
     End;
-  #$80..#$BF, { continuation bytes: cannot start a sequence }
-  #$C0,#$C1,#$F5..#$FF: { invalid in any sequence }
+  #$80..#$BF, { continuation bytes: cannot start a UTF-8 sequence }
+  #$C0,#$C1,#$F5..#$FF: { invalid in any UTF-8 sequence }
     Begin
       { cannot be UTF-8 }
       If Enc = ENC_UTF8 Then
@@ -744,14 +754,18 @@ Begin
         EncodingError('broken UTF-8 encoding');
         Exit
       End;
-      TCharSetEncoding(cc,ENC_SINGLE_BYTE);
+      { when possible, update context encoding }
       If Enc = ENC_UNDECIDED Then
-        Enc := ENC_SINGLE_BYTE
+        Enc := ENC_SINGLE_BYTE;
+      { set character }
+      TCharSet(cc,s[1],ENC_SINGLE_BYTE);
+      Success(1);
+      Exit
     End;
   #$C2..#$F4:
     Begin
       { might be a UTF-8 leading byte }
-      { expected length of the UTF-8 sequence }
+      { n: expected length of the UTF-8 sequence }
       Case c Of
       #$C2..#$DF:
         n := 2;
@@ -760,7 +774,7 @@ Begin
       #$F0..#$F4:
         n := 4;
       End;
-      { number of continuation bytes }
+      { m: number of continuation bytes }
       m := StartsCount(Copy(s,2,StringMaxSize),[#$80..#$BF]);
       Case Enc Of 
       ENC_UTF8:
@@ -770,31 +784,36 @@ Begin
             EncodingError('broken UTF-8 encoding');
             Exit
           End;
-          { an additional multi-byte char in stream already identified as 
-           a UTF-8 stream }
-          TCharAppendBytes(cc,Copy(s,2,m));
-          TCharSetEncoding(cc,ENC_UTF8)
+          { set the UTF-8 character (in a stream known to be UTF-8) }
+          TCharSet(cc,Copy(s,1,n),ENC_UTF8);
+          success(n);
+          Exit
         End;
-      ENC_UNDECIDED,ENC_ASCII: { refine encoding }
+      ENC_UNDECIDED,ENC_ASCII:
         Begin 
           If m = n-1 Then
           Begin
-            { a multi-byte char in a UTF-8 stream }
-            TCharAppendBytes(cc,Copy(s,2,m));
-            TCharSetEncoding(cc,ENC_UTF8);
-            Enc := ENC_UTF8
+            { set the stream to be UTF-8 }
+            Enc := ENC_UTF8;
+            { so we have a multi-byte char in a UTF-8 stream }
+            TCharSet(cc,Copy(s,1,n),ENC_UTF8);
+            success(n);
+            Exit
           End
           Else
           Begin
-            TCharSetEncoding(cc,ENC_SINGLE_BYTE);
+            { not a valid UTF-8 sequence: stream must be single-byte }
             If Enc = ENC_UNDECIDED Then
-              Enc := ENC_SINGLE_BYTE
+              Enc := ENC_SINGLE_BYTE;
+            { the character }
+            TCharSet(cc,s[1],ENC_SINGLE_BYTE);
+            Success(1);
+            Exit
           End
         End
       End
     End
-  End;
-  Success(1)
+  End
 End;
 
 {----------------------------------------------------------------------------}

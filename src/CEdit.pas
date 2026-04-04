@@ -153,7 +153,7 @@ Begin
     For i := 1 to Length(Prompt) Do
     Begin
       TCharSetFromAscii(cc,Prompt[i]);
-      CrtWriteChar(cc)
+      CrtWriteRegularChar(cc)
     End
 End;
 
@@ -572,7 +572,7 @@ Begin
         b := 0
       End;
       { write the char, keeping track of the number of bytes on screen line }
-      CrtWrite(cc);
+      CrtWriteBytesOf(cc);
       b := b + CrtCharWrapSize(cc)
     End;
     CrtClrEol; { needed when deleting a char from a line above the last one }
@@ -591,7 +591,7 @@ Begin
     Begin
       i := NextIdx(Buf,i);
       BufGetCharAt(cc,Buf,i);
-      CrtWrite(cc)
+      CrtWriteBytesOf(cc)
     End
 End;
 
@@ -715,7 +715,7 @@ Begin
         Begin
           Exit
         End;
-        CrtWrite(cc);
+        CrtWriteBytesOf(cc);
         If (WhereY = wy + 1) Then
         Begin
         End;
@@ -864,7 +864,7 @@ Begin
   { update display, minimizing cursor movements }
   If ActiveDown Then
     CEditWriteln(Ed);
-  CrtWrite(cc);
+  CrtWriteBytesOf(cc);
   { not an append op: we must redraw from IdxW }
   If Not BufWriteCursorIsAtEnd(Ed.Buf) Then
     CEditRefreshFromWrite(Ed);

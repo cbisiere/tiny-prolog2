@@ -28,6 +28,7 @@ Uses
   Crt2;
 
 
+Procedure CWriteRegularChar( cc : TChar );
 Procedure CWriteChar( cc : TChar );
 Procedure CWrite( s : TString );
 Procedure CWriteLn;
@@ -41,13 +42,20 @@ Procedure CWriteLnWarning( s : TString );
 Implementation
 {-----------------------------------------------------------------------------}
 
+{ write a non-special TChar to the terminal }
+Procedure CWriteRegularChar( cc : TChar );
+Begin
+  WriteToPaperFile(TCharGetBytes(cc));
+  CrtWriteRegularChar(cc)
+End;
+
 { write a TChar to the terminal, ignoring soft marks other than line breaks }
 Procedure CWriteChar( cc : TChar );
 Begin
   If TCharIsEol(cc) Then
     CWriteLn
   Else If Not TCharIsSoftMark(cc) Then
-    CWrite(TCharGetBytes(cc))
+    CWriteRegularChar(cc)
 End;
 
 { write a string of 1-byte chars to the terminal }
