@@ -30,8 +30,11 @@ Uses
 Function World_New( Name : StrPtr; UserLand : Boolean ) : WorldPtr;
 
 Function World_GetName( W : WorldPtr ) : StrPtr;
+Function World_GetNext( W : WorldPtr ) : WorldPtr;
+Function World_GetPrev( W : WorldPtr ) : WorldPtr;
 Function World_GetParent( W : WorldPtr ) : WorldPtr;
 Function World_GetFirstChild( W : WorldPtr ) : WorldPtr;
+Function World_GetLastChild( W : WorldPtr ) : WorldPtr;
 Function World_GetFirstStatement( W : WorldPtr ) : StmtPtr;
 Procedure World_SetFirstStatement( W : WorldPtr; S : StmtPtr );
 Function World_GetLastStatement( W : WorldPtr ) : StmtPtr;

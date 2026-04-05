@@ -8,6 +8,7 @@ purger(W) -> syscall(syskillworld,W,false);
 monter(W) -> syscall(sysclimbworld,W);
 monter -> syscall(sysparentworld,W) syscall(sysclimbworld,W);
 descendre(W) -> chaine(W) syscall(sysdownworld,W,true);
+sous-mondes(W) -> syscall(syssubworlds,W);
 
 "statements"
 

@@ -9,6 +9,7 @@ purge(W) -> syscall(syskillworld,W,false);
 climb(W) -> syscall(sysclimbworld,W);
 climb -> syscall(sysparentworld,W) syscall(sysclimbworld,W);
 down(W) -> string(W) syscall(sysdownworld,W,false);
+subworlds(W) -> syscall(syssubworlds,W); "TODO: name? check doc"
 
 "statements"
 

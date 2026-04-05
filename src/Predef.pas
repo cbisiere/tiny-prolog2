@@ -73,6 +73,7 @@ Type
     PP_BOTTOM_STATEMENT,
     PP_UP_STATEMENT,
     PP_DOWN_STATEMENT,
+    PP_SUBWORLDS,
     PP_FIND_RULE,
     PP_ASSERT2,
     PP_ASSERT1,
@@ -145,7 +146,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 64;
+  NB_PP = 65;
   MAX_PP_LENGTH = 21; { max string length }
 Type
   TPPRec = Record
@@ -174,6 +175,7 @@ Const
     (I:PP_BOTTOM_STATEMENT;S:'sysbottomstatement';N:0),
     (I:PP_UP_STATEMENT;S:'sysupstatement';N:1),
     (I:PP_DOWN_STATEMENT;S:'sysdownstatement';N:1),
+    (I:PP_SUBWORLDS;S:'syssubworlds';N:1),
     (I:PP_FIND_RULE;S:'sysfindrule';N:1),
     (I:PP_ASSERT1;S:'sysassert1';N:2), { Edinburgh only }
     (I:PP_ASSERT2;S:'sysassert2';N:3),
@@ -953,6 +955,32 @@ Begin
       Exit
     End;
   ClearDownWorld := True
+End;
+
+{ sous-mondes(l), subworlds(l); unify the list l with the list of subworlds 
+ of the current words; 
+ - we assume it is not recursive (i.e. it only returns immediate children) 
+ - unsure about the name of the predicate in PIIv2 }
+Function ClearSubWorlds( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  T1 : TermPtr;
+  L : TermPtr;
+  W : WorldPtr;
+  C : TermPtr;
+Begin
+  ClearSubWorlds := False;
+  { 1: list (usually a free variable) }
+  T1 := EvalPArg(1,T);
+  { build and set list L }
+  L := NewEmptyList(P);
+  W := World_GetLastChild(GetCurrentWorld(P));
+  While W <> Nil Do
+  Begin
+    C := EmitConst(P,World_GetName(W),CS,False);
+    L := NewList2(P,C,L);
+    W := World_GetPrev(W)
+  End;
+  ClearSubWorlds := ReduceOneEq(T1,L,GetDebugStream(P))
 End;
 
 {----------------------------------------------------------------------------}
@@ -2831,6 +2859,8 @@ Begin
     Ok := ClearUpStatement(P,T);
   PP_DOWN_STATEMENT:
     Ok := ClearDownStatement(P,T);
+  PP_SUBWORLDS:
+    Ok := ClearSubWorlds(P,T);
   PP_FIND_RULE:
     Ok := ClearFindRule(P,T);
   PP_ASSERT1:

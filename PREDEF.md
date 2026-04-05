@@ -15,6 +15,7 @@ _`new-subworld(W)`_ | create a new subworld below the current world, and go down
 `purger(W)` <br><br> _`purge(W)`_ | same as above, but delete inconditionally    | 
 `monter(W)`, `monter`<br><br> _`climb(W)`, `climb`_ | go up the parent word; fail if `W` is not the parent world |
 `descendre(W)` <br><br> _`down(W)`_ | go down to subword `W` of the current word; creates subworld `W` if it does not exist (French v1 only)
+`sous-mondes(L)` <br><br> _`subworlds(L)`_ | unify `L` with the list of all the subwordls of the current world | `> new-subworld("World 1") climb;`<br> `{  }` <br> `> new-subworld("World 2") climb;`<br> `{  }` <br> `> subworlds(l);` <br> `{ l="World 1"."World 2".nil }` <br> `>`
 
 ### Statements
 
