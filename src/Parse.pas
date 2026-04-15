@@ -337,18 +337,19 @@ Begin
         If Error Then Exit;
         { simplify +/- integer:
         PII+ p.48: "The trees corresponding to the unary operators + and - are  
-        evaluated when analyzed if their argument is an integer constant." }
+        evaluated when analyzed if their argument is an integer constant." 
+        Note: I see not reason not to do that for real numbers as well }
         If (Op_GetType(o) = fx) And ((Op_GetOperator(o) = '+') 
             Or (Op_GetOperator(o) = '-')) 
-            And (Token_GetType(K) = TOKEN_INTEGER) Then
+            And (Token_GetType(K) In [TOKEN_INTEGER,TOKEN_REAL]) Then
         Begin
-          T := ReadPTerm(f,P,K,glob,Cut); { read the integer constant }
+          T := ReadPTerm(f,P,K,glob,Cut); { read the numerical constant }
           If Error Then Exit;
           If Op_GetOperator(o) = '-' Then
           Begin
             s := Str_NewFromShortString('-');
             Str_Concat(s,ConstGetStr(ConstPtr(T)));
-            T := EmitConst(P,s,CI,True)
+            T := EmitConst(P,s,ConstTypeToObjectType(ConstType(ConstPtr(T))),True)
           End;
           PushExprTerm(T)
         End

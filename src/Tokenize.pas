@@ -58,8 +58,8 @@ Function SupportsQuotedIdentifiers( y : TSyntax ) : Boolean;
 
 Procedure ReadBlanks( f : StreamPtr );
 Function ReadString( f : StreamPtr ) : TokenPtr;
-Function ReadInteger( f : StreamPtr ) : TokenPtr;
-Function ReadNumber( f : StreamPtr; y : TSyntax ) : TokenPtr;
+Function ReadInteger( f : StreamPtr; Sign : Boolean ) : TokenPtr;
+Function ReadNumber( f : StreamPtr; y : TSyntax; Sign : Boolean ) : TokenPtr;
 Function ReadVariableOrIdentifier( f : StreamPtr; y : TSyntax ) : TokenPtr;
 Function ReadToken( f : StreamPtr; y : TSyntax ) : TokenPtr;
 
@@ -261,6 +261,14 @@ Function IsAlpha( e : TIChar ) : Boolean;
 Begin
   IsAlpha := IsLetter(e) Or IsDigit(e) Or TICharIs(e,'_')
 End;
+
+{ is TChar cc an exponential symbol in syntax y? }
+Function IsExpSymbol( e : TIChar; y : TSyntax ) : Boolean;
+Begin
+  IsExpSymbol := TICharIsIn(e,['E','e']) Or 
+    ((y In [PrologIIp,Edinburgh]) And TICharIsIn(e,['D','d']))
+End;
+
 
 {----------------------------------------------------------------------------}
 { grabbing characters of different classes                                   }
@@ -522,109 +530,163 @@ Begin
 End;
 
 { read an integer or return Nil }
-Function ReadInteger( f : StreamPtr ) : TokenPtr;
+Function ReadInteger( f : StreamPtr; Sign : Boolean ) : TokenPtr;
 Var
   K : TokenPtr;
   n : TStrLength;
+  e : TIChar;
+  HasSign : Boolean;
 Begin
   ReadInteger := Nil;
+  HasSign := False;
   K := Token_New(TOKEN_INTEGER);
   With K^ Do
   Begin
     TK_STRI := Stream_NewStr(f);
+    { optional sign }
+    If Sign Then 
+    Begin
+      Stream_NextChar(f,e);
+      If TICharIsIn(e,['+','-']) Then
+      Begin
+        Stream_GetChars(f,e);
+        Str_AppendIChar(TK_STRI,e);
+        HasSign := True
+      End
+    End;
+    { digits }
     n := GrabDigits(f,TK_STRI);
+    { no digits? clean up and fail }
     If n = 0 Then
+    Begin
+      If HasSign Then
+        Stream_UngetChars(f,e); { put back the sign }
       Exit
+    End
   End;
   ReadInteger := K
 End;
 
-{ read a number and return its canonical string representation;
- if syntax is not Edinburgh, then real numbers must have an explicit exponent (e.g.
- 1.2e+3); See footnote 3 p.47; 
- otherwise, "1.2" would be ambiguous, as it 
- could also a list as well as a real number; note that expressions like 
- "10e+3" remain ambiguous, because the syntax states that the possibly signed
- integer number after "E" is optional; in that case we assume the "+3" is part
- of the real number, and not an addition; note that input like "1.2e+3.4e" 
- remain difficult to parse, as "+3" should be attributed to the second real
- number, realizing very late that the second dot cannot be a dot list 
- operator;  }
-Function ReadNumber( f : StreamPtr; y : TSyntax ) : TokenPtr;
+{ read a number (integer or real), while being greedy, allowing for a sign if 
+ Sign is True; return Nil if no number can be read
+ - if syntax is not Edinburgh, then real numbers must have an explicit exponent 
+  (e.g. 1.2e+3); See footnote 3 p.47; otherwise, "1.2" would be ambiguous, as 
+  it could also a list as well as a real number; 
+ - expressions like "10e+3" remain ambiguous, because the syntax states that the 
+  possibly signed integer number after "E" is optional; in that case we assume 
+  the "+3" is part of the real number, and not an addition;
+ - input like "1.2e+3.4e" remain difficult to parse, as "+3" may be attributed 
+  to the second real number, realizing very late that the second dot cannot be 
+  a dot list operator; in fact, experiment shows that PII+ treats "1.2e+3.4e" as 
+  dot("1.2e+3","4e"), so PII+ is greedy when parsing real numbers 
+- so, there are two cases in which the dot is a list operator rather than the 
+  decimal point of a real number: 1) there is not digits after the dot 
+  (e.g. "1.nil"), and 2) there is one or more digits after the dot but 
+  the syntax is not Edinburgh and there is no "e" after the run of digits
+ }
+Function ReadNumber( f : StreamPtr; y : TSyntax; Sign : Boolean ) : TokenPtr;
 Var
   K : TokenPtr;
   e1,e2,e3 : TIChar;
   n : TStrLength;
   s,s2 : StrPtr;
-  Stop : Boolean; { stop parsing }
-  ListDot : Boolean; { not a real: we must unread all chars from the dot }
+  Done : Boolean; { stop parsing, we are done }
+  IsList : Boolean; { true: the dot is actually a list operator }
+  IsReal : Boolean; { true: the number is actually a floating point value }
+  HasExpSign : Boolean; { sign after "e"? }
 Begin
   ReadNumber := Nil;
-  { integer part }
-  K := ReadInteger(f);
-  CheckCondition(K <> Nil,'Number expected');
+  Done := False;
+  IsList := False;
+  IsReal := False;
+
+  { 1) integer }
+  K := ReadInteger(f,Sign);
   If Error Then Exit;
-  { optional real part }
-  With K^ Do
+
+  { not an integer }
+  If K = Nil Then
+    Exit;
+
+  { 2) real part, if any }
+  s := Stream_NewStr(f);
+
+  { 2a) potential decimal part }
+  Stream_NextChar(f,e1); { first char after the leading integer }
+  If Error Then Exit;
+  If TICharIs(e1,'.') Then
   Begin
-    s := Stream_NewStr(f);
-    Stream_NextChar(f,e1);
-    If Error Then Exit;
-    If TICharIs(e1,'.') Then
+    Stream_GetChars(f,e1); { undo point: the dot char }
+    Str_Append(s,'.');
+    n := GrabDigits(f,s);
+    { not a real, e.g. "1.nil", or "1.2" when not in Edinburgh mode }
+    IsList := n = 0;
+    If Not IsList Then
     Begin
-      Stream_GetChars(f,e1); { undo point: the dot char }
-      Str_Append(s,'.');
-      n := GetCharWhile(f,s,Digits);
-      ListDot := n = 0; { no digits after the dot? the dot was part of a list }
-      Stop := ListDot;
-      If Not Stop Then
+      Stream_NextChar(f,e2);
+      If Error Then Exit;
+      IsList := Not IsExpSymbol(e2,y) And (y <> Edinburgh)
+    End;
+    If IsList Then
+      Stream_UngetChars(f,e1); { undo up to, and including, '.' }
+    IsReal := Not IsList;
+    Done := IsList
+  End;
+
+  { 2b) exponent part }
+  If Not Done Then
+  Begin
+    Stream_NextChar(f,e2);
+    If Error Then Exit;
+    If IsExpSymbol(e2,y) Then
+    Begin
+      IsReal := True;
+      Stream_GetChars(f,e2); { undo point: the exponent mark }
+      Str_Append(s,'E');
+      { we put the remaining part in a different string, as we may decide not
+       to append it to s, as "+z" in "1.2e+z" }
+      s2 := Stream_NewStr(f);
+      { exponent: "+3" in "1.2e+3" or "3" in "1.2e3";
+        "1.2e" is valid syntax in PII+, so "1.2e+X" is read as an addition (and
+        "+" has to be unread }
+      Stream_NextChar(f,e3);
+      If Error Then Exit;
+      { optional sign }
+      HasExpSign := TICharIsIn(e3,['-','+']);
+      If HasExpSign Then
       Begin
-        { optional exponent sign }
-        Stream_NextChar(f,e2);
-        If Error Then Exit;
-        Stop := Not TICharIsIn(e2,['E','e','D','d']);
-        If Stop Then
-          ListDot := y <> Edinburgh { exponent are optional in Edinburgh }
-        Else
-        Begin
-          Stream_GetChars(f,e2); { accept the exponent mark }
-          Str_Append(s,'E')
-        End;
-        If Not Stop Then { we had the exponent mark, now look for its value }
-        Begin
-          { optional exponent value: "+3" in "1.2e+3" or "3" in "1.2e3";
-           "1.2e" is valid syntax, so "1.2e+X" is read as an addition, and in
-           that case, the "+" will have to be unread }
-          Stream_NextChar(f,e3);
-          If Error Then Exit;
-          If TICharIsIn(e3,['-','+']) Then
-          Begin
-            Stream_GetChars(f,e3); { another undo point: the sign }
-            s2 := Stream_NewStr(f);
-            Str_AppendIChar(s2,e3);
-            n := GetCharWhile(f,s2,Digits);
-            If n > 0 Then
-              Str_Concat(s,s2)
-            Else
-              Stream_UngetChars(f,e3) { sign may be binary op, put it back }
-          End
-          Else
-          Begin
-            n := GetCharWhile(f,s,Digits);
-            If n = 0 Then
-              Str_Append(s,'0') { as Pascal's Val/2 cannot convert "1.2e" }
-          End
-        End
+        Stream_GetChars(f,e3); { undo point: the sign }
+        Str_AppendIChar(s2,e3)
       End;
-      If Not ListDot Then 
+      { exp value }
+      n := GrabDigits(f,s2);
+      If n = 0 Then { "1e" or "1e+" }
       Begin
-        TK_TYPE := TOKEN_REAL;
-        Str_Concat(TK_STRI,s)
+        If y in [PrologIIv1,PrologIIv2] Then { digits are mandatory }
+        Begin
+          Stream_UngetChars(f,e1); { in the end, what we have is an integer }
+          IsReal := False
+        End
+        Else { valid real: "1e+" or "1e", forget about s2 }
+        Begin
+          { sign after "e" may be a binary op: put it back }
+          If HasExpSign Then { "1e+" }
+            Stream_UngetChars(f,e3);
+          Str_Append(s,'0') { as Pascal's Val/2 cannot convert "1e" }
+        End
       End
       Else
-        Stream_UngetChars(f,e1) { no real part: undo up to '.' }
+        Str_Concat(s,s2) { most complete form: "1e2", "1.1e2", "1e+2" }
     End
   End;
+
+  { we do have a real number: update the token }
+  If IsReal Then 
+    With K^ Do
+    Begin
+      TK_TYPE := TOKEN_REAL;
+      Str_Concat(TK_STRI,s)
+    End;
   ReadNumber := K
 End;
 
@@ -919,7 +981,10 @@ Begin
     End
     Else Case TICharGetByte(e1,1) Of
     '0'..'9':
-      K := ReadNumber(f,y); 
+      Begin
+        K := ReadNumber(f,y,False);
+        CheckCondition(K <> Nil,'unsigned numerical constant expected')
+      End; 
     '_':
       If y In [PrologIIp,Edinburgh] Then  { a variable: PrologII+ basic syntax }
       Begin

@@ -139,6 +139,7 @@ Function Func_NewAsTerm( T1,T2 : TermPtr ) : TermPtr;
 Function TypeOfTerm( T : TermPtr ) : TTerm;
 Function TypeOfTermAsShortString( T : TermPtr ) : TString;
 Function ObjectTypeToConstType( typ : TypePrologObj ) : TConst;
+Function ConstTypeToObjectType( typ : TConst ) : TypePrologObj;
 Function ConstType( C : ConstPtr ) : TConst;
 Function ConstGetStr( C : ConstPtr ) : StrPtr;
 Function ConstGetShortString( C : ConstPtr ) : TString;
@@ -416,6 +417,19 @@ Begin
   CR: t := RealNumber;
   End;
   ObjectTypeToConstType := t
+End;
+
+{ constant type to object type }
+Function ConstTypeToObjectType( typ : TConst ) : TypePrologObj;
+Var 
+  t : TypePrologObj;
+Begin
+  Case typ  Of
+  QString: t := CS;
+  IntegerNumber: t := CI;
+  RealNumber: t := CR;
+  End;
+  ConstTypeToObjectType := t
 End;
 
 { return the type of a constant }

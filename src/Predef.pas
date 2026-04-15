@@ -2419,6 +2419,7 @@ Var
   cp : TCodePoint;
   K : TokenPtr;
   e,e1 : TIChar;
+  InOk : Boolean; { successfully read a term of the requested type }
   Success : Boolean;
   s : StrPtr;
   ss : TString;
@@ -2460,8 +2461,8 @@ Begin
   TYPE_CHAR,TYPE_CODE_CHAR:
     Begin
       Stream_GetChar(f,e1);
-      Success := Not Error;
-      If Success Then
+      InOk := Not Error;
+      If InOk Then
       Begin
         Case What Of
         TYPE_CHAR:
@@ -2503,33 +2504,33 @@ Begin
     End;
   TYPE_INTEGER:
     Begin
-      K := ReadInteger(f);
-      Success := (Not Error) And (K <> Nil) And 
+      K := ReadInteger(f,True);
+      InOk := (Not Error) And (K <> Nil) And 
           NormalizeConstant(K^.TK_STRI,ObjectTypeToConstType(CI));
-      If Success Then
+      If InOk Then
         Tr := EmitConst(P,Token_GetStr(K),CI,False)
     End;
   TYPE_REAL:
     Begin
-      K := ReadNumber(f,GetSyntax(P));
-      Success := (Not Error) And (K <> Nil) And 
+      K := ReadNumber(f,GetSyntax(P),True);
+      InOk := (Not Error) And (K <> Nil) And 
           (Token_GetType(K) = TOKEN_REAL) And 
           NormalizeConstant(K^.TK_STRI,ObjectTypeToConstType(CR));
-      If Success Then
+      If InOk Then
         Tr := EmitConst(P,Token_GetStr(K),CR,False)
     End;
   TYPE_STRING: { FIXME: PII+ p127 }
     Begin
       K := ReadString(f);
-      Success := (Not Error) And (K <> Nil);
-      If Success Then
+      InOk := (Not Error) And (K <> Nil);
+      If InOk Then
         Tr := EmitConst(P,Token_GetStr(K),CS,False)
     End;
   TYPE_IDENT:
     Begin
       K := ReadVariableOrIdentifier(f,GetSyntax(P));
-      Success := (Not Error) And (K <> Nil) And (Token_GetType(K) = TOKEN_IDENT);
-      If Success Then
+      InOk := (Not Error) And (K <> Nil) And (Token_GetType(K) = TOKEN_IDENT);
+      If InOk Then
       Begin
         Tr := EmitIdent(P,Token_GetStr(K),True,False);
         CheckCondition(Tr <> Nil,'ClearIn: unable to create an identifier')
@@ -2538,21 +2539,20 @@ Begin
   TYPE_TERM:
     Begin
       Tr := ParseOneTerm(f,P);
-      Success := Not Error
+      InOk := Not Error
     End;
   Else
     Begin
       CWriteLnWarning('unsupported read data type');
-      Success := False
+      InOk := False
     End
   End;
 
   { try to bound the variable to the term read }
-  If Success Then
-    Success := ReduceOneEq(T2,Tr,GetDebugStream(P));
+  Success := InOk And ReduceOneEq(T2,Tr,GetDebugStream(P));
 
-  { undo read when requested or in case of failure }
-  If LookAhead Or Not Success Then
+  { undo read when requested or in case of failure to bound }
+  If InOk And (LookAhead Or Not Success) Then
     Stream_UngetChars(f,e);
 
   ClearIn := Success

@@ -417,7 +417,7 @@ We describe the different syntaxes handled by the interpreter using [Extended  B
 
 ### Base elements
 
-All the syntax flavours accepted by the interpreter share the following definitions:
+Most syntax flavours accepted by the interpreter share the following definitions:
 
 ```
 letter = "A"|...|"Z"|"a"|...|"z"|"À" ... "ß" - "×" | "à" ... "ÿ" - "÷" ;
@@ -427,15 +427,21 @@ q = """ ;
 digits = digit, {digit} ;
 letters = letter, {letter} ;
 
-integer = ["+" | "-"], digits ;
+sign = "+"|"-" ;
 
-real-number = digits, ".", digits, ("E"|"e"|"D"|"d"), [ ["+"|"-"], digits ];
+integer = [ sign ], digits ;
+
+e = "E"|"e"
+
+real-number = [ sign ], digits, [ ".", digits ], e, [ sign ], digits;
 
 string = q, { (character - q - newline) | (q, q) | ("\", newline) }, q ;
 
 constant = identifier | integer | real-number | string ;
 ```
-Note that using an explicit exponent for real numbers is mandatory, to avoid ambiguities with dotted lists. For convenience, it will be considered as optional in Edinburgh syntax, though.
+Notes:
+1. According to these definitions, using an explicit exponent symbol for real numbers is mandatory. This is needed to avoid ambiguities with dotted lists, so `1.2` will be treated as a dotted list, not as a real number. For convenience, the exponent part will be considered as optional in Edinburgh syntax.
+1. In Prolog II+, `D` and `d` can also be used as exponent symbols, in addition to `E` and `e`. Moreover, digits after the exponent symbol is not mandatory, so `1e` is a valid real number in Prolog II+  
 
 ### Marseille syntax
 
