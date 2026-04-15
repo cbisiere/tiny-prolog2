@@ -2504,14 +2504,17 @@ Begin
   TYPE_INTEGER:
     Begin
       K := ReadInteger(f);
-      Success := (Not Error) And (K <> Nil);
+      Success := (Not Error) And (K <> Nil) And 
+          NormalizeConstant(K^.TK_STRI,ObjectTypeToConstType(CI));
       If Success Then
         Tr := EmitConst(P,Token_GetStr(K),CI,False)
     End;
   TYPE_REAL:
     Begin
       K := ReadNumber(f,GetSyntax(P));
-      Success := (Not Error) And (K <> Nil) And (Token_GetType(K) = TOKEN_REAL);
+      Success := (Not Error) And (K <> Nil) And 
+          (Token_GetType(K) = TOKEN_REAL) And 
+          NormalizeConstant(K^.TK_STRI,ObjectTypeToConstType(CR));
       If Success Then
         Tr := EmitConst(P,Token_GetStr(K),CR,False)
     End;

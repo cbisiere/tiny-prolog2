@@ -50,6 +50,9 @@ Uses
   PObjTok,
   PObjDef;
 
+Function GrabLetters( f : StreamPtr; Var Ch : StrPtr ) : TStrLength;
+Function GrabDigits( f : StreamPtr; Var Ch : StrPtr ) : TStrLength;
+
 Function IsValidUnquotedIdentifier( s : StrPtr; y : TSyntax ) : Boolean;
 Function SupportsQuotedIdentifiers( y : TSyntax ) : Boolean;
 
@@ -309,6 +312,12 @@ Begin
   GrabLetters := n
 End;
 
+{ grab digits; return the number of digits appended to Ch }
+Function GrabDigits( f : StreamPtr; Var Ch : StrPtr ) : TStrLength;
+Begin
+  GrabDigits := GetCharWhile(f,Ch,Digits)
+End;
+
 { append to a string any alphanumeric characters (plus underscore); 
  return the number of characters added to the string }
 Function GrabAlpha( f : StreamPtr; Var Ch : StrPtr ) : TStrLength;
@@ -523,7 +532,7 @@ Begin
   With K^ Do
   Begin
     TK_STRI := Stream_NewStr(f);
-    n := GetCharWhile(f,TK_STRI,Digits);
+    n := GrabDigits(f,TK_STRI);
     If n = 0 Then
       Exit
   End;
