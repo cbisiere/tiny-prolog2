@@ -73,6 +73,10 @@ Predicate | Action | Example
 `ligne`, `page` <br><br> _`line`, `page`_ | write a new line, or clear the screen |
 `en-xy(X,Y)` <br><br> _`set-cursor(X,Y)`_ | move the text cursor to (0-based) column `X` and row `Y` |
 
+### Sentences: read
+Predicate | Action | Example
+--- | --- | ---
+`in-ph(L2)` <br><br> _`in-sentence(L1,L2)`_ | read all blank characters, and then read a series of words terminated by `.`, `!` or `?`; a word is a run of letters, a run of digits, or a non-blank character <br><br> unify `L1` with the list of words (as strings), and `L2` with a transformation of `L1`, as follows: non-blank characters are kept as-is, runs of digits are transformed into integer values, and runs of letters are transformed into identifiers in a way which depends on the Prolog II version <br><br> in version 1, identifiers are prepended with `at-`; in version 2, only runs of letters matching existing identifiers are transformed, while non-existing are matched to `nil` (that is, no identifiers are created)  | _PII version 1:_ <br><br> `c> in-ph(t);` <br> `Please, insert this!` <br> `{ t=at-Please.",".at-insert.at-this."!".nil }` <br> `c>` <br><br><br> _PII version 2:_ <br><br> `> in-sentence(t1,t2);` <br> `Please, insert this!` <br> `{ t1="Please".","."insert"."this"."!".nil, t2=nil.",".insert.nil."!".nil }` <br> `>`
 
 ### Evaluation
 
@@ -142,6 +146,11 @@ Main supported additions or changes are as follows.
 Predicate | Action | Example
 --- | --- | ---
 `flush` | flush the current output unit
+
+### Words
+Predicate | Action | Example
+--- | --- | ---
+_`in_word(T1,T2)`_ | read all blank characters, then read a word as defined in Prolog II's `in-sentence/2` predicate above; unify `T1` with the word as a string, and `T2` with its transformation, as described in Prolog II version 2's `in-sentence/2` predicate | `+> in_word(t1,t2);` <br> `042` <br> `{ t1="042", t2=42 }` <br> `+>`
 
 ### Evaluation
 

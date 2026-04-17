@@ -134,6 +134,7 @@ Function EmitConst( P : ProgPtr; s : StrPtr; ty : TypePrologObj;
     glob : Boolean ) : TermPtr;
 Function EmitVariable( P : ProgPtr; s : StrPtr; anonymous : Boolean; 
     glob : Boolean ) : TermPtr;
+Function GetIdentByString( P : ProgPtr; s : StrPtr ) : TermPtr;
 Function EmitIdent( P : ProgPtr; s : StrPtr; canQuote : Boolean; 
     glob : Boolean ) : TermPtr;
 Function EmitIdentFromString( P : ProgPtr; C : ConstPtr;
@@ -554,6 +555,12 @@ Begin
   EmitVariable := Nil;
   V := InstallVariable(P^.PP_DVAR,s,anonymous,glob);
   EmitVariable := TermPtr(V)
+End;
+
+{ return an existing identifier whose string representation is s, or Nil }
+Function GetIdentByString( P : ProgPtr; s : StrPtr ) : TermPtr;
+Begin
+  GetIdentByString := TermPtr(GetInstalledIdentifier(P^.PP_DIDE,s))
 End;
 
 { return a new identifier as a term, from a string (w/o quotes); quote the 

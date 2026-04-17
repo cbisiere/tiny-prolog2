@@ -73,18 +73,19 @@ tampon-neuf(T) -> syscall(sysnewbuffer) T syscall(sysdelbuffer);
 
 "in: char"
 
-in-car(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,false,false);
-in-car'(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,true,false);
-car-apres(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,false,true);
-car-apres'(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,true,true);
+in-car(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,char,false,false);
+in-car'(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,char,true,false);
+car-apres(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,char,false,true);
+car-apres'(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,char,true,true);
 fin-ligne(T) -> syscall(syssubeol,T);
 
 "in: others"
 
-in(T) -> syscall(sysinputis,S) syscall(sysin,S,T,term,true,false);
-in-entier(T) -> syscall(sysinputis,S) syscall(sysin,S,T,integer,true,false);
-in-ident(T) -> syscall(sysinputis,S) syscall(sysin,S,T,ident,true,false);
-in-chaine(T) -> syscall(sysinputis,S) syscall(sysin,S,T,string,true,false);
+in(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,term,true,false);
+in-entier(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,integer,true,false);
+in-ident(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,ident,true,false);
+in-chaine(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,string,true,false);
+in-ph(T) -> syscall(sysinputis,S) syscall(sysin,S,X,T,sentence,true,false);
 
 "out"
 
@@ -154,3 +155,5 @@ sans-debug -> syscall(sysonoff,debug,false);
 bt -> syscall(sysbacktrace);
 dump -> syscall(sysdump);
 
+"neutralize an undocumented predicate called by the supervisor:"
+fi-sortie("") ->;

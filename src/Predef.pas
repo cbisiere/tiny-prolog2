@@ -192,7 +192,7 @@ Const
     (I:PP_OPEN;S:'sysopennew';N:4),
     (I:PP_CLOSE_INPUT;S:'syscloseinput';N:1),
     (I:PP_CLEAR_INPUT;S:'sysclearinput';N:0),
-    (I:PP_IN;S:'sysin';N:5),
+    (I:PP_IN;S:'sysin';N:6),
     (I:PP_SUB_EOL;S:'syssubeol';N:1),
     (I:PP_OUTPUT_IS;S:'sysoutputis';N:1),
     (I:PP_CLOSE_OUTPUT;S:'syscloseoutput';N:1),
@@ -455,7 +455,7 @@ End;
 { type to read or return }
 Type
   TPrologDataType = (TYPE_CHAR,TYPE_CODE_CHAR,TYPE_INTEGER,TYPE_IDENT,TYPE_REAL,
-      TYPE_STRING,TYPE_TERM,TYPE_DOT,TYPE_TUPLE);
+      TYPE_STRING,TYPE_TERM,TYPE_DOT,TYPE_TUPLE,TYPE_WORD,TYPE_SENTENCE);
 
 { return in Result the type argument passed as an identifier in argument n 
  of a predicate; return false if the argument is not a type identifier }
@@ -491,6 +491,10 @@ Begin
     Result := TYPE_DOT
   Else If s = 'tuple' Then
     Result := TYPE_TUPLE
+  Else If s = 'word' Then
+    Result := TYPE_WORD
+  Else If s = 'sentence' Then
+    Result := TYPE_SENTENCE
   Else
   Begin
     CWriteWarning('invalid type argument: ''');
@@ -2410,7 +2414,7 @@ End;
  note: silently fails if Stream exists but is not an input stream }
 Function ClearIn( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
-  T2,Tr : TermPtr;
+  T1,T2,R1,R2 : TermPtr;
   What : TPrologDataType;
   SkipSpaces : Boolean;
   LookAhead : Boolean; { advance read requested, undo all the reads }
@@ -2423,22 +2427,27 @@ Var
   Success : Boolean;
   s : StrPtr;
   ss : TString;
+  IsTerminator : Boolean;
 Begin
   ClearIn := False;
+  R1 := Nil; { to be bound to T1 }
+  R2 := Nil; { if not nil, will be bound to T2 }
   { 1: input stream }
   f := GetStreamArg(P,1,T,MODE_READ);
   If f = Nil Then
     Exit;
   { 2: variable }
-  T2 := GetPArg(2,T);
-  { 3: what type of data to read }
-  If Not GetType(3,T,What) Then
+  T1 := GetPArg(2,T);
+  { 3: extra variable (in_word/2, in_sentence/2) }
+  T2 := GetPArg(3,T);
+  { 4: what type of data to read }
+  If Not GetType(4,T,What) Then
     Exit;
-  { 4: skip spaces? (true/false) }
-  If Not GetBoolean(4,T,SkipSpaces) Then
+  { 5: skip spaces? (true/false) }
+  If Not GetBoolean(5,T,SkipSpaces) Then
     Exit;
-  { 5: push back all the characters read? (true/false) }
-  If Not GetBoolean(5,T,LookAhead) Then
+  { 6: push back all the characters read? (true/false) }
+  If Not GetBoolean(6,T,LookAhead) Then
     Exit;
 
   { buffer in console input, when necessary }
@@ -2456,7 +2465,7 @@ Begin
 
   y := GetSyntax(P);
 
-  { read target in Tr}
+  { read target in R1}
   Case What Of
   TYPE_CHAR,TYPE_CODE_CHAR:
     Begin
@@ -2474,8 +2483,8 @@ Begin
                 Str_Append(s,'end_of_file')
               Else
                 Str_AppendChar(s,e1.Val);
-              Tr := EmitIdent(P,s,True,False);
-              CheckCondition(Tr <> Nil,
+              R1 := EmitIdent(P,s,True,False);
+              CheckCondition(R1 <> Nil,
                   'ClearIn: unable to create an identifier from a char')
             End
             Else
@@ -2484,7 +2493,7 @@ Begin
               If (y in [PrologIIv1,PrologIIv2]) And (TICharIsEol(e1)) Then
                 e1.val := GetSubChar(P);
               Str_AppendChar(s,e1.Val);
-              Tr := EmitConst(P,s,CS,False)
+              R1 := EmitConst(P,s,CS,False)
             End
           End;
         TYPE_CODE_CHAR:
@@ -2497,7 +2506,7 @@ Begin
                 Exit;
               ss := CodePointToShortString(cp)
             End;
-            Tr := EmitConst(P,Str_NewFromShortString(ss),CI,False)
+            R1 := EmitConst(P,Str_NewFromShortString(ss),CI,False)
           End
         End
       End
@@ -2508,7 +2517,7 @@ Begin
       InOk := (Not Error) And (K <> Nil) And 
           NormalizeConstant(K^.TK_STRI,ObjectTypeToConstType(CI));
       If InOk Then
-        Tr := EmitConst(P,Token_GetStr(K),CI,False)
+        R1 := EmitConst(P,Token_GetStr(K),CI,False)
     End;
   TYPE_REAL:
     Begin
@@ -2517,14 +2526,14 @@ Begin
           (Token_GetType(K) = TOKEN_REAL) And 
           NormalizeConstant(K^.TK_STRI,ObjectTypeToConstType(CR));
       If InOk Then
-        Tr := EmitConst(P,Token_GetStr(K),CR,False)
+        R1 := EmitConst(P,Token_GetStr(K),CR,False)
     End;
   TYPE_STRING: { FIXME: PII+ p127 }
     Begin
       K := ReadString(f);
       InOk := (Not Error) And (K <> Nil);
       If InOk Then
-        Tr := EmitConst(P,Token_GetStr(K),CS,False)
+        R1 := EmitConst(P,Token_GetStr(K),CS,False)
     End;
   TYPE_IDENT:
     Begin
@@ -2532,15 +2541,23 @@ Begin
       InOk := (Not Error) And (K <> Nil) And (Token_GetType(K) = TOKEN_IDENT);
       If InOk Then
       Begin
-        Tr := EmitIdent(P,Token_GetStr(K),True,False);
-        CheckCondition(Tr <> Nil,'ClearIn: unable to create an identifier')
+        R1 := EmitIdent(P,Token_GetStr(K),True,False);
+        CheckCondition(R1 <> Nil,'ClearIn: unable to create an identifier')
       End
     End;
   TYPE_TERM:
     Begin
-      Tr := ParseOneTerm(f,P);
+      R1 := ParseOneTerm(f,P);
       InOk := Not Error
     End;
+  TYPE_WORD:
+    Begin
+      InOk := ParseWord(f,P,R1,R2,IsTerminator) And Not Error
+    End;
+  TYPE_SENTENCE:
+    Begin
+      InOk := ParseSentence(f,P,R1,R2) And Not Error
+    End
   Else
     Begin
       CWriteLnWarning('unsupported read data type');
@@ -2548,8 +2565,9 @@ Begin
     End
   End;
 
-  { try to bound the variable to the term read }
-  Success := InOk And ReduceOneEq(T2,Tr,GetDebugStream(P));
+  { try to bound the variables to the lists }
+  Success := InOk And ReduceOneEq(T1,R1,GetDebugStream(P)) And
+      ((R2 = Nil) Or ReduceOneEq(T2,R2,GetDebugStream(P)));
 
   { undo read when requested or in case of failure to bound }
   If InOk And (LookAhead Or Not Success) Then

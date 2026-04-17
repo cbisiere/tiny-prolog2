@@ -228,6 +228,8 @@ Function InstallConst( Var D : DictPtr; str : StrPtr;
     ty : TypePrologObj; glob : Boolean ) : ConstPtr;
 Function InstallVariable( Var D : DictPtr; str : StrPtr; 
     anonymous : Boolean; glob : Boolean ) : VarPtr;
+
+Function GetInstalledIdentifier( D : DictPtr; str : StrPtr ) : IdPtr;
 Function InstallIdentifier( Var D : DictPtr; str : StrPtr; Quoted : Boolean;
     glob : Boolean  ) : IdPtr;
 
@@ -1321,6 +1323,19 @@ Begin
   Else
     V := VarPtr(Dict_GetTerm(e));
   InstallVariable := V
+End;
+
+{ return an existing identifier whose string representation is str, or Nil }
+Function GetInstalledIdentifier( D : DictPtr; str : StrPtr ) : IdPtr;
+Var
+  I : IdPtr;
+  e : DictPtr;
+Begin
+  I := Nil;
+  e := Dict_Lookup(D,str,[ID],False);
+  If e <> Nil Then
+    I := IdPtr(Dict_GetTerm(e));
+  GetInstalledIdentifier := I
 End;
 
 { create an identifier if it does not exist in a dictionary; 

@@ -50,6 +50,8 @@ Uses
   PObjTok,
   PObjDef;
 
+Function IsLetter( e : TIChar ) : Boolean;
+
 Function GrabLetters( f : StreamPtr; Var Ch : StrPtr ) : TStrLength;
 Function GrabDigits( f : StreamPtr; Var Ch : StrPtr ) : TStrLength;
 

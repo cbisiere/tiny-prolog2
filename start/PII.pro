@@ -79,19 +79,20 @@ new-buffer(T) -> syscall(sysnewbuffer) T syscall(sysdelbuffer);
 
 "in: char"
 
-in-char(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,false,false);
-in-char'(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,true,false);
-next-char(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,false,true);
-next-char'(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,true,true);
+in-char(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,char,false,false);
+in-char'(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,char,true,false);
+next-char(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,char,false,true);
+next-char'(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,char,true,true);
 end-of-line(T) -> syscall(syssubeol,T); "FIXME: check name"
 
 "in: others"
 
-in(T) -> syscall(sysinputis,S) syscall(sysin,S,T,term,true,false);
-in-integer(T) -> syscall(sysinputis,S) syscall(sysin,S,T,integer,true,false);
-in-ident(T) -> syscall(sysinputis,S) syscall(sysin,S,T,ident,true,false);
-in-string(T) -> syscall(sysinputis,S) syscall(sysin,S,T,string,true,false);
-in-real(T) -> syscall(sysinputis,S) syscall(sysin,S,T,real,true,false);
+in(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,term,true,false);
+in-integer(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,integer,true,false);
+in-ident(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,ident,true,false);
+in-string(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,string,true,false);
+in-real(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,real,true,false);
+in-sentence(T1,T2) -> syscall(sysinputis,S) syscall(sysin,S,T1,T2,sentence,true,false);
 
 "out"
 

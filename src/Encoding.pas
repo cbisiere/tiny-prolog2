@@ -57,9 +57,13 @@ Uses
 Function NewFunc2( P : ProgPtr; ident : TString; T1,T2 : TermPtr; 
     special,glob : Boolean ) : TermPtr;
 
+Function NilTerm( P : ProgPtr ) : TermPtr;
+Function IsNil( T : TermPtr ) : Boolean;
+
 Function NewEmptyList( P : ProgPtr ) : TermPtr;
 Function NewList2( P : ProgPtr; T1,T2 : TermPtr ) : TermPtr;
-Function IsNil( T : TermPtr ) : Boolean;
+Function ReverseList( P : ProgPtr; T : TermPtr ) : TermPtr;
+
 Function IdentifierToString( P : ProgPtr; I : IdPtr ) : TermPtr;
 Function StringToIdentifier( P : ProgPtr; C : ConstPtr ) : TermPtr;
 Function CommaExpToList( P : ProgPtr; T : TermPtr ) : TermPtr;
@@ -122,6 +126,18 @@ End;
 { lists                                                                      }
 {----------------------------------------------------------------------------}
 
+{ return Nil }
+Function NilTerm( P : ProgPtr ) : TermPtr;
+Begin
+  NilTerm := EmitShortIdent(P,'nil',True)
+End;
+
+{ return True if term T is 'nil' }
+Function IsNil( T : TermPtr ) : Boolean;
+Begin
+  IsNil := TermIsIdentifierEqualToShortString(T,'nil')
+End;
+
 { return the head of a list: a.b.nil => a }
 Function ListHead( L : TermPtr ) : TermPtr;
 Begin
@@ -137,7 +153,7 @@ End;
 { return an empty list "nil" }
 Function NewEmptyList( P : ProgPtr ) : TermPtr;
 Begin
-  NewEmptyList := EmitShortIdent(P,'nil',True)
+  NewEmptyList := NilTerm(P)
 End;
 
 { return a term "a.b", viewed as '.'(a,b)" (equivalent to <'.',a,b>) and thus 
@@ -155,10 +171,18 @@ Begin
   NewList2 := NewFunc2(P,'.',T1,T2,True,True)
 End;
 
-{ return True if term T is 'nil' }
-Function IsNil( T : TermPtr ) : Boolean;
+{ return a nil-terminated list, reversed }
+Function ReverseList( P : ProgPtr; T : TermPtr ) : TermPtr;
+Var
+  L : TermPtr;
 Begin
-  IsNil := TermIsIdentifierEqualToShortString(T,'nil')
+  L := NewEmptyList(P);
+  While Not IsNil(T) Do
+  Begin
+    L := NewList2(P,ListHead(T),L);
+    T := ListQueue(T)
+  End;
+  ReverseList := L
 End;
 
 

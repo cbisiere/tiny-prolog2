@@ -81,13 +81,13 @@ open(File,Mode,Stream,Opt) :- syscall(sysopennew,File,Mode,Stream,Opt).
 open(File,Mode,Stream) :- syscall(sysopennew,File,Mode,Stream,[]).
 close(Stream) :- syscall(syscloseinput,Stream), !.
 close(Stream) :- syscall(syscloseoutput,Stream).
-get_char(Stream,Char) :- syscall(sysin,Stream,Char,char,false,false).
+get_char(Stream,Char) :- syscall(sysin,Stream,Char,Unused,char,false,false).
 get_char(Char) :- input_is(Stream), get_char(Stream,Char).
-get_code(Stream,Code) :- syscall(sysin,Stream,Code,code,false,false).
+get_code(Stream,Code) :- syscall(sysin,Stream,Code,Unused,code,false,false).
 get_code(Code) :- input_is(Stream), get_code(Stream,Code).
 put_char(Char) :- syscall(sysoutm,Char).
 read(Stream,Term) :- syscall(sysinterm,Stream,Term).
-read(Term) :- input_is(Stream), syscall(sysin,Stream,Term,term,true,false).
+read(Term) :- input_is(Stream), syscall(sysin,Stream,Term,Unused,term,true,false).
 write(Term) :- syscall(sysoutm,Term).
 
 "i/o: PII+"
@@ -120,6 +120,7 @@ no_debug :- syscall(sysonoff,debug,false).
 
 in(T) :- read(T).
 in_char(C) :- get_char(C).
+in_sentence(T1,T2) :- syscall(sysinputis,S), syscall(sysin,S,T1,T2,sentence,true,false);
 
 "out: PII+"
 

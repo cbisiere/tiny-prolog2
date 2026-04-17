@@ -44,6 +44,11 @@ Uses
 Procedure VerifyToken( f : StreamPtr; P : ProgPtr; Var K : TokenPtr; 
     typ : TTokenType );
 
+Function ParseWord( f : StreamPtr; P : ProgPtr; Var T1,T2 : TermPtr;  
+    Var IsTerminator : Boolean ) : Boolean;
+Function ParseSentence( f : StreamPtr; P : ProgPtr; 
+    Var T1,T2 : TermPtr ) : Boolean;
+
 Function ParseOneRule( f : StreamPtr; P : ProgPtr; Var K : TokenPtr ) : RulePtr;
 Function ParseOneTerm( f : StreamPtr; P : ProgPtr ) : TermPtr;
 Function ParseOneQuery( f : StreamPtr; P : ProgPtr;
@@ -95,6 +100,128 @@ Begin
   Else
     SyntaxError(TokenStr[typ] + ' expected')
 End;
+
+{----------------------------------------------------------------------------}
+{ sentence parser                                                            }
+{----------------------------------------------------------------------------}
+
+{ return true if a is a sentence terminator }
+Function IsSentenceTerminator( e : TIChar ) : Boolean;
+Begin
+  IsSentenceTerminator := TICharIsIn(e,['.','?','!'])
+End;
+
+{ return true if char e indicates that there is a word to read }
+Function IsStartOfWord( e : TIChar ) : Boolean;
+Begin
+  IsStartOfWord := Not (TICharIsEndOfInput(e) Or TICharIsEol(e) Or 
+      TICharIsSpace(e))
+End;
+
+{ parse a word, returning True if there is a word to parse; note: caller must
+ skip spaces, when needed; set T1 and T2 as in in_word(t1,t2); set Terminator 
+ to True if the word is the sentence terminator}
+Function ParseWord( f : StreamPtr; P : ProgPtr; Var T1,T2 : TermPtr;  
+    Var IsTerminator : Boolean ) : Boolean;
+Var
+  y : TSyntax;
+  e : TIChar;
+  s,s1 : StrPtr;
+Begin
+  ParseWord := False;
+  T1 := Nil;
+  T2 := Nil;
+  IsTerminator := False;
+  y := GetSyntax(P);
+  { is there a word? }
+  Stream_NextChar(f,e); { undo point }
+  If Not IsStartOfWord(e) Then
+    Exit;
+  { get the word }
+  s := Stream_NewStr(f);
+  If GrabLetters(f,s) > 0 Then { case 1: letters (treatment depends on syntax) }
+  Begin
+    { first term: the string itself }
+    T1 := EmitConst(P,s,CS,False);
+    { second term: }
+    { in PIIv1: ident start with 'at-' ("atom"); see user manual p7 }
+    If y = PrologIIv1 Then
+    Begin
+      s1 := Str_NewFromShortString('at-');
+      Str_Concat(s1,s);
+      s := s1;
+      T2 := EmitIdent(P,s,False,False)
+    End
+    Else { PIIv2: Giannesini et al. p143; PII+: p128 }
+    Begin
+      T2 := GetIdentByString(P,s);
+      If T2 = Nil Then
+        T2 := NilTerm(P)
+    End
+  End
+  Else If GrabDigits(f,s) > 0 Then { case 2: digits }
+  Begin
+    T1 := EmitConst(P,s,CS,False);
+    If Not NormalizeConstant(s,IntegerNumber) Then
+    Begin
+      { FIXME: for now, we silently fail if the integer cannot be normalized }
+      Stream_UngetChars(f,e);
+      Exit
+    End
+    Else
+      T2 := EmitConst(P,s,CI,False)
+  End
+  Else { case 2: non blank char }
+  Begin
+    Stream_GetChar(f,e);
+    Str_AppendChar(s,e.Val);
+    T1 := EmitConst(P,s,CS,False);
+    T2 := T1;
+    IsTerminator := IsSentenceTerminator(e)
+  End;
+  ParseWord := True
+End;
+
+{ parse a sentence, returning True if there is a sentence to parse; note: caller 
+ must skip spaces, when needed; return T1 and T2 as in in_sentence(t1,t2) }
+Function ParseSentence( f : StreamPtr; P : ProgPtr; 
+    Var T1,T2 : TermPtr ) : Boolean;
+Var
+  e1 : TIChar;
+  L1,L2,R1,R2 : TermPtr;
+  IsTerminator : Boolean;
+Begin
+  ParseSentence := False;
+  { create the two lists to compute }
+  L1 := NewEmptyList(P);
+  L2 := NewEmptyList(P);
+  { undo point, to undo everything if no sentence can be found }
+  Stream_NextChar(f,e1);
+  IsTerminator := False;
+  While Not Error And Not IsTerminator And ParseWord(f,P,R1,R2,IsTerminator) Do
+  Begin
+    L1 := NewList2(P,R1,L1);
+    L2 := NewList2(P,R2,L2);
+    If Not IsTerminator Then
+      ReadBlanks(f)
+  End;
+  { finalize }
+  If IsTerminator Then
+  Begin
+    T1 := ReverseList(P,L1);
+    T2 := ReverseList(P,L2)
+  End
+  Else { no sentence: unread all the words }
+  Begin
+    If Not IsNil(L1) Then { some chars have been read, including e1 }
+      Stream_UngetChars(f,e1); { forget the whole input }
+    T1 := Nil;
+    T2 := Nil;
+    Exit
+  End;
+  ParseSentence := True
+End;
+
 
 {----------------------------------------------------------------------------}
 { expression parser                                                          }

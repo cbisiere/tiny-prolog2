@@ -58,15 +58,17 @@ flush -> syscall(sysflush);
 
 "in"
 
-in_char(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,false,false);
-in_char'(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,true,false);
-next_char(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,false,true);
-next_char'(T) -> syscall(sysinputis,S) syscall(sysin,S,T,char,true,true);
-in(T) -> syscall(sysinputis,S) syscall(sysin,S,T,term,true,false);
-in_integer(T) -> syscall(sysinputis,S) syscall(sysin,S,T,integer,true,false);
-in_ident(T) -> syscall(sysinputis,S) syscall(sysin,S,T,ident,true,false);
-in_string(T) -> syscall(sysinputis,S) syscall(sysin,S,T,string,true,false);
-in_real(T) -> syscall(sysinputis,S) syscall(sysin,S,T,real,true,false);
+in_char(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,char,false,false);
+in_char'(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,char,true,false);
+next_char(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,char,false,true);
+next_char'(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,char,true,true);
+in(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,term,true,false);
+in_integer(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,integer,true,false);
+in_ident(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,ident,true,false);
+in_string(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,string,true,false);
+in_real(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,real,true,false);
+in_word(T1,T2) -> syscall(sysinputis,S) syscall(sysin,S,T1,T2,word,true,false);
+in_sentence(T1,T2) -> syscall(sysinputis,S) syscall(sysin,S,T1,T2,sentence,true,false);
 
 "out"
 
