@@ -39,8 +39,12 @@ Unit Tuple;
 Interface
 
 Uses
+  Num,
   PObjTerm,
   PObjFCVI;
+
+Type
+  TTupleArgNumber = PosInt; { tuple argument index or count }
 
 Function NewTuple( T : TermPtr ) : TermPtr;
 Function NewTuple2( T1,T2 : TermPtr ) : TermPtr;
@@ -53,8 +57,8 @@ Procedure SetTupleQueue( U1,U2 : TermPtr );
 Procedure SetTupleHeadTerm( U,T : TermPtr );
 Function TupleQueue( U : TermPtr ) : TermPtr;
 Procedure SetTupleQueueTerm( U,T : TermPtr );
-Function TupleArgCount( U : TermPtr ) : Integer;
-Function TupleArgN( N : Integer; U : TermPtr ) : TermPtr;
+Function TupleArgCount( U : TermPtr ) : TTupleArgNumber;
+Function TupleArgN( N : TTupleArgNumber; U : TermPtr ) : TermPtr;
 
 
 Implementation
@@ -137,16 +141,18 @@ Begin
 End;
 
 { return the number of elements of a tuple }
-Function TupleArgCount( U : TermPtr ) : Integer;
+Function TupleArgCount( U : TermPtr ) : TTupleArgNumber;
 Begin
-  If TupleQueue(U) = Nil  Then
+  If IsEmptyTuple(U) Then { <> }
+    TupleArgCount := 0
+  Else If TupleQueue(U) = Nil  Then { <1> }
     TupleArgCount := 1
   Else
-    TupleArgCount := TupleArgCount(TupleQueue(U)) + 1
+    TupleArgCount := TupleArgCount(TupleQueue(U)) + 1 { <1,2,..> }
 End;
 
 { return the N-th element of a tuple U }
-Function TupleArgN( N : Integer; U : TermPtr ) : TermPtr;
+Function TupleArgN( N : TTupleArgNumber; U : TermPtr ) : TermPtr;
 Begin
   If N = 1 Then
     TupleArgN := TupleHead(U)

@@ -119,6 +119,7 @@ Type
     PP_STRING_IDENT,
     PP_ATOM_LENGTH,
     PP_NUMBER_CHARS,
+    PP_ARG,
     PP_FREEZE,
     PP_FIND_ALL,
     PP_BLOCK,
@@ -146,7 +147,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 65;
+  NB_PP = 66;
   MAX_PP_LENGTH = 21; { max string length }
 Type
   TPPRec = Record
@@ -221,6 +222,7 @@ Const
     (I:PP_ATOM_CHARS;S:'sysatomchars';N:2),
     (I:PP_ATOM_LENGTH;S:'sysatomlength';N:2),
     (I:PP_NUMBER_CHARS;S:'sysnumberchars';N:2),
+    (I:PP_ARG;S:'sysarg';N:3),
     (I:PP_FREEZE;S:'sysfreeze';N:2),
     (I:PP_FIND_ALL;S:'sysfindall';N:3),
     (I:PP_BLOCK;S:'sysblock';N:2), { block(T,G) }
@@ -1649,6 +1651,10 @@ Begin
   ClearEval := ReduceOneEq(T2,T1,GetDebugStream(P)) { FIXME: shouldn't it be backtrackable? }
 End;
 
+{----------------------------------------------------------------------------}
+{ conversion                                                                 }
+{----------------------------------------------------------------------------}
+
 { '=..'(foo(a,b),[foo,a,b]) }
 { FIXME: check the logic when both arguments are set }
 Function ClearUniv( P : ProgPtr; T : TermPtr ) : Boolean;
@@ -1656,6 +1662,7 @@ Var
   T1,T2 : TermPtr;
   L : TermPtr;
   Th,Tq : TermPtr;
+  n : TListArgNumber;
 Begin
   ClearUniv := False;
   { 1: predicate, atom or variable (e.g. foo(bb,cc), cc, 1, "hi", V}
@@ -1678,7 +1685,7 @@ Begin
    the first element is atomic." }
   If IsVariable(T1) And 
       Not (ProtectedGetList(T2,Th,Tq,True) And IsAtomic(Th) And 
-        ProtectedIsListOfKnownSize(T2,True)) Then
+        ProtectedIsListOfKnownSize(T2,True,n)) Then
   Begin
     CWritelnWarning('univ: second argument must be a list whose first argument is atomic');
     Exit
@@ -1786,10 +1793,8 @@ Begin
   End;
 
   { create a constant from the length of s }
-  sn := Str_NewFromShortString(Str_LengthAsShortString(s));
-  If Not NormalizeConstant(sn,IntegerNumber) Then
-    Bug('atom_length: fail to normalize length');
-  T1 := EmitConst(P,sn,CI,False);
+  T1 := EmitPositiveInteger(P,Str_Length(s));
+  If Error Then Exit;
 
   ClearAtomLength := ReduceOneEq(T1,T2,GetDebugStream(P))
 End;
@@ -1815,6 +1820,113 @@ Begin
     Exit;
   ClearNumberChars := ReduceOneEq(T1,T2,GetDebugStream(P))
 End;
+
+{ arg(n,t1,t2)
+ In PIIv1, PIIv2, PII+ (in which predicate is named is arg2):
+ string:
+   arg(0,"hello",x) => x = 5 (length)
+   arg(2,"hello",x) => x = "e" (second character)
+ list:
+   arg(0,aa.bb.cc.nil,x) => x = 3 (length)
+   arg(2,aa.bb.cc.nil,x) => x = bb (second element)
+ tuple:
+   arg(0,<aa,bb,cc>,x) => x = 3 (length)
+   arg(2,<aa,bb,cc>,x) => x = bb (second element)
+  In PII+ Edinburgh:
+   ISO arg/3?
+
+ cf.: PIIv1: p12, book PIIv2: p148, PII+: p117 (Marseille) and p222 (Edinburgh)
+}
+Function ClearArg( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  T2,T3,TH,TQ,R : TermPtr;
+  n,m : PosInt;
+  s : StrPtr;
+  cc : TChar;
+Begin
+  ClearArg := False;
+  { 1: 0 or index }
+  If Not GetPosIntArg(1,T,n) Then
+  Begin
+    CWriteWarning('Arg: first argument must be an integer');
+    CWriteLn;
+    Exit
+  End;
+  { 2: term }
+  T2 := EvalPArg(2,T);
+  If Not IsBound(T2) Then
+  Begin
+    CWriteWarning('Arg: second argument must be bounded');
+    CWriteLn;
+    Exit
+  End;
+  { 3: result }
+  T3 := EvalPArg(3,T);
+  { compute result in R }
+  If IsString(T2) Then { CASE 1: arg 2 is a string }
+  Begin
+    s := GetConstAsStr(ConstPtr(T2),False);
+    If n = 0 Then { length }
+    Begin
+      R := EmitPositiveInteger(P,Str_Length(s));
+      If Error Then Exit;
+    End
+    Else { n-th character }
+    Begin
+      If (n < 1) Or (n > Str_Length(s)) Then
+        Exit;
+      Str_Char(s,n,cc);
+      R := EmitChar(P,Str_GetEncodingContext(s),cc)
+    End
+  End
+  Else If ProtectedGetList(T2,TH,TQ,False) Then { CASE 2: arg 2 is a list }
+  Begin
+    Case GetSyntax(P) Of
+    PrologIIv1,PrologIIv2: { arg/3 }
+      Begin
+        Case n Of { PIIv1, maybe v2}
+        1: R := TH; { head }
+        2: R := TQ; { queue }
+        Else
+          Exit
+        End
+      End;
+    PrologIIp,Edinburgh: {arg2/3 }
+      Begin
+        If Not ProtectedIsListOfKnownSize(T2,True,m) Then
+          Exit;
+        If n = 0 Then { number of elements (excluding the final 'nil') }
+          R := EmitPositiveInteger(P,m) 
+        Else
+        Begin { n-th element }
+          If (n < 1) Or (n > m) Then
+            Exit;
+          R := ListArgN(n,T2) 
+        End
+      End
+    End
+  End
+  Else If IsTuple(T2) Then { CASE 3: arg 2 is a tuple }
+  Begin
+    m := TupleArgCount(T2);
+    If n = 0 Then { length }
+      R := EmitPositiveInteger(P,m)
+    Else
+    Begin { n-th element }
+      If (n < 1) Or (n > m) Then
+        Exit;
+      R := TupleArgN(n,T2)
+    End
+  End
+  Else
+    Exit;
+
+  ClearArg := ReduceOneEq(T3,R,GetDebugStream(P))
+End;
+
+{----------------------------------------------------------------------------}
+{ operators                                                                  }
+{----------------------------------------------------------------------------}
 
 { op(700,xfx,"<",inf) } { TODO: implement full specs PII+ p137 }
 Function ClearOp( P : ProgPtr; T : TermPtr ) : Boolean;
@@ -1863,6 +1975,10 @@ Begin
   o := Op_Append(P^.PP_OPER,Id3,Id4,ot,v);
   ClearOp := True
 End;
+
+{----------------------------------------------------------------------------}
+{ exit                                                                       }
+{----------------------------------------------------------------------------}
 
 { quit }
 Function ClearQuit : Boolean;
@@ -2856,6 +2972,8 @@ Begin
     Ok := ClearAtomLength(P,T);
   PP_NUMBER_CHARS:
     Ok := ClearNumberChars(P,T);
+  PP_ARG:
+    Ok := ClearArg(P,T);
   PP_OP:
     Ok := ClearOp(P,T);
   PP_QUIT:

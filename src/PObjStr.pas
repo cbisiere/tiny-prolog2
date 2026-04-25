@@ -106,6 +106,7 @@ Procedure Str_DoubleQuoteAndEscape( s : StrPtr );
 Function Str_Comp(s1, S2: StrPtr): TComp;
 Function Str_Equal(s1, s2: StrPtr): boolean;
 Function Str_EqualToShortString(s: StrPtr; c: TString): boolean;
+Procedure Str_Char( s : StrPtr; n : TStrLength; Var cc : TChar );
 Function Str_FirstChar( s : StrPtr; Var cc : TChar ) : Boolean;
 Function Str_LastChar( s : StrPtr; Var cc : TChar ) : Boolean;
 Function Str_StartsWith(s: StrPtr; E: CharSet): boolean;
@@ -258,6 +259,27 @@ Procedure StrData_Char( sd : StrDataPtr; i : TStrCharsLen; Var cc : TChar );
 Begin
   CheckCondition(i <= StrData_Len(sd),'StrData_Char: out of bound index');
   cc := sd^.SD_DATA.Chars[i]
+End;
+
+{-----------------------------------------------------------------------}
+{ Str: index                                                            }
+{-----------------------------------------------------------------------}
+
+{ char number n, assuming 1 <= n <= Len(s) }
+Procedure Str_Char( s : StrPtr; n : TStrLength; Var cc : TChar );
+Var
+  i : TStrLength;
+  sd : StrDataPtr;
+Begin
+  CheckCondition((1 <= n) And (n <= Str_Length(s)),'Str_Char: out of bounds');
+  i := 0;
+  sd := Str_GetFirstStrData(s);
+  While i + StrData_Len(sd) < n Do
+  Begin
+    i := i + StrData_Len(sd);
+    sd := StrData_Next(sd)
+  End;
+  StrData_Char(sd,n - i,cc)
 End;
 
 {-----------------------------------------------------------------------}

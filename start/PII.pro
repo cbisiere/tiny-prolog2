@@ -50,10 +50,11 @@ tuple(T) -> syscall(sysis,T,tuple);
 free(T) -> syscall(sysfree,T,true);
 bound(T) -> syscall(sysfree,T,false);
 
-"string"
+"char, string, list, tuple"
 
 char-code(C,N) -> syscall(syscharcode,C,N);
 string-ident(S,I) -> syscall(sysstringident,S,I);
+arg(N,T1,T2) -> syscall(sysarg,N,T1,T2);
 
 "array"
 

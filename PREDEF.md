@@ -102,12 +102,13 @@ Predicate | Action | Example
 --- | --- | ---
 `def-tab(I,N)` <br><br> _`def-array(I,N)`_ | define an array `I` of size `N`; array's index ranges from `1` to `N`; all elements are initialized to `0` | `> def-array(stack,100);` <br> `{ }` <br> `> assign(stack(1),hello);` <br> `{ }` <br> `> val(stack(1),v);` <br> `{ v=hello }` <br> `>`
 
-### Strings
+### Strings, lists and tuples
 
 Predicate | Action | Example
 --- | --- | ---
 `no-car(C,N)` <br><br> _`char-code(C,N)`_ | match character `C` and code `N`; either `C` or `N` must be bound | `> char-code("A",n);` <br> `{ n=65 }` <br> `>`
 `boum(I,S)` <br><br> _`string-ident(S,I)`_ | match identifier `I` and string `S`; either `I` or `S` must be bound | `> boum(abc,s);` <br> `{ s="abc" }` `-> boum(i,"abc");` <br> `{ i=abc }` <br> `>`
+`arg(N,T,R)` <br><br> _`arg(N,T,R)`_ | set result `R` as the length (if `N` is zero) or as the `N`-th element in the string, list or tuple `T` | `> arg(0,"hello",x);` <br> `{ x=5 }` <br> `> arg(2,"hello",x);` <br> `{ x="e" }` <br> `>` 
 
 ### Control
 
@@ -186,6 +187,12 @@ Predicate | Action | Example
 `assert(H,Q)`, `asserta(H,Q)` | same as Prolog II's `assert/2` 
 `assert''(H,Q)`, `assertz(H,Q)` | same as `assert/2` but create the rule at the end of the group of rules with the same identifier and arity
 `retract(H,Q)` | suppress (one at a time) the rules whose head and queue unify with `H` and `Q`, respectively, at the time `retract` was first cleared
+
+### Strings, lists and tuples
+
+Predicate | Action | Example
+--- | --- | ---
+`arg2(N,T,R)` <br><br> _`arg2(N,T,R)`_ | same as Prolog II's `arg(N,T,R)` |
 
 ### Date and Time
 

@@ -120,7 +120,7 @@ no_debug :- syscall(sysonoff,debug,false).
 
 in(T) :- read(T).
 in_char(C) :- get_char(C).
-in_sentence(T1,T2) :- syscall(sysinputis,S), syscall(sysin,S,T1,T2,sentence,true,false);
+in_sentence(T1,T2) :- syscall(sysinputis,S), syscall(sysin,S,T1,T2,sentence,true,false).
 
 "out: PII+"
 
@@ -135,10 +135,11 @@ set_line_width(N) :- syscall(syssetlinewidth,N).
 line_width(N) :- syscall(sysgetlinewidth,N).
 set_line_cursor(N) :- syscall(syssetlinecursor,N).
 
-"string"
+"char, string, list, tuple"
 
 char_code(C,N) :- syscall(syscharcode,C,N).
 string_ident(S,I) :- syscall(sysstringident,S,I).
+arg2(N,T1,T2) :- syscall(sysarg,N,T1,T2).
 
 "array"
 

@@ -54,6 +54,9 @@ Uses
   PObjProg,
   Tuple;
 
+Type
+  TListArgNumber = PosInt; { list element index or count }
+
 Function NewFunc2( P : ProgPtr; ident : TString; T1,T2 : TermPtr; 
     special,glob : Boolean ) : TermPtr;
 
@@ -62,6 +65,7 @@ Function IsNil( T : TermPtr ) : Boolean;
 
 Function NewEmptyList( P : ProgPtr ) : TermPtr;
 Function NewList2( P : ProgPtr; T1,T2 : TermPtr ) : TermPtr;
+Function ListArgN( N : TListArgNumber; T : TermPtr ) : TermPtr;
 Function ReverseList( P : ProgPtr; T : TermPtr ) : TermPtr;
 
 Function IdentifierToString( P : ProgPtr; I : IdPtr ) : TermPtr;
@@ -93,7 +97,8 @@ Function ProtectedGetList( T : TermPtr; Var T1,T2 : TermPtr;
     Reduce : Boolean ) : Boolean;
 Function ProtectedIsList( T : TermPtr; Reduce : Boolean ) : Boolean;
 Function ProtectedIsNil( T : TermPtr; Reduce : Boolean ) : Boolean;
-Function ProtectedIsListOfKnownSize( T : TermPtr; Reduce : Boolean ) : Boolean;
+Function ProtectedIsListOfKnownSize( T : TermPtr; Reduce : Boolean; 
+    Var n : TListArgNumber ) : Boolean;
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -171,6 +176,15 @@ Begin
   NewList2 := NewFunc2(P,'.',T1,T2,True,True)
 End;
 
+{ return the N-th element of a list T, assumed to be at least of size N }
+Function ListArgN( N : TListArgNumber; T : TermPtr ) : TermPtr;
+Begin
+  If N = 1 Then
+    ListArgN := ListHead(T)
+  Else
+    ListArgN := ListArgN(N-1,ListQueue(T))
+End;
+
 { return a nil-terminated list, reversed }
 Function ReverseList( P : ProgPtr; T : TermPtr ) : TermPtr;
 Var
@@ -237,18 +251,17 @@ End;
 { create a list of chars 'a'.'b'.'c'.nil from a Str 'abc' }
 Function StrToList( P : ProgPtr; s : StrPtr ) : TermPtr;
 Var
-  sc : StrPtr;
   L,T : TermPtr;
   Iter : StrIter;
+  Enc : TEncoding;
   cc : TChar;
 Begin
   L := NewEmptyList(P);
+  Enc := Str_GetEncodingContext(s);
   StrIter_ToEnd(Iter,s);
   While StrIter_PrevChar(Iter,cc) Do
   Begin
-    sc := Str_New(Str_GetEncodingContext(s));
-    Str_AppendChar(sc,cc);
-    T := EmitIdent(P,sc,True,True);
+    T := EmitChar(P,Enc,cc);
     CheckCondition(T <> Nil,'StrToList: unable to create an identifier');
     L := NewList2(P,T,L)
   End;
@@ -567,17 +580,25 @@ Begin
 End;
 
 { return True if term T is a list of known size }
-Function ProtectedIsListOfKnownSize( T : TermPtr; Reduce : Boolean ) : Boolean;
+Function ProtectedIsListOfKnownSize( T : TermPtr; Reduce : Boolean; 
+    Var n : TListArgNumber ) : Boolean;
 Var 
   T1,T2 : TermPtr;
+  m : TListArgNumber;
 Begin
   If ProtectedIsNil(T,Reduce) Then
-    ProtectedIsListOfKnownSize := True
+  Begin
+    ProtectedIsListOfKnownSize := True;
+    n := 0
+  End
   Else
     If Not ProtectedGetList(T,T1,T2,Reduce) Then
       ProtectedIsListOfKnownSize := False
     Else
-      ProtectedIsListOfKnownSize := ProtectedIsListOfKnownSize(T2,Reduce)
+    Begin
+      ProtectedIsListOfKnownSize := ProtectedIsListOfKnownSize(T2,Reduce,m);
+      n := m + 1
+    End
 End;
 
 End.

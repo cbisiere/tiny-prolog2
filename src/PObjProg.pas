@@ -132,6 +132,7 @@ Function FindRuleWithHeadAndArity( R : RulePtr; I : IdPtr; a : TArity;
 
 Function EmitConst( P : ProgPtr; s : StrPtr; ty : TypePrologObj; 
     glob : Boolean ) : TermPtr;
+Function EmitPositiveInteger( P : ProgPtr; n : PosInt ) : TermPtr;
 Function EmitVariable( P : ProgPtr; s : StrPtr; anonymous : Boolean; 
     glob : Boolean ) : TermPtr;
 Function GetIdentByString( P : ProgPtr; s : StrPtr ) : TermPtr;
@@ -143,6 +144,7 @@ Function EmitSpecialIdent( P : ProgPtr; ident : TString;
     glob : Boolean ) : TermPtr;
 Function EmitShortIdent( P : ProgPtr; ident : TString; 
     glob : Boolean ) : TermPtr;
+Function EmitChar( P : ProgPtr; Enc : TEncoding; cc : TChar) : TermPtr;
 
 
 Function GetCurrentQuery( P : ProgPtr )  : QueryPtr;
@@ -546,6 +548,19 @@ Begin
   EmitConst := TC
 End;
 
+{ return a positive integer as a new term }
+Function EmitPositiveInteger( P : ProgPtr; n : PosInt ) : TermPtr;
+Var
+  s : StrPtr;
+Begin
+  EmitPositiveInteger := Nil;
+  s := Str_NewFromShortString(PosIntToShortString(n));
+  If Not NormalizeConstant(s,IntegerNumber) Then { FIXME }
+    Bug('atom_length: fail to normalize length');
+  If Error Then Exit;
+  EmitPositiveInteger := EmitConst(P,s,CI,False)
+End;
+
 { return a new variable as a term, from a string }
 Function EmitVariable( P : ProgPtr; s : StrPtr; anonymous : Boolean; 
     glob : Boolean ) : TermPtr;
@@ -620,6 +635,21 @@ Begin
   T := EmitIdent(P,Str_NewFromShortString(ident),True,glob);
   CheckCondition(T <> Nil,'EmitShortIdent: unable to create an identifier');
   EmitShortIdent := T
+End;
+
+{ return a single char cc as a term, in encoding context Enc }
+Function EmitChar( P : ProgPtr; Enc : TEncoding; cc : TChar) : TermPtr;
+Var
+  s : StrPtr;
+  T : TermPtr;
+Begin
+  s := Str_New(Enc);
+  Str_AppendChar(s,cc);
+  If GetSyntax(P) In [PrologIIv1,PrologIIv2] Then
+    T := EmitConst(P,s,CS,False) { one-character string, e.g. "a" }
+  Else
+    T := EmitIdent(P,s,True,True); { one-character atom, e.g. 'a' }
+  EmitChar := T
 End;
 
 {-----------------------------------------------------------------------}
