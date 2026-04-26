@@ -108,6 +108,9 @@ Predicate | Action | Example
 --- | --- | ---
 `no-car(C,N)` <br><br> _`char-code(C,N)`_ | match character `C` and code `N`; either `C` or `N` must be bound | `> char-code("A",n);` <br> `{ n=65 }` <br> `>`
 `boum(I,S)` <br><br> _`string-ident(S,I)`_ | match identifier `I` and string `S`; either `I` or `S` must be bound | `> boum(abc,s);` <br> `{ s="abc" }` `-> boum(i,"abc");` <br> `{ i=abc }` <br> `>`
+_`list-string(L,S)`_ | build a string `S` from the list of characters `L` | `> list-string("a"."b".nil,s);` <br> `{ s="ab" }` <br> `>`
+_`list-tuple(L,T)`_ | build a tuple `T` from the list of terms `L` | `> list-tuple("abc".123.aa(bb).nil,t);` <br> `{ t=<"abc",123,aa(bb)> }` <br> `>`
+_`split(T,L)`_ | build a list `L` of all the elements in a string or tuple `T` | `> split("ab",l);` <br> `{ l="a"."b".nil }` <br> `> split(<"abc",123,aa(bb)>,l);` <br> `{ l="abc".123.aa(bb).nil }` <br> `>`
 `arg(N,T,R)` <br><br> _`arg(N,T,R)`_ | set result `R` as the length (if `N` is zero) or as the `N`-th element in the string, list or tuple `T` | `> arg(0,"hello",x);` <br> `{ x=5 }` <br> `> arg(2,"hello",x);` <br> `{ x="e" }` <br> `>` 
 
 ### Control

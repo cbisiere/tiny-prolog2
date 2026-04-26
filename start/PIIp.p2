@@ -35,6 +35,9 @@ bound(T) -> syscall(sysfree,T,false);
 
 char_code(C,N) -> syscall(syscharcode,C,N);
 string_ident(S,I) -> syscall(sysstringident,S,I);
+list_string(L,S) -> syscall(sysliststring,L,S);
+list_tuple(L,T) -> syscall(syslisttuple,L,T);
+split(T,L) -> syscall(syssplit,T,L);
 arg2(N,T1,T2) -> syscall(sysarg,N,T1,T2);
 
 "array"

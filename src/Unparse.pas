@@ -617,14 +617,14 @@ Begin
   T := ProtectedGetTupleHead(U,Reduce);
   UnparseTermBis(y,s,T,False,False,Quotes,Reduce,g,depth);
   T := ProtectedGetTupleQueue(U,Reduce);
-  If T <> Nil Then
+  If Not IsEmptyTuple(T) Then
   Begin
     UnparseShortString(s,',');
     UnparseArgument(y,s,T,Quotes,Reduce,g,depth)
   End
 End;
 
-{ write a tuple }
+{ write a non-empty tuple }
 Procedure UnparseTuple( y : TSyntax; s : StrPtr; U : TermPtr; 
     Quotes : Boolean; Reduce : Boolean; g : TSerial; depth : PosInt );
 Begin

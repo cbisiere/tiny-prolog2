@@ -626,7 +626,8 @@ Begin
   Else
     T := ReadTerm(f,P,K,glob,Cut); { rule 5, modified }
   If Error Then Exit;
-  T2 := Nil;
+  { queue (that is, next terms in the list), if any }
+  T2 := NewEmptyTuple;
   If Token_GetType(K) = TOKEN_COMMA Then { rule 5, cont. }
   Begin
     K := ReadProgramToken(P,f);

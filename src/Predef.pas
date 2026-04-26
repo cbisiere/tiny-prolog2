@@ -117,6 +117,9 @@ Type
     PP_UNIV,
     PP_ATOM_CHARS,
     PP_STRING_IDENT,
+    PP_LIST_STRING,
+    PP_LIST_TUPLE,
+    PP_SPLIT,
     PP_ATOM_LENGTH,
     PP_NUMBER_CHARS,
     PP_ARG,
@@ -147,7 +150,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 66;
+  NB_PP = 69;
   MAX_PP_LENGTH = 21; { max string length }
 Type
   TPPRec = Record
@@ -219,6 +222,9 @@ Const
     (I:PP_DIF;S:'sysdif';N:2),
     (I:PP_UNIV;S:'sysuniv';N:2), { '=..', Edinburgh only, p.221 }
     (I:PP_STRING_IDENT;S:'sysstringident';N:2),
+    (I:PP_LIST_STRING;S:'sysliststring';N:2),
+    (I:PP_LIST_TUPLE;S:'syslisttuple';N:2),
+    (I:PP_SPLIT;S:'syssplit';N:2),
     (I:PP_ATOM_CHARS;S:'sysatomchars';N:2),
     (I:PP_ATOM_LENGTH;S:'sysatomlength';N:2),
     (I:PP_NUMBER_CHARS;S:'sysnumberchars';N:2),
@@ -1746,6 +1752,76 @@ Begin
   { wrong type of argument: silently fails (see date/1 in PIIv1 doc p23) }
 End;
 
+{ list_string("h"."e"."l"."l"."o".nil,s) => s = "hello" }
+Function ClearListString( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  T1,T2,R : TermPtr;
+  s : StrPtr;
+Begin
+  ClearListString := False;
+  { 1: list of characters (must be bound) }
+  T1 := EvalPArg(1,T);
+  { 2: string (result) }
+  T2 := EvalPArg(2,T);
+  { build the string s from the list T1 }
+  s := ListToStr(P,T1);
+  If s = Nil Then { note: should not happen }
+    Exit;
+  { final result: the constant string R }
+  R := EmitConst(P,s,CS,False);
+  If R = Nil Then { note: should not happen }
+    Exit;
+  ClearListString := ReduceOneEq(T2,R,GetDebugStream(P))
+End;
+
+{ list_tuple("abc".def.123.nil,s) => s = <"abc",def,123> }
+Function ClearListTuple( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  T1,T2,R : TermPtr;
+Begin
+  ClearListTuple := False;
+  { 1: list of terms (must be bound) }
+  T1 := EvalPArg(1,T);
+  { 2: tuple (result) }
+  T2 := EvalPArg(2,T);
+  { build the tuple R from the list T1 }
+  R := ProtectedListToTuple(T1,True); { TBD: is True necessary? }
+  If R = Nil Then { note: should not happen }
+    Exit;
+  ClearListTuple := ReduceOneEq(T2,R,GetDebugStream(P))
+End;
+
+{ split/2: split a string or a tuple into a list of its elements  
+ split("hello",t) => t = "h"."e"."l"."l"."o".nil 
+ split(aa(bb,cc),t) => t = aa.bb.cc.nil (since aa(bb,cc) == <aa,bb,cc>) )
+}
+Function ClearSplit( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  T1,T2,R : TermPtr;
+Begin
+  ClearSplit := False;
+  { 1: string or tuple to split (must be bound) }
+  T1 := EvalPArg(1,T);
+  { 2: list of its elements (result) }
+  T2 := EvalPArg(2,T);
+  { build the list R from the term T1 }
+  If IsString(T1) Then
+  Begin
+    R := StrToList(P,ConstGetStr(ConstPtr(T1)));
+    If R = Nil Then { note: should not happen }
+      Exit
+  End
+  Else If IsTuple(T1) Then
+  Begin
+    R := TupleToList(P,T1);
+    If R = Nil Then { note: should not happen }
+      Exit
+  End
+  Else
+    Exit;
+ ClearSplit := ReduceOneEq(T2,R,GetDebugStream(P))
+End;
+
 { atom_chars('hello',['h','e','l','l','o']) }
 Function ClearAtomChars( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
@@ -2966,6 +3042,12 @@ Begin
     Ok := ClearUniv(P,T);
   PP_STRING_IDENT:
     Ok := ClearStringIdent(P,T);
+  PP_LIST_STRING:
+    Ok := ClearListString(P,T);
+  PP_LIST_TUPLE:
+    Ok := ClearListTuple(P,T);
+  PP_SPLIT:
+    Ok := ClearSplit(P,T);
   PP_ATOM_CHARS:
     Ok := ClearAtomChars(P,T);
   PP_ATOM_LENGTH:

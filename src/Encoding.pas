@@ -72,6 +72,8 @@ Function IdentifierToString( P : ProgPtr; I : IdPtr ) : TermPtr;
 Function StringToIdentifier( P : ProgPtr; C : ConstPtr ) : TermPtr;
 Function CommaExpToList( P : ProgPtr; T : TermPtr ) : TermPtr;
 Function TupleToList( P : ProgPtr; U : TermPtr ) : TermPtr;
+Function StrToList( P : ProgPtr; s : StrPtr ) : TermPtr;
+Function ListToStr( P : ProgPtr; T : TermPtr ) : StrPtr;
 Function IdentifierToList( P : ProgPtr; I : IdPtr ) : TermPtr;
 Function ListToIdentifier( P : ProgPtr; T : TermPtr ) : TermPtr;
 Function NumToList( P : ProgPtr; C : ConstPtr ) : TermPtr;
@@ -239,8 +241,8 @@ Function TupleToList( P : ProgPtr; U : TermPtr ) : TermPtr;
 Var
   L : TermPtr;
 Begin
-  If U = Nil Then
-    TupleToList := Nil
+  If IsEmptyTuple(U) Then
+    TupleToList := NewEmptyList(P)
   Else
   Begin
     L := TupleToList(P,TupleQueue(U));
@@ -268,22 +270,42 @@ Begin
   StrToList := L
 End;
 
-{ create a Str concatenating each character in a list; return Nil if 
+{ create a Str concatenating each individual character in a list; return Nil if 
  the term is not a list of characters }
 Function ListToStr( P : ProgPtr; T : TermPtr ) : StrPtr;
 Var
-  s : StrPtr;
+  s,sc : StrPtr;
   Th,Tq : TermPtr;
+  y : TSyntax;
 Begin
   ListToStr := Nil;
+  y := GetSyntax(P);
   s := Str_New(ENC_UNDECIDED);
   While Not IsNil(T) Do
   Begin
-    If Not ProtectedGetList(T,Th,Tq,True) Then
+    If Not ProtectedGetList(T,Th,Tq,True) Then { not a list }
       Exit;
-    If TypeOfTerm(Th) <> Identifier Then
+    Case TypeOfTerm(Th) Of
+    Identifier:
+      Begin
+        If y <> Edinburgh Then { 'a' form allowed in Edinburgh }
+          Exit;
+        sc := GetIdentAsStr(IdPtr(Th),False)
+      End;
+    Constant:
+      Begin
+        If ConstType(ConstPtr(Th)) <> QString Then { not a constant string }
+          Exit;
+        sc := ConstGetStr(ConstPtr(Th)) 
+      End;
+    Else
+      Exit { wrong type }
+    End;
+    If Str_Length(sc) <> 1 Then { not a one-char string }
       Exit;
-    Str_Concat(s,GetIdentAsStr(IdPtr(Th),False));
+    { ok, append the new individual character to the result string }
+    Str_Concat(s,sc);
+    { now analyze the queue }
     T := Tq
   End;
   ListToStr := s
@@ -467,7 +489,7 @@ Var
   T : TermPtr;
 Begin
   If GetIsNil(L,Reduce,g) Then
-    ListToTuple := Nil
+    ListToTuple := NewEmptyTuple
   Else
   Begin
     T := NewTuple(GetListHead(L,Reduce,g));

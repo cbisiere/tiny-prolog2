@@ -30,7 +30,9 @@
 {                    .                                                  }
 {                     F                                                 }
 {                   /  \                                                }
-{                argN    Nil                                            }
+{                argN    F  = <>                                        }
+{                      /  \                                             }
+{                   Nil    Nil                                          }
 {                                                                       }
 {-----------------------------------------------------------------------}
 
@@ -95,7 +97,7 @@ End;
 { methods                                                                    }
 {----------------------------------------------------------------------------}
 
-{ return true if U is a tuple, possibly through its representative }
+{ return true if U is a tuple }
 Function IsTuple( T : TermPtr ) : Boolean;
 Begin
   IsTuple := (T <> Nil) And (TypeOfTerm(T) = FuncSymbol)
@@ -145,8 +147,6 @@ Function TupleArgCount( U : TermPtr ) : TTupleArgNumber;
 Begin
   If IsEmptyTuple(U) Then { <> }
     TupleArgCount := 0
-  Else If TupleQueue(U) = Nil  Then { <1> }
-    TupleArgCount := 1
   Else
     TupleArgCount := TupleArgCount(TupleQueue(U)) + 1 { <1,2,..> }
 End;
