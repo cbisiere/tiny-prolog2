@@ -34,6 +34,8 @@ bound(T) -> syscall(sysfree,T,false);
 "char, string, list, tuple"
 
 char_code(C,N) -> syscall(syscharcode,C,N);
+substring(S1,N1,N2,S2) -> syscall(syssubstring,S1,N1,N2,S2);
+find_pattern(S1,S2,N) -> syscall(sysfindpattern,S1,S2,N);
 string_ident(S,I) -> syscall(sysstringident,S,I);
 list_string(L,S) -> syscall(sysliststring,L,S);
 list_tuple(L,T) -> syscall(syslisttuple,L,T);

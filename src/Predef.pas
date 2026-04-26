@@ -63,6 +63,8 @@ Type
     PP_IS_FREE,
     PP_IS_TYPE,
     PP_CHAR_CODE,
+    PP_SUBSTRING,
+    PP_FIND_PATTERN,
     PP_WORLD,
     PP_PARENT_WORLD,
     PP_NEW_SUBWORLD,
@@ -150,7 +152,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 69;
+  NB_PP = 71;
   MAX_PP_LENGTH = 21; { max string length }
 Type
   TPPRec = Record
@@ -169,6 +171,8 @@ Const
     (I:PP_IS_FREE;S:'sysfree';N:2),
     (I:PP_IS_TYPE;S:'sysis';N:2),
     (I:PP_CHAR_CODE;S:'syscharcode';N:2),
+    (I:PP_SUBSTRING;S:'syssubstring';N:4),
+    (I:PP_FIND_PATTERN;S:'sysfindpattern';N:3),
     (I:PP_WORLD;S:'sysworld';N:1),
     (I:PP_PARENT_WORLD;S:'sysparentworld';N:1),
     (I:PP_NEW_SUBWORLD;S:'sysnewworld';N:1),
@@ -805,6 +809,71 @@ Begin
     Tc := EmitConst(P,s,CS,False);
   { unify the term c with this constant }
   ClearCharCode := ReduceOneEq(T1,Tc,GetDebugStream(P))
+End;
+
+{ substring/4
+ substring("hello",1,3,s) => s = "hell" 
+ substring("hello",10,1) => fail
+}
+Function ClearSubstring( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  C1 : ConstPtr;
+  T4,R : TermPtr;
+  s,ss : StrPtr;
+  len : TStrLength;
+  n,m : PosInt;
+Begin
+  ClearSubstring := False;
+  { 1: the string }
+  C1 := EvalPArgAsString(1,T);
+  If C1 = Nil Then 
+    Exit;
+  s := ConstGetStr(C1);
+  len := Str_Length(s);
+  { note: range tests below are not overkill, as we need to reject early in 
+   order to avoid out-of-range on PosInt values (FIXME: still n+m might 
+   overflow) }
+  { 2: index of the first char }
+  If Not GetPosIntArg(2,T,n) Or (n < 1) Or (n > len) Then
+    Exit;
+  { 3: length of the substring }
+  If Not GetPosIntArg(3,T,m) Or (m < 1) Or (m > len) Or (n + m - 1 > len) Then
+    Exit;
+  { 4: result (the substring) }
+  T4 := GetPArg(4,T);
+  { result in R }
+  ss := Str_Substring(s,n,m);
+  R := EmitConst(P,ss,CS,False);
+  ClearSubstring := ReduceOneEq(T4,R,GetDebugStream(P))
+End;
+
+{ find_pattern/3
+ find_pattern("hello","ll",x) => x = 3 }
+Function ClearFindPattern( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  T3,R : TermPtr;
+  C1,C2 : ConstPtr;
+  s1,s2 : StrPtr;
+  n : TStrLength;
+Begin
+  ClearFindPattern := False;
+  { 1: the string }
+  C1 := EvalPArgAsString(1,T);
+  If C1 = Nil Then 
+    Exit;
+  s1 := ConstGetStr(C1);
+  { 2: the pattern }
+  C2 := EvalPArgAsString(2,T);
+  If C2 = Nil Then 
+    Exit;
+  s2 := ConstGetStr(C2);
+  { 3: the result, as position in s }
+  T3 := GetPArg(3,T);
+  { compute the result }
+  If Not Str_FindPattern(s1,s2,n) Then
+    Exit;
+  R := EmitPositiveInteger(P,n);
+  ClearFindPattern := ReduceOneEq(T3,R,GetDebugStream(P))
 End;
 
 {----------------------------------------------------------------------------}
@@ -1949,9 +2018,8 @@ Begin
     End
     Else { n-th character }
     Begin
-      If (n < 1) Or (n > Str_Length(s)) Then
+      If Not Str_Char(s,n,cc) Then
         Exit;
-      Str_Char(s,n,cc);
       R := EmitChar(P,Str_GetEncodingContext(s),cc)
     End
   End
@@ -3030,6 +3098,10 @@ Begin
     Ok := ClearIsType(T);
   PP_CHAR_CODE:
     Ok := ClearCharCode(P,T);
+  PP_SUBSTRING:
+    Ok := ClearSubstring(P,T);
+  PP_FIND_PATTERN:
+    Ok := ClearFindPattern(P,T);
   PP_DIF:
     Ok := ClearDif(P,T);
   PP_ASSIGN:

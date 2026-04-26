@@ -107,6 +107,8 @@ Predicate | Action | Example
 Predicate | Action | Example
 --- | --- | ---
 `no-car(C,N)` <br><br> _`char-code(C,N)`_ | match character `C` and code `N`; either `C` or `N` must be bound | `> char-code("A",n);` <br> `{ n=65 }` <br> `>`
+_`substring(S1,N1,N2,S2)`_ | set `S2` as the substring of `S1` starting at character `N1` and of length `N2` | `> substring("hello",1,4,x);` <br> `{ x="hell" }` <br> `>`
+_`find-pattern(S1,S2,N)`_ | set `N` at the index of pattern string `S2` into string `S1` | `find_pattern("hello","hell",x);` <br> `{ x=1 }` <br> `>`
 `boum(I,S)` <br><br> _`string-ident(S,I)`_ | match identifier `I` and string `S`; either `I` or `S` must be bound | `> boum(abc,s);` <br> `{ s="abc" }` `-> boum(i,"abc");` <br> `{ i=abc }` <br> `>`
 _`list-string(L,S)`_ | build a string `S` from the list of characters `L` | `> list-string("a"."b".nil,s);` <br> `{ s="ab" }` <br> `>`
 _`list-tuple(L,T)`_ | build a tuple `T` from the list of terms `L` | `> list-tuple("abc".123.aa(bb).nil,t);` <br> `{ t=<"abc",123,aa(bb)> }` <br> `>`

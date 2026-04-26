@@ -106,7 +106,7 @@ Procedure Str_DoubleQuoteAndEscape( s : StrPtr );
 Function Str_Comp(s1, S2: StrPtr): TComp;
 Function Str_Equal(s1, s2: StrPtr): boolean;
 Function Str_EqualToShortString(s: StrPtr; c: TString): boolean;
-Procedure Str_Char( s : StrPtr; n : TStrLength; Var cc : TChar );
+Function Str_Char( s : StrPtr; n : TStrLength; Var cc : TChar ) : Boolean;
 Function Str_FirstChar( s : StrPtr; Var cc : TChar ) : Boolean;
 Function Str_LastChar( s : StrPtr; Var cc : TChar ) : Boolean;
 Function Str_StartsWith(s: StrPtr; E: CharSet): boolean;
@@ -114,10 +114,13 @@ Function Str_EndsWith(s: StrPtr; E: CharSet): boolean;
 Procedure Str_DeleteLastChars( s : StrPtr; n : TStrLength );
 Procedure Str_DeleteLastChar( s : StrPtr );
 Procedure Str_DeleteLastCharUntil( s : StrPtr; StopChars : CharSet );
+Function Str_Substring( s : StrPtr; n,m : PosInt ) : StrPtr;
+Function Str_FindPattern( s,pat : StrPtr; Var n : TStrLength ) : Boolean;
 
 Procedure Str_CWrite( s: StrPtr );
 
 Procedure StrIter_ToStart( Var Iter : StrIter; s : StrPtr );
+Procedure StrIter_ToChar( Var Iter : StrIter; n : TStrLength; s : StrPtr );
 Procedure StrIter_ToEnd( Var Iter : StrIter; s : StrPtr );
 Function StrIter_NextChar( Var Iter : StrIter; Var cc : TChar ) : Boolean;
 Function StrIter_PrevChar( Var Iter : StrIter; Var cc : TChar ) : Boolean;
@@ -262,27 +265,6 @@ Begin
 End;
 
 {-----------------------------------------------------------------------}
-{ Str: index                                                            }
-{-----------------------------------------------------------------------}
-
-{ char number n, assuming 1 <= n <= Len(s) }
-Procedure Str_Char( s : StrPtr; n : TStrLength; Var cc : TChar );
-Var
-  i : TStrLength;
-  sd : StrDataPtr;
-Begin
-  CheckCondition((1 <= n) And (n <= Str_Length(s)),'Str_Char: out of bounds');
-  i := 0;
-  sd := Str_GetFirstStrData(s);
-  While i + StrData_Len(sd) < n Do
-  Begin
-    i := i + StrData_Len(sd);
-    sd := StrData_Next(sd)
-  End;
-  StrData_Char(sd,n - i,cc)
-End;
-
-{-----------------------------------------------------------------------}
 { StrIter: iterate                                                      }
 {-----------------------------------------------------------------------}
 
@@ -291,6 +273,33 @@ Procedure StrIter_ToStart( Var Iter : StrIter; s : StrPtr );
 Begin
   Iter.Data := Str_GetFirstStrData(s);
   Iter.LastRead := 0
+End;
+
+{ initialize a forward iterator to iterate on a string's characters, starting
+ at character number n; not suitable for backward iteration; if n is zero or 
+ greater than the length of the string, the iterator is set such that NextChar 
+ will fail }
+Procedure StrIter_ToChar( Var Iter : StrIter; n : TStrLength; s : StrPtr );
+Var
+  i : TStrLength;
+Begin
+  StrIter_ToStart(Iter,s);
+  If (n = 0) Or (n > Str_Length(s)) Then { out of bounds }
+  Begin
+    Iter.Data := Str_GetLastStrData(s);
+    Iter.LastRead := StrData_Len(Iter.Data) { so NextChar fails }
+  End
+  Else
+  Begin
+    n := n - 1; { so NextChar returns the n-th character }
+    i := 0;
+    While i + StrData_Len(Iter.Data) < n Do
+    Begin
+      i := i + StrData_Len(Iter.Data);
+      Iter.Data := StrData_Next(Iter.Data)
+    End;
+    Iter.LastRead := n - i
+  End
 End;
 
 { initialize a backward iterator to iterate on a string's characters }
@@ -309,7 +318,9 @@ Begin
 End;
 
 { get the next char (if any) in a Str; return False if the iterator has 
- reached the end of the string and thus no char can be returned }
+ reached the end of the string and thus no char can be returned; in that case
+ the iterator is not updated, and further NextChar or HasNext will keep 
+ returning False }
 Function StrIter_NextChar( Var Iter : StrIter; Var cc : TChar ) : Boolean;
 Begin
   StrIter_NextChar := False;
@@ -317,10 +328,10 @@ Begin
   Begin
     If LastRead >= StrData_Len(Data) Then
     Begin
+      If StrData_Next(Data) = Nil Then
+        Exit;
       Data := StrData_Next(Data);
-      LastRead := 0;
-      If Data = Nil Then
-        Exit
+      LastRead := 0
     End;
     LastRead := LastRead + 1;
     StrData_Char(Data,LastRead,cc)
@@ -360,6 +371,15 @@ End;
 {-----------------------------------------------------------------------}
 { Str: get (cont.)                                                      }
 {-----------------------------------------------------------------------}
+
+{ char number n, of False }
+Function Str_Char( s : StrPtr; n : TStrLength; Var cc : TChar ) : Boolean;
+Var
+  Iter : StrIter;
+Begin
+  StrIter_ToChar(Iter,n,s);
+  Str_Char := StrIter_NextChar(Iter,cc)
+End;
 
 { first character, or False }
 Function Str_FirstChar( s : StrPtr; Var cc : TChar ) : Boolean;
@@ -760,6 +780,74 @@ Var
 Begin
   While Str_LastChar(s,cc) And Not TCharIsIn(cc,StopChars) Do 
     Str_DeleteLastChar(s)
+End;
+
+{ return a substring of m characters from character n of s; if n is out of
+ bounds, returns an empty string, if n + m - 1 passes the right end of the 
+ string, returns the end of the string from character n; 
+ NOTE: for now, the result string is set to have the same encoding as s, even 
+ if it could be restricted (e.g. switching from UTF8 to ASCII if the substring 
+ contains no multi bytes chars)}
+Function Str_Substring( s : StrPtr; n,m : PosInt ) : StrPtr;
+Var
+  Iter : StrIter;
+  cc : TChar;
+  r : StrPtr;
+Begin
+  { result string, with the same encoding as s }
+  r := Str_New(Str_GetEncodingContext(s));
+  StrIter_ToChar(Iter,n,s);
+  While (m > 0) And StrIter_NextChar(Iter,cc) Do
+  Begin
+    Str_AppendChar(r,cc);
+    m := m - 1
+  End;
+  Str_Substring := r
+End;
+
+{ return true and set n the position in s if pat is found in s;  return False 
+ otherwise }
+Function Str_FindPattern( s,pat : StrPtr; Var n : TStrLength ) : Boolean;
+Var
+  Iter1,Iter2,IterP : StrIter;
+  cc1,cc2 : TChar;
+  n1,n2 : TStrLength;
+  Same,Found : Boolean;
+Begin
+  Str_FindPattern := False;
+  If Not AreCompatibleEncodings(Str_GetEncodingContext(s),
+      Str_GetEncodingContext(pat)) Then
+    Exit;
+  n1 := Str_Length(s);
+  n2 := Str_Length(pat);
+  { initialize the search position in s }
+  StrIter_ToStart(Iter1,s);
+  { initialize the search }
+  Found := False;
+  Iter2 := Iter1;
+  StrIter_ToStart(IterP,pat);
+  n := 1;
+  While (Not Found) And (n <= n1) And (n + n2 - 1 <= n1) Do
+  Begin
+    Same := True;
+    While Same And Not Found Do
+    Begin
+      Same := StrIter_NextChar(IterP,cc1) And 
+          StrIter_NextChar(Iter2,cc2) And TCharSameBytes(cc1,cc2);
+      Found := Same And Not StrIter_HasNext(IterP)
+    End;
+    If Not Found Then 
+    Begin
+      { not found at n, try at n+1 }
+      n := n + 1;
+      If Not StrIter_NextChar(Iter1,cc1) Then
+        Exit;
+      { set up the next search }
+      Iter2 := Iter1;
+      StrIter_ToStart(IterP,pat)
+    End
+  End;
+  Str_FindPattern := Found
 End;
 
 {-----------------------------------------------------------------------}
