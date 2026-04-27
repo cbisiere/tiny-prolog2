@@ -326,17 +326,17 @@ Begin
     Begin
       PopExprTerm(T1,TBottom);
       CheckCondition(T1 <> Nil,'ReduceTopExpr: unexpected Nil term');
-      T2 := Nil
+      T := NewFunc1(P,Op_GetFunction(o),T1,False,True);
     End;
   2:
     Begin
       PopExprTerm(T2,TBottom);
       PopExprTerm(T1,TBottom);
       CheckCondition((T1<>Nil) And (T2<>Nil),
-          'ReduceTopExpr: unexpected Nil terms')
+          'ReduceTopExpr: unexpected Nil terms');
+      T := NewFunc2(P,Op_GetFunction(o),T1,T2,False,True)
     End
   End;
-  T := NewFunc2(P,Op_GetFunction(o),T1,T2,False,True);
   PushExprTerm(T)
 End;
 
@@ -604,7 +604,8 @@ Begin
   ReadTerm := T
 End;
 
-{ read the comma-separated list of expressions "a,b,c..." 
+{ read the comma-separated list of expressions "a,b,c...", returning a tuple
+ <a,b,c...>
  (see pII+ p.44, "1.9.1 The syntactic level", rule 5 "termlist")
  - return Nil if an error occurs; 
  - in Edinburgh mode, the precedence level 999, 
@@ -635,7 +636,7 @@ Begin
     T2 := ReadTermList(f,P,K,glob,Cut);
     If Error Then Exit
   End;
-  ReadTermList := Func_NewAsTerm(T,T2)
+  ReadTermList := NewTuple(T,T2)
 End;
 
 { read a []-style list expression
@@ -677,7 +678,7 @@ Begin
   End
   Else { "a" <=> a.nil, see 6 p.45 }
   Begin
-    T := NewList2(P,T,Nil)
+    T := NewList1(P,T)
   End;
   ReadListExpr := T
 End;
@@ -768,11 +769,11 @@ Begin
       Begin
         K := ReadProgramToken(P,f);
         If Error Then Exit;
-        L := ReadTermList(f,P,K,glob,Cut);
+        L := ReadTermList(f,P,K,glob,Cut); { tuple of arguments }
         If Error Then Exit;
         VerifyToken(f,P,K,TOKEN_RIGHT_PAR);
         If Error Then Exit;
-        T := Func_NewAsTerm(T,L)
+        T := NewTuple(T,L)
       End
     End;
   TOKEN_LEFT_PAR: { rule 7.8: parenthesized term }
@@ -798,7 +799,7 @@ Begin
         Begin
           K := ReadProgramToken(P,f);
           If Error Then Exit;
-          L := ReadTermList(f,P,K,glob,Cut);
+          L := ReadTermList(f,P,K,glob,Cut); { tuple of elements }
           If Error Then Exit;
           VerifyToken(f,P,K,TOKEN_RIGHT_PAR)
         End
@@ -808,7 +809,7 @@ Begin
       Else 
         If y <> Edinburgh Then 
         Begin
-          L := ReadTermList(f,P,K,glob,Cut);
+          L := ReadTermList(f,P,K,glob,Cut); { tuple of elements }
           If Error Then Exit;
           VerifyToken(f,P,K,TOKEN_RIGHT_CHE)
         End

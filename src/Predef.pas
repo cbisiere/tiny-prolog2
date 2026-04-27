@@ -1669,12 +1669,12 @@ Begin
       CWriteLnWarning('not an array');
       Exit
     End;
-    If ArgCount(T1) <> 2 Then
+    If ProtectedGetTupleArgCount(T1,True) <> 2 Then
     Begin
       CWriteLnWarning('arrays have only one dimension');
       Exit
     End;
-    T1 := ProtectedRepOf(TupleArgN(2,T1));
+    T1 := ProtectedGetTupleArgN(2,T1,True);
     If (Not IsConstant(T1)) Or 
         (ConstType(ConstPtr(T1)) <> IntegerNumber) Then
     Begin
@@ -1808,7 +1808,7 @@ Begin
       T := TupleArgN(1,T)       { T =.. [foo] gives T = foo }
   End
   Else If IsAtomic(T1) Then
-    L := NewList2(P,T1,Nil)     { foo =.. L gives L = [foo] }
+    L := NewList1(P,T1)     { foo =.. L gives L = [foo] }
   Else If IsTuple(T1) Then
     L := TupleToList(P,T1);     { foo(a,b) =.. L gives L = [foo,a,b] }
 

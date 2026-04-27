@@ -608,7 +608,7 @@ Procedure UnparseTermBis( y : TSyntax; s : StrPtr; T : TermPtr;
     InList,ArgList,Quotes : Boolean; 
     Reduce : Boolean; g : TSerial; depth : PosInt ); Forward;
 
-{ write a comma-separated list of arguments in tuple U }
+{ write a non-empty comma-separated list of arguments in tuple U }
 Procedure UnparseArgument( y : TSyntax; s : StrPtr; U : TermPtr; 
     Quotes : Boolean; Reduce : Boolean; g : TSerial; depth : PosInt );
 Var
@@ -762,8 +762,8 @@ Begin
       Begin 
         Th := ProtectedGetTupleHead(T,Reduce);
         Tq := ProtectedGetTupleQueue(T,Reduce);
-        If (Tq <> Nil) And IsIdentifier(Th) And 
-            (Not IsNil(Th)) Then { <ident,a,b,...> == ident(a,b,...) }
+        If Not IsEmptyTuple(Tq) And IsIdentifier(Th) And 
+            Not IsNil(Th) Then { <ident,a,b,...> == ident(a,b,...) }
         Begin
           UnparseIdentifier(s2,ITh,Quotes);
           UnparseShortString(s2,'(');

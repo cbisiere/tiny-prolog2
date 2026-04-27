@@ -31,7 +31,9 @@
 {                   \          - a '.' (Prolog list) is considered as   }
 {                    F           a regular predicate.                   }
 {                  /  \                                                 }
-{               argN    Nil                                             }
+{               argN   F  = <>                                          }
+{                     /  \                                              }
+{                  Nil    Nil                                           }
 {                                                                       }
 {-----------------------------------------------------------------------}
 
@@ -57,6 +59,8 @@ Uses
 Type
   TListArgNumber = PosInt; { list element index or count }
 
+Function NewFunc1( P : ProgPtr; ident : TString; T : TermPtr; 
+    special,glob : Boolean ) : TermPtr;
 Function NewFunc2( P : ProgPtr; ident : TString; T1,T2 : TermPtr; 
     special,glob : Boolean ) : TermPtr;
 
@@ -64,6 +68,7 @@ Function NilTerm( P : ProgPtr ) : TermPtr;
 Function IsNil( T : TermPtr ) : Boolean;
 
 Function NewEmptyList( P : ProgPtr ) : TermPtr;
+Function NewList1( P : ProgPtr; T : TermPtr ) : TermPtr;
 Function NewList2( P : ProgPtr; T1,T2 : TermPtr ) : TermPtr;
 Function ListArgN( N : TListArgNumber; T : TermPtr ) : TermPtr;
 Function ReverseList( P : ProgPtr; T : TermPtr ) : TermPtr;
@@ -85,6 +90,10 @@ Function RuleExpToBTerms( P : ProgPtr; T : TermPtr ) : BTermPtr;
 
 Function ProtectedGetTupleHead( U : TermPtr; Reduce : Boolean ) : TermPtr;
 Function ProtectedGetTupleQueue( U : TermPtr; Reduce : Boolean ) : TermPtr;
+Function ProtectedGetTupleArgCount( U : TermPtr; 
+    Reduce : Boolean ) : TTupleArgNumber;
+Function ProtectedGetTupleArgN( N : TTupleArgNumber; U : TermPtr; 
+    Reduce : Boolean ) : TermPtr;
 Function ProtectedGetTupleArg( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
 
 Function ProtectedListToTuple( L : TermPtr; Reduce : Boolean ) : TermPtr;
@@ -109,29 +118,64 @@ Implementation
 { functions                                                                  }
 {----------------------------------------------------------------------------}
 
-{ return a new 1 or 2-argument predicate with identifier given as a Pascal 
- string made of 1-byte TChar: "ident: "ident(T1)" or "ident(T1,T2)" }
+{ return a new 1-argument predicate with identifier given as a Pascal 
+ string made of 1-byte TChar: ident(T1) (that is, tuple <ident,T1>);
+ this function is used to create evaluable unary expressions }
+Function NewFunc1( P : ProgPtr; ident : TString; T : TermPtr; 
+    special,glob : Boolean ) : TermPtr;
+Var
+  T1 : TermPtr;
+Begin
+  CheckCondition(T <> Nil,'NewFunc1: first argument is Nil');
+  If special Then
+    T1 := EmitSpecialIdent(P,ident,glob)
+  Else
+    T1 := EmitShortIdent(P,ident,glob);
+  NewFunc1 := NewTuple(T1,NewTuple1(T));
+End;
+
+{ return 2-argument predicate with identifier given as a Pascal 
+ string made of 1-byte TChar: ident(T1,T2) (that is, tuple <ident,T1,T2>);
+ this function is used to create evaluable binary expressions and lists }
 Function NewFunc2( P : ProgPtr; ident : TString; T1,T2 : TermPtr; 
     special,glob : Boolean ) : TermPtr;
 Var
-  U,T : TermPtr;
+  T,Q : TermPtr;
 Begin
-  CheckCondition(T1 <> Nil,'NewFunc2: first argument is Nil');
-  If special Then
-    T := EmitSpecialIdent(P,ident,glob)
-  Else
-    T := EmitShortIdent(P,ident,glob);
-  U := NewTuple(T);
-  SetTupleQueueTerm(U,T1);
-  If T2 <> Nil Then
-    SetTupleQueueTerm(TupleQueue(U),T2);
-  NewFunc2 := U
+  T := NewFunc1(P,ident,T1,special,glob); { <ident,T1> }
+  { append argument T2 }
+  Q := TupleQueue(T); { <T1> }
+  SetTupleQueue(Q,NewTuple1(T2)); { <ident,T1,T2> }
+  NewFunc2 := T
 End;
 
 
 {----------------------------------------------------------------------------}
 { lists                                                                      }
 {----------------------------------------------------------------------------}
+
+{-----------------------------------------------------------------------}
+{                                                                       }
+{   a.b.nil <=> '.'(a,'.'(b,'nil')) <=> <'.', a, <'.',b,'nil'>>         }
+{                                                                       }
+{           F                                                           }
+{          / \                                                          }
+{       '.'    F                                                        }
+{            /  \                                                       }
+{           a    F                                                      }
+{              /   \                                                    }
+{             F     F                                                   }
+{          /  \    /  \                                                 }
+{        '.'    F  Nil Nil                                              }
+{             /  \                                                      }
+{            b     F                                                    }
+{                /   \                                                  }
+{             'nil'   F                                                 }
+{                    /  \                                               }
+{                  Nil  Nil                                             }
+{                                                                       }
+{-----------------------------------------------------------------------}
+
 
 { return Nil }
 Function NilTerm( P : ProgPtr ) : TermPtr;
@@ -151,30 +195,30 @@ Begin
   ListHead := TupleArgN(2,L)
 End;
 
-{ return the queue of a list: a.b.nil => b.nil }
+{ return the queue of a list: 
+ a.b.nil => b.nil = <b,'nil'>
+ a.nil => nil = 'nil' }
 Function ListQueue( L : TermPtr ) : TermPtr;
 Begin
   ListQueue := TupleArgN(3,L)
 End;
 
-{ return an empty list "nil" }
+{ return an empty list: 'nil' }
 Function NewEmptyList( P : ProgPtr ) : TermPtr;
 Begin
   NewEmptyList := NilTerm(P)
 End;
 
-{ return a term "a.b", viewed as '.'(a,b)" (equivalent to <'.',a,b>) and thus 
- implemented as "F('.',F(a,F(b,Nil)))"; if b is Nil, replace it with 
- "F('nil',Nil)", that is, add ".nil" at the end of the dotted list; this helps 
- implementing the following equivalences:
-  [a|b] <=> a.b
-  [a,b] <=> a.b.nil
- (see PII+ syntax (cf. pdf doc p.45) }
+{ return a list "a.nil", viewed as '.'(a,'nil') (equivalent to <'.',a,'nil'>) }
+Function NewList1( P : ProgPtr; T : TermPtr ) : TermPtr;
+Begin
+  NewList1 := NewList2(P,T,NewEmptyList(P))
+End;
+
+{ return a list "a.b", viewed as '.'(a,b)" (equivalent to <'.',a,b>), where b
+ can be 'nil' or another list }
 Function NewList2( P : ProgPtr; T1,T2 : TermPtr ) : TermPtr;
 Begin
-  NewList2 := Nil;
-  If T2 = Nil Then
-    T2 := NewEmptyList(P);
   NewList2 := NewFunc2(P,'.',T1,T2,True,True)
 End;
 
@@ -233,7 +277,7 @@ Begin
     CommaExpToList := NewList2(P,T1,L)
   End
   Else
-    CommaExpToList := NewList2(P,T,Nil)
+    CommaExpToList := NewList1(P,T)
 End;
 
 { create a new list foo.a.b.nil from a tuple <foo,a,b> }
@@ -426,6 +470,14 @@ End;
 { navigate the term tree, possibly through the reduced system                }
 {----------------------------------------------------------------------------}
 
+{ empty tuple? }
+Function GetIsEmptyTuple( T : TermPtr; 
+    Reduce : Boolean; g : TSerial ) : Boolean;
+Begin
+  T := RepresentativeOf(T,Reduce,g);
+  GetIsEmptyTuple := IsEmptyTuple(T)
+End;
+
 { tuple head }
 Function GetTupleHead( T : TermPtr; 
     Reduce : Boolean; g : TSerial ) : TermPtr;
@@ -442,6 +494,26 @@ Begin
   T := TupleQueue(T);
   T := RepresentativeOf(T,Reduce,g);
   GetTupleQueue := T
+End;
+
+{ tuple length }
+Function GetTupleArgCount( T : TermPtr; 
+    Reduce : Boolean; g : TSerial ) : TTupleArgNumber;
+Begin
+  If GetIsEmptyTuple(T,Reduce,g) Then
+    GetTupleArgCount := 0
+  Else
+    GetTupleArgCount := GetTupleArgCount(GetTupleQueue(T,Reduce,g),Reduce,g) + 1
+End;
+
+{ tuple's n-th arg }
+Function GetTupleArgN( N : TTupleArgNumber; T : TermPtr; 
+    Reduce : Boolean; g : TSerial ) : TermPtr;
+Begin
+  If N = 1 Then
+    GetTupleArgN := GetTupleHead(T,Reduce,g)
+  Else
+    GetTupleArgN := GetTupleArgN(N-1,GetTupleQueue(T,Reduce,g),Reduce,g)
 End;
 
 { tuple first arg, advancing U to the queue }
@@ -492,7 +564,7 @@ Begin
     ListToTuple := NewEmptyTuple
   Else
   Begin
-    T := NewTuple(GetListHead(L,Reduce,g));
+    T := NewTuple1(GetListHead(L,Reduce,g));
     SetTupleQueue(T,ListToTuple(GetListQueue(L,Reduce,g),Reduce,g));
     ListToTuple := T
   End
@@ -521,6 +593,20 @@ Begin
   ProtectedGetTupleQueue := GetTupleQueue(U,Reduce,NewSerial)
 End;
 
+{ tuple length }
+Function ProtectedGetTupleArgCount( U : TermPtr; 
+    Reduce : Boolean ) : TTupleArgNumber;
+Begin
+  ProtectedGetTupleArgCount := GetTupleArgCount(U,Reduce,NewSerial)
+End;
+
+{ tuple's n-th arg }
+Function ProtectedGetTupleArgN( N : TTupleArgNumber; U : TermPtr; 
+    Reduce : Boolean ) : TermPtr;
+Begin
+  ProtectedGetTupleArgN := GetTupleArgN(N,U,Reduce,NewSerial)
+End;
+
 { tuple first arg, advancing U to the queue }
 Function ProtectedGetTupleArg( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
 Begin
@@ -537,16 +623,16 @@ Var
   T0 : TermPtr;
 Begin
   ProtectedGetFunc1 := False;
-  If Not IsTuple(T) Then
+  If Not IsTuple(T) Or IsEmptyTuple(T) Then
     Exit;
   g := NewSerial;
   T0 := GetTupleArg(T,Reduce,g);
-  If Not IsTuple(T) Then
+  If IsEmptyTuple(T) Then
     Exit;
   If Not TermIsIdentifierEqualToShortString(T0,ident) Then
     Exit;
   T1 := GetTupleArg(T,Reduce,g);
-  If T <> Nil Then
+  If Not IsEmptyTuple(T) Then
     Exit;
   ProtectedGetFunc1 := True
 End;
@@ -562,19 +648,19 @@ Var
   T0 : TermPtr;
 Begin
   ProtectedGetFunc2 := False;
-  If Not IsTuple(T) Then
+  If Not IsTuple(T) Or IsEmptyTuple(T) Then
     Exit;
   g := NewSerial;
   T0 := GetTupleArg(T,Reduce,g);
-  If Not IsTuple(T) Then
+  If IsEmptyTuple(T) Then
     Exit;
   If Not TermIsIdentifierEqualToShortString(T0,ident) Then
     Exit;
   T1 := GetTupleArg(T,Reduce,g);
-  If Not IsTuple(T) Then
+  If IsEmptyTuple(T) Then
     Exit;
   T2 := GetTupleArg(T,Reduce,g);
-  If T <> Nil Then
+  If Not IsEmptyTuple(T) Then
     Exit;
   ProtectedGetFunc2 := True
 End;

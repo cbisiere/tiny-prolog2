@@ -48,9 +48,9 @@ Uses
 Type
   TTupleArgNumber = PosInt; { tuple argument index or count }
 
-Function NewTuple( T : TermPtr ) : TermPtr;
-Function NewTuple2( T1,T2 : TermPtr ) : TermPtr;
 Function NewEmptyTuple : TermPtr;
+Function NewTuple1( T : TermPtr ) : TermPtr;
+Function NewTuple( T,U : TermPtr ) : TermPtr;
 
 Function IsTuple( T : TermPtr ) : Boolean;
 Function IsEmptyTuple( U : TermPtr ) : Boolean;
@@ -70,27 +70,22 @@ Implementation
 { constructors                                                               }
 {----------------------------------------------------------------------------}
 
-{ create a new tuple containing a single term T: <a> }
-Function NewTuple( T : TermPtr ) : TermPtr;
-Begin
-  NewTuple := Func_NewAsTerm(T,Nil)
-End;
-
-{ create a new tuple <T1,T2>, or <T1> if T2 is Nil }
-Function NewTuple2( T1,T2 : TermPtr ) : TermPtr;
-Var
-  U : TermPtr;
-Begin
-  U := NewTuple(T1);
-  If T2 <> Nil Then
-    SetTupleQueueTerm(U,T2);
-  NewTuple2 := U
-End;
-
 { create the empty tuple: <> }
 Function NewEmptyTuple : TermPtr;
 Begin
-  NewEmptyTuple := NewTuple(Nil)
+  NewEmptyTuple := Func_NewAsTerm(Nil,Nil)
+End;
+
+{ create a new tuple containing a single term T: <a> }
+Function NewTuple1( T : TermPtr ) : TermPtr;
+Begin
+  NewTuple1 := NewTuple(T,NewEmptyTuple)
+End;
+
+{ create a new tuple from a head term T and a queue tuple U }
+Function NewTuple( T,U : TermPtr ) : TermPtr;
+Begin
+  NewTuple := Func_NewAsTerm(T,U)
 End;
 
 {----------------------------------------------------------------------------}
@@ -108,7 +103,6 @@ Function IsEmptyTuple( U : TermPtr ) : Boolean;
 Begin
   IsEmptyTuple := (TupleHead(U) = Nil) And (TupleQueue(U) = Nil)
 End;
-
 
 { return the first element of a tuple: <a,b,c> => a; <> => Nil }
 Function TupleHead( U : TermPtr ) : TermPtr;
@@ -139,7 +133,7 @@ End;
 { replace the queue of tuple U with term T }
 Procedure SetTupleQueueTerm( U,T : TermPtr );
 Begin
-  SetTupleQueue(U,NewTuple(T))
+  SetTupleQueue(U,NewTuple1(T))
 End;
 
 { return the number of elements of a tuple }
@@ -161,7 +155,7 @@ Begin
 End;
 
 { return the first element of a tuple U, setting U to the tuple queue, which 
- will be Nil if there are no more elements) }
+ will be the empty tuple if there are no more elements) }
 Function TupleArg( Var U : TermPtr ) : TermPtr;
 Begin
   TupleArg := TupleHead(U);

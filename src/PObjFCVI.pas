@@ -1034,7 +1034,10 @@ Begin
   End
 End;
 
-{ return the arity of a term, using the reduced system }
+{ return the arity of a term, using the reduced system; 
+ aaa(bbb) = <aaa,bbb> => 1
+ <1,2> => 2 
+ otherwise: 0 }
 Function GetArity( T : TermPtr ) : TArity;
 Begin
   GetArity := 0;
