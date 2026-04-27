@@ -83,6 +83,7 @@ Predicate | Action | Example
 Predicate | Action | Example
 --- | --- | ---
 `affecter(I,T)` <br><br> _`assign(I,T)`_ | assign value `T` to identifier `I`; the identifier becomes a global, persistent variable whose value is `T` | `> assign(greetings,"hello");` <br> `{  }` <br> `> outml(greetings);` <br> `hello` <br> `{  }` <br> `>`
+`renommer(S1,S2)` | rename to `S2` the identifier whose name corresponds to the string `S1`, provided no identifiers having name `S2` already exist | `c> renommer("eg","egal");` <br> `{  }` <br> `c> egal(x,1);` <br> `{ x=1 }` <br> `c>`
 `val(E,V)` <br><br> _`val(E,V)`_ | evaluate expression `E` and unify the result with `V` | `> val(add(5,mul(3,2)),x);` <br> `{ x=11 }` <br> `>` 
 `eg(X,Y)`, `dif(X,Y)` <br><br> _`eq(X,Y)`, `dif(X,Y)`_ | term `X` is equal to (or different from) term `Y` | `> dif(x,1);` <br> `{ x#1 }` <br> `>`
 

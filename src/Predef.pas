@@ -112,6 +112,7 @@ Type
     PP_EVAL,
     PP_OP,
     PP_ASSIGN,
+    PP_RENAME,
     PP_DEF_ARRAY,
     PP_SET_STATE,
     PP_DUMP,
@@ -152,7 +153,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 71;
+  NB_PP = 72;
   MAX_PP_LENGTH = 21; { max string length }
 Type
   TPPRec = Record
@@ -220,6 +221,7 @@ Const
     (I:PP_EVAL;S:'syseval';N:2),
     (I:PP_OP;S:'sysop';N:4), { TODO: 3-arg version }
     (I:PP_ASSIGN;S:'sysassign';N:2),
+    (I:PP_RENAME;S:'sysrename';N:2),
     (I:PP_DEF_ARRAY;S:'sysdefarray';N:2),
     (I:PP_SET_STATE;S:'sysonoff';N:2),
     (I:PP_DUMP;S:'sysdump';N:0),
@@ -1726,6 +1728,36 @@ Begin
   ClearEval := ReduceOneEq(T2,T1,GetDebugStream(P)) { FIXME: shouldn't it be backtrackable? }
 End;
 
+{ renommer/2 (seems to be PIIv1 specific)
+ renommer("ident1","ident2") => rename ident1 ident2 (where ident1 is an 
+ existing identifier if ident2 is not) }
+Function ClearRename( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  C1,C2 : ConstPtr;
+  T1,T2 : TermPtr;
+Begin
+  ClearRename := False;
+  { 1: identifier to rename }
+  C1 := EvalPArgAsString(1,T);
+  If C1 = Nil Then
+    Exit;
+  { 2: new name }
+  C2 := EvalPArgAsString(2,T);
+  If C2 = Nil Then
+    Exit;
+  { checks: first ident exists, second does not }
+  T1 := GetIdentByString(P,ConstGetStr(C1));
+  If T1 = Nil Then
+    Exit;
+  T2 := GetIdentByString(P,ConstGetStr(C2));
+  If T2 <> Nil Then
+    Exit;
+  { rename }
+  IdentifierSetStr(IdPtr(T1),ConstGetStr(C2));
+  { success }
+  ClearRename := True
+End;
+
 {----------------------------------------------------------------------------}
 { conversion                                                                 }
 {----------------------------------------------------------------------------}
@@ -3106,6 +3138,8 @@ Begin
     Ok := ClearDif(P,T);
   PP_ASSIGN:
     Ok := ClearAssign(P,T);
+  PP_RENAME:
+    Ok := ClearRename(P,T);
   PP_DEF_ARRAY:
     Ok := ClearDefArray(P,T);
   PP_EVAL:

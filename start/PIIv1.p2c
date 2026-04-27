@@ -103,6 +103,7 @@ pos(N) -> syscall(syssetlinecursor,N);
 "assign and eval"
 
 affecter(I,T) -> syscall(sysassign,I,T);
+renommer(S1,S2) -> syscall(sysrename,S1,S2);
 val(T1,T2) -> syscall(syseval,T1,T2);
 
 "control"

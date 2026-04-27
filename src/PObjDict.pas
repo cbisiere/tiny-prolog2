@@ -45,6 +45,7 @@ Type
 Function Dict_GetNext( D : DictPtr) : DictPtr;
 Function Dict_GetType( D : DictPtr) : TypePrologObj;
 Function Dict_GetStr( D : DictPtr) : StrPtr;
+Procedure Dict_SetStr( D : DictPtr; str : StrPtr);
 Function Dict_IsGlobal( D : DictPtr) : Boolean;
 Procedure Dict_SetGlobal( D : DictPtr; glob : Boolean );
 Function Dict_GetTerm( D : DictPtr) : TermPtr;
@@ -101,10 +102,16 @@ Begin
   Dict_GetType := D^.DE_TYPE
 End;
 
-{ string }
+{ get string }
 Function Dict_GetStr( D : DictPtr) : StrPtr;
 Begin
   Dict_GetStr := D^.DE_STRI
+End;
+
+{ set string }
+Procedure Dict_SetStr( D : DictPtr; str : StrPtr);
+Begin
+  D^.DE_STRI := str
 End;
 
 { term }

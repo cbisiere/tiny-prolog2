@@ -154,6 +154,7 @@ Procedure AddFrozenTermsWithUndo( V : VarPtr; M : TermsPtr; Undo : Boolean;
     Var L : RestPtr );
 
 Function IdentifierGetStr( I : IdPtr ) : StrPtr;
+Procedure IdentifierSetStr( I : IdPtr; s : StrPtr);
 Function IdentifierGetShortString( I : IdPtr ) : TString;
 Function IdentifierEqualToShortString( I : IdPtr; ps : TString ) : Boolean;
 Function TermIsIdentifierEqualToShortString( T : TermPtr; ident : TString ) : Boolean;
@@ -542,6 +543,13 @@ End;
 Function IdentifierGetStr( I : IdPtr ) : StrPtr;
 Begin
   IdentifierGetStr := Dict_GetStr(I^.TI_DVAR)
+End;
+
+{ set the string value of an identifier; no other identifiers should have this
+ string as name, otherwise mayhem will happen }
+Procedure IdentifierSetStr( I : IdPtr; s : StrPtr);
+Begin
+  Dict_SetStr(I^.TI_DVAR,s)
 End;
 
 { return the Pascal string value of an identifier, shortening the
