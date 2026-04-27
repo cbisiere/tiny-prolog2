@@ -144,10 +144,10 @@ Begin
     { first term: the string itself }
     T1 := EmitConst(P,s,CS,False);
     { second term: }
-    { in PIIv1: ident start with 'at-' ("atom"); see user manual p7 }
+    { in PIIv1: ident start with 'mt-' ("mot"); see user manual p7 }
     If y = PrologIIv1 Then
     Begin
-      s1 := Str_NewFromShortString('at-');
+      s1 := Str_NewFromShortString('mt-');
       Str_Concat(s1,s);
       s := s1;
       T2 := EmitIdent(P,s,False,False)
