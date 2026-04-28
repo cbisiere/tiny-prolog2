@@ -2710,6 +2710,7 @@ Var
   What : TPrologDataType;
   SkipSpaces : Boolean;
   LookAhead : Boolean; { advance read requested, undo all the reads }
+  Sign : Boolean; { in_integer/1: is a sign alllowed? }
   y : TSyntax;
   f : StreamPtr;
   cp : TCodePoint;
@@ -2805,7 +2806,13 @@ Begin
     End;
   TYPE_INTEGER:
     Begin
-      K := ReadInteger(f,True);
+      { signed integers? 
+       - PIIv2: not allowed, othetwise exemple p142 on Giannesini wouldn't work:
+         in_integer/1 would catch the "+2" before lire-unite(c) gets a chance
+         to catch the "+" sign
+       - PII+: allowed, as shown by the exemple p127 }
+      Sign := Not (y In [PrologIIv1,PrologIIv2]);
+      K := ReadInteger(f,Sign);
       InOk := (Not Error) And (K <> Nil) And 
           NormalizeConstant(K^.TK_STRI,ObjectTypeToConstType(CI));
       If InOk Then
