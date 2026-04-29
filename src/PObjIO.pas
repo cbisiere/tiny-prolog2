@@ -887,10 +887,7 @@ Begin
         Stream_UngetChars(f,e); { put back the non-blank character }
     End;
     If Stream_IsDry(f) Then
-    Begin
-      CLISetPrompt(''); { no prompt }
       Stream_ReadLineFromKeyboard(f)
-    End
   End
 End;
 

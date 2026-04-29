@@ -109,6 +109,7 @@ Procedure PushStream( P : ProgPtr; f : StreamPtr );
 Procedure SetStreamAsCurrent( P : ProgPtr; f : StreamPtr );
 Procedure CloseTopBuffer( P : ProgPtr );
 Procedure ResetIO( P : ProgPtr );
+Procedure DisplayPrompt( P : ProgPtr );
 Procedure ReadFromConsole( P : ProgPtr );
 
 { worlds }
@@ -463,29 +464,34 @@ Begin
   End
 End;
 
-{ set the prompt depending on the Prolog version }
-Procedure SetPrompt( P : ProgPtr );
+{ display the prompt depending on the Prolog version; using UTF8 characters is
+ fine; 
+ Notes: 
+  - CWrite uses the paper system, so the CLI must not do it when the user
+   press the enter key;
+  - CWrite uses Crt2, which maintains a copy of the current screen row; the CLI
+   editor will take a snapshot of this row, to serve as a prompt }
+Procedure DisplayPrompt( P : ProgPtr );
 Var
-  Prompt : TString;
+  s : TString;
 Begin
   Case GetSyntax(P) Of
   PrologIIv1:
-    Prompt := 'c> ';
+    s := 'c> ';
   PrologIIv2:
-    Prompt := '> ';
+    s := '> ';
   PrologIIp:
-    Prompt := '+> ';
+    s := '+> ';
   Edinburgh:
-    Prompt := '?- ';
+    s := '?- ';
   End;
-  CLISetPrompt(Prompt)
+  CWrite(s)
 End;
 
 { read a line from the keyboard; meant to be called from the REPL to read new
  goals to clear, typed by the user after a Prolog prompt }
 Procedure ReadFromConsole( P : ProgPtr );
 Begin
-  SetPrompt(P);
   Stream_ReadLineFromKeyboard(GetInputConsole(P))
 End;
 

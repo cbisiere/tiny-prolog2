@@ -56,11 +56,6 @@ Uses
 Const
   TRACE_CEDIT = False;
 
-{ prompt: short 1-byte char string }
-Const
-  MaxPromptLength = 3;
-Type
-  TPrompt = String[MaxPromptLength];
 
 { layout of a CL on screen; may takes several lines due to wrapping; NBlines = 0
  means the layout is undefined }
@@ -85,19 +80,16 @@ Type
     IdxA : TBufIndex; { active line starts after this char; 0 if first line }
     NbBytes : PosInt; { number of bytes in the active line, up to char IdxW } 
     { buffer }
-    NbMulti : PosInt; { number of multibyte chars in the buffer; UNUSED }
     Buf : TBuf; { the buffer }
     { prompt }
-    NbBytesInPrompt : 0..MaxPromptLength;
-    Prompt : TPrompt;
+    NbBytesInPrompt : PosInt;
+    Prompt : TCrtRow
   End;
 
-Procedure CEditInit( Var Ed : TEditor; s : TPrompt; y : TVirtCoordY );
+Procedure CEditInit( Var Ed : TEditor );
 Procedure CEditSetBuffer( Var Ed : TEditor; B : TBuf );
 
 Procedure CEditHandleScreenResize( Var Ed : TEditor );
-
-Procedure CEditWritePromptToPaperFile( Ed : TEditor );
 
 Procedure CEditSet( Var Ed : TEditor; B : TBuf  );
 
@@ -145,22 +137,8 @@ End;
 
 { write the prompt on screen, starting at visual cursor }
 Procedure CEditWritePrompt( Ed : TEditor );
-Var
-  i : 0..MaxPromptLength; { prompt might be of length 0 }
-  cc : TChar;
 Begin
-  With Ed Do
-    For i := 1 to Length(Prompt) Do
-    Begin
-      TCharSetFromAscii(cc,Prompt[i]);
-      CrtWriteRegularChar(cc)
-    End
-End;
-
-{ write the prompt to the paper file }
-Procedure CEditWritePromptToPaperFile( Ed : TEditor );
-Begin
-  WriteToPaperFile(Ed.Prompt)
+  CrtRowWrite(Ed.Prompt)
 End;
 
 
@@ -168,8 +146,11 @@ End;
 { init                                                                       }
 {----------------------------------------------------------------------------}
 
-{ initialize a command line editor, with prompt s, located at screen row y }
-Procedure CEditInit( Var Ed : TEditor; s : TPrompt; y : TVirtCoordY );
+{ initialize a command line editor; edition takes place at the current cursor 
+ position; characters to the left of the visual cursor are considered as the
+ prompt (which might need to be redisplayed during the editing process when 
+ scrolling, etc.), so taking a snapshot of the current screen row is necessary }
+Procedure CEditInit( Var Ed : TEditor );
 Begin
   With Ed Do
   Begin
@@ -179,12 +160,14 @@ Begin
     End;
     With Layout Do
     Begin
-      ScreenY := y;
+      ScreenY := WhereY;
       NbLines := 1
     End;
-    Prompt := s;
-    NbBytesInPrompt := Length(Prompt);
-    NbMulti := 0; { assert: no multibyte char in prompt }
+    { take a snapshot of the current screen row (up to the cursor); this serves 
+     as a prompt during the editing process }
+    CrtCurrentRowCopyTo(Prompt);
+    NbBytesInPrompt := CrtRowCountBytes(Prompt);
+    { input buffer }
     BufInit(Buf)
   End;
   CEditResetActive(Ed)
@@ -372,9 +355,6 @@ End;
 Procedure CEditStateInsert( Var Ed : TEditor; cc : TChar; 
     Var ActiveDown : Boolean );
 Begin
-  { update the multibyte char counter }
-  If TCharIsMultibyte(cc) Then
-    Ed.NbMulti := Ed.NbMulti + 1;
   { insert the char, updating the write index }
   BufInsert(Ed.Buf,cc);
   { update the active line }
@@ -403,9 +383,6 @@ Begin
   Begin
     { save the char up for deletion }
     BufGetCharAt(cc,Buf,Buf.IdxW);
-    { update the multibyte char counter }
-    If TCharIsMultibyte(cc) Then
-      NbMulti := NbMulti - 1;
     { delete the char, updating the write index }
     BufDelete(Buf);
     { update the active line }
@@ -454,15 +431,13 @@ Begin
 End;
 
 { set the buffer of a command line editor, updating its state: the active 
- line (IdxA), the number of multibyte chars (NbMulti), and its screen 
- position (ScreenY) to show all the lines of the command line while ensuring 
- the active line is located inside the screen }
+ line (IdxA), and its screen position (ScreenY) to show all the lines of the 
+ command line while ensuring the active line is located inside the screen }
 Procedure CEditSetBuffer( Var Ed : TEditor; B : TBuf );
 Begin
   { set buffer }
   Ed.Buf := B;
-  { sync all state data }
-  Ed.NbMulti := BufCountMultibyteChars(Ed.Buf);
+  { sync state data }
   CEditRecomputeLayoutData(Ed,Ed.Layout.ScreenY)
 End;
 
@@ -988,10 +963,9 @@ Begin
     WriteToDumpFile('|        ');
     WriteToDumpFile(' IdxA=' + IntToShortString(IdxA));
     WriteToDumpFile(' NbBytes=' + PosIntToShortString(NbBytes));
-    WriteToDumpFile(' NbMulti=' + PosIntToShortString(NbMulti));
     WriteToDumpFile(' NbBytesInPrompt=' + PosIntToShortString(NbBytesInPrompt));
-    WriteToDumpFile(' Prompt=''' + Prompt + '''');
-    WriteLineBreakToDumpFile;
+    WriteToDumpFile(' Prompt=');
+    CrtDumpRow('Prompt',Prompt);
     CrtDump
   End
 End;

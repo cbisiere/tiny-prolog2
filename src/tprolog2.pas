@@ -123,10 +123,14 @@ End;
 Procedure REPL( P : ProgPtr );
 Begin
   Repeat
+    { cleanup }
     HandleErrorIfAny(P);
     ResetIO(P);
     ReleaseMemory(P);
+    { get input from CLI }
+    DisplayPrompt(P);
     ReadFromConsole(P);
+    { process input }
     If ErrorState = USER_INTERRUPT Then
     Begin
       CWrite('Bye!');

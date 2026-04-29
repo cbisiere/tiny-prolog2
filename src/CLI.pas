@@ -53,7 +53,6 @@ Uses
   Buffer,
   CEdit;
 
-Procedure CLISetPrompt( Prompt : TPrompt );
 Procedure ReadLnKbd( Var B : TBuf; Var Encoding : TEncoding; 
     Var Style : TEolStyle );
 Function CtrlC : Boolean;
@@ -77,18 +76,6 @@ Type
     Str : Array[THIndex] of TBuf { most recent on top }
   End;
 
-Var 
-  CLIPrompt : TPrompt; { prompt, set by main }
-
-
-{----------------------------------------------------------------------------}
-{ prompt                                                                     }
-{----------------------------------------------------------------------------}
-
-Procedure CLISetPrompt( Prompt : TPrompt );
-Begin
-  CLIPrompt := Prompt
-End;
 
 {----------------------------------------------------------------------------}
 { base keyboard function                                                     }
@@ -276,13 +263,11 @@ Var
      so that: "> in_char(c);<EOL>" sets c to EOL; see PII+ R 5-4 }
     B := Ed.Buf;
     BufPushChar(B,CC_END_OF_LINE);
-    { since the command line is submitted, we can now output the whole  
-     command line (already visible on screen) to the paper file }
+    { since the command line is submitted, we can now output the input text  
+     to the paper file (note that the prompt already went through the paper
+     system before calling the editor, so we must not do it again)}
     If GetPaperState Then
-      Begin
-        CEditWritePromptToPaperFile(Ed);
-        BufToPaperFile(B) { note: ends with a line break soft mark }
-      End;
+        BufToPaperFile(B); { note: ends with a line break soft mark }
     { visual feedback: new line (skip the paper file, see above) }
     CrtWriteLn
   End;
@@ -360,7 +345,7 @@ Var
 
 Begin
   { setup and start the editor }
-  CEditInit(Ed,CLIPrompt,WhereY);
+  CEditInit(Ed);
   SetCommandLine;
   { edit, starting with leftovers from previous paste, if any }
   Stop := False;
@@ -384,5 +369,4 @@ End;
 Begin
   BufInit(KbdBuf);
   ResetHistory(Hist);
-  CLISetPrompt('')
 End.

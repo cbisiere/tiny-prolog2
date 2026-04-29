@@ -51,12 +51,9 @@
    UTF-8 sequences; as a result, sequences of characters containing 
    multi-byte characters will not use the whole screen width, but 
    otherwise are ok
- - by offering a workaround to the sole usage of GotoXY (w/ x > 1) in 
-   this application, which is to put the cursor right after the prompt
-   in the REPL or right after a piece of text when clearing in_term; 
-   we do this by memorizing the sequence of bytes of the last printed 
-   line, which allows the readline unit to reprint that piece of text, 
-   thus positioning the cursor at the correct location 
+ - by keeping track of the current line, allowing the console input system 
+   (REPL or in*/1 primitives) to recover what will be considered as a prompt 
+   (as, sometimes, this prompt needs to be redrawn) 
 }
 
 {
@@ -92,9 +89,18 @@ Type
   { screen coordinate }
   TCrtCoordX = 1..CrtScreenMaxWidth;
   TCrtCoordY = 1..CrtScreenMaxHeight;
+
   { counters }
   TCrtColumnCount = 0..CrtScreenMaxWidth;
   TCrtRowCount = 0..CrtScreenMaxHeight;
+
+  { state of the current row, up to the left of the visual cursor }
+  TCrtRow = Record
+    Valid : Boolean; { false if not reliable due to a GotoXY jump with X <> 1 }
+    Size : TCrtColumnCount; { number of chars left of the cursor }
+    Chars : Array[TCrtCoordX] Of TChar
+  End;
+
 
 Function CrtGetScreenWidth : TCrtCoordX;
 Function CrtGetScreenHeight : TCrtCoordY;
@@ -107,16 +113,17 @@ Procedure CrtFullScreen;
 
 Function CrtIsBroken( y : TCrtCoordY ) : Boolean;
 
+Procedure CrtCurrentRowCopyTo( Var r : TCrtRow );
+Procedure CrtRowWrite( r : TCrtRow );
+Function CrtRowCountBytes( r : TCrtRow) : PosInt; 
+
 Procedure CrtGotoXY( x : TCrtCoordX; y : TCrtCoordY );
-Procedure CrtGotoLeft;
-Procedure CrtGotoRight;
 Function CrtIsCursorOnFirstCol : Boolean;
 Procedure CrtGotoFirstCol;
 Procedure CrtGotoLine( y : TCrtCoordY );
 
 Procedure CrtInsLine;
 Procedure CrtDelLine;
-Procedure CrtDelLines( n : TCrtRowCount );
 Procedure CrtClrEol;
 Procedure CrtClrLine( y : TCrtCoordY );
 Procedure CrtClrLines( y : TCrtCoordY; n : TCrtRowCount );
@@ -136,6 +143,8 @@ Procedure CrtWriteRegularChar( cc : TChar );
 Procedure CrtWriteShortString( s : TString );
 
 Procedure CrtDump;
+Procedure CrtDumpCurrentRow;
+Procedure CrtDumpRow( tag : TString; r : TCrtRow );
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -194,13 +203,13 @@ End;
 { screen width in number of 1-byte characters }
 Function CrtGetScreenWidth : TCrtCoordX;
 Begin
-  CrtGetScreenWidth := Min(CrtWindMaxX,CrtScreenMaxWidth)
+  CrtGetScreenWidth := Min(CrtWindMaxX,CrtScreenMaxWidth) { FIXME: why not CrtSizeScreenWidth? }
 End;
 
 { screen height in number of rows }
 Function CrtGetScreenHeight : TCrtCoordY;
 Begin
-  CrtGetScreenHeight := Min(CrtWindMaxY,CrtScreenMaxHeight)
+  CrtGetScreenHeight := Min(CrtWindMaxY,CrtScreenMaxHeight) { FIXME: why not CrtSizeScreenHeight? }
 End;
 
 Procedure CrtFullScreen;
@@ -259,6 +268,117 @@ Begin
     CrtBroken[y] := False
 End;
 
+{----------------------------------------------------------------------------}
+{ tracking of the current row                                                }
+{----------------------------------------------------------------------------}
+
+{ the current row is the screen row on which the visual cursor currently is;
+ we try to keep a copy of this row, which is doable until the user does a 
+ GotoXY jump to a different row Y and a column X > 1; in that case, we note
+ that our copy is no more valid and fill in the unknown chars up to X-1 with 
+ blank spaces }
+
+Var
+  CrtRow : TCrtRow;
+
+{ set validity state }
+Procedure CrtCurrentRowSetValidity( b : Boolean );
+Begin
+  CrtRow.Valid := b
+End;
+
+{ set size }
+Procedure CrtCurrentRowSetSize( n : TCrtColumnCount );
+Begin
+  CrtRow.Size := n
+End;
+
+{ fill in the current row with blank spaces, without changing its size }
+Procedure CrtCurrentRowFillWithBlankSpaces;
+Var
+  i : TCrtColumnCount;
+Begin
+  With CrtRow Do
+  Begin
+    For i := 1 to Size Do
+      Chars[i] := CC_BLANK_SPACE
+  End
+End;
+
+{ set the current row as invalid, without changing its size; as we do not know 
+ what are the characters on the left of the visual cursor, we set them to blank 
+ spaces in an attempt to minimize potential visual glitches }
+Procedure CrtCurrentRowSetAsInvalid;
+Begin
+  CrtCurrentRowSetValidity(False);
+  CrtCurrentRowFillWithBlankSpaces
+End;
+
+
+{ cursor is on the first column of the screen; must be called after the cursor
+ is moved to beginning of a row }
+Procedure CrtResetCurrentRow;
+Begin
+  CheckCondition(CrtIsCursorOnFirstCol,'Crt2: cursor not on first column');
+  CrtCurrentRowSetValidity(True);
+  CrtCurrentRowSetSize(0)
+End;
+
+{ insert a char }
+Procedure CrtCurrentRowAppendOneChar( cc : TChar );
+Begin
+  CheckCondition(CrtRow.Size < CrtScreenMaxWidth,
+      'CrtCurrentRowAppendOneChar: overflow');
+  With CrtRow Do
+  Begin
+    Size := Size + 1;
+    Chars[Size] := cc
+  End
+End;
+
+{ delete a char }
+Procedure CrtCurrentRowDeleteOneChar;
+Begin
+  CheckCondition(CrtRow.Size > 0,
+      'CrtCurrentRowDeleteOneChar: underflow');
+  With CrtRow Do
+    Size := Size - 1
+End;
+
+{ procedures working on another row (must *not* be the local variable CrtRow) }
+
+{ copy the current row }
+Procedure CrtCurrentRowCopyTo( Var r : TCrtRow );
+Begin
+  r := CrtRow
+End;
+
+{ write a row (that must not wrap and must not contain any special characters); 
+ this is a low-level procedure, which does not use any mirror files, 
+ and which is meant to write to the screen a prompt, that might be redrawn 
+ several times during keyboard input before been pushed to the mirror files }
+Procedure CrtRowWrite( r : TCrtRow );
+Var
+  i : TCrtColumnCount;
+Begin
+  With r Do
+    For i := 1 to Size Do
+      CrtWriteBytesOf(Chars[i])
+End;
+
+{ compute the total number of bytes in a row }
+Function CrtRowCountBytes( r : TCrtRow) : PosInt; 
+Var
+  i : TCrtColumnCount;
+  n : PosInt;
+Begin
+  n := 0;
+  With r Do
+    For i := 1 to Size Do
+      n := n + TCharGetLength(Chars[i]);
+  CrtRowCountBytes := n
+End;
+
 
 {----------------------------------------------------------------------------}
 { Crt primitives: calls to Crt procedures must go through this               }
@@ -274,29 +394,34 @@ Begin
   End
 End;
 
-{ move cursor at the beginning of line i }
-Procedure CrtGotoXY( x : TCrtCoordX; y : TCrtCoordY );
-Begin
-  CrtTrace('GotoXY(' + IntToShortString(x) + ',' + IntToShortString(y) + ')');
-  GotoXY(x,y)
-End;
-
-{ move cursor left by one char; CHECK: works when used more than once? }
-Procedure CrtGotoLeft;
-Begin
-  CrtGotoXY(WhereX-1,WhereY)
-End;
-
-{ move cursor right by one char }
-Procedure CrtGotoRight;
-Begin
-  CrtGotoXY(WhereX+1,WhereY)
-End;
-
 { is cursor on the first column? }
 Function CrtIsCursorOnFirstCol : Boolean;
 Begin
   CrtIsCursorOnFirstCol := WhereX = CrtWindMinX
+End;
+
+{ is cursor on the last row? }
+Function CrtIsCursorOnLastRow : Boolean;
+Begin
+  CrtIsCursorOnLastRow := WhereY = CrtSizeScreenHeight
+End;
+
+{ move cursor at position x,y }
+Procedure CrtGotoXY( x : TCrtCoordX; y : TCrtCoordY );
+Begin
+  CrtTrace('GotoXY(' + IntToShortString(x) + ',' + IntToShortString(y) + ')');
+  GotoXY(x,y);
+  { update the state of the current row: for now, we assume that the state 
+   stays valid only if we jump to the first column; TODO: moving the cursor
+   on a different column of the same row, when that row is not broken, may 
+   still be ok }
+  If CrtIsCursorOnFirstCol Then
+    CrtResetCurrentRow
+  Else
+  Begin
+    CrtCurrentRowSetSize(x-1);
+    CrtCurrentRowSetAsInvalid
+  End
 End;
 
 { move cursor to the beginning of the current line }
@@ -305,19 +430,20 @@ Begin
   CrtGotoXY(CrtWindMinX,WhereY)
 End;
 
-{ move cursor at the beginning of line i }
+{ move cursor at the beginning of line y }
 Procedure CrtGotoLine( y : TCrtCoordY );
 Begin
   CrtGotoXY(CrtWindMinX,y)
 End;
 
-{ insert a blank line, moving the lines below down by one line; the last screen 
- line disappears cursor does not move }
+{ insert a blank line at the cursor position, moving the lines below down by 
+ one line; the last screen line disappears cursor does not move }
 Procedure CrtInsLine;
 Begin
   CrtTrace('InsLine');
   InsLine;
-  CrtBrokenInsLine(WhereY)
+  CrtBrokenInsLine(WhereY);
+  CrtCurrentRowFillWithBlankSpaces { blank and still valid }
 End;
 
 { delete the current line; lines below, if any, moves up, showing a blank line
@@ -326,16 +452,12 @@ Procedure CrtDelLine;
 Begin
   CrtTrace('DelLine');
   DelLine;
-  CrtBrokenDelLine(WhereY)
-End;
-
-{ delete n lines; cursor does not move }
-Procedure CrtDelLines( n : TCrtRowCount );
-Var
-  i : TCrtRowCount;
-Begin
-  For i := 1 To n Do
-    CrtDelLine
+  CrtBrokenDelLine(WhereY);
+  { current row stays valid only if the deleted line is the last on the screen }
+  If CrtIsCursorOnLastRow Then
+    CrtCurrentRowFillWithBlankSpaces { blank and still valid }
+  Else
+    CrtCurrentRowSetAsInvalid
 End;
 
 { clear the current line from cursor position; cursor does not move }
@@ -372,7 +494,8 @@ Procedure CrtClrSrc;
 Begin
   CrtTrace('ClrScr');
   ClrScr;
-  CrtResetBroken
+  CrtResetBroken;
+  CrtResetCurrentRow
 End;
 
 { emit a beep sound }
@@ -386,7 +509,8 @@ End;
 Procedure CrtBackspace;
 Begin
   CrtTrace('Backspace');
-  Write(#08)
+  Write(#08);
+  CrtCurrentRowDeleteOneChar
 End;
 
 { write a blank line }
@@ -397,7 +521,8 @@ Begin
     CrtBrokenDelLine(1)
   Else
     CrtSetBroken(WhereY + 1,False);
-  Writeln
+  Writeln;
+  CrtResetCurrentRow
 End;
 
 { write a char; this breaks WhereX if the char is multibyte }
@@ -406,7 +531,8 @@ Begin
   CrtTrace('Write ' + TCharToDebugShortString(cc));
   Write(TCharGetBytes(cc));
   CrtTrace('');
-  CrtSetBroken(WhereY,CrtIsBroken(WhereY) Or TCharIsMultibyte(cc))
+  CrtSetBroken(WhereY,CrtIsBroken(WhereY) Or TCharIsMultibyte(cc));
+  CrtCurrentRowAppendOneChar(cc)
 End;
 
 
@@ -498,12 +624,32 @@ Begin
   WritelnToDumpFile('  CrtWindMinY = ' + IntToShortString(CrtWindMinY));
   WritelnToDumpFile('  CrtWindMaxX = ' + IntToShortString(CrtWindMaxX));
   WritelnToDumpFile('  CrtWindMaxY = ' + IntToShortString(CrtWindMaxY));
+  { tracking of broken rows }
   WriteToDumpFile('  ');
   For y := 1 To CrtGetScreenHeight Do
   Begin
     WriteToDumpFile(' ' + IntToShortString(Ord(CrtBroken[y])))
   End;
   WriteLineBreakToDumpFile
+End;
+
+{ dump a Crt row }
+Procedure CrtDumpRow( tag : TString; r : TCrtRow );
+Var
+  i : TCrtColumnCount;
+Begin
+  WritelnToDumpFile('  ' + tag + '.Valid = ' + BoolToShortString(r.Valid));
+  WritelnToDumpFile('  ' + tag + '.Size = ' + PosIntToShortString(r.Size));
+  WriteToDumpFile('  ' + tag + '.Chars = ');
+  For i := 1 to r.Size Do
+    TCharDump(r.Chars[i]);
+  WriteLineBreakToDumpFile
+End;
+
+{ dump Crt current row }
+Procedure CrtDumpCurrentRow;
+Begin
+  CrtDumpRow('CrtRow',CrtRow)
 End;
 
 
@@ -513,5 +659,6 @@ End;
 
 { initialize the unit }
 Begin
+  CrtResetCurrentRow;
   CrtResetBroken
 End.
