@@ -115,6 +115,7 @@ Function Path_IsAbsolute( Filename : TPath ) : Boolean;
 Function Path_ExtractPath( Filename : TPath ) : TPath;
 
 { constructors }
+Procedure Stream_ResetInputBuffer( f : StreamPtr );
 Function Stream_New( Alias : TAlias; Path : TPath; Dev : TIODeviceType;
     Mode : TStreamMode; Locked, WithDesc : Boolean; LCont : TLineContinuation;
     Width : TLineWidth ) : StreamPtr;
@@ -132,6 +133,7 @@ Function Stream_IsConsole( f : StreamPtr ) : Boolean;
 Function Stream_IsLocked( f : StreamPtr ) : Boolean;
 Function Stream_IsOpen( f : StreamPtr ) : Boolean;
 Function Stream_GetMode( f : StreamPtr ) : TStreamMode;
+Function Stream_IsInput( f : StreamPtr ) : Boolean;
 Procedure Stream_SetMode( f : StreamPtr; Mode : TStreamMode );
 Function Stream_GetDescriptor( f : StreamPtr ) : TFileDescriptor;
 Function Stream_GetEncoding( f : StreamPtr ) : TEncoding;
@@ -144,6 +146,7 @@ Function Stream_GetLineWidth( f : StreamPtr ) : TLineWidth;
 Procedure Stream_SetLineWidth( f : StreamPtr; Width : TLineWidth );
 Function Stream_GetCharacterPosition( f : StreamPtr ) : TLineWidth;
 Function Stream_RemainingSpacesInLine( f : StreamPtr ) : TLineWidth;
+Function Stream_IsDry( f : StreamPtr ) : Boolean;
 
 { stream: methods }
 Procedure Stream_CloseFile( f : StreamPtr );
@@ -169,7 +172,6 @@ Procedure Stream_DisplayErrorMessage( f : StreamPtr; msg : TString );
 { stream: read }
 Procedure Stream_ClearInput( f : StreamPtr );
 Procedure Stream_ReadLineFromKeyboard( f : StreamPtr );
-Procedure Stream_CheckConsoleInput( f : StreamPtr; SkipSpaces : Boolean );
 Procedure Stream_GetCharNb( f : StreamPtr; Var e : TIChar );
 Procedure Stream_UngetChars( f : StreamPtr; e : TIChar );
 Procedure Stream_GetChars( f : StreamPtr; e : TIChar );
@@ -251,7 +253,7 @@ Begin
 End;
 
 {----------------------------------------------------------------------------}
-{ mow-level helpers (used by constructors)                                   }
+{ low-level helpers (used by constructors)                                   }
 {----------------------------------------------------------------------------}
 
 { reset the read buffers of an input stream; must be done once before
@@ -403,6 +405,12 @@ Begin
     Stream_GetMode := FI_MODE
 End;
 
+{ true if f is an input stream }
+Function Stream_IsInput( f : StreamPtr ) : Boolean;
+Begin
+  Stream_IsInput := Stream_GetMode(f) = MODE_READ
+End;
+
 { get file descriptor }
 Function Stream_GetDescriptor( f : StreamPtr ) : TFileDescriptor;
 Begin
@@ -491,18 +499,6 @@ Begin
     FI_CONT := LCont
 End;
 
-
-{ return true if there is no more chars available for reading in f's buffer
- system }
-Function Stream_IsDry( f : StreamPtr ) : Boolean;
-Begin
-  With f^ Do
-  Begin
-    CheckCondition(FI_OPEN,'Stream_IsDry: file is closed');
-    Stream_IsDry := (BufNbUnread(FI_IBUF) = 0) And (Length(FI_CBUF) = 0)
-  End
-End;
-
 { get line width }
 Function Stream_GetLineWidth( f : StreamPtr ) : TLineWidth;
 Begin
@@ -546,6 +542,17 @@ Function Stream_RemainingSpacesInLine( f : StreamPtr ) : TLineWidth;
 Begin
   Stream_RemainingSpacesInLine := Max(0,Stream_GetLineWidth(f) - 
       (Stream_GetCharacterPosition(f) - 1))
+End;
+
+{ return true if there is no more chars available for reading in f's buffer
+ system }
+Function Stream_IsDry( f : StreamPtr ) : Boolean;
+Begin
+  With f^ Do
+  Begin
+    CheckCondition(FI_OPEN,'Stream_IsDry: file is closed');
+    Stream_IsDry := (BufNbUnread(FI_IBUF) = 0) And (Length(FI_CBUF) = 0)
+  End
 End;
 
 
@@ -680,17 +687,40 @@ Begin
     BufDiscardUnread(FI_IBUF)
 End;
 
-{ input one line from the keyboard and store it into the char buffer; note 
- that the buffer is not *reset* }
+{ input one line from the keyboard and append it into the char buffer;  
+ this function is called by a Stream_ReadChar, from the CLI, in*/1 or from 
+ insert/0 }
 Procedure Stream_ReadLineFromKeyboard( f : StreamPtr );
+Var
+  B : TBuf; { additional characters read from the keyboard }
 Begin
-  Stream_ResetInputBuffer(f);
+  { append from kbd (or from a paste operation) until EOL or Ctrl-C }
   With f^ Do
-    ReadLnKbd(FI_IBUF,FI_ENCO,FI_EOLS);
-  If Error Then Exit; { Ctrl-C? }
+  Begin
+    BufInit(B);
+    ReadLnKbd(B,FI_ENCO,FI_EOLS);
+    { user interrupt while typing: we may have some unread chars in the input 
+     buffer, but the user ended the line with a Ctrl-C instead of an EOL }
+    If ErrorState = USER_INTERRUPT Then
+    Begin
+      { Ctrl-C on empty buffer interpreted as a request to quit, otherwise the 
+        input line is just silently ignored and we go back to the prompt }
+      If BufLen(B) = 0 Then
+      Begin
+        SetErrorMessage('Bye!');  
+        SetQuitOn(2)
+      End
+      Else
+        SetErrorMessage('')
+    End;
+    If Error Then Exit;
+    { append all the new chars to the input buffer, computing their positions }
+    BufPushChars(FI_IBUF,B)
+  End;
   { by design, ReadLnKbd stops on enter key (or user interrupt); as the goals
    to clear may use set_line_cursor/1 or out/1 and friends, we must reset
-   the character position to 1 }
+   the character position to 1; 
+   FIXME: why not doing it when we do the Writeln instead? }
   Stream_ResetCharacterPosition(f)
 End;
 
@@ -771,9 +801,6 @@ Begin
     { 2: no more unread chars available? try to replenish the 4-byte buffer }
     If BufNbUnread(FI_IBUF) = 0 Then
     Begin
-      { make room for one additional TChar }
-      If BufNbFree(FI_IBUF) = 0 Then
-        BufDiscard(FI_IBUF,1);
       Case FI_TYPE Of
       DEV_FILE,DEV_BUFFER: { for now, a buffer is a file }
         Begin
@@ -792,8 +819,10 @@ Begin
         End;
       DEV_TERMINAL:
         Begin
-          cc := CC_END_OF_INPUT;
-          BufPushChar(FI_IBUF,cc)
+          { input and append a new line }
+          Stream_ReadLineFromKeyboard(f);
+          { use interrupt? }
+          If Error Then Exit
         End
       End
     End;
@@ -865,30 +894,6 @@ Begin
   Stream_GetChar(f,e);
   If Error Then Exit;
   Stream_UngetChars(f,e1)
-End;
-
-{ if f is a console, then read a line (from the keyboard) if no more characters 
- are available in the input line; optionally skip spaces beforehand; skipping 
- spaces is useful when reading a terms with in(t); this is the opposite when 
- reading a char (in_char) or line (inl); }
-Procedure Stream_CheckConsoleInput( f : StreamPtr; SkipSpaces : Boolean );
-Var 
-  e : TIChar;
-Begin
-  If Stream_IsConsole(f) Then
-  Begin
-    If SkipSpaces Then
-    Begin
-      Stream_GetCharNb(f,e);
-      If Error Then Exit;
-      If TICharIsEndOfInput(e) Then
-        Stream_ResetInputBuffer(f)
-      Else
-        Stream_UngetChars(f,e); { put back the non-blank character }
-    End;
-    If Stream_IsDry(f) Then
-      Stream_ReadLineFromKeyboard(f)
-  End
 End;
 
 { new string whose context is steam f, meaning that the string will be either 
@@ -1077,8 +1082,7 @@ Begin
     WritelnToDumpFile(' FI_ALIA: ' + Stream_GetShortAlias(f));
     WritelnToDumpFile(' Path: ' + Stream_GetShortPath(f));
     WritelnToDumpFile(' FI_MODE: ' + IntToShortString(Ord(FI_MODE)));
-    { WritelnToDumpFile(' FI_IBUF: ');
-    BufDump(FI_IBUF);
+    { BufDump(FI_IBUF,'FI_IBUF');
     WriteLineBreakToDumpFile;
     WritelnToDumpFile(' FI_CBUF: ');
     WritelnToDumpFile(FI_CBUF);

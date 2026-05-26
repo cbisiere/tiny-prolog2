@@ -34,6 +34,7 @@ Type
 Procedure ResetError;
 
 Function GetErrorMessage : TString;
+Procedure SetErrorMessage( msg : TString );
 Function Error : Boolean;
 Function ErrorState : TErrorState;
 Function FatalError : Boolean;
@@ -76,6 +77,12 @@ Begin
   GetErrorMessage := Message
 End;
 
+{ set the current error message }
+Procedure SetErrorMessage( msg : TString );
+Begin
+  Message := msg 
+End;
+
 { is there an error? }
 Function Error : Boolean;
 Begin
@@ -104,7 +111,7 @@ End;
 Procedure RaiseError( t : TErrorState; msg : TString );
 Begin
   State := t;
-  Message := msg
+  SetErrorMessage(msg)
 End;
 
 { quit }

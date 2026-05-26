@@ -186,7 +186,7 @@ Begin
       For i := 1 To Len Do
       Begin
         WriteToDumpFile('| HIST '+IntToShortString(i)+': ');
-        BufDump(H.Str[i])
+        BufDump(H.Str[i],'H')
       End
   End
 End;
@@ -207,13 +207,13 @@ Var
   NOTES:
   ------
  - edition starts at screen row WhereY, which is expected to be an empty line 
- - return on Enter key, even if there are still keys in the keyboard; 
+ - return on Enter key, even if there are still keys in the keyboard 
    buffer; remaining keys will be processed on further calls; this
    allows for sequential treatment of copy-paste text containing
    several Enter keys;
  - detect encoding if Encoding is still unknown, impose it otherwise;
  - ditto for EOL style
- - B must not contain any EOL
+ - B must not contain any EOL (in practice, B is empty)
  }
 Procedure ReadLnKbd( Var B : TBuf; Var Encoding : TEncoding; 
     Var Style : TEolStyle );
@@ -304,6 +304,13 @@ Var
       Begin
         Stop := True;
         UserInterrupt;
+        { in case of user interruption, the current input is still reported 
+         back to the caller, which may need to look at was already typed when 
+         Ctrl-C was hit; however, this input is not put in history or written 
+         to the paper file (as done in EnterKey); in practice, this is used
+         to test whether the CLI was empty or not when the user hit Ctrl-C,
+         so as to quit only in the former case }
+        B := Ed.Buf;
         Exit
       End
       Else If TCharIs(cc,#08) Then { Backspace }

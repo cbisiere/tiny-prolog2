@@ -155,7 +155,8 @@ not(X) ->;
     op(400,yfx,mod,mod)
     op(200,fx,+,add)
     op(200,fx,-,sub)
-    op(200,xfy,^,'^');
+    op(200,xfy,^,'^')
+    fail;
 
 "debug: additional rules (not in PII+)"
 

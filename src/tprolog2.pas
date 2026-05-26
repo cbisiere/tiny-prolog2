@@ -79,7 +79,6 @@ Uses
 { cleanup and die }
 Procedure Die( P : ProgPtr );
 Begin
-  CWriteLn;
   { turn off echo }
   SetEcho(P,False);
   { turn off debug }
@@ -97,21 +96,26 @@ End;
 Procedure HandleErrorIfAny( P : ProgPtr );
 Var
   f : StreamPtr;
+  msg : TString;
 Begin
   If Error Then
   Begin
+    msg := GetErrorMessage;
     If ErrorState = SYNTAX_ERROR Then
     Begin
       f := CurrentInput(P);
-      Stream_DisplayErrorMessage(f,GetErrorMessage);
+      Stream_DisplayErrorMessage(f,msg);
       Stream_CloseFile(f)
     End
     Else
     Begin
       If Not CrtIsCursorOnFirstCol Then
         CWriteLn;
-      CWrite(GetErrorMessage);
-      CWriteLn
+      If Length(msg) > 0 Then { not a silent error }
+      Begin
+        CWrite(msg);
+        CWriteLn
+      End;
     End
   End;
   If QuitRequested Then
@@ -127,15 +131,7 @@ Begin
     HandleErrorIfAny(P);
     ResetIO(P);
     ReleaseMemory(P);
-    { get input from CLI }
-    DisplayPrompt(P);
-    ReadFromConsole(P);
-    { process input }
-    If ErrorState = USER_INTERRUPT Then
-    Begin
-      CWrite('Bye!');
-      Die(P);
-    End;
+    { CLI }
     ProcessCommandLine(P)
   Until False
 End;

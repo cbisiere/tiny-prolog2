@@ -20,11 +20,14 @@ Interface
 Uses
   ShortStr,
   Num,
+  DateTime,
+  Dump,
   Errs,
   CLI,
   Files,
   Echo,
   CWrites,
+  Buffer,
   Memory,
   PObj,
   PObjList,
@@ -787,108 +790,133 @@ End;
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-{ parse and insert a sequence of rules, stopping at a token in StopTokens  }
-Procedure ParseAndInsertRules( f : StreamPtr; P : ProgPtr; Var K : TokenPtr; 
-    StopTokens : TTokenSet );
-Var
-  R : RulePtr;
+{ process a syntax error that occurred when parsing }
+Procedure HandleSyntaxError( f : StreamPtr; P : ProgPtr; Var K : TokenPtr );
 Begin
-  While Not (Token_GetType(K) In StopTokens) And (Not Error) Do
-  Begin
-    R := ParseOneRule(f,P,K);
-    If Error Then Exit;
-    ProgInsertRule(P,R)
-  End
+  { reset the syntax error *before* doing anything, to bypass the many 
+   "If Error Then Exit" instructions spread in our code; 
+   TODO: keep track of a an error state and number of errors that occurred 
+   during an insert/0 or insert/1, which are supposed to be reported at the 
+   end of the insertion }
+  Stream_DisplayErrorMessage(f,GetErrorMessage);
+  ResetError;
+  { skip what is supposed to be skipped in that situation: 
+   PII+ doc p.98: ignore characters up to EndToken if the input stream is a 
+   file, or to EOL *if it is the console* (precision given in the French PII+ 
+   doc, p.100)  }
+  If Stream_IsConsole(f) Then
+    SkipLine(f)
+  Else
+    SkipUntil(f,[Syntax[GetSyntax(P)].InsertEndChar]);
+  { update the next token so we can keep parsing despite the syntax error }
+  K := ReadProgramToken(P,f)
+End;
+
+{ parse and exec a query, if any, until query-end mark or error; 
+ K is the current token; do *not* set K to the next token }
+Procedure ParseAndExecQuery( f : StreamPtr; P : ProgPtr; Var K : TokenPtr; 
+    CLI : Boolean );
+Var
+  y : TSyntax;
+  Q : QueryPtr;
+  EchoQuery : Boolean;
+Begin
+  y := GetSyntax(P);
+  If Not CLI Then
+    VerifyToken(f,P,K,TOKEN_ARROW); { glob the arrow and read next token }
+  Q := ParseOneQuery(f,P,K);
+  { FIXME: what if no query after '->' ??}
+  If Error Then Exit;
+  CheckCondition(Token_GetType(K) = Syntax[y].QueryEnd,
+      'ParseAndExecQuery: QueryEnd expected');
+  { even when echo is false, echo when the goal is read from a user file, 
+   otherwise we cannot interpret the displayed solutions;
+   FIXME: also echo when the goal was not the first on the line read from
+   the console, e.g. bb in "+> aa; bb;" }
+  EchoQuery := Not Stream_IsConsole(f) And Not GetEchoState 
+      And World_IsUserLand(GetCurrentWorld(P));
+  AnswerQuery(P,Q,EchoQuery)
+End;
+
+{ process the CLI, triggering user input until error (syntax, interrupt) or
+ query-end mark }
+Procedure ProcessCLI( f : StreamPtr; P : ProgPtr );
+Var
+  K : TokenPtr;
+Begin
+  K := ReadProgramToken(P,f);
+  If Error Then Exit;
+  ParseAndExecQuery(f,P,K,True);
+  { in case of syntax error, skip until after the end of the line }
+  If ErrorState = SYNTAX_ERROR Then
+    HandleSyntaxError(f,P,K)
 End;
 
 { process user input typed after the prompt; chars after the end-of-query 
  mark stay in the input buffer }  
 Procedure ProcessCommandLine( P : ProgPtr );
 Var
-  K : TokenPtr;
-  Q : QueryPtr;
   f : StreamPtr;
 Begin
+  { get the console input stream }
   f := GetInputConsole(P);
-  K := ReadProgramToken(P,f);
-  If Error Then Exit;
-  If Token_GetType(K) <> TOKEN_END_OF_INPUT Then
-  Begin
-    Q := ParseOneQuery(f,P,K);
-    If Error Then Exit;
-    AnswerQuery(P,Q,False)
-  End
+  { display the prompt only when the input buffer is such that a keyboard 
+   input will be triggered }
+  If BufOnlyUnreadSpaces(f^.FI_IBUF) Then
+    DisplayPrompt(P);
+  { analyze input, triggering keyboard input when necessary }
+  ProcessCLI(f,P)
 End;
 
-{ compile and execute a sequence of queries; if ContTokens is not empty, 
- each query must start with a token in this set; the sequence ends with a token 
-  in StopTokens }
-Procedure ParseAndExecuteQueries( f : StreamPtr; P : ProgPtr;
-    Var K : TokenPtr; WithArrow : Boolean; 
-    ContTokens, StopTokens : TTokenSet );
-Var
-  Q : QueryPtr;
-  EchoQuery : Boolean;
-Begin
-  While ((ContTokens=[]) Or (Token_GetType(K) In ContTokens))
-    And (Not (Token_GetType(K) In StopTokens)) And (Not Error) Do
-  Begin
-    If WithArrow Then
-      VerifyToken(f,P,K,TOKEN_ARROW);
-    If Error Then Exit;
-    Q := ParseOneQuery(f,P,K);
-    If Error Then Exit;
-    EchoQuery := Not Stream_IsConsole(f) And Not GetEchoState 
-        And World_IsUserLand(GetCurrentWorld(P));
-    AnswerQuery(P,Q,EchoQuery);
-    If Error Then Exit;
-    { now that the solution has been displayed, read the next token; this 
-     sequencing is required to avoid the echo mode to mangle the output by
-     e.g. displaying the arrow of the next goal before displaying the solution }
-    K := ReadProgramToken(P,f)
-  End
-End;
-
-{ parse and append rules and queries to a program; 
+{ insert/1: parse and append rules, queries, comments; 
  top-level strings (that is, when a rule is expected) are taken to have the 
  value of a comment in all the supported Prolog syntaxes }
-Procedure ProcessRulesAndQueries( f : StreamPtr; P : ProgPtr );
+Procedure ProcessInsert( f : StreamPtr; P : ProgPtr );
 Var
+  y : TSyntax;
   Stop : Boolean;
   K : TokenPtr;
-  StopTokens : TTokenSet;
+  EndToken : TTokenType; { syntax dependent, end of insert tokens }
+  EndTokens : TTokenSet;
+  R : RulePtr;
 Begin
+  y := GetSyntax(P);
   K := ReadProgramToken(P,f);
   If Error Then Exit;
+  { parse and process }
   Stop := False;
-  { common tokens ending a series of queries or rules }
-  StopTokens := [TOKEN_END_OF_INPUT,TOKEN_STRING];
-  If GetSyntax(P) In [PrologIIv1,PrologIIv2] Then
-    StopTokens := StopTokens + [TOKEN_SEMICOLON]; 
+  EndToken := Syntax[y].InsertEnd;
+  EndTokens := [EndToken,TOKEN_END_OF_INPUT];
   Repeat
-    Case Token_GetType(K) Of
-    TOKEN_END_OF_INPUT:
-      Stop := True;
-    TOKEN_SEMICOLON:
-      If GetSyntax(P) In [PrologIIv1,PrologIIv2] Then { Prolog II termination }
-        Stop := True
-      Else
-        SyntaxError(TokenStr[TOKEN_SEMICOLON] + ' not expected here');
-    TOKEN_STRING: { a comment }
-      Begin
-        ProgInsertComment(P,Token_GetStr(K));
-        K := ReadProgramToken(P,f);
+    Stop := Token_GetType(K) In EndTokens;
+    If Not Stop Then
+    Begin
+      Case Token_GetType(K) Of
+      TOKEN_ARROW: { a query }
+        Begin
+          ParseAndExecQuery(f,P,K,False);
+          VerifyToken(f,P,K,Syntax[y].QueryEnd)
+        End;
+      TOKEN_STRING: { a comment }
+        Begin
+          ProgInsertComment(P,Token_GetStr(K));
+          K := ReadProgramToken(P,f)
+        End;
+      Else { a rule }
+        Begin
+          R := ParseOneRule(f,P,K);
+          If Not Error Then
+          Begin
+            If Token_GetType(K) = Syntax[y].RuleEnd Then
+              ProgInsertRule(P,R);
+            VerifyToken(f,P,K,Syntax[y].RuleEnd) { glob rule-end marker }
+          End
+        End
       End;
-    TOKEN_ARROW: { a series of queries }
-      Begin
-        ParseAndExecuteQueries(f,P,K,True,[TOKEN_ARROW],StopTokens)
-      End;
-    Else { a series of rules }
-      Begin
-        ParseAndInsertRules(f,P,K,StopTokens + [TOKEN_ARROW]);
-      End
+      If ErrorState = SYNTAX_ERROR Then
+        HandleSyntaxError(f,P,K)
     End
-  Until Stop Or Error;
+  Until Stop Or Error
 End;
 
 
@@ -982,9 +1010,9 @@ Begin
   SetPrologFileForInput := f
 End;
 
-{ load rules and execute queries (if any) from a Prolog file; if TryPath is 
- True, try to use 1) if any, the directory of the program that contains this 
- insert; 2) the main program directory;
+{ load rules and execute queries (if any) from a Prolog file or the input 
+ console; if TryPath is True, try to use 1) if any, the directory of the 
+ program that contains this insert; 2) the main program directory;
  Q is the query (if any) that triggered the loading, e.g. due to an "insert" 
  goal }
 Procedure LoadProgram( P : ProgPtr; s : StrPtr; TryPath : Boolean );
@@ -993,7 +1021,15 @@ Var
   f : StreamPtr;
 Begin
   f := Nil;
-  If TryPath And Not Path_IsAbsolute(s) Then
+  { 1: 'console' }
+  { FIXME: handle nested inserts with several insert/0 'console' (but how??) }
+  If IsConsoleAlias(s,GetSyntax(P)) Then
+  Begin
+    f := GetInputConsole(P);
+    SetStreamAsCurrent(P,f)
+  End;
+  { 2: file in a directory using known Prolog paths }
+  If (f = Nil) And TryPath And Not Path_IsAbsolute(s) Then
   Begin
     { try the directory of the parent Prolog file, if any }
     BaseDir := Path_ExtractPath(Stream_GetPath(CurrentInput(P)));
@@ -1007,7 +1043,7 @@ Begin
         f := SetPrologFileForInput(P,BaseDir,s,False)
     End
   End;
-  { last attempt: OS's current directory }
+  { 3: file in the OS's current directory }
   If f = Nil Then
     f := SetPrologFileForInput(P,Nil,s,True);
   If Error Then Exit;
@@ -1016,12 +1052,13 @@ Begin
   GarbageCollector;
   { do insert }
   BeginInsertion(P);
-  ProcessRulesAndQueries(f,P);
+  ProcessInsert(f,P);
   EndInsertion(P);
   { do not close the input file in case of error, as the error handler 
-    needs it to display an excerpt of the input data }
+    needs it to display an excerpt of the offending input data }
   If Error Then Exit;
-  CloseStream(P,f)
+  If Not Stream_IsConsole(f) Then
+    CloseStream(P,f)
 End;
 
 End.

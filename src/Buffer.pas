@@ -99,7 +99,9 @@ Procedure BufDiscard( Var B : TBuf; n : TBufIndex );
 Procedure BufGetChar( Var cc : TChar; B : TBuf; i,n : TBufIndex );
 Procedure BufGetCharAt( Var cc : TChar; B : TBuf; i : TBufIndex );
 Procedure BufPushChar( Var B : TBuf; cc : TChar );
+Procedure BufPushChars( Var B1 : TBuf; B2 : TBuf );
 Function BufCountMultibyteChars( B : TBuf ) : PosInt;
+Function BufOnlyUnreadSpaces( B : TBuf ) : Boolean;
 Function BufIsChar( B : TBuf; i : TBufIndex; cc : TChar ) : Boolean;
 Procedure BufDiscardUnread( Var B : TBuf );
 Procedure BufSetAllRead( Var B : TBuf );
@@ -119,7 +121,7 @@ Procedure BufInsert( Var B : TBuf; cc : TChar );
 Function BufDisplayLine( B : TBuf; max : TBufIndex ) : TBufIndex;
 Procedure BufToPaperFile( B : TBuf );
 
-Procedure BufDump( B : TBuf );
+Procedure BufDump( B : TBuf; BufName : TString );
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -417,10 +419,13 @@ End;
 { push/pop item                                                              }
 {----------------------------------------------------------------------------}
 
-{ push an item at the end of a buffer }
+{ push an item at the end of a buffer, making room when necessary }
 Procedure BufPushItem( Var B : TBuf; e : TBufItem );
 Begin
-  CheckCondition(BufNbFree(B) > 0,'BufPushItem: Buf is full');
+  { make room for one additional item by deleting one (already read) item }
+  If BufNbFree(B) = 0 Then
+    BufDiscard(B,1);
+  { push the item }
   With B Do 
   Begin
     If Len = 0 Then
@@ -529,7 +534,25 @@ Begin
     BufGetLast(p,B);
     TICharSetPosFromPrev(e,p)
   End;
-  BufPushItem(B,e)
+  BufPushItem(B,e) { push, making room for one char is the buffer is full }
+End;
+
+{ append all chars in a buffer B2 to a buffer B1, recomputing the position of 
+ each of the chars starting from the last character un B1 }
+Procedure BufPushChars( Var B1 : TBuf; B2 : TBuf );
+Var
+  n : PosInt;
+  i : TBufIndex;
+  cc : TChar;
+Begin
+  n := 0;
+  i := FirstIdx(B2);
+  While (i <> 0) Do
+  Begin
+    BufGetCharAt(cc,B2,i);
+    BufPushChar(B1,cc);
+    i := NextIdx(B2,i)
+  End
 End;
 
 { return the number of multibyte chars in B }
@@ -549,6 +572,26 @@ Begin
     i := NextIdx(B,i)
   End;
   BufCountMultibyteChars := n
+End;
+
+{ return true if the unread characters in B are only spaces }
+Function BufOnlyUnreadSpaces( B : TBuf ) : Boolean;
+Var
+  i : TBufIndex;
+  cc : TChar;
+Begin
+  i := NextIdx(B,B.IdxR); { index of the first unread char, or zero if none }
+  While (i <> 0) Do
+  Begin
+    BufGetCharAt(cc,B,i);
+    If Not (TCharIsEol(cc) Or TCharIsSpace(cc)) Then
+    Begin
+      BufOnlyUnreadSpaces := False;
+      Exit
+    End;
+    i := NextIdx(B,i)
+  End;
+  BufOnlyUnreadSpaces := True
 End;
 
 {----------------------------------------------------------------------------}
@@ -836,11 +879,11 @@ End;
 {----------------------------------------------------------------------------}
 
 { dump the content of buffer B }
-Procedure BufDump( B : TBuf );
+Procedure BufDump( B : TBuf; BufName : TString );
 Var 
   i : TBufIndex;
 Begin
-  WriteToDumpFile('| BUF: ');
+  WriteToDumpFile('| BUF ' + BufName + ': ');
   i := FirstIdx(B);
   While i <> 0 Do
   Begin
@@ -852,7 +895,7 @@ Begin
     i := NextIdx(B,i)
   End;
   WriteLineBreakToDumpFile;
-  WriteToDumpFile('| BUF: ');
+  WriteToDumpFile('| BUF ' + BufName + ': ');
   WriteToDumpFile(' Len=' + IntToShortString(B.Len));
   WriteToDumpFile(' IdxB=' + IntToShortString(B.IdxB));
   WriteToDumpFile(' IdxE=' + IntToShortString(B.IdxE));

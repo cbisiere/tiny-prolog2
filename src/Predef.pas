@@ -2743,20 +2743,16 @@ Begin
   If Not GetBoolean(6,T,LookAhead) Then
     Exit;
 
-  { buffer in console input, when necessary }
-  Stream_CheckConsoleInput(f,SkipSpaces);
-  If Error Then Exit; { Ctrl-C? }
+  y := GetSyntax(P);
 
-  { skip blank characters when requested; even if a lookahead is requested, 
+  { skip space characters when requested; even if a lookahead is requested, 
    leading spaces are not unread (PII+ p.126 reads: "Reads all blank 
    characters, if any, and then behaves like next_char(t)") }
   If SkipSpaces Then
-    ReadBlanks(f);
+    ReadSpaces(f,y);
 
   { undo point  }
   Stream_NextChar(f,e);
-
-  y := GetSyntax(P);
 
   { read target in R1}
   Case What Of

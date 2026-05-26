@@ -50,6 +50,9 @@ Uses
   PObjTok,
   PObjDef;
 
+Procedure SkipLine( f : StreamPtr );
+Procedure SkipUntil( f : StreamPtr; EE : CharSet );
+
 Function IsLetter( e : TIChar ) : Boolean;
 
 Function GrabLetters( f : StreamPtr; Var Ch : StrPtr ) : TStrLength;
@@ -59,6 +62,7 @@ Function IsValidUnquotedIdentifier( s : StrPtr; y : TSyntax ) : Boolean;
 Function SupportsQuotedIdentifiers( y : TSyntax ) : Boolean;
 
 Procedure ReadBlanks( f : StreamPtr );
+Procedure ReadSpaces( f : StreamPtr; y : TSyntax );
 Function ReadString( f : StreamPtr ) : TokenPtr;
 Function ReadInteger( f : StreamPtr; Sign : Boolean ) : TokenPtr;
 Function ReadNumber( f : StreamPtr; y : TSyntax; Sign : Boolean ) : TokenPtr;
@@ -101,6 +105,40 @@ Begin
     End
   Until Not InSet Or Error;
   GetCharWhile := n
+End;
+
+{ skip characters until (an including) an end-of-line; 
+ the stop char is *not* put back in the stream's buffer (but EOF is) }
+Procedure SkipLine( f : StreamPtr );
+Var 
+  e : TIChar;
+  Stop : Boolean;
+Begin
+  Repeat
+    Stream_GetChar(f,e);
+    If Error Then Exit;
+    Stop := TICharIsEndOfInput(e) Or TICharIsEol(e);
+    { always mandatory: put back EOF }
+    If TICharIsEndOfInput(e) Then
+      Stream_UngetChars(f,e)
+  Until Stop Or Error
+End;
+
+{ skip characters until a char is in a certain set; 
+ the stop char is *not* put back in the stream's buffer (but EOF is) }
+Procedure SkipUntil( f : StreamPtr; EE : CharSet );
+Var 
+  e : TIChar;
+  Stop : Boolean;
+Begin
+  Repeat
+    Stream_GetChar(f,e);
+    If Error Then Exit;
+    Stop := TICharIsEndOfInput(e) Or TICharIsIn(e,EE);
+    { always mandatory: put back EOF }
+    If TICharIsEndOfInput(e) Then
+      Stream_UngetChars(f,e)
+  Until Stop Or Error
 End;
 
 { append characters to a string until a char is in a certain set; always stop on
@@ -937,6 +975,7 @@ Begin
    *including leading blank spaces*; this is needed to "unread" tokens, which 
    is required to correctly handle in_char(c) goals }
   Stream_NextChar(f,e);
+  If Error Then Exit;
   { from PII doc p4 and PII+doc p28: "spaces can be inserted anywhere except 
    inside constants and variables"}
   ReadSpaces(f,y);

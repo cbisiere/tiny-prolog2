@@ -41,6 +41,53 @@ Uses
   Encoding,
   Tokenize;
 
+{ per-syntax elements }
+Type
+  TSyntaxElement = Array[TSyntax] Of Record
+    RuleEnd: TTokenType; { rules 3.* }
+    QueryEnd: TTokenType; { rules 2.* }
+    InsertEnd: TTokenType; { token stopping insertion, in addition to EoF }
+    InsertEndChar: Char; { ditto, char version, for convenience }
+    AcceptSys: Boolean
+  End;
+
+Const
+  Syntax : TSyntaxElement = (
+    { PrologIIv1: }
+    (
+      RuleEnd: TOKEN_SEMICOLON;
+      QueryEnd: TOKEN_SEMICOLON;
+      InsertEnd: TOKEN_SEMICOLON;
+      InsertEndChar: ';';
+      AcceptSys: True
+    ),
+    { PrologIIv2: }
+    (
+      RuleEnd: TOKEN_SEMICOLON;
+      QueryEnd: TOKEN_SEMICOLON;
+      InsertEnd: TOKEN_SEMICOLON;
+      InsertEndChar: ';';
+      AcceptSys: True { CHECK: really? }
+    ),
+    { PrologIIp: }
+    (
+      RuleEnd: TOKEN_SEMICOLON;
+      QueryEnd: TOKEN_SEMICOLON;
+      InsertEnd: TOKEN_SEMICOLON;
+      InsertEndChar: ';';
+      AcceptSys: False
+    ),
+    (
+    { Edinburgh: }
+      RuleEnd: TOKEN_DOT;
+      QueryEnd: TOKEN_DOT;
+      InsertEnd: TOKEN_DOT;
+      InsertEndChar: '.';
+      AcceptSys: False
+    )
+  );
+
+
 Procedure VerifyToken( f : StreamPtr; P : ProgPtr; Var K : TokenPtr; 
     typ : TTokenType );
 
@@ -56,22 +103,6 @@ Function ParseOneQuery( f : StreamPtr; P : ProgPtr;
 
 Implementation
 {-----------------------------------------------------------------------------}
-
-{ per-syntax elements }
-Type
-  TSyntaxElement = Array[TSyntax] Of Record
-    RuleEnd: TTokenType;
-    PromptEnd: TTokenType;
-    AcceptSys: Boolean
-  End;
-Const
-  Syntax : TSyntaxElement = (
-    (RuleEnd:TOKEN_SEMICOLON;PromptEnd:TOKEN_SEMICOLON;AcceptSys:True),
-    (RuleEnd:TOKEN_SEMICOLON;PromptEnd:TOKEN_SEMICOLON;AcceptSys:True),
-    (RuleEnd:TOKEN_SEMICOLON;PromptEnd:TOKEN_SEMICOLON;AcceptSys:False),
-    (RuleEnd:TOKEN_DOT;PromptEnd:TOKEN_DOT;AcceptSys:False)
-  );
-
 
 { Note: in the following procedures, the K parameter is the *current* token 
  to analyze; the procedures themselves must make sure that, upon return, K 
@@ -971,15 +1002,25 @@ Begin
   P^.PP_DVAR := Nil
 End;
 
-{ parse a rule; 
- Note: the system cannot be reduced right away as the reduction may depends 
- on global assignments;
- Note: P-rule 3.1 on PII+ doc p44 implies that the rule head can be a term 
- (instead of a pterm), thus also a dotted list; this contradicts a statement 
- on p40: 
+{ parse a rule;
+ Notes:
+ - return non-Nil if the rule has been correctly parsed until the final 
+   rule-end marker (semicolon or dot) or end-of-input;
+ - does not advance K to the token following the stop token (thus, the caller 
+   must do it); therefore upon returning, K is either the rule-end marker,
+   end-of-input, or (in case of error) the token on which the syntax error 
+   occurred;
+ - not advancing K and stopping on end-of-input (without generating an error) 
+   is needed to handle insert/0: when there is no parsing error but no rule-end 
+   marker, we must undo the parsing and wait for another line on the keyboard;
+ - the system cannot be reduced right away as the reduction may depends 
+   on global assignments;
+ - P-rule 3.1 on PII+ doc p44 implies that the rule head can be a term 
+   (instead of a pterm), thus also a dotted list; this contradicts a statement 
+   on p40: 
    "The term which is the first member of a rule (rule head) must be: - either 
-   an identifier or - a tuple whose first argument is an identifier"
- actual tests on PII+ confirm that a rule head cannot be a list  
+    an identifier or - a tuple whose first argument is an identifier"
+   actual tests on PII+ confirm that a rule head cannot be a list  
   }
 Function ParseOneRule( f : StreamPtr; P : ProgPtr; Var K : TokenPtr ) : RulePtr;
 Var 
@@ -1020,14 +1061,15 @@ Begin
     If (Syntax[y].AcceptSys) And (Token_GetType(K) = TOKEN_COMMA) Then
     Begin
       K := ReadProgramToken(P,f);
+      If Error Then Exit;
       Rule_SetEqs(R,CompileSystem(f,P,K,True))
     End;
     If Error Then Exit
   End;
 
   TerminateExprParsing;
-  VerifyToken(f,P,K,Syntax[y].RuleEnd);
-  If Error Then Exit;
+
+  { no syntax error; rule may be partial when parsing stopped on end-of-input }
   ParseOneRule := R
 End;
 
@@ -1050,6 +1092,7 @@ End;
 { parse a query, including a system of equations and equations if any;
  - note that this system cannot be reduced right away, as its 
    solution (or lack thereof) may depend on global variables;
+ - do *not* check the query-end marker (caller must do it)
  - do *not* read the next token after the end-of-query mark; Indeed:
    1) when reading a goal from a file while echo mode is on, the answer must be
    displayed *before* reading the next token, otherwise the output will be 
@@ -1084,27 +1127,25 @@ Begin
   End
   Else { rule 2.1 }
   Begin
-    StopTokens := [Syntax[y].PromptEnd,TOKEN_END_OF_INPUT];
+    StopTokens := [Syntax[y].QueryEnd];
     If Syntax[y].AcceptSys Then
       StopTokens := StopTokens + [TOKEN_LEFT_CUR,TOKEN_COMMA];
     Query_SetTerms(Q,CompileGoals(f,P,K,False,StopTokens));
     With Q^ Do
     Begin
       If Error Then Exit;
+      { system of constraints: note that under insert/0 we assume the system 
+       to be on a single input line }
       If (Syntax[y].AcceptSys) And 
           (Token_GetType(K) In [TOKEN_LEFT_CUR,TOKEN_COMMA]) Then
       Begin
         If Query_GetTerms(Q) <> Nil Then
           VerifyToken(f,P,K,TOKEN_COMMA);
-        Query_SetSys(Q,CompileSystem(f,P,K,False))
+        Query_SetSys(Q,CompileSystem(f,P,K,False)) 
       End;
       If Error Then Exit
     End
   End;
-
-  { verify end-of-query mark }
-  If Token_GetType(K) <> Syntax[y].PromptEnd Then
-    SyntaxError(TokenStr[Syntax[y].PromptEnd] + ' expected');
 
   TerminateExprParsing;
   CloseLocalContextForQuery(P,Q);

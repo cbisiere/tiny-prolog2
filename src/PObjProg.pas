@@ -84,6 +84,7 @@ Function GetDebugStream( P : ProgPtr ) : StreamPtr;
 
 Function BufferAlias( y : TSyntax ) : TAlias;
 Function ConsoleAlias( y : TSyntax ) : TAlias;
+Function IsConsoleAlias( a : TAlias; y : TSyntax ) : Boolean;
 
 Function CreateNewStream( P : ProgPtr; Alias : TAlias; Path : TPath; 
     Dev : TIODeviceType; Mode : TStreamMode; 
@@ -110,7 +111,6 @@ Procedure SetStreamAsCurrent( P : ProgPtr; f : StreamPtr );
 Procedure CloseTopBuffer( P : ProgPtr );
 Procedure ResetIO( P : ProgPtr );
 Procedure DisplayPrompt( P : ProgPtr );
-Procedure ReadFromConsole( P : ProgPtr );
 
 { worlds }
 Function GetCurrentWorld( P : ProgPtr ) : WorldPtr;
@@ -214,6 +214,12 @@ End;
 Function ConsoleAlias( y : TSyntax ) : TAlias;
 Begin
   ConsoleAlias := Str_NewFromShortString('console')
+End;
+
+{ is an alias the console alias? }
+Function IsConsoleAlias( a : TAlias; y : TSyntax ) : Boolean;
+Begin
+  IsConsoleAlias := Str_Equal(a,ConsoleAlias(y))
 End;
 
 { create the default streams for a Prolog engine using syntax y; no default
@@ -448,8 +454,9 @@ Begin
   CloseStream(P,f)
 End;
 
-{ reset the program stream set, except the consoles to preserve 
- persistent settings (line width) }
+{ reset the program stream set: remove all streams except the consoles; 
+ preserving the consoles keeps persistent settings (line width) and unable
+ UngetChar across lines boundaries }
 Procedure ResetIO( P : ProgPtr );
 Var
   f,fn : StreamPtr; { current stream, next stream }
@@ -486,13 +493,6 @@ Begin
     s := '?- ';
   End;
   CWrite(s)
-End;
-
-{ read a line from the keyboard; meant to be called from the REPL to read new
- goals to clear, typed by the user after a Prolog prompt }
-Procedure ReadFromConsole( P : ProgPtr );
-Begin
-  Stream_ReadLineFromKeyboard(GetInputConsole(P))
 End;
 
 
