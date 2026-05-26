@@ -274,15 +274,18 @@ Begin
   With f^ Do
   Begin
     FI_MODE := Mode;
+    { open the stream }
     Case FI_MODE Of 
     MODE_READ:
       Begin
-        FI_OPEN := OpenForRead(Stream_GetShortPath(f),FI_IFIL);
+        FI_OPEN := Stream_IsConsole(f) Or 
+            OpenForRead(Stream_GetShortPath(f),FI_IFIL);
         Stream_ResetInputBuffer(f)
       End;
     MODE_WRITE:
       Begin
-        FI_OPEN := OpenForWrite(Stream_GetShortPath(f),FI_OFIL)
+        FI_OPEN := Stream_IsConsole(f) Or 
+            OpenForWrite(Stream_GetShortPath(f),FI_OFIL)
       End;
     MODE_NONE:
       Begin
