@@ -147,10 +147,15 @@ Function EmitShortIdent( P : ProgPtr; ident : TString;
     glob : Boolean ) : TermPtr;
 Function EmitChar( P : ProgPtr; Enc : TEncoding; cc : TChar) : TermPtr;
 
-
+{ queries }
+Procedure StackQuery( P : ProgPtr; Q: QueryPtr );
+Procedure UnstackQuery( P : ProgPtr );
 Function GetCurrentQuery( P : ProgPtr )  : QueryPtr;
 Function NewProgramQuery( P : ProgPtr ) : QueryPtr;
 
+{ tokens }
+Procedure StackToken( P : ProgPtr; K: TokenPtr );
+Procedure UnstackToken( P : ProgPtr );
 Function ReadProgramToken( P : ProgPtr; f : StreamPtr ) : TokenPtr; 
 
 Procedure ReleaseMemory( P : ProgPtr );
@@ -796,47 +801,82 @@ End;
 { queries                                                               }
 {-----------------------------------------------------------------------}
 
+{ stack an additional query Q to shield it against GC }
+Procedure StackQuery( P : ProgPtr; Q: QueryPtr );
+Begin
+  With P^ Do
+  Begin
+    If PP_FQRY = Nil Then
+    Begin
+      Queries_SetNext(Q,Nil);
+      PP_FQRY := Q;
+    End
+    Else
+    Begin
+      Queries_SetNext(Q,PP_FQRY);
+      PP_FQRY := Q
+    End
+  End
+End;
+
+{ remove from the stack the last stacked query }
+Procedure UnstackQuery( P : ProgPtr );
+Begin
+  With P^ Do
+  Begin
+    CheckCondition(PP_FQRY <> Nil, 'UnstackQuery: stack is empty');
+    PP_FQRY := Queries_GetNext(PP_FQRY)
+  End
+End;
+
 { get the most recent query }
 Function GetCurrentQuery( P : ProgPtr )  : QueryPtr;
 Begin
   GetCurrentQuery := P^.PP_FQRY
 End;
 
-{ set the most recent added query }
-Procedure SetCurrentQuery( P : ProgPtr; Q : QueryPtr );
-Begin
-  P^.PP_FQRY := Q
-End;
-
-{ add a query to the program's list; meant to protect them against GC }
-Procedure AppendProgramQuery( P : ProgPtr; Q : QueryPtr );
-Begin
-  If GetCurrentQuery(P) <> Nil Then
-    Queries_SetNext(Q,GetCurrentQuery(P));
-  SetCurrentQuery(P,Q)
-End;
-
-{ create a new query, protected from GC }
+{ create a new query }
 Function NewProgramQuery( P : ProgPtr ) : QueryPtr;
 Var
   Q : QueryPtr;
 Begin
   Q := Query_New(P^.PP_LEVL,GetSyntax(P));
-  AppendProgramQuery(P,Q);
   NewProgramQuery := Q
 End;
 
 {-----------------------------------------------------------------------}
-{ methods                                                               }
+{ tokens                                                                }
 {-----------------------------------------------------------------------}
 
-{ attach a token to the program; meant to protect it against GC }
-Procedure SetProgramCurrentToken( P : ProgPtr; K: TokenPtr );
+{ stack an additional token K to shield it against GC }
+Procedure StackToken( P : ProgPtr; K: TokenPtr );
 Begin
-  P^.PP_TOKE := K
+  With P^ Do
+  Begin
+    If PP_TOKE = Nil Then
+    Begin
+      Token_SetNext(K,Nil);
+      PP_TOKE := K;
+    End
+    Else
+    Begin
+      Token_SetNext(K,PP_TOKE);
+      PP_TOKE := K
+    End
+  End
 End;
 
-{ read a token from a stream; protect it from GC }
+{ remove from the stack the last stacked token }
+Procedure UnstackToken( P : ProgPtr );
+Begin
+  With P^ Do
+  Begin
+    CheckCondition(PP_TOKE <> Nil, 'UnstackToken: stack is empty');
+    PP_TOKE := Token_GetNext(PP_TOKE)
+  End
+End;
+
+{ read a token from a stream }
 Function ReadProgramToken( P : ProgPtr; f : StreamPtr ) : TokenPtr; 
 Var
   K : TokenPtr;
@@ -844,15 +884,19 @@ Begin
   ReadProgramToken := Nil;
   K := ReadToken(f,GetSyntax(P));
   If Error Then Exit;
-  SetProgramCurrentToken(P,K);
   ReadProgramToken := K
 End;
+
+{-----------------------------------------------------------------------}
+{ methods                                                               }
+{-----------------------------------------------------------------------}
 
 { expose to GC objects that are not useful anymore }
 Procedure ReleaseMemory( P : ProgPtr );
 Begin
-  P^.PP_TOKE := Nil;
-  SetCurrentQuery(P,Nil)
+  { expose the query and token stacks (however, they should be empty) }
+  P^.PP_FQRY := Nil;
+  P^.PP_TOKE := Nil
 End;
 
 { a file is about to be inserted }

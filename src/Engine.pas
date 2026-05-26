@@ -814,16 +814,13 @@ End;
 
 { parse and exec a query, if any, until query-end mark or error; 
  K is the current token; do *not* set K to the next token }
-Procedure ParseAndExecQuery( f : StreamPtr; P : ProgPtr; Var K : TokenPtr; 
-    CLI : Boolean );
+Procedure ParseAndExecQuery( f : StreamPtr; P : ProgPtr; Var K : TokenPtr );
 Var
   y : TSyntax;
   Q : QueryPtr;
   EchoQuery : Boolean;
 Begin
   y := GetSyntax(P);
-  If Not CLI Then
-    VerifyToken(f,P,K,TOKEN_ARROW); { glob the arrow and read next token }
   Q := ParseOneQuery(f,P,K);
   { FIXME: what if no query after '->' ??}
   If Error Then Exit;
@@ -835,7 +832,13 @@ Begin
    the console, e.g. bb in "+> aa; bb;" }
   EchoQuery := Not Stream_IsConsole(f) And Not GetEchoState 
       And World_IsUserLand(GetCurrentWorld(P));
-  AnswerQuery(P,Q,EchoQuery)
+  { clear the goals in the query; since the solver starts with GC, we must
+   protect local objects }
+  StackToken(P,K);
+  StackQuery(P,Q);
+  AnswerQuery(P,Q,EchoQuery);
+  UnstackQuery(P);
+  UnstackToken(P)
 End;
 
 { process the CLI, triggering user input until error (syntax, interrupt) or
@@ -846,7 +849,7 @@ Var
 Begin
   K := ReadProgramToken(P,f);
   If Error Then Exit;
-  ParseAndExecQuery(f,P,K,True);
+  ParseAndExecQuery(f,P,K);
   { in case of syntax error, skip until after the end of the line }
   If ErrorState = SYNTAX_ERROR Then
     HandleSyntaxError(f,P,K)
@@ -894,23 +897,25 @@ Begin
       Case Token_GetType(K) Of
       TOKEN_ARROW: { a query }
         Begin
-          ParseAndExecQuery(f,P,K,False);
-          VerifyToken(f,P,K,Syntax[y].QueryEnd)
+          VerifyToken(f,P,K,TOKEN_ARROW);
+          If Not Error Then
+            ParseAndExecQuery(f,P,K);
+          If Not Error Then
+            VerifyToken(f,P,K,Syntax[y].QueryEnd)
         End;
       TOKEN_STRING: { a comment }
         Begin
           ProgInsertComment(P,Token_GetStr(K));
-          K := ReadProgramToken(P,f)
+          If Not Error Then
+            K := ReadProgramToken(P,f)
         End;
       Else { a rule }
         Begin
           R := ParseOneRule(f,P,K);
           If Not Error Then
-          Begin
-            If Token_GetType(K) = Syntax[y].RuleEnd Then
-              ProgInsertRule(P,R);
-            VerifyToken(f,P,K,Syntax[y].RuleEnd) { glob rule-end marker }
-          End
+            ProgInsertRule(P,R);
+          If Not Error Then
+            VerifyToken(f,P,K,Syntax[y].RuleEnd)
         End
       End;
       If ErrorState = SYNTAX_ERROR Then

@@ -101,6 +101,7 @@ Type
     PO_META : TObjMeta;
     { not deep copied: }
     TK_STRI : StrPtr; { string object representing the token or Nil }
+    TK_NEXT : TokenPtr; { to stack tokens for GC-protection }
     { extra data: }
     TK_TYPE : TTokenType;
     TK_ANON : Boolean; { was the token an anonymous variable? }
@@ -113,6 +114,8 @@ Type
 Function Token_New( typ : TTokenType ) : TokenPtr;
 
 Function Token_GetStr( K : TokenPtr ) : StrPtr;
+Function Token_GetNext( K : TokenPtr ) : TokenPtr;
+Procedure Token_SetNext( K : TokenPtr; K1 : TokenPtr );
 Procedure Token_GetLocation( K : TokenPtr; Var line : TLineNum; Var col : TCharPos); 
 Procedure Token_SetLocation( K : TokenPtr; line : TLineNum; col : TCharPos );
 Function Token_GetType( K : TokenPtr ) : TTokenType;
@@ -136,10 +139,11 @@ Var
   K : TokenPtr;
   ptr : TObjectPtr Absolute K;
 Begin
-  ptr := NewRegisteredPObject(TK,SizeOf(TObjToken),1,False,0);
+  ptr := NewRegisteredPObject(TK,SizeOf(TObjToken),2,False,0);
   With K^ Do
   Begin
     TK_STRI := Nil;
+    TK_NEXT := Nil;
     TK_TYPE := typ;
     TK_ANON := False;
     TK_QUOT := False;
@@ -157,6 +161,18 @@ End;
 Function Token_GetStr( K : TokenPtr ) : StrPtr;
 Begin
   Token_GetStr := K^.TK_STRI
+End;
+
+{ get next token in the list }
+Function Token_GetNext( K : TokenPtr ) : TokenPtr;
+Begin
+  Token_GetNext := K^.TK_NEXT
+End;
+
+{ get next token in the list }
+Procedure Token_SetNext( K : TokenPtr; K1 : TokenPtr );
+Begin
+  K^.TK_NEXT := K1
 End;
 
 { get the line and column number of the start of token K, *including
