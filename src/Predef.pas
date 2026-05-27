@@ -2832,7 +2832,7 @@ Begin
     End;
   TYPE_IDENT:
     Begin
-      K := ReadVariableOrIdentifier(f,GetSyntax(P));
+      K := ReadVariableOrIdentifier(f,GetSyntax(P),True);
       InOk := (Not Error) And (K <> Nil) And (Token_GetType(K) = TOKEN_IDENT);
       If InOk Then
       Begin
@@ -2867,6 +2867,10 @@ Begin
   { undo read when requested or in case of failure to bound }
   If InOk And (LookAhead Or Not Success) Then
     Stream_UngetChars(f,e);
+
+  { shut down any syntax error, except for TYPE_TERM; see PII+ doc p126 }
+  If (ErrorState = SYNTAX_ERROR) And (What <> TYPE_TERM) Then
+    ResetError;
 
   ClearIn := Success
 End;

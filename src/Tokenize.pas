@@ -66,7 +66,8 @@ Procedure ReadSpaces( f : StreamPtr; y : TSyntax );
 Function ReadString( f : StreamPtr ) : TokenPtr;
 Function ReadInteger( f : StreamPtr; Sign : Boolean ) : TokenPtr;
 Function ReadNumber( f : StreamPtr; y : TSyntax; Sign : Boolean ) : TokenPtr;
-Function ReadVariableOrIdentifier( f : StreamPtr; y : TSyntax ) : TokenPtr;
+Function ReadVariableOrIdentifier( f : StreamPtr; y : TSyntax; 
+    IdentOnly : Boolean ) : TokenPtr;
 Function ReadToken( f : StreamPtr; y : TSyntax ) : TokenPtr;
 
 Implementation
@@ -881,14 +882,20 @@ End;
 { read a variable or an identifier (including single-quoted identifier when
  the syntax allows it); throw an error if the string does not contain a valid
  identifier }
-Function ReadVariableOrIdentifier( f : StreamPtr; y : TSyntax ) : TokenPtr;
+Function ReadVariableOrIdentifier( f : StreamPtr; y : TSyntax; 
+    IdentOnly : Boolean ) : TokenPtr;
 Var
   K : TokenPtr;
   e,e1 : TIChar;
   IsUpper : Boolean;
   n,m : TStrLength;
+  cc : TIChar; { undo point }
 Begin 
   ReadVariableOrIdentifier := Nil;
+  { set an undo point in case we find a variable and only an identifier is 
+   requested }
+  If IdentOnly Then
+    Stream_NextChar(f,cc);
   { single-quoted identifier? note that surrounding quotes are NOT kept }
   K := ReadQuotedRunOfChars(f,'''',TOKEN_IDENT,False,True);
   { got one, but is it allowed? }
@@ -916,6 +923,13 @@ Begin
             TK_TYPE := TOKEN_VARIABLE
           Else
             TK_TYPE := TOKEN_IDENT;
+
+        { not an identifier, which we asked for: undo and exit, returning Nil }
+        If IdentOnly And (TK_TYPE = TOKEN_VARIABLE) Then
+        Begin
+          Stream_UngetChars(f,cc);
+          Exit
+        End;
 
         If Error Then Exit;
         If y In [PrologIIv1,PrologIIv2] Then { old Prolog II syntax, w/ accented letters }
@@ -1082,7 +1096,7 @@ Begin
     '|':
       K := GrabToken(f,TOKEN_PIPE,e1);
     Else
-      K := ReadVariableOrIdentifier(f,y)
+      K := ReadVariableOrIdentifier(f,y,False)
     End
   End;
 
