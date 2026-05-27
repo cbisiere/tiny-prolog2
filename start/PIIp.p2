@@ -129,6 +129,11 @@ no_paper -> syscall(sysonoff,paper,false);
 echo -> syscall(sysonoff,echo,true);
 no_echo -> syscall(sysonoff,echo,false);
 
+"infinite"
+
+no_infinite ->;
+infinite ->;
+
 "helpers"
 
 eq(X,X) ->;

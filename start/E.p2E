@@ -116,6 +116,9 @@ no_trace :- syscall(sysonoff,trace,false).
 debug :- syscall(sysonoff,debug,true).
 no_debug :- syscall(sysonoff,debug,false).
 
+no_infinite.
+infinite.
+
 "in: PII+"
 
 in(T) :- read(T).

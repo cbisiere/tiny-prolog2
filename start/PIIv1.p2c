@@ -128,6 +128,11 @@ sans-papier -> syscall(sysonoff,paper,false);
 echo -> syscall(sysonoff,echo,true);
 sourd -> syscall(sysonoff,echo,false);
 
+"infinite"
+
+sans-boucle ->;
+boucle ->;
+
 "helpers"
 
 eg(X,X) ->;
