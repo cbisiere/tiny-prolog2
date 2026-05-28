@@ -28,7 +28,7 @@ Type
   { Word is too small on MSDOS, e.g. to store UTF-8 codepoints; so we use 4-byte
    signed integer instead }
   PosInt = LongInt; 
-  LongLongInt = Real; { simulate a very LongInt }
+  LongLongInt = Extended; { simulate a very long integer }
   LongReal = Extended; { high precision real }
   Pointer = ^Integer; { generic pointer }
 {$ELSE}
@@ -38,7 +38,7 @@ Const
   MaxLongInt = 1e+24;
  Type
   PosInt = UInt32; { 4-byte unsigned integer }
-  LongLongInt = Real; { simulate a very long integer }
+  LongLongInt = Extended; { simulate a very long integer }
   LongReal = Extended; { highest precision real }
 {$ENDIF}
 
@@ -51,6 +51,8 @@ Function LongIntToShortString( v : LongInt ) : TString;
 Function LongLongIntToShortString( v : LongLongInt ) : TString;
 Function LongRealToShortString( v : LongReal ) : TString;
 Function ShortStringToLongInt( s : TString; Var code : Integer ) : LongInt;
+Function ShortStringToLongLongInt( s : TString; 
+    Var code : Integer ) : LongLongInt;
 Function ShortStringToPosInt( s : TString; Var code : Integer ) : PosInt;
 Function ShortStringToLongReal( s : TString; Var code : Integer ) : LongReal;
 Function LongIntDiv( x,y : LongInt ) : LongInt;
@@ -178,6 +180,17 @@ Var
 Begin
   Val(s,v,code);
   ShortStringToLongInt := v
+End;
+
+{ convert a Pascal string to a LongLongInt; code is 0 if the operation succeeds,
+  or the index of the character preventing the conversion }
+Function ShortStringToLongLongInt( s : TString; 
+    Var code : Integer ) : LongLongInt;
+Var 
+  v : LongLongInt;
+Begin
+  Val(s,v,code);
+  ShortStringToLongLongInt := v
 End;
 
 { convert a Pascal string to a PosInt; code is 0 if the operation succeeds,

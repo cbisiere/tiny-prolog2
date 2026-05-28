@@ -1247,36 +1247,25 @@ End;
 {-----------------------------------------------------------------------}
 
 { replace a constant string with its canonical form, depending on its type;
- return false if the canonical form cannot be computed; FIXME: far from
- perfect, as converting to string is likely to change or round the value }
+ return false if the canonical form cannot be computed }
 Function NormalizeConstant( Var s : StrPtr; typ : TConst ) : Boolean;
 Var
-  i : LongInt;
   r : LongReal;
   code : Integer;
 Begin
   NormalizeConstant := False;
   CheckCondition(s <> Nil,'cannot normalize a nul string');
   Case typ Of
-  IntegerNumber,
+  IntegerNumber:
+    s := Str_NormalizePositiveInteger(s);
   RealNumber:
     Begin
       If Str_Length(s) > StringMaxSize Then
         Exit;
-      Case typ Of
-      IntegerNumber:
-        i := ShortStringToLongInt(Str_AsShortString(s), code);
-      RealNumber:
-        r := ShortStringToLongReal(Str_AsShortString(s), code);
-      End;
+      r := ShortStringToLongReal(Str_AsShortString(s), code);
       If code <> 0 Then
         Exit;
-      Case typ Of
-      IntegerNumber:
-        s := Str_NewFromShortString(LongIntToShortString(i));
-      RealNumber: 
-        s := Str_NewFromShortString(LongRealToShortString(r));
-      End;
+      s := Str_NewFromShortString(LongRealToShortString(r));
     End
   End;
   NormalizeConstant := True

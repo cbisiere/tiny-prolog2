@@ -116,6 +116,9 @@ Procedure Str_DeleteLastChar( s : StrPtr );
 Procedure Str_DeleteLastCharUntil( s : StrPtr; StopChars : CharSet );
 Function Str_Substring( s : StrPtr; n,m : PosInt ) : StrPtr;
 Function Str_FindPattern( s,pat : StrPtr; Var n : TStrLength ) : Boolean;
+Function Str_StartsWithN( s : StrPtr; E : CharSet ) : TStrLength;
+Function Str_Trim( s : StrPtr; E : CharSet ) : StrPtr;
+Function Str_NormalizePositiveInteger( s : StrPtr ) : StrPtr;
 
 Procedure Str_CWrite( s: StrPtr );
 
@@ -848,6 +851,47 @@ Begin
     End
   End;
   Str_FindPattern := Found
+End;
+
+{ count the number of chars in set E at the beginning of a string }
+Function Str_StartsWithN( s : StrPtr; E : CharSet ) : TStrLength;
+Var
+  n : TStrLength;
+  Iter : StrIter;
+  cc : TChar;
+Begin
+  n := 0;
+  StrIter_ToStart(Iter,s);
+  While StrIter_NextChar(Iter,cc) And TCharIsIn(cc,E) Do
+    n := n + 1;
+  Str_StartsWithN := n
+End;
+
+{ return a trimmed version of s in which all the starting characters in E are
+ removed; create a copy only when necessary }
+Function Str_Trim( s : StrPtr; E : CharSet ) : StrPtr;
+Var
+  n : TStrLength;
+Begin
+  Str_Trim := s;
+  n := Str_StartsWithN(s,E);
+  if n > 0 Then
+    Str_Trim := Str_Substring(s,n+1,Str_Length(s)-n)
+End;
+
+{ normalize a string containing only digits, trimming leading zeros, 
+ but leaving a zero when necessary }
+Function Str_NormalizePositiveInteger( s : StrPtr ) : StrPtr;
+Var
+  n : TStrLength;
+Begin
+  CheckCondition(Str_Length(s) > 0,'Str_NormalizePositiveInteger: empty');
+  Str_NormalizePositiveInteger := s;
+  n := Str_StartsWithN(s,['0']);
+  If n = Str_Length(s) Then
+    n := n - 1;
+  If n > 0 Then
+    Str_NormalizePositiveInteger := Str_Substring(s,n+1,Str_Length(s)-n)
 End;
 
 {-----------------------------------------------------------------------}
