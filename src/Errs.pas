@@ -26,6 +26,7 @@ Type
     PARAMETER_ERROR,
     SYNTAX_ERROR,
     RUNTIME_ERROR,
+    GC_ERROR,
     ENCODING_ERROR,
     EOL_ERROR,
     USER_INTERRUPT
@@ -45,6 +46,7 @@ Procedure SetQuitOn( n : Integer );
 
 Procedure SyntaxError( msg : TString );
 Procedure RuntimeError( msg : TString );
+Procedure GarbageCollectorError( msg : TString );
 Procedure ParameterError( msg : TString );
 Procedure EncodingError( msg : TString );
 Procedure EolStyleError( msg : TString );
@@ -137,6 +139,12 @@ End;
 Procedure RuntimeError( msg : TString );
 Begin
   RaiseError(RUNTIME_ERROR,'Runtime error: ' + msg)
+End;
+
+{ a error occurred during garbage collection; display a message }
+Procedure GarbageCollectorError( msg : TString );
+Begin
+  RaiseError(GC_ERROR,'Error during garbage collection: ' + msg)
 End;
 
 { a parameter (command line) error occurred; display a message }

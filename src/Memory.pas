@@ -47,6 +47,7 @@ Const
 
 Const
   MaxNbObjectTypes = 255;
+  MaxDepth = 13000; { max recursion depth during GC }
 
 Type 
   TObjectTypeIndex = 1..MaxNbObjectTypes;
@@ -856,15 +857,22 @@ Begin
 End;
 
 { mark p and all objects that are reachable from p }
-Procedure Mark( p : TObjectPtr );
+Procedure Mark( p : TObjectPtr; Var n : PosInt );
 Var 
   i : TObjectChild;
 Begin
-  If Markable(p) Then
+  If (ErrorState <> GC_ERROR) And Markable(p) Then
   Begin
-    MarkOneObject(p);
-    For i := 1 To ObjectNbChildren(p) Do
-      Mark(ObjectChild(p,i))
+    If n = MaxDepth Then
+      GarbageCollectorError('GC has been disabled; please quit and restart')
+    Else
+    Begin
+      MarkOneObject(p);
+      n := n + 1;
+      For i := 1 To ObjectNbChildren(p) Do
+        Mark(ObjectChild(p,i),n);
+      n := n - 1
+    End
   End
 End;
 
@@ -912,24 +920,42 @@ End;
 { garbage collector                                                          }
 {----------------------------------------------------------------------------}
 
+Var
+  GC : Boolean; { can we use GC? }
+
 Procedure GCInit;
 Begin
   InitAlloc;
   InitGCRoots;
-  InitMark
+  InitMark;
+  GC := True
 End;
 
 Procedure GarbageCollector;
 Var 
   i : TNbRoots;
+  n : PosInt; { depth of recursion }
 Begin
   CheckCondition(Not OngoingGC, 'GC: not reentrant');
-  OngoingGC := True;
-  For i := 1 To NbRoots Do
-    Mark(Roots[i]);
-  Sweep;
-  UnMark;
-  OngoingGC := False
+  If GC Then
+  Begin
+    OngoingGC := True;
+    For i := 1 To NbRoots Do
+    Begin
+      If ErrorState <> GC_ERROR Then
+      Begin
+        n := 0;
+        Mark(Roots[i],n)
+      End
+    End;
+    If ErrorState <> GC_ERROR Then
+      Sweep;
+    If ErrorState <> GC_ERROR Then
+      UnMark;
+    { when a GC error occurs, GC cannot be used anymore }
+    GC := ErrorState <> GC_ERROR; 
+    OngoingGC := False
+  End
 End;
 
 
