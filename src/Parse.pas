@@ -47,7 +47,8 @@ Type
     RuleEnd: TTokenType; { rules 3.* }
     QueryEnd: TTokenType; { rules 2.* }
     InsertEnd: TTokenType; { token stopping insertion, in addition to EoF }
-    InsertEndChar: Char; { ditto, char version, for convenience }
+    RuleEndChar: Char; { rule-end marker, char version, for convenience }
+    QueryEndChar: Char; { query-end marker, char version, for convenience }
     AcceptSys: Boolean
   End;
 
@@ -58,7 +59,8 @@ Const
       RuleEnd: TOKEN_SEMICOLON;
       QueryEnd: TOKEN_SEMICOLON;
       InsertEnd: TOKEN_SEMICOLON;
-      InsertEndChar: ';';
+      RuleEndChar: ';';
+      QueryEndChar: ';';
       AcceptSys: True
     ),
     { PrologIIv2: }
@@ -66,7 +68,8 @@ Const
       RuleEnd: TOKEN_SEMICOLON;
       QueryEnd: TOKEN_SEMICOLON;
       InsertEnd: TOKEN_SEMICOLON;
-      InsertEndChar: ';';
+      RuleEndChar: ';';
+      QueryEndChar: ';';
       AcceptSys: True { CHECK: really? }
     ),
     { PrologIIp: }
@@ -74,7 +77,8 @@ Const
       RuleEnd: TOKEN_SEMICOLON;
       QueryEnd: TOKEN_SEMICOLON;
       InsertEnd: TOKEN_SEMICOLON;
-      InsertEndChar: ';';
+      RuleEndChar: ';';
+      QueryEndChar: ';';
       AcceptSys: False
     ),
     (
@@ -82,7 +86,8 @@ Const
       RuleEnd: TOKEN_DOT;
       QueryEnd: TOKEN_DOT;
       InsertEnd: TOKEN_DOT;
-      InsertEndChar: '.';
+      RuleEndChar: '.';
+      QueryEndChar: '.';
       AcceptSys: False
     )
   );

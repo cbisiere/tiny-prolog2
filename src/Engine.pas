@@ -790,42 +790,35 @@ End;
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-{ process a syntax error that occurred when parsing }
-Procedure HandleSyntaxError( f : StreamPtr; P : ProgPtr; Var K : TokenPtr );
+{ process a syntax error that occurred when parsing, reading until (and
+ including) a stop char is found (end of query or end of rule) }
+Procedure HandleSyntaxError( f : StreamPtr; P : ProgPtr; EndChar : Char );
 Begin
-  { reset the syntax error *before* doing anything, to bypass the many 
-   "If Error Then Exit" instructions spread in our code; 
-   TODO: keep track of a an error state and number of errors that occurred 
-   during an insert/0 or insert/1, which are supposed to be reported at the 
-   end of the insertion }
-  Stream_DisplayErrorMessage(f,GetErrorMessage);
-  ResetError;
-  { skip what is supposed to be skipped in that situation: 
-   PII+ doc p.98: ignore characters up to EndToken if the input stream is a 
-   file, or to EOL *if it is the console* (precision given in the French PII+ 
-   doc, p.100)  }
-  If Stream_IsConsole(f) Then
-    SkipLine(f)
-  Else
-    SkipUntil(f,[Syntax[GetSyntax(P)].InsertEndChar]);
-  { update the next token so we can keep parsing despite the syntax error }
-  K := ReadProgramToken(P,f)
+  If ErrorState = SYNTAX_ERROR Then
+  Begin
+    { reset the syntax error *before* doing anything, to bypass the many 
+    "If Error Then Exit" instructions spread in our code; 
+    TODO: keep track of a an error state and number of errors that occurred 
+    during an insert/0 or insert/1, which are supposed to be reported at the 
+    end of the insertion }
+    Stream_DisplayErrorMessage(f,GetErrorMessage);
+    ResetError;
+    { skip what is supposed to be skipped in that situation: 
+    PII+ doc p.98: ignore characters up to EndToken if the input stream is a 
+    file, or to EOL *if it is the console* (precision given in the French PII+ 
+    doc, p.100)  }
+    If Stream_IsConsole(f) Then
+      SkipLine(f)
+    Else
+      SkipUntil(f,[EndChar])
+  End
 End;
 
-{ parse and exec a query, if any, until query-end mark or error; 
- K is the current token; do *not* set K to the next token }
-Procedure ParseAndExecQuery( f : StreamPtr; P : ProgPtr; Var K : TokenPtr );
+{ execute a query }
+Procedure ExecQuery( f : StreamPtr; P : ProgPtr; Q : QueryPtr; K : TokenPtr );
 Var
-  y : TSyntax;
-  Q : QueryPtr;
   EchoQuery : Boolean;
 Begin
-  y := GetSyntax(P);
-  Q := ParseOneQuery(f,P,K);
-  { FIXME: what if no query after '->' ??}
-  If Error Then Exit;
-  CheckCondition(Token_GetType(K) = Syntax[y].QueryEnd,
-      'ParseAndExecQuery: QueryEnd expected');
   { even when echo is false, echo when the goal is read from a user file, 
    otherwise we cannot interpret the displayed solutions;
    FIXME: also echo when the goal was not the first on the line read from
@@ -841,19 +834,60 @@ Begin
   UnstackToken(P)
 End;
 
-{ process the CLI, triggering user input until error (syntax, interrupt) or
- query-end mark }
-Procedure ProcessCLI( f : StreamPtr; P : ProgPtr );
+{ parse and exec one query, advancing K to the token just after the query }
+Procedure ParseAndExecOneQuery( f : StreamPtr; P : ProgPtr );
 Var
+  y : TSyntax;
   K : TokenPtr;
+  Q : QueryPtr;
 Begin
+  y := GetSyntax(P);
+  { in CLI mode, the first call to the token reader will trigger a line read 
+  and will not return until a token is input, meaning that if the user types 
+  RET of blank spaces, no prompt is displayed; in insert mode (from a file or 
+  the console), the last token read is an arrow, so we need to grab the token 
+  following this arrow }
   K := ReadProgramToken(P,f);
-  If Error Then Exit;
-  ParseAndExecQuery(f,P,K);
-  { in case of syntax error, skip until after the end of the line }
-  If ErrorState = SYNTAX_ERROR Then
-    HandleSyntaxError(f,P,K)
+  If Not Error Then
+  Begin
+    Q := ParseOneQuery(f,P,K);
+    { execute the query only when the end marker is the last token read;
+      otherwise it is a syntax error, as we know that K has been read and is
+      the token just after the query }
+    If Not Error Then
+    Begin
+      If Token_GetType(K) = Syntax[y].QueryEnd Then
+        ExecQuery(f,P,Q,K)
+      Else
+        SyntaxError('''' + Syntax[y].QueryEndChar + 
+            ''' expected to end the query')
+    End
+  End;
+  { try to recover syntax error, skipping chars up to to EOL or QueryEnd }
+  HandleSyntaxError(f,P,Syntax[y].QueryEndChar)
 End;
+
+{ parse and insert one rule, advancing K to the token just after the rule; 
+ note that K is the current token, so we do not start by reading it }
+Procedure ParseAndInsertOneRule( f : StreamPtr; P : ProgPtr; Var K : TokenPtr );
+Var
+  y : TSyntax;
+  R : RulePtr;
+Begin
+  y := GetSyntax(P);
+  R := ParseOneRule(f,P,K);
+  { insert the rule only if the rule-end mark is the last token read}
+  If Not Error Then 
+  Begin
+    If Token_GetType(K) = Syntax[y].RuleEnd Then
+      ProgInsertRule(P,R)
+    Else
+      SyntaxError('''' + Syntax[y].RuleEndChar + 
+          ''' expected to end the rule')
+  End;
+  HandleSyntaxError(f,P,Syntax[y].RuleEndChar)
+End;
+
 
 { process user input typed after the prompt; chars after the end-of-query 
  mark stay in the input buffer }  
@@ -863,12 +897,14 @@ Var
 Begin
   { get the console input stream }
   f := GetInputConsole(P);
-  { display the prompt only when the input buffer is such that a keyboard 
-   input will be triggered }
-  If BufOnlyUnreadSpaces(f^.FI_IBUF) Then
-    DisplayPrompt(P);
-  { analyze input, triggering keyboard input when necessary }
-  ProcessCLI(f,P)
+  { display the prompt }
+  DisplayPrompt(P);
+  { analyze input, triggering keyboard input when necessary, parsing and 
+   executing until an error is unrecoverable or there is nothing left to
+    process in the command line }
+  Repeat
+    ParseAndExecOneQuery(f,P)
+  Until Error Or BufOnlyUnreadSpaces(f^.FI_IBUF)
 End;
 
 { insert/1: parse and append rules, queries, comments; 
@@ -882,6 +918,7 @@ Var
   EndToken : TTokenType; { syntax dependent, end of insert tokens }
   EndTokens : TTokenSet;
   R : RulePtr;
+  Q : QueryPtr;
 Begin
   y := GetSyntax(P);
   K := ReadProgramToken(P,f);
@@ -896,30 +933,20 @@ Begin
     Begin
       Case Token_GetType(K) Of
       TOKEN_ARROW: { a query }
-        Begin
-          VerifyToken(f,P,K,TOKEN_ARROW);
-          If Not Error Then
-            ParseAndExecQuery(f,P,K);
-          If Not Error Then
-            VerifyToken(f,P,K,Syntax[y].QueryEnd)
-        End;
+        ParseAndExecOneQuery(f,P);
       TOKEN_STRING: { a comment }
-        Begin
-          ProgInsertComment(P,Token_GetStr(K));
-          If Not Error Then
-            K := ReadProgramToken(P,f)
-        End;
+        ProgInsertComment(P,Token_GetStr(K));
       Else { a rule }
-        Begin
-          R := ParseOneRule(f,P,K);
-          If Not Error Then
-            ProgInsertRule(P,R);
-          If Not Error Then
-            VerifyToken(f,P,K,Syntax[y].RuleEnd)
-        End
+        ParseAndInsertOneRule(f,P,K)
       End;
-      If ErrorState = SYNTAX_ERROR Then
-        HandleSyntaxError(f,P,K)
+      { read the next token; if a syntax error occurred, it sets K to the 
+      token following the characters we skipped (up to and including EOL when 
+      the error occurred in the console, and query or rule end mark otherwise); 
+      if no syntax error occurred, it means advancing to the token following the 
+      query or rule end token, to put back the parser in its nominal state, in 
+      which parameter K is the current token to be analyzed }
+      If Not Error Then
+        K := ReadProgramToken(P,f)
     End
   Until Stop Or Error
 End;
