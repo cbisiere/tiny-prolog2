@@ -419,7 +419,6 @@ Var
     More : Boolean;
     GoalToClear,B : BTermPtr;
     R : RulePtr;
-    I : IdPtr;
   Begin
     { initialize value to return in cas of block end }
     GoalToClear := Header_GetGoalsToClear(H);
@@ -917,8 +916,6 @@ Var
   K : TokenPtr;
   EndToken : TTokenType; { syntax dependent, end of insert tokens }
   EndTokens : TTokenSet;
-  R : RulePtr;
-  Q : QueryPtr;
 Begin
   y := GetSyntax(P);
   K := ReadProgramToken(P,f);
