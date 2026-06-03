@@ -9,11 +9,11 @@ if_then_else(p,a,b) -> p ! a;
 if_then_else(p,a,b) -> b;
 
 "Not"
-not(p) -> p ! fail;
-not(p) ->;
+non(p) -> p ! fail;
+non(p) ->;
 
 man(Michel) ->;
-woman(x) -> not(man(x));
+woman(x) -> non(man(x));
 
 -> woman(Cristina);
 -> woman(Michel);
