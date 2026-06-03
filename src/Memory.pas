@@ -18,6 +18,8 @@ Unit Memory;
 Interface
 
 Uses
+  Heap,
+  Stack,
   ShortStr,
   Num,
   Errs,
@@ -26,14 +28,11 @@ Uses
 {$IFDEF CPU16}
 { TP4 p212: maximum size of a structured type is 65520 bytes }
 Const
-  GetMemMaxSize = 65521; { see TP4 pdf p. 443 }
   MaxChildren = 16300; { 4-bytes pointers + small metadata overhead }
 Type 
-  TObjectSize = Word;
   TObjectChild = Word; { child index or counter }
 {$ELSE}
 Const
-  GetMemMaxSize = 4294967295; { 2^32 - 1 }
   { maximum number of child objects (see TObject below); on some platforms (at 
    least Windows) Fpc enforces a 2Gb limit on data element, so assuming that 
    the number of children is limited by a maximum allocation size of 4Gb for a
@@ -41,15 +40,15 @@ Const
    Data element too large"); the value below is overkill anyway }
   MaxChildren = 536870000; { 4-bytes pointers + small metadata overhead }
  Type
-  TObjectSize = PtrUInt; { size of a single object, in bytes }
   TObjectChild = PosInt; { child index or counter }
 {$ENDIF}
 
 Const
   MaxNbObjectTypes = 255;
-  MaxDepth = 13000; { max recursion depth during GC }
+  MaxDepth = 100000000; { max depth during GC }
 
 Type 
+  TObjectSize = TSizeOnHeap; { size of a single object, in bytes }
   TObjectTypeIndex = 1..MaxNbObjectTypes;
   TObjectName = String[2];
   TObjectID = PosInt; { unique object identifier }
@@ -125,25 +124,6 @@ Procedure DumpGCRoots;
 
 
 Implementation
-{-----------------------------------------------------------------------------}
-{ TP4/FPC compatibility code to ensure that failed heap allocations 
- returns Nil }
-
-{$IFDEF TPC}
-{$F+} Function HeapFunc( Size : Word) : Integer; {$F-} 
-Begin
-  HeapFunc := 1
-End;
-{$ENDIF}
-
-Procedure InitMalloc;
-Begin
-{$IFDEF FPC}
-  ReturnNilIfGrowHeapFails := True
-{$ENDIF}
-End;
-
-{-----------------------------------------------------------------------------}
 
 {----------------------------------------------------------------------------}
 { declaration of object types managed par the memory manager                 }
@@ -607,8 +587,8 @@ Function GetMemForObject( b : TObjectSize ) : TObjectPtr;
 Var
   p : TObjectPtr;
 Begin
-  CheckCondition(b <= GetMemMaxSize,'Cannot allocate an object of this size');
-  GetMem(p,b);
+  CheckCondition(b <= MaxSizeOnHeap,'Cannot allocate an object of this size');
+  GetMemOnHeap(p,b);
   { cannot GC here, so in case of OOM we just abort }
   If p = Nil Then
   Begin
@@ -624,8 +604,7 @@ End;
 
 Procedure FreeMemOfObject( Var p : TObjectPtr );
 Begin
-  FreeMem(p,ObjectSize(p));
-  p := Nil { prevent dangling pointers }
+  FreeMemOnHeap(p,ObjectSize(p))
 End;
 
 { allocate memory on the heap for an object of type t and size b in bytes; 
@@ -856,22 +835,48 @@ Begin
   Markable := must
 End;
 
-{ mark p and all objects that are reachable from p }
-Procedure Mark( p : TObjectPtr; Var n : PosInt );
+Var
+  MarkStack : TStackPtr;
+  MarkDepth : PosInt;
+
+Procedure PrepareMark;
+Begin
+  Stack_Reset(MarkStack);
+  MarkDepth := 0
+End;
+
+Procedure PushMark( p : TObjectPtr );
+Begin
+  Stack_Push(MarkStack,p);
+  MarkDepth := MarkDepth + 1
+End;
+
+Function PopMark : TObjectPtr;
+Begin
+  PopMark := Stack_Pop(MarkStack);
+  MarkDepth := MarkDepth - 1
+End;
+
+{ mark p and all objects that are reachable }
+Procedure Mark;
 Var 
+  p : TObjectPtr;
   i : TObjectChild;
 Begin
-  If (ErrorState <> GC_ERROR) And Markable(p) Then
+  While (Not Error) And (MarkDepth > 0) Do
   Begin
-    If n = MaxDepth Then
-      GarbageCollectorError('GC has been disabled; please quit and restart')
-    Else
+    p := PopMark;
+    If Markable(p) Then
     Begin
       MarkOneObject(p);
-      n := n + 1;
-      For i := 1 To ObjectNbChildren(p) Do
-        Mark(ObjectChild(p,i),n);
-      n := n - 1
+      i := 0;
+      While (Not Error) And (i < ObjectNbChildren(p)) Do
+      Begin
+        i := i + 1;
+        PushMark(ObjectChild(p,i));
+        If MarkDepth = MaxDepth Then
+          GarbageCollectorError('GC has been disabled; please quit and restart')
+      End
     End
   End
 End;
@@ -928,26 +933,22 @@ Begin
   InitAlloc;
   InitGCRoots;
   InitMark;
+  Stack_New(MarkStack);
   GC := True
 End;
 
 Procedure GarbageCollector;
 Var 
   i : TNbRoots;
-  n : PosInt; { depth of recursion }
 Begin
   CheckCondition(Not OngoingGC, 'GC: not reentrant');
   If GC Then
   Begin
     OngoingGC := True;
+    PrepareMark;
     For i := 1 To NbRoots Do
-    Begin
-      If ErrorState <> GC_ERROR Then
-      Begin
-        n := 0;
-        Mark(Roots[i],n)
-      End
-    End;
+      PushMark(Roots[i]);
+    Mark;
     If ErrorState <> GC_ERROR Then
       Sweep;
     If ErrorState <> GC_ERROR Then
@@ -973,11 +974,7 @@ End;
 { initialize the memory management unit                                      }
 {----------------------------------------------------------------------------}
 Begin
-{$IFDEF TPC}
-  HeapError:=@HeapFunc;
-{$ENDIF}
   MM_CURRENT_SERIAL := 0;
-  InitMalloc;
   InitMemObjects;
   InitMemoryStats;
   GCInit

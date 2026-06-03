@@ -41,6 +41,8 @@ Uses
   Common,
   IChar,
   Buffer,
+  Heap,
+  Stack,
   Memory,
   PObj,
   PObjLisA,
