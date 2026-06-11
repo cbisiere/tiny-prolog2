@@ -30,6 +30,7 @@ Uses
   PObjProg,
   PObjIO,
   Dumper,
+  Expr,
   Predef,
   Engine;
 
@@ -194,7 +195,9 @@ Begin
   P := Prog_New(y);
   AddGCRoot(TObjectPtr(P));
   SetCurrentProgram(P);
-  RegisterPredefined(P);
+  RegisterPredefinedIdentifiers(P);
+  RegisterEvaluableFunctions(P);
+  RegisterOperators(P);
   { load the start file }
   If Not Error And Not SkipStartFile Then
     LoadStartFile(P);

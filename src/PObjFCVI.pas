@@ -24,6 +24,7 @@ Uses
   Common,
   ShortStr,
   Num,
+  Serial,
   Errs,
   Dump,
   CWrites,
@@ -196,10 +197,6 @@ Function EvaluateToReal( T : TermPtr ) : ConstPtr;
 Function EvaluateToString( T : TermPtr ) : ConstPtr;
 Function EvaluateToIdentifier( T : TermPtr ) : IdPtr;
 
-Function AccessIdentifier( T : TermPtr ) : IdPtr;
-Function ArgCount( T : TermPtr ) : PosInt;
-Function GetArity( T : TermPtr ) : TArity;
-
 Function GetValue( I : IdPtr ) : TermPtr;
 Procedure SetValue( I : IdPtr; T : TermPtr );
 Function GetArray( I : IdPtr ) : ArrayPtr;
@@ -231,7 +228,7 @@ Function InstallVariable( Var D : DictPtr; str : StrPtr;
     anonymous : Boolean; glob : Boolean ) : VarPtr;
 
 Function GetInstalledIdentifier( D : DictPtr; str : StrPtr ) : IdPtr;
-Function InstallIdentifier( Var D : DictPtr; str : StrPtr; Quoted : Boolean;
+Function InstallIdentifier( Var D : DictPtr; str : StrPtr; SingleQuotes : Boolean;
     glob : Boolean  ) : IdPtr;
 
 Procedure DumpTermObjects( T : TermPtr; Tag : Char );
@@ -296,7 +293,7 @@ End;
 
 { create a (potentially) assignable identifier; an identifier must remain 
  unique, and thus cannot be copied }
-Function Ident_New( Quoted : Boolean) : IdPtr;
+Function Ident_New( SingleQuotes : Boolean) : IdPtr;
 Var 
   I : IdPtr;
 Begin
@@ -308,7 +305,7 @@ Begin
     TI_VALU := Nil;
     TI_DVAR := Nil;
     TI_SIZE := 0;
-    TI_QUOT := Quoted; { must be quoted when printed }
+    TI_QUOT := SingleQuotes; { must be quoted when printed }
     TI_ASSI := False
   End;
   Ident_New := I
@@ -994,68 +991,6 @@ Begin
     EvaluatesToIdentifier := IdentifierEqualToShortString(I,ident)
 End;
 
-{ return the access identifier of a term, using the reduced system, or Nil if
- the term has no access identifier }
-Function AccessIdentifier( T : TermPtr ) : IdPtr;
-Var 
-  FT : FuncPtr Absolute T;
-  IT : IdPtr Absolute T;
-Begin
-  If T <> Nil Then
-    Case TypeOfTerm(T) Of
-    Constant:
-      IT := Nil;
-    Identifier:
-      Begin { ignore assignment, if any }
-      End;
-    FuncSymbol:
-      IT := AccessIdentifier(Func_GetLeft(FT)); { ident(arg1,...) }
-    Variable:
-      IT := AccessIdentifier(Red(T)) { x = ident }
-    End;
-  AccessIdentifier := IT
-End;
-
-{ return the number of arguments of a tuple, using the reduced system }
-Function ArgCount( T : TermPtr ) : PosInt;
-Begin
-  ArgCount := 0;
-  If T = Nil Then
-    Exit;
-  Case TypeOfTerm(T) Of
-  FuncSymbol:
-    Begin
-      ArgCount := 1 + ArgCount(Func_GetRight(FuncPtr(T)))
-    End;
-  Variable:
-    Begin
-      ArgCount := ArgCount(Red(T))
-    End
-  End
-End;
-
-{ return the arity of a term, using the reduced system; 
- aaa(bbb) = <aaa,bbb> => 1
- <1,2> => 2 
- otherwise: 0 }
-Function GetArity( T : TermPtr ) : TArity;
-Begin
-  GetArity := 0;
-  If T = Nil Then
-    Exit;
-  Case TypeOfTerm(T) Of
-  FuncSymbol:
-    Begin
-      If AccessIdentifier(Func_GetLeft(FuncPtr(T))) <> Nil Then
-        GetArity := ArgCount(Func_GetRight(FuncPtr(T)))
-    End;
-  Variable:
-    Begin
-      GetArity := GetArity(Red(T))
-    End
-  End
-End;
-
 {-----------------------------------------------------------------------}
 { methods: types                                                        }
 {-----------------------------------------------------------------------}
@@ -1346,7 +1281,7 @@ End;
  - the fact that the identifier must be quoted to be valid depends on the 
    current syntax; thus, dynamic changes of syntax do not affect this behavior;
    this is fine as long as the is not used as a syntax converter }
-Function InstallIdentifier( Var D : DictPtr; str : StrPtr; Quoted : Boolean;
+Function InstallIdentifier( Var D : DictPtr; str : StrPtr; SingleQuotes : Boolean;
     glob : Boolean  ) : IdPtr;
 Var
   I : IdPtr;
@@ -1355,7 +1290,7 @@ Begin
   e := Dict_Lookup(D,str,[ID],glob);
   If e = Nil Then
   Begin
-    I := Ident_New(Quoted);
+    I := Ident_New(SingleQuotes);
     e := Dict_Append(D,str,TermPtr(I),ID,glob);
     I^.TI_DVAR := e
   End
@@ -1374,7 +1309,7 @@ Begin
   If T = Nil Then
     Exit;
   WriteToDumpFile(Tag + ' ');
-  DumpObject(TObjectPtr(T),False);
+  DumpObject(TObjectPtr(T));
   Case TypeOfTerm(T) Of
   Identifier: { TODO: Arrays }
     If IsAssigned(IdPtr(T)) Then

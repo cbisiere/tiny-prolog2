@@ -44,6 +44,7 @@ Uses
   Unparse;
 
 Procedure SetCurrentProgram( P : ProgPtr );
+Procedure DumpExtraData( p : TObjectPtr );
 Procedure DumpBacktrace( Q : QueryPtr );
 Procedure CoreDumpProg( P : ProgPtr; Message : TString; 
     WithBackTrace : Boolean );

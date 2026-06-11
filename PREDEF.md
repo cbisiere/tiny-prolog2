@@ -87,15 +87,18 @@ Predicate | Action | Example
 `val(E,V)` <br><br> _`val(E,V)`_ | evaluate expression `E` and unify the result with `V` | `> val(add(5,mul(3,2)),x);` <br> `{ x=11 }` <br> `>` 
 `eg(X,Y)`, `dif(X,Y)` <br><br> _`eq(X,Y)`, `dif(X,Y)`_ | term `X` is equal to (or different from) term `Y` | `> dif(x,1);` <br> `{ x#1 }` <br> `>`
 
-### Operators
+### Evaluable functions
 
-Operator | Type | Precedence | Example
---- | --- | --- | ---
-`inf` | xfx | 700 | 
-`eq` <br> _`eql`_ | xfx | 700 | 
-`add`,`sub` | yfx | 500 | 
-`mul`,`div` | yfx | 400 | 
-`add`,`sub` | fx | 200 | 
+Function | Example
+--- | ---
+`inf`<br> _`inf`_ | `> val(inf(10,11),v);` <br> `{ v=1 }`
+`eq` <br> _`eql`_ | `> val(eql(10,11),v);` <br> `{ v=0 }` 
+`add`,`sub` <br> _`add`,`sub`_ | `> val(add(10,11),v);` <br> `{ v=21 }` 
+`mul`,`div`  <br> _`mul`,`div`_ | `> val(mul(10,11),v);` <br> `{ v=110 }`  
+_`sub`_ | `> val(sub(10),v);` <br> `{ v=-10 }` 
+`mod` <br> _`mod`_ | `> val(mod(11,3),v);` <br> `{ v=2 }` 
+`si` <br> _`if`_ | `> val(if(eql(10,11),1,2),v);` <br> `{ v=2 }` 
+
 
 ### Arrays
 
@@ -114,7 +117,7 @@ _`find-pattern(S1,S2,N)`_ | set `N` at the index of pattern string `S2` into str
 _`list-string(L,S)`_ | build a string `S` from the list of characters `L` | `> list-string("a"."b".nil,s);` <br> `{ s="ab" }` <br> `>`
 _`list-tuple(L,T)`_ | build a tuple `T` from the list of terms `L` | `> list-tuple("abc".123.aa(bb).nil,t);` <br> `{ t=<"abc",123,aa(bb)> }` <br> `>`
 _`split(T,L)`_ | build a list `L` of all the elements in a string or tuple `T` | `> split("ab",l);` <br> `{ l="a"."b".nil }` <br> `> split(<"abc",123,aa(bb)>,l);` <br> `{ l="abc".123.aa(bb).nil }` <br> `>`
-`arg(N,T,R)` <br><br> _`arg(N,T,R)`_ | set result `R` as the length (if `N` is zero) or as the `N`-th element in the string, list or tuple `T` | `> arg(0,"hello",x);` <br> `{ x=5 }` <br> `> arg(2,"hello",x);` <br> `{ x="e" }` <br> `>` 
+`arg(N,T,R)` <br><br> _`arg(N,T,R)`_ | if `T` is a tuple or a string, set result `R` as the length (if `N` is zero) or as the `N`-th element of `T`; if `T` is a list, set `R` as `T`'s head if `N` equals 1, and as `T`'s queue if `N` equals 2  | `> arg(0,"hello",x);` <br> `{ x=5 }` <br> `> arg(2,"hello",x);` <br> `{ x="e" }` <br> `> arg(2,aa.bb.nil,n);` <br> `{ n=bb.nil }` <br> `>`
 
 ### Control
 
@@ -159,11 +162,13 @@ Predicate | Action | Example
 --- | --- | ---
 _`in_word(T1,T2)`_ | read all blank characters, then read a word as defined in Prolog II's `in-sentence/2` predicate above; unify `T1` with the word as a string, and `T2` with its transformation, as described in Prolog II version 2's `in-sentence/2` predicate | `+> in_word(t1,t2);` <br> `042` <br> `{ t1="042", t2=42 }` <br> `+>`
 
-### Evaluation
+### Evaluable functions
 
-Predicate | Action | Example
---- | --- | ---
-`op(N,T,S,I)`, `op(N,T,S)` | create a new operator with precedence `N` and bracketing type `T`; when used within an expression, name in string `S` is used; when used as a functor, identifier `I` is used; for `op/3`, `I` is equal to `S` | `+> op(100,fx,'€',euro);` <br> `{  }` <br> `+> eq(x,'€' 10);` <br> `{ x=euro(10) }` <br> `+>`
+Function | Example
+--- | ---
+`floor` | `+> val(floor(1.5e0),v);` <br> `{ v=1 }`
+`ceiling` | `+> val(ceiling(1.5e0),v);` <br> `{ v=2 }`
+
 
 ### Operators
 
@@ -174,8 +179,15 @@ Identifier | Operator | Type | Precedence | Example
 `inf`, `infe`, `sup`, `supe`, `eql` | `'<'`, `'=<'`, `'>'`, `'>='`, `=:=` | xfx | 700 | `+> val(1 '<' 2,x);` <br> `{ x=1 }` <br> `+>`
 `add`,`sub` | `+`, `-` | yfx | 500 | `+> val(1+1,x);` <br> `{ x=2 }` <br> `+>`
 `mul`,`div` | `*`, `/` | yfx | 400 | 
+`mod`,`rem` | `mod`, `rem` | yfx | 400 | 
 `add`,`sub` | `+`, `-` | fx | 200 | 
 `^`         | `^` | xfy | 200  | `+> val(2^3,x);` <br> `{ x=8 }` <br> `+>`
+
+New operators can be created using `op/3`:
+
+Predicate | Action | Example
+--- | --- | ---
+`op(N,T,S,I)`, `op(N,T,S)` | create a new operator with precedence `N` and bracketing type `T`; when used within an expression, name in string `S` is used; when used as a functor, identifier `I` is used; for `op/3`, `I` is equal to `S` | `+> op(100,fx,'€',euro);` <br> `{  }` <br> `+> eq(x,'€' 10);` <br> `{ x=euro(10) }` <br> `+>`
 
 ### Control
 
@@ -198,7 +210,7 @@ Predicate | Action | Example
 
 Predicate | Action | Example
 --- | --- | ---
-`arg2(N,T,R)` <br><br> _`arg2(N,T,R)`_ | same as Prolog II's `arg(N,T,R)` |
+`arg2(N,T,R)` | same as Prolog II's `arg(N,T,R)`, except for lists, for which the predicate now behaves as it does for strings and tuples: set `R` to the length of the list when `N` is 0, and to its `N`-th element if `N` is greater than zero  | `+> arg2(0,aa.bb.nil,n);` <br> `{ n=2 }` <br> `+> arg2(2,aa.bb.nil,e);` <br> `{ e=bb }` <br> `+>`
 
 ### Date and Time
 
@@ -278,7 +290,16 @@ Operator | Type | Precedence | Functor
 `=..` | xfx | 700 | 
 `+`, `-` | yfx | 500 | 
 `*`, `/`, `//` | yfx | 400 | 
+`mod`,`rem` | yfx | 400 | 
 `+`, `-` | fx | 200 | 
  `^` | xfy | 200  |
  
 When used as functors, operators must be single-quoted (e.g. `'+'(A,B)`), except for operators whose functors are specified in the last column.
+
+### Evaluable functions
+
+Function | Example
+--- | ---
+`random` | `?- X is random(10).` <br> `{ X=6 }`
+
+Actually, `random/1` is not predefined in Prolog II+ Edinburgh. It has been implemented in order to run Colmerauer's [Sudoku demo](http://alain.colmerauer.free.fr/alcol/ArchivesPublications/Sudoku/sudoku.pdf).

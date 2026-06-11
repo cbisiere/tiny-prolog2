@@ -21,6 +21,7 @@ Uses
   Common,
   ShortStr,
   Num,
+  Serial,
   Errs,
   Dump,
   CWrites,
@@ -276,7 +277,7 @@ End;
 
 Procedure Term_Dump( T : TermPtr );
 Begin
-  DumpObject(TObjectPtr(T),False);
+  DumpObject(TObjectPtr(T));
   WriteToDumpFile(' TT_CALL: ');
   ListA_DumpList(Term_GetListA(T));
   WriteLineBreakToDumpFile

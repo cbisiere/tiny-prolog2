@@ -230,7 +230,7 @@ assumptions and detection policy regarding encoding:
   { identifiers can be unquoted graphic chars; PII+ p48-49 }
   PROLOG_Graphic : CharSet = ['#','$','&','*','+','-','/',':','=','?','\',
     '@','^','~',#$A0..#$BF,#$D7,#$F7];
-  EDINBURGH_Graphic: CharSet = [';','<','>',
+  EDINBURGH_Graphic: CharSet = ['.','<','>',
     '#','$','&','*','+','-','/',':','=','?', '\','@','^','~',
     #$A0..#$BF,#$D7,#$F7];
 
@@ -889,13 +889,13 @@ Var
   e,e1 : TIChar;
   IsUpper : Boolean;
   n,m : TStrLength;
-  cc : TIChar; { undo point }
+  cc : TIChar; { initial lookup and undo point }
+  GraphicChars : CharSet;
 Begin 
   ReadVariableOrIdentifier := Nil;
-  { set an undo point in case we find a variable and only an identifier is 
-   requested }
-  If IdentOnly Then
-    Stream_NextChar(f,cc);
+  { char lookup; also serve as an undo point in case we find a variable and 
+   only an identifier is requested (IdentOnly) }
+  Stream_NextChar(f,cc);
   { single-quoted identifier? note that surrounding quotes are NOT kept }
   K := ReadQuotedRunOfChars(f,'''',TOKEN_IDENT,False,True);
   { got one, but is it allowed? }
@@ -909,6 +909,19 @@ Begin
     With K^ Do
     Begin
       TK_STRI := Stream_NewStr(f);
+      { identifiers made of graphic chars }
+      If TICharIsIn(cc,PROLOG_Graphic) And (y = PrologIIp) Or 
+          TICharIsIn(cc,EDINBURGH_Graphic) And (y = Edinburgh) Then
+      Begin
+        TK_TYPE := TOKEN_IDENT;
+        If y = PrologIIp Then
+          GraphicChars := PROLOG_Graphic
+        Else
+          GraphicChars := EDINBURGH_Graphic;
+        n := GetCharWhile(f,TK_STRI,GraphicChars)
+      End
+      Else
+      { regular identifier or variable }
       If GrabOneLetter(f,TK_STRI,IsUpper) Then
       Begin
         { Edinburgh variables start with a "big letter"; Marseille variables 
@@ -972,16 +985,11 @@ Begin
 End;
 
 { read a token, following syntax y }
-{ NOTE *: about Edinburgh identifiers made of graphic_char: the dot '.' is not
- a graphic char. However, =.. is a predefined operator that can be used 
- *unquoted*. Rule 18 p48 allows to have dots after the second graphic char, but
- the doc says it is a PrologII+-only rule. Weird. Is it a typo? }
 Function ReadToken( f : StreamPtr; y : TSyntax ) : TokenPtr;
 Var
   K : TokenPtr;
   e,e1,e2 : TIChar;
   n : TStrLength;
-  GraphicChars : CharSet;
 Begin
   ReadToken := Nil;
   K := Nil;
@@ -1018,21 +1026,6 @@ Begin
       string in the token, for the expression parser to function properly }
       If y = Edinburgh Then
         K^.TK_STRI := Str_NewFromShortString(':-')
-    End
-    { identifiers made of graphic chars; FIXME: move this to ReadVariableOrIdentifier? }
-    Else If TICharIsIn(e1,PROLOG_Graphic) And (y = PrologIIp) Or 
-        TICharIsIn(e1,EDINBURGH_Graphic) And (y = Edinburgh) Then
-    Begin
-      If y = PrologIIp Then
-        GraphicChars := PROLOG_Graphic
-      Else
-        GraphicChars := EDINBURGH_Graphic + ['.']; { allows =.. unquoted }
-      K := Token_New(TOKEN_IDENT);
-      With K^ Do
-      Begin
-        TK_STRI := Stream_NewStr(f);
-        n := GetCharWhile(f,TK_STRI,GraphicChars)
-      End
     End
     Else Case TICharGetByte(e1,1) Of
     '0'..'9':
@@ -1094,11 +1087,17 @@ Begin
       If y In [PrologIIv1,PrologIIv2] Then
         K := GrabToken(f,TOKEN_DIFF,e1);
     '|':
-      K := GrabToken(f,TOKEN_PIPE,e1);
-    Else
-      K := ReadVariableOrIdentifier(f,y,False)
+      K := GrabToken(f,TOKEN_PIPE,e1)
     End
   End;
+
+  { finally, check for variable or identifier; this must be checked last, 
+    as identifiers can be made of graphic chars, with include characters
+    that form other tokens (e.g. '<', '>', in Edinburgh syntax, while '<>'
+    is the empty tuple) }
+  If K = Nil Then
+    K := ReadVariableOrIdentifier(f,y,False);
+
 
   If Error Then Exit;
   If K = Nil Then

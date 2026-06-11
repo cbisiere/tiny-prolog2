@@ -20,6 +20,7 @@ Interface
 Uses
   Chars,
   Num,
+  Serial,
   ShortStr,
   Memory,
   Errs,

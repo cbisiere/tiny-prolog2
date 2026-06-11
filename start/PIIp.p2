@@ -94,7 +94,7 @@ set_line_cursor(N) -> syscall(syssetlinecursor,N);
 assign(I,T) -> syscall(sysassign,I,T);
 val(T1,T2) -> syscall(syseval,T1,T2);
 op(N,I1,S,I2) -> syscall(sysop,N,I1,S,I2);
-op(N,I,S) -> syscall(sysop,N,I,S,S);
+op(N,I,S) -> syscall(sysop,N,I,S,nil);
 
 "control"
 
@@ -144,24 +144,6 @@ nil ->;
 
 not(X) -> X ! fail;
 not(X) ->;
-
-"operators"
-
-->
-    op(700,xfx,'<',inf)
-    op(700,xfx,'=<',infe)
-    op(700,xfx,'>',sup)
-    op(700,xfx,'>=',supe)
-    op(700,xfx,=:=,eql)
-    op(500,yfx,+,add)
-    op(500,yfx,-,sub)
-    op(400,yfx,*,mul)
-    op(400,yfx,/,div)
-    op(400,yfx,mod,mod)
-    op(200,fx,+,add)
-    op(200,fx,-,sub)
-    op(200,xfy,^,'^')
-    fail;
 
 "debug: additional rules (not in PII+)"
 

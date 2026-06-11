@@ -438,7 +438,8 @@ End;
 
 { if the next token is an operator whose type is in a given set and has a 
  max precedence of MaxPred, return it; otherwise return Nil;
- do not consume the token }
+ do not consume the token; in Edinburgh syntax, ':-' and ',' are predefined 
+ operators (',' is also a separator) }
 Function NextOp( P : ProgPtr; Var K : TokenPtr; OpTypes : TOpTypes;
     MaxPred : TPrecedence ) : OpPtr;
 Var
@@ -451,7 +452,7 @@ Begin
       (Token_GetType(K) In [TOKEN_ARROW,TOKEN_COMMA]) Then
   Begin
     oper := Str_GetShortStringTruncate(Token_GetStr(K));
-    o := Op_Lookup(P^.PP_OPER,[OP_OPERATOR,OP_TYPES,OP_PRECEDENCE],
+    o := Op_Lookup(P^.PP_OPER,[OP_OPERATOR,OP_TYPES,OP_MAX_PRECEDENCE],
         oper,'',OpTypes,0,MaxPred);
       
     { special case: prefixed unary operator used as ident, e.g. ['-'|aa]. or 

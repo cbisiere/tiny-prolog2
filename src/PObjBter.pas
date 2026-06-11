@@ -73,6 +73,7 @@ Begin
   BTerm_New := B
 End;
 
+
 {-----------------------------------------------------------------------}
 { get / set                                                             }
 {-----------------------------------------------------------------------}
@@ -105,9 +106,15 @@ Procedure BTerm_GetMetadata( B : BTermPtr;
 Var
   T : TermPtr;
 Begin
-  T := BTerm_GetTerm(B);
-  Access := AccessIdentifier(T);
-  Arity := GetArity(T);
+  { default: no access, zero arity (constant, free variable) }
+  Access := Nil;
+  Arity := 0;
+  { other cases: single identifier, tuples }
+  T := ProtectedRepOf(BTerm_GetTerm(B));
+  If IsIdentifier(T) Then
+    Access := IdPtr(T)
+  Else If IsTuple(T) Then
+    ProtectedGetTupleMetaData(T,Access,Arity);
   GoalType := IdentifierToGoalType(Access)  
 End;
 

@@ -27,6 +27,7 @@ Type
     SYNTAX_ERROR,
     RUNTIME_ERROR,
     GC_ERROR,
+    EVAL_ERROR,
     ENCODING_ERROR,
     EOL_ERROR,
     USER_INTERRUPT
@@ -47,6 +48,7 @@ Procedure SetQuitOn( n : Integer );
 Procedure SyntaxError( msg : TString );
 Procedure RuntimeError( msg : TString );
 Procedure GarbageCollectorError( msg : TString );
+Procedure EvaluationError( msg : TString );
 Procedure ParameterError( msg : TString );
 Procedure EncodingError( msg : TString );
 Procedure EolStyleError( msg : TString );
@@ -144,7 +146,13 @@ End;
 { a error occurred during garbage collection; display a message }
 Procedure GarbageCollectorError( msg : TString );
 Begin
-  RaiseError(GC_ERROR,'Error during garbage collection: ' + msg)
+  RaiseError(GC_ERROR,'Error in garbage collection: ' + msg)
+End;
+
+{ a error occurred during evaluation (val(...)); display a message }
+Procedure EvaluationError( msg : TString );
+Begin
+  RaiseError(EVAL_ERROR,msg)
 End;
 
 { a parameter (command line) error occurred; display a message }

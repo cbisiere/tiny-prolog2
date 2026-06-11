@@ -134,7 +134,7 @@ Type
     PP_TIME
   );
 
-Procedure RegisterPredefined( P : ProgPtr );
+Procedure RegisterPredefinedIdentifiers( P : ProgPtr );
 Function PredefCallIsOk( P : ProgPtr; T : TermPtr; Var Predef : TPP ) : Boolean;
 
 Function GetAtomArgAsStr( n : Byte; T : TermPtr; 
@@ -266,12 +266,12 @@ End;
 
 
 { install the predefined identifier syscall }
-Procedure RegisterPredefined( P : ProgPtr );
+Procedure RegisterPredefinedIdentifiers( P : ProgPtr );
 Var 
   T : TermPtr;
 Begin
   T := EmitIdent(P,Str_NewFromShortString(SPECIAL_IDENT_SYSCALL),True,True);
-  CheckCondition(T <> Nil,'RegisterPredefined: not a valid identifier')
+  CheckCondition(T <> Nil,'RegisterPredefinedIdentifiers: not a valid identifier')
 End;
 
 
@@ -1644,7 +1644,7 @@ Function ClearAssign( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   T1,T2 : TermPtr;
   I : IdPtr;
-  ArrIndex : TArity;
+  A, ArrIndex : TArity;
   code : Integer;
 Begin
   ClearAssign := False;
@@ -1663,13 +1663,13 @@ Begin
 
   If IsTuple(T1) Then { array(index) }
   Begin
-    I := AccessIdentifier(T1);
-    If Not IsArray(I) Then
+    ProtectedGetTupleMetaData(T1,I,A);
+    If (I = Nil) Or (Not IsArray(I)) Then
     Begin
       CWriteLnWarning('not an array');
       Exit
     End;
-    If ProtectedGetTupleArgCount(T1,True) <> 2 Then
+    If A <> 1 Then
     Begin
       CWriteLnWarning('arrays have only one dimension');
       Exit
@@ -1717,7 +1717,18 @@ Begin
     see p113 of the PrologII+ documentation }
   { 1: value to assign (usually contains things like add(1,2)) }
   T1 := GetPArg(1,T);
-  T1 := EvaluateExpression(T1,P); 
+  T1 := ProtectedEvaluateTerm(T1,P);
+
+  { if there was an eval error, display the message, clear the error, and fail }
+  If ErrorState = EVAL_ERROR Then
+  Begin
+    CWriteLnWarning(GetErrorMessage);
+    ResetError;
+    Exit
+  End;
+
+  If Error Then Exit;
+
   { do a copy, unbound any embedded variables }
   T1 := CopyTerm(T1,False);
 
@@ -2104,19 +2115,25 @@ End;
 { operators                                                                  }
 {----------------------------------------------------------------------------}
 
-{ op(700,xfx,"<",inf) } { TODO: implement full specs PII+ p137 }
+{ op(700,xfx,"<",inf) } 
+{ TODO: implement full specs PII+ p137: 3rd par as a list, op/3 as a directive,  
+ free variables }
 Function ClearOp( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   C3 : ConstPtr;
   I2,I3,I4 : IdPtr;
   Id2,Id3,Id4 : TString;
   v : PosInt;
-  o : OpPtr;
+  o1,o2,o3 : OpPtr;
   ot : TOpType;
+  n : TOpArity;
+  op3 : Boolean; { call is op/3? }
+  del : Boolean; { request to delete an operator? }
 Begin
   ClearOp := False;
-  { 1: precedence (integer value between 1 and 1200) }
-  If Not GetPosIntArgIn(1,T,1,1200,v) Then
+  { 1: precedence (integer value between 0 and 1200, O means delete the op when
+   called as op/3) }
+  If Not GetPosIntArgIn(1,T,0,1200,v) Then
     Exit;
   { 2: type of operator (identifier in a list) }
   I2 := EvalPArgAsIdent(2,T);
@@ -2142,13 +2159,60 @@ Begin
   If I4 = Nil Then
     Exit;
   Id4 := IdentifierGetShortString(I4);
-  { not allowed: existing function with same number of parameters }
-  o := Op_Lookup(P^.PP_OPER,[OP_FUNCTION,OP_ARITY,OP_PRECEDENCE],
-      '',Id4,[],TOpTypeToArity(ot),1200);
-  If o <> Nil Then { TODO: do not fail when both declarations match }
-    Exit;
-  { register the new operator }
-  o := Op_Append(P^.PP_OPER,Id3,Id4,ot,v);
+
+  { called as op/3? 
+   Dirty trick until we implement arg spec such with variable nb of parameters }
+  op3 := Id4 = 'nil';
+  { functor }
+  { TODO: 1) check on PII+; 2) TString overflow? }
+  { is it a delete request? French doc p142 reads that it only applies to op/3 
+   but I guess this is a typo (TODO: test it) }
+  del := (v = 0);
+  { compute arity }
+  n := TOpTypeToArity(ot);
+
+  { delete }
+  If del Then
+  Begin
+    { exact match? (except precedence, which was given as zero) }
+    o3 := Op_Lookup(P^.PP_OPER,[OP_OPERATOR,OP_FUNCTION,OP_TYPES,
+        OP_ARITY],Id3,Id4,[ot],n,0);
+    If o3 = Nil Then
+    Begin
+      CWriteLnWarning('no operator ' + Id4 + '/' + PosIntToShortString(n) + 
+          ' of type ' + Id2 + ' to delete');
+      Exit
+    End;
+    If (o3 <> Nil) And (Not Op_IsUser(o3)) Then
+    Begin
+      CWriteLnWarning('cannot delete predefined operator' + Id4 + '/' + 
+          PosIntToShortString(n));
+      Exit
+    End;
+    { execute }
+    Op_Remove(P^.PP_OPER,o3)
+  End
+  Else { create }
+  Begin
+    { existing function with same name and same number of parameters? }
+    o1 := Op_Lookup(P^.PP_OPER,[OP_OPERATOR,OP_ARITY],'',Id4,[],n,0);
+    { existing operator with same name and same number of parameters? }
+    o2 := Op_Lookup(P^.PP_OPER,[OP_FUNCTION,OP_ARITY],Id3,'',[],n,0);
+    { exact match? }
+    o3 := Op_Lookup(P^.PP_OPER,[OP_OPERATOR,OP_FUNCTION,OP_TYPES,OP_ARITY,
+        OP_PRECEDENCE],Id3,Id4,[ot],n,v);
+    { a partial match already exists }
+    If (o3 = Nil) And ((o1 <> Nil) Or (o2 <> Nil)) Then
+    Begin
+      CWriteLnWarning('a function or operator ' + Id4 + '/' + 
+          PosIntToShortString(n) + ' already exists');
+      Exit
+    End;
+    { execute, silently succeeding if there was an exact match }
+    If o3 = Nil Then
+      o3 := Op_Append(P^.PP_OPER,OPER_USER,Id3,Id4,n,ot,v)
+  End;
+
   ClearOp := True
 End;
 
@@ -2609,7 +2673,7 @@ Begin
   Begin
     CWriteWarning('argument must be an integer value between ');
     CWrite(PosIntToShortString(PROLOG_MIN_LINE_WIDTH));
-    CWriteWarning(' and ');
+    CWrite(' and ');
     CWrite(PosIntToShortString(MaxWidth));
     CWriteLn;
     Exit

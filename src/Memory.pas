@@ -22,6 +22,7 @@ Uses
   Stack,
   ShortStr,
   Num,
+  Serial,
   Errs,
   CWrites;
 
@@ -53,7 +54,6 @@ Type
   TObjectName = String[2];
   TObjectID = PosInt; { unique object identifier }
   TypeMark = Boolean;
-  TSerial = PosInt; { serial number to support object marking } 
 
 { object's metadata for object management (cloning, debugging, etc.) }
 Type
@@ -95,7 +95,7 @@ Function ObjectGuid( p : TObjectPtr ) : TObjectID;
 Procedure CheckIsObject( p : TObjectPtr; prompt : TString );
 Function ObjectCopyNumber( p : TObjectPtr ) : Integer;
 Function PtrToName( p : TObjectPtr ) : TString;
-Procedure DumpObject( p : TObjectPtr; extra : Boolean );
+Procedure DumpObject( p : TObjectPtr );
 
 { object creation and accounting }
 Function GetRegistrationState : Boolean;
@@ -444,30 +444,30 @@ Begin
 End;
 
 { dump an object, possibly with extra data }
-Procedure DumpObject( p : TObjectPtr; extra : Boolean );
+Procedure DumpObject( p : TObjectPtr );
 Var 
   i : TObjectChild;
   child : TObjectPtr;
 Begin
-  CWrite(RAlign(PtrToName(p),5) + ' : ');
-  CWrite(RAlign(IntToShortString(ObjectSize(p)),3) + ' ');
-  With p^.PO_META Do
+  If p = Nil Then
+    CWrite('Nil')
+  Else
   Begin
-    CWrite(GetObjectName(PO_TYPE) + ' ' + MarkToShortString(PO_MARK) + ' ');
-    CWrite(IntToShortString(PO_NCOP) + ' ');
-    CWrite(RAlign(GuidToShortString(PO_CUID),5))
-  End;
-  CWrite(' [');
-  For i := 1 To ObjectNbChildren(p) Do
-  Begin
-    child := ObjectChild(p,i);
-    CWrite('  ' + PtrToName(child))
-  End;
-  CWrite(' ]');
-  If extra Then
-  Begin
-    CWrite(' ')
-    {//;DumpExtraData(p)}
+    CWrite(RAlign(PtrToName(p),5) + ' : ');
+    CWrite(RAlign(IntToShortString(ObjectSize(p)),3) + ' ');
+    With p^.PO_META Do
+    Begin
+      CWrite(GetObjectName(PO_TYPE) + ' ' + MarkToShortString(PO_MARK) + ' ');
+      CWrite(IntToShortString(PO_NCOP) + ' ');
+      CWrite(RAlign(GuidToShortString(PO_CUID),5))
+    End;
+    CWrite(' [');
+    For i := 1 To ObjectNbChildren(p) Do
+    Begin
+      child := ObjectChild(p,i);
+      CWrite('  ' + PtrToName(child))
+    End;
+    CWrite(' ]')
   End;
   CWriteLn
 End;
@@ -479,13 +479,13 @@ Begin
 End;
 
 { dump all the registered Prolog objects }
-Procedure DumpObjects( p : TObjectPtr; extra : Boolean );
+Procedure DumpObjects( p : TObjectPtr );
 Begin
   If p<>Nil Then
   Begin
     CheckIsObject(p,'DumpObjects');
-    DumpObject(p,extra);
-    DumpObjects(ObjectNext(p),extra)
+    DumpObject(p);
+    DumpObjects(ObjectNext(p))
   End
 End;
 
@@ -519,7 +519,7 @@ End;
 { dump all registered objects }
 Procedure DumpRegisteredObject;
 Begin
-  DumpObjects(AllocHead,True)
+  DumpObjects(AllocHead)
 End;
 
 { find the object with guid id in the object store, or Nil }

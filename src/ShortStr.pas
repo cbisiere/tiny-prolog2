@@ -39,6 +39,10 @@ Function BoolToShortString( b : Boolean ) : TString;
 Function StartsWith( s,b : TString ) : Boolean;
 Function EndsWith( s,b : TString ) : Boolean;
 Function StartsCount( s : TString; E : CharSet ) : TStringSize;
+Function IsSingleQuoted( s : TString ) : Boolean;
+Function SingleUnquotes( s : TString ) : TString;
+Function SingleQuotes( s : TString ) : TString;
+Function EqualWhenUnquoted( s1, s2 : TString ) : Boolean;
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -161,6 +165,66 @@ Begin
       Exit
     End;
   StartsCount := Length(s)
+End;
+
+{ return True if a short string is single-quoted }
+Function IsSingleQuoted( s : TString ) : Boolean;
+Begin
+  IsSingleQuoted := False;
+  If Length(s) >= 2 Then
+    If (s[1] = '''') And (s[Length(s)] = '''') Then
+      IsSingleQuoted := True
+End;
+
+{ return a short string w/o its single quotes if any }
+Function SingleUnquotes( s : TString ) : TString;
+Var
+  rs : TString;
+  i : TStringSize;
+Begin
+  If Not IsSingleQuoted(s) Then
+    SingleUnquotes := s
+  Else
+  Begin
+    rs := '';
+    i := 2;
+    While i < Length(s) Do
+    Begin
+      rs := rs + s[i];
+      If (s[i] = '''') And (i+1 < Length(s)) And (s[i+1] = '''') Then
+        i := i + 1;
+      i := i + 1
+    End;
+    SingleUnquotes := rs
+  End
+End;
+
+{ return a short string single quoted if it is not yet }
+Function SingleQuotes( s : TString ) : TString;
+Var
+  rs : TString;
+  i : TStringSize;
+Begin
+  If IsSingleQuoted(s) Then
+    SingleQuotes := s
+  Else
+  Begin
+    rs := '';
+    { duplicate all quotes inside the string }
+    For i := 1 to Length(s) Do
+    Begin
+      rs := rs + s[i];
+      If s[i] = '''' Then
+        rs := rs + ''''
+    End;
+    SingleQuotes := '''' + rs + ''''
+  End
+End;
+
+{ are two operators identical, regardless of simple quotes? }
+Function EqualWhenUnquoted( s1, s2 : TString ) : Boolean;
+Begin
+  EqualWhenUnquoted := SingleUnquotes(s1) = SingleUnquotes(s2)
 End;
 
 End.

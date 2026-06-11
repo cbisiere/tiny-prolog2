@@ -44,6 +44,7 @@ Interface
 Uses
   ShortStr,
   Num,
+  Serial,
   Errs,
   Chars,
   Memory,
@@ -87,14 +88,6 @@ Function BTermsToList( P : ProgPtr; B : BTermPtr ) : TermPtr;
 Function ListToBTerms( P : ProgPtr; T : TermPtr ) : BTermPtr;
 Function CommaExpToBTerms( P : ProgPtr; T : TermPtr ) : BTermPtr;
 Function RuleExpToBTerms( P : ProgPtr; T : TermPtr ) : BTermPtr;
-
-Function ProtectedGetTupleHead( U : TermPtr; Reduce : Boolean ) : TermPtr;
-Function ProtectedGetTupleQueue( U : TermPtr; Reduce : Boolean ) : TermPtr;
-Function ProtectedGetTupleArgCount( U : TermPtr; 
-    Reduce : Boolean ) : TTupleArgNumber;
-Function ProtectedGetTupleArgN( N : TTupleArgNumber; U : TermPtr; 
-    Reduce : Boolean ) : TermPtr;
-Function ProtectedGetTupleArg( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
 
 Function ProtectedListToTuple( L : TermPtr; Reduce : Boolean ) : TermPtr;
 
@@ -470,60 +463,6 @@ End;
 { navigate the term tree, possibly through the reduced system                }
 {----------------------------------------------------------------------------}
 
-{ empty tuple? }
-Function GetIsEmptyTuple( T : TermPtr; 
-    Reduce : Boolean; g : TSerial ) : Boolean;
-Begin
-  T := RepresentativeOf(T,Reduce,g);
-  GetIsEmptyTuple := IsEmptyTuple(T)
-End;
-
-{ tuple head }
-Function GetTupleHead( T : TermPtr; 
-    Reduce : Boolean; g : TSerial ) : TermPtr;
-Begin
-  T := TupleHead(T);
-  T := RepresentativeOf(T,Reduce,g);
-  GetTupleHead := T
-End;
-
-{ tuple queue }
-Function GetTupleQueue( T : TermPtr; 
-    Reduce : Boolean; g : TSerial ) : TermPtr;
-Begin
-  T := TupleQueue(T);
-  T := RepresentativeOf(T,Reduce,g);
-  GetTupleQueue := T
-End;
-
-{ tuple length }
-Function GetTupleArgCount( T : TermPtr; 
-    Reduce : Boolean; g : TSerial ) : TTupleArgNumber;
-Begin
-  If GetIsEmptyTuple(T,Reduce,g) Then
-    GetTupleArgCount := 0
-  Else
-    GetTupleArgCount := GetTupleArgCount(GetTupleQueue(T,Reduce,g),Reduce,g) + 1
-End;
-
-{ tuple's n-th arg }
-Function GetTupleArgN( N : TTupleArgNumber; T : TermPtr; 
-    Reduce : Boolean; g : TSerial ) : TermPtr;
-Begin
-  If N = 1 Then
-    GetTupleArgN := GetTupleHead(T,Reduce,g)
-  Else
-    GetTupleArgN := GetTupleArgN(N-1,GetTupleQueue(T,Reduce,g),Reduce,g)
-End;
-
-{ tuple first arg, advancing U to the queue }
-Function GetTupleArg( Var U : TermPtr; 
-    Reduce : Boolean; g : TSerial ) : TermPtr;
-Begin
-  GetTupleArg := GetTupleHead(U,Reduce,g);
-  U := GetTupleQueue(U,Reduce,g)
-End;
-
 { list head }
 Function GetListHead( T : TermPtr; 
     Reduce : Boolean; g : TSerial ) : TermPtr;
@@ -579,38 +518,6 @@ End;
 Function ProtectedListToTuple( L : TermPtr; Reduce : Boolean ) : TermPtr;
 Begin
   ProtectedListToTuple := ListToTuple(L,Reduce,NewSerial)
-End;
-
-{ tuple head }
-Function ProtectedGetTupleHead( U : TermPtr; Reduce : Boolean ) : TermPtr;
-Begin
-  ProtectedGetTupleHead := GetTupleHead(U,Reduce,NewSerial)
-End;
-
-{ tuple queue }
-Function ProtectedGetTupleQueue( U : TermPtr; Reduce : Boolean ) : TermPtr;
-Begin
-  ProtectedGetTupleQueue := GetTupleQueue(U,Reduce,NewSerial)
-End;
-
-{ tuple length }
-Function ProtectedGetTupleArgCount( U : TermPtr; 
-    Reduce : Boolean ) : TTupleArgNumber;
-Begin
-  ProtectedGetTupleArgCount := GetTupleArgCount(U,Reduce,NewSerial)
-End;
-
-{ tuple's n-th arg }
-Function ProtectedGetTupleArgN( N : TTupleArgNumber; U : TermPtr; 
-    Reduce : Boolean ) : TermPtr;
-Begin
-  ProtectedGetTupleArgN := GetTupleArgN(N,U,Reduce,NewSerial)
-End;
-
-{ tuple first arg, advancing U to the queue }
-Function ProtectedGetTupleArg( Var U : TermPtr; Reduce : Boolean ) : TermPtr;
-Begin
-  ProtectedGetTupleArg := GetTupleArg(U,Reduce,NewSerial)
 End;
 
 { return True if term T is a 1-argument predicate with name ident, that is,
