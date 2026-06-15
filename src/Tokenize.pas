@@ -1063,9 +1063,19 @@ Begin
     '}':
       K := GrabToken(f,TOKEN_RIGHT_CUR,e1);
     '<':
-      K := GrabToken(f,TOKEN_LEFT_CHE,e1);
+      Begin
+        K := GrabToken(f,TOKEN_LEFT_CHE,e1);
+        { also an op in those syntaxes: }
+        If y In [PrologIIp,Edinburgh] Then
+          K^.TK_STRI := Str_NewFromShortString('<')
+      End;
     '>':
-      K := GrabToken(f,TOKEN_RIGHT_CHE,e1);
+      Begin
+        K := GrabToken(f,TOKEN_RIGHT_CHE,e1);
+        { also an op in those syntaxes: }
+        If y In [PrologIIp,Edinburgh] Then
+          K^.TK_STRI := Str_NewFromShortString('>')
+      End;
     '[':
       K := GrabToken(f,TOKEN_LEFT_BRA,e1);
     ']':

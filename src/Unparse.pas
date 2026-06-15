@@ -44,7 +44,6 @@ Uses
   PObjQury,
   PObjProg,
   PObjOp,
-  ExpStack,
   Tuple,
   Encoding;
 

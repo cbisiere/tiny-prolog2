@@ -364,9 +364,10 @@ Var
   oper : TString;
 Begin
   o := Nil;
+  { recognized tokens that can be operators (or start of operators) }
   If (Token_GetType(K) = TOKEN_IDENT) Or 
       (GetSyntax(P) = Edinburgh) And 
-      (Token_GetType(K) In [TOKEN_ARROW,TOKEN_COMMA]) Then
+        (Token_GetType(K) In [TOKEN_ARROW,TOKEN_COMMA,TOKEN_RIGHT_CHE,TOKEN_LEFT_CHE]) Then
   Begin
     oper := Str_GetShortStringTruncate(Token_GetStr(K));
     o := Op_Lookup(P^.PP_OPER,[OP_OPERATOR,OP_TYPES,OP_MAX_PRECEDENCE],
