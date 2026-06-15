@@ -39,15 +39,16 @@ Uses
   PObjTerm,
   PObjDef,
   PObjBter,
+  PObjProg,
   Unparse;
 
 Function ReduceSystem( S : SysPtr; 
     Undo : Boolean; Var L : RestPtr;
-    Var M : TermsPtr; DebugStream : StreamPtr ) : Boolean;
-Function ReduceEquations( E : EqPtr; DebugStream : StreamPtr ) : Boolean;
-Function ReduceOneEq( T1,T2 : TermPtr; DebugStream : StreamPtr ) : Boolean;
-Function ReduceOneIneq( T1,T2 : TermPtr; DebugStream : StreamPtr ) : Boolean;
-Function Unifiable( T1,T2 : TermPtr; DebugStream : StreamPtr ) : Boolean;
+    Var M : TermsPtr; P : ProgPtr ) : Boolean;
+Function ReduceEquations( E : EqPtr; P : ProgPtr) : Boolean;
+Function ReduceOneEq( T1,T2 : TermPtr; P : ProgPtr ) : Boolean;
+Function ReduceOneIneq( T1,T2 : TermPtr; P : ProgPtr ) : Boolean;
+Function Unifiable( T1,T2 : TermPtr; P : ProgPtr ) : Boolean;
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -73,10 +74,11 @@ Function ReduceSystemOfEquations( S : SysPtr;
     BreakIt : Boolean; Var VarProd : VarPtr; { stop when "var = term" produced }
     Undo : Boolean; Var L : RestPtr; { will undo? }
     Var M : TermsPtr; { list of goals to freeze or clear }
-    DebugStream : StreamPtr) : Boolean;
+    P : ProgPtr) : Boolean;
 
 Var
   Abnormal : Boolean;
+  DebugStream : StreamPtr;
   Uf : RestPtr; { to undo "f = g" equations in the reduced system }
 
         {---------------------------------------------------------}
@@ -223,9 +225,9 @@ Var
         If Not Abnormal Then
         Begin
           Stream_WriteShortString(DebugStream,'UNIFIED: ');
-          PutTerm(DebugStream,PrologIIv2,Tg); { FIXME: syntax }
+          PutTerm(DebugStream,P,Tg);
           Stream_WriteShortString(DebugStream,' = '); 
-          PutTerm(DebugStream,PrologIIv2,Td); 
+          PutTerm(DebugStream,P,Td); 
           Stream_LineBreak(DebugStream)
         End
       End
@@ -238,6 +240,7 @@ Var
   End; { BasicOperation }
 
 Begin { ReduceSystemOfEquations }
+  DebugStream := GetDebugStream(P);
   VarProd := Nil;
   Uf := Nil;
   Abnormal := False;
@@ -268,7 +271,7 @@ End; { ReduceSystemOfEquations }
  must be initialized before calling this function }
 Function ReduceSystem( S : SysPtr; 
     Undo : Boolean; Var L : RestPtr;
-    Var M : TermsPtr; DebugStream : StreamPtr ) : Boolean;
+    Var M : TermsPtr; P : ProgPtr ) : Boolean;
 Var 
   Fails : Boolean;
 
@@ -290,7 +293,7 @@ Var
   Var 
     DummyVar : VarPtr;
   Begin
-    If Not ReduceSystemOfEquations(S,False,DummyVar,Undo,L,M,DebugStream) Then
+    If Not ReduceSystemOfEquations(S,False,DummyVar,Undo,L,M,P) Then
       Fails := True
   End;
 
@@ -376,7 +379,7 @@ Var
         inserted into S}
       DummyM := Nil;
       Ss := Sys_NewWithEq(Eq_GetLhs(E),Eq_GetRhs(E));
-      Ok := ReduceSystemOfEquations(Ss,True,VarProd,Undo,L,DummyM,DebugStream);
+      Ok := ReduceSystemOfEquations(Ss,True,VarProd,Undo,L,DummyM,P);
 
       If Ok Then
       Begin
@@ -410,7 +413,7 @@ Begin
 End;
 
 { reduce a list of equations and inequations E; non backtrackable }
-Function ReduceEquations( E : EqPtr; DebugStream : StreamPtr ) : Boolean;
+Function ReduceEquations( E : EqPtr; P : ProgPtr ) : Boolean;
 Var
   S : SysPtr;
   U : RestPtr;
@@ -420,35 +423,35 @@ Begin
   Sys_CopyEqs(S,E);
   U := Nil;
   DummyM := Nil;
-  ReduceEquations := ReduceSystem(S,False,U,DummyM,DebugStream)
+  ReduceEquations := ReduceSystem(S,False,U,DummyM,P)
 End;
 
 { reduce a single equation or inequation; reduced equations may be 
   already attached to elements in T1 or T2; non backtrackable }
-Function ReduceOne( EType : EqType; T1,T2 : TermPtr; DebugStream : StreamPtr ) : Boolean;
+Function ReduceOne( EType : EqType; T1,T2 : TermPtr; P : ProgPtr ) : Boolean;
 Var   
   E : EqPtr;
 Begin
   E := Eq_New(EType,T1,T2);
-  ReduceOne := ReduceEquations(E,DebugStream)
+  ReduceOne := ReduceEquations(E,P)
 End;
 
 { reduce a single equation }
-Function ReduceOneEq( T1,T2 : TermPtr; DebugStream : StreamPtr ) : Boolean;
+Function ReduceOneEq( T1,T2 : TermPtr; P : ProgPtr ) : Boolean;
 Begin
-  ReduceOneEq := ReduceOne(REL_EQUA,T1,T2,DebugStream)
+  ReduceOneEq := ReduceOne(REL_EQUA,T1,T2,P)
 End;
 
 { reduce a single inequation; if debug is off, debug stream is Nil }
-Function ReduceOneIneq( T1,T2 : TermPtr; DebugStream : StreamPtr ) : Boolean;
+Function ReduceOneIneq( T1,T2 : TermPtr; P : ProgPtr ) : Boolean;
 Begin
-  ReduceOneIneq := ReduceOne(REL_INEQ,T1,T2,DebugStream)
+  ReduceOneIneq := ReduceOne(REL_INEQ,T1,T2,P)
 End;
 
 { are two terms unifiable? if not, undo any change to the reduced system;
  there is no need to explicitly undo changes, as it is done by the
  reduction system when the constraints cannot be satisfied }
-Function Unifiable( T1,T2 : TermPtr; DebugStream : StreamPtr ) : Boolean;
+Function Unifiable( T1,T2 : TermPtr; P : ProgPtr ) : Boolean;
 Var
   Success : Boolean;
   S : SysPtr;
@@ -458,7 +461,7 @@ Begin
   S := Sys_NewWithEq(T1,T2);
   L := Nil;
   M := Nil;
-  Unifiable := ReduceSystem(S,True,L,M,DebugStream)
+  Unifiable := ReduceSystem(S,True,L,M,P)
 End;
 
 End.

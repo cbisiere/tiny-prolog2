@@ -174,8 +174,7 @@ Begin
   TRACE_GOAL: Tag := 'Goal'
   End;
 
-  PutTraceMessage(GetTraceStream(P),GetSyntax(P),Tag,Depth,Branch,
-      Header_GetTermToClear(H))
+  PutTraceMessage(P,Tag,Depth,Branch,Header_GetTermToClear(H))
 End;
 
 {----------------------------------------------------------------------------}
@@ -203,7 +202,7 @@ Var
     f : StreamPtr;
   Begin
     f := GetOutputConsole(P);
-    PutQuerySolution(f,GetSyntax(P),Q);
+    PutQuerySolution(f,P,Q);
     { line break after the solution must sync (reset) the character position,
      so further calls to set_line_cursor/1 or out/1 and friends work }
     Stream_OutNewLine(f)
@@ -527,7 +526,7 @@ Var
               { 1) find the target header Hz }
               Hz := Header_GetBlockScope(Hc);
               While (Hz <> Nil) And 
-                  Not Unifiable(Header_GetSideCarTerm(Hz),ZTerm,GetDebugStream(P)) Do 
+                  Not Unifiable(Header_GetSideCarTerm(Hz),ZTerm,P) Do 
               Begin
                 { previous label, if any, is pointed by the header just below 
                  the special header; this is the header for the block(T,G); it
@@ -640,7 +639,7 @@ Var
         Begin
           Ss := Sys_New;
           Sys_CopyEqs(Ss,Rule_GetEqs(R));
-          Cleared := ReduceSystem(Ss,True,H^.HH_REST,FrozenM,GetDebugStream(P))
+          Cleared := ReduceSystem(Ss,True,H^.HH_REST,FrozenM,P)
         End;
 
         If Cleared Then
@@ -660,7 +659,7 @@ Var
             Header_InsertGoalsToClear(H,Rule_GetQueue(R));
 
           FrozenM := Nil;
-          Cleared := ReduceSystem(Ss,True,H^.HH_REST,FrozenM,GetDebugStream(P));
+          Cleared := ReduceSystem(Ss,True,H^.HH_REST,FrozenM,P);
 
           { insert unfrozen goals if any }
           If Cleared And (FrozenM <> Nil) Then
@@ -707,7 +706,7 @@ Begin { clock }
     goal, including goals that sets global variables; thus a query 
     like "assign(aa,1) { aa = 1 )" will fail right away  }
   If Query_GetSys(Q) <> Nil Then
-    If Not ReduceEquations(Query_GetSys(Q),GetDebugStream(P)) Then
+    If Not ReduceEquations(Query_GetSys(Q),P) Then
       Exit;
 
   B := Query_GetTerms(Q); { list of terms to clear }
@@ -777,7 +776,7 @@ Begin
   If Echo Then
   Begin
     f := GetOutputConsole(P);
-    PutOneQuery(f,GetSyntax(P),Q);
+    PutOneQuery(f,P,Q);
     Stream_LineBreak(f)
   End;
   Clock(P,Q)

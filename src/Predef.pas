@@ -781,7 +781,7 @@ Begin
       Exit
     End;
     Tn := EmitConst(P,Str_NewFromShortString(CodePointToShortString(cp)),CI,False);
-    ClearCharCode := ReduceOneEq(T2,Tn,GetDebugStream(P));
+    ClearCharCode := ReduceOneEq(T2,Tn,P);
     Exit
   End;
 
@@ -810,7 +810,7 @@ Begin
   Else
     Tc := EmitConst(P,s,CS,False);
   { unify the term c with this constant }
-  ClearCharCode := ReduceOneEq(T1,Tc,GetDebugStream(P))
+  ClearCharCode := ReduceOneEq(T1,Tc,P)
 End;
 
 { substring/4
@@ -846,7 +846,7 @@ Begin
   { result in R }
   ss := Str_Substring(s,n,m);
   R := EmitConst(P,ss,CS,False);
-  ClearSubstring := ReduceOneEq(T4,R,GetDebugStream(P))
+  ClearSubstring := ReduceOneEq(T4,R,P)
 End;
 
 { find_pattern/3
@@ -875,7 +875,7 @@ Begin
   If Not Str_FindPattern(s1,s2,n) Then
     Exit;
   R := EmitPositiveInteger(P,n);
-  ClearFindPattern := ReduceOneEq(T3,R,GetDebugStream(P))
+  ClearFindPattern := ReduceOneEq(T3,R,P)
 End;
 
 {----------------------------------------------------------------------------}
@@ -892,7 +892,7 @@ Begin
   T1 := GetPArg(1,T);
   { create a constant string from the name of the current world }
   T2 := EmitConst(P,World_GetName(GetCurrentWorld(P)),CS,False);
-  ClearWorld := ReduceOneEq(T1,T2,GetDebugStream(P))
+  ClearWorld := ReduceOneEq(T1,T2,P)
 End;
 
 { parent-world(V) }
@@ -910,7 +910,7 @@ Begin
     Exit;
   { create a constant string from the name of parent of the current world }
   T2 := EmitConst(P,World_GetName(W),CS,False);
-  ClearParentWorld := ReduceOneEq(T1,T2,GetDebugStream(P))
+  ClearParentWorld := ReduceOneEq(T1,T2,P)
 End;
 
 { new-subworld("Facts") 
@@ -1063,7 +1063,7 @@ Begin
     L := NewList2(P,C,L);
     W := World_GetPrev(W)
   End;
-  ClearSubWorlds := ReduceOneEq(T1,L,GetDebugStream(P))
+  ClearSubWorlds := ReduceOneEq(T1,L,P)
 End;
 
 {----------------------------------------------------------------------------}
@@ -1167,7 +1167,6 @@ End;
 Function ClearList( P : ProgPtr; T : TermPtr ) : Boolean;
 Var 
   f : StreamPtr;
-  y : TSyntax;
   n : PosInt;
   W : WorldPtr;
   S : StmtPtr;
@@ -1189,14 +1188,13 @@ Begin
 
   { print }
   f := CurrentOutput(P);
-  y := GetSyntax(P);
   While (S <> Nil) And ((n > 0) Or ListAll) Do
   Begin
     Case Statement_GetType(S) Of
     Comment:
-      PutOneComment(f,y,CommPtr(Statement_GetObject(S)));
+      PutOneComment(f,P,CommPtr(Statement_GetObject(S)));
     Rule:
-      PutOneRule(f,y,RulePtr(Statement_GetObject(S)));
+      PutOneRule(f,P,RulePtr(Statement_GetObject(S)));
     End;
     Stream_LineBreak(f);
     If Not ListAll Then
@@ -1256,7 +1254,7 @@ Begin
   Sys_InsertOneEq(S,Eq_New(REL_EQUA,Th1,Th2));
   Sys_InsertOneEq(S,Eq_New(REL_EQUA,Tq1,Tq2));
 
-  UnifyRules := ReduceSystem(S,Undo,L,DummyM,GetDebugStream(P))
+  UnifyRules := ReduceSystem(S,Undo,L,DummyM,P)
 End;
 
 { return a list of statements containing all the (local) rules matching R }
@@ -1573,7 +1571,7 @@ Var
 Begin
   T1 := GetPArg(1,T);
   T2 := GetPArg(2,T);
-  ClearDif := ReduceOneIneq(T1,T2,GetDebugStream(P))
+  ClearDif := ReduceOneIneq(T1,T2,P)
 End;
 
 {----------------------------------------------------------------------------}
@@ -1736,7 +1734,7 @@ Begin
     Exit;
   { 2: term this value is equal to (usually a variable) }
   T2 := GetPArg(2,T);
-  ClearEval := ReduceOneEq(T2,T1,GetDebugStream(P)) { FIXME: shouldn't it be backtrackable? }
+  ClearEval := ReduceOneEq(T2,T1,P) { FIXME: shouldn't it be backtrackable? }
 End;
 
 { renommer/2 (seems to be PIIv1 specific)
@@ -1823,7 +1821,7 @@ Begin
   Else If IsTuple(T1) Then
     L := TupleToList(P,T1);     { foo(a,b) =.. L gives L = [foo,a,b] }
 
-  ClearUniv := ReduceOneEq(T,L,GetDebugStream(P)) { TODO: backtrackable? }
+  ClearUniv := ReduceOneEq(T,L,P) { TODO: backtrackable? }
 End;
 
 { boum(hello,"hello"), string_ident("hello",hello)
@@ -1851,14 +1849,13 @@ Begin
       CWritelnWarning('the string cannot be converted to an identifier');
       Exit
     End;
-    ClearStringIdent := ReduceOneEq(T1,T2,GetDebugStream(P));
+    ClearStringIdent := ReduceOneEq(T1,T2,P);
     Exit
   End;
   { T2 is an ident }
   If IsIdentifier(T2) Then
   Begin
-    ClearStringIdent := ReduceOneEq(T1,IdentifierToString(P,IdPtr(T2)),
-        GetDebugStream(P));
+    ClearStringIdent := ReduceOneEq(T1,IdentifierToString(P,IdPtr(T2)),P);
     Exit
   End
   { wrong type of argument: silently fails (see date/1 in PIIv1 doc p23) }
@@ -1883,7 +1880,7 @@ Begin
   R := EmitConst(P,s,CS,False);
   If R = Nil Then { note: should not happen }
     Exit;
-  ClearListString := ReduceOneEq(T2,R,GetDebugStream(P))
+  ClearListString := ReduceOneEq(T2,R,P)
 End;
 
 { list_tuple("abc".def.123.nil,s) => s = <"abc",def,123> }
@@ -1900,7 +1897,7 @@ Begin
   R := ProtectedListToTuple(T1,True); { TBD: is True necessary? }
   If R = Nil Then { note: should not happen }
     Exit;
-  ClearListTuple := ReduceOneEq(T2,R,GetDebugStream(P))
+  ClearListTuple := ReduceOneEq(T2,R,P)
 End;
 
 { split/2: split a string or a tuple into a list of its elements  
@@ -1931,7 +1928,7 @@ Begin
   End
   Else
     Exit;
- ClearSplit := ReduceOneEq(T2,R,GetDebugStream(P))
+ ClearSplit := ReduceOneEq(T2,R,P)
 End;
 
 { atom_chars('hello',['h','e','l','l','o']) }
@@ -1945,21 +1942,20 @@ Begin
   { T1 known }
   If IsIdentifier(T1) Then
   Begin
-    ClearAtomChars := ReduceOneEq(IdentifierToList(P,IdPtr(T1)),T2,
-        GetDebugStream(P));
+    ClearAtomChars := ReduceOneEq(IdentifierToList(P,IdPtr(T1)),T2,P);
     Exit
   End;
   { T1 unknown }
   T2 := ListToIdentifier(P,T2);
   If T2 = Nil Then
     Exit;
-  ClearAtomChars := ReduceOneEq(T1,T2,GetDebugStream(P))
+  ClearAtomChars := ReduceOneEq(T1,T2,P)
 End;
 
 { atom_length('hello',5) }
 Function ClearAtomLength( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
-  s,sn : StrPtr;
+  s : StrPtr;
   T1,T2 : TermPtr;
 Begin
   ClearAtomLength := False;
@@ -1984,7 +1980,7 @@ Begin
   T1 := EmitPositiveInteger(P,Str_Length(s));
   If Error Then Exit;
 
-  ClearAtomLength := ReduceOneEq(T1,T2,GetDebugStream(P))
+  ClearAtomLength := ReduceOneEq(T1,T2,P)
 End;
 
 { number_chars(123,['1','2','3']) }
@@ -1998,15 +1994,14 @@ Begin
   { T1 known }
   If IsInteger(T1) Or IsReal(T1) Then
   Begin
-    ClearNumberChars := ReduceOneEq(NumToList(P,ConstPtr(T1)),T2,
-        GetDebugStream(P));
+    ClearNumberChars := ReduceOneEq(NumToList(P,ConstPtr(T1)),T2,P);
     Exit
   End;
   { T1 unknown }
   T2 := TermPtr(ListToNum(P,T2));
   If T2 = Nil Then
     Exit;
-  ClearNumberChars := ReduceOneEq(T1,T2,GetDebugStream(P))
+  ClearNumberChars := ReduceOneEq(T1,T2,P)
 End;
 
 { arg(n,t1,t2)
@@ -2108,7 +2103,7 @@ Begin
   Else
     Exit;
 
-  ClearArg := ReduceOneEq(T3,R,GetDebugStream(P))
+  ClearArg := ReduceOneEq(T3,R,P)
 End;
 
 {----------------------------------------------------------------------------}
@@ -2274,7 +2269,7 @@ Begin
     L := NewList2(P,T1,L);
     FindNext(DirInfo)
   End;
-  ClearExpandFileName := ReduceOneEq(L,GetPArg(2,T),GetDebugStream(P))
+  ClearExpandFileName := ReduceOneEq(L,GetPArg(2,T),P)
 End;
 
 {----------------------------------------------------------------------------}
@@ -2523,7 +2518,7 @@ Begin
 
   { bind the free variable with the file descriptor }
   Td := EmitConst(P,Str_NewFromShortString(PosIntToShortString(Stream_GetDescriptor(f))),CI,True);
-  If Not ReduceOneEq(T3,Td,GetDebugStream(P)) Then
+  If Not ReduceOneEq(T3,Td,P) Then
   Begin
     CWriteWarning('failed to bind the file descriptor: ''');
     Str_CWrite(Alias);
@@ -2552,7 +2547,7 @@ Begin
     Exit;
   Alias := Stream_GetAlias(f);
   T1 := EmitConst(P,Alias,CS,False);
-  ClearStreamIs := ReduceOneEq(GetPArg(1,T),T1,GetDebugStream(P))
+  ClearStreamIs := ReduceOneEq(GetPArg(1,T),T1,P)
 End;
 
 { clear_input }
@@ -2572,14 +2567,14 @@ End;
 { out("hello") }
 Function ClearOut( P : ProgPtr; T : TermPtr ) : Boolean;
 Begin
-  OutTerm(CurrentOutput(P),GetSyntax(P),GetPArg(1,T));
+  OutTerm(CurrentOutput(P),P,GetPArg(1,T));
   ClearOut := True
 End;
 
 { outm("hello"), or put_char('a'); TODO: put_char(Stream,Char) }
 Function ClearOutm( P : ProgPtr; T : TermPtr ) : Boolean;
 Begin
-  OutTermUnquoted(CurrentOutput(P),GetSyntax(P),GetPArg(1,T));
+  OutTermUnquoted(CurrentOutput(P),P,GetPArg(1,T));
   ClearOutm := True
 End;
 
@@ -2648,7 +2643,7 @@ Begin
   If Not NormalizeConstant(s,IntegerNumber) Then
     Exit;
   T2 := EmitConst(P,s,CI,False);
-  ClearGetLineWidth := ReduceOneEq(T1,T2,GetDebugStream(P))
+  ClearGetLineWidth := ReduceOneEq(T1,T2,P)
 End;
 
 { lg-ligne(40), set-line-width(40), set_line_width(40) 
@@ -2925,8 +2920,8 @@ Begin
   End;
 
   { try to bound the variables to the lists }
-  Success := InOk And ReduceOneEq(T1,R1,GetDebugStream(P)) And
-      ((R2 = Nil) Or ReduceOneEq(T2,R2,GetDebugStream(P)));
+  Success := InOk And ReduceOneEq(T1,R1,P) And
+      ((R2 = Nil) Or ReduceOneEq(T2,R2,P));
 
   { undo read when requested or in case of failure to bound }
   If InOk And (LookAhead Or Not Success) Then
@@ -2985,7 +2980,7 @@ End;
 { bt }
 Function ClearBacktrace( P : ProgPtr; Q : QueryPtr ) : Boolean;
 Begin
-  DumpBacktrace(Q);
+  DumpBacktrace(Q,P);
   ClearBacktrace := True
 End;
 
@@ -3084,7 +3079,7 @@ Begin
       L := NewList2(P,TermPtr(List_GetObject(ListPtr(Choices))),L);
       Choices := Pointer(List_GetPrev(ListPtr(Choices)))
     End;
-    Success := ReduceOneEq(T3,L,GetDebugStream(P));
+    Success := ReduceOneEq(T3,L,P);
     More := False { I am done, bye}
   End;
 
@@ -3178,7 +3173,7 @@ Begin
       Tr := EmitConst(P,s,CR,False)
     End
   End;
-  ClearTime := ReduceOneEq(T1,Tr,GetDebugStream(P))
+  ClearTime := ReduceOneEq(T1,Tr,P)
 End;
 
 {----------------------------------------------------------------------------}

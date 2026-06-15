@@ -37,6 +37,7 @@ Uses
   PObjRule,
   PObjQury,
   PObjProg,
+  ExpStack,
   Tuple,
   Encoding,
   Tokenize;
@@ -258,149 +259,64 @@ Begin
   ParseSentence := True
 End;
 
-
 {----------------------------------------------------------------------------}
 { expression parser                                                          }
 {----------------------------------------------------------------------------}
 
-Const
-  MAX_EXPR_DEEP = 50;
-Type
-  TStackLen = 0..MAX_EXPR_DEEP;
-Var 
-  TStack : Array[1..MAX_EXPR_DEEP] Of TermPtr;
-  OpStack : Array[1..MAX_EXPR_DEEP] Of OpPtr;
-  TStackTop : TStackLen;
-  OpStackTop : TStackLen;
-
-{ reset the expression stack; must be called before any parsing phase (command
- line, file, in/1) ); if the previous parsing phase ended with an error, some
- garbage might have been left in this stack }
-Procedure PrepareExprParsing;
-Begin
-  TStackTop := 0;
-  OpStackTop := 0
-End;
-
-{ check the stack is empty }
-Procedure TerminateExprParsing;
-Begin
-  CheckCondition(OpStackTop = 0,'op stack not empty')
-End;
-
-{ return the (possibly Nil) term at the top of the stack, above TBottom, 
- or Nil }
-Function TopTerm( TBottom : TStackLen ) : TermPtr;
-Begin
-  If TStackTop > TBottom Then
-    TopTerm := TStack[TStackTop]
-  Else
-    TopTerm := Nil
-End;
-
-{ is a non-null term available in the term stack, above TBottom? }
-Function HasTerm( TBottom : TStackLen ) : Boolean;
-Begin
-  HasTerm := TopTerm(TBottom) <> Nil
-End;
-
-{ return the operator at the top of the stack, above OBottom, or Nil }
-Function TopOp( OBottom : TStackLen ) : OpPtr;
-Begin
-  If OpStackTop > OBottom Then
-    TopOp := OpStack[OpStackTop]
-  Else
-    TopOp := Nil
-End;
-
-{ push an op }
-Procedure PushExprOp( o : OpPtr );
-Begin
-  If OpStackTop > MAX_EXPR_DEEP - 1 Then
-    SyntaxError('expression too complex');
-  If Error Then Exit;
-  OpStackTop := OpStackTop + 1;
-  OpStack[OpStackTop] := o
-End;
-
-{ pop an op }
-Procedure PopExprOp( Var o : OpPtr; OBottom : TStackLen );
-Begin
-  CheckCondition(OpStackTop > OBottom,'PopExprOp: op stack is empty');
-  o := OpStack[OpStackTop];
-  OpStackTop := OpStackTop - 1
-End;
-
-{ push a term }
-Procedure PushExprTerm( T : TermPtr );
-Begin
-  If TStackTop > MAX_EXPR_DEEP - 1 Then
-    SyntaxError('expression too complex');
-  If Error Then Exit;
-  TStackTop := TStackTop + 1;
-  TStack[TStackTop] := T
-End;
-
-{ pop a term }
-Procedure PopExprTerm( Var T : TermPtr; TBottom : TStackLen  );
-Begin
-  CheckCondition(TStackTop > TBottom,'PopExprTerm: term stack is empty');
-  T := TStack[TStackTop];
-  TStackTop := TStackTop - 1
-End;
-
 { replace the top operator and associated operand(s) with a term }
-Procedure ReduceTopExpr( P : ProgPtr; TBottom, OBottom : TStackLen );
+Procedure ReduceTopExpr( P : ProgPtr; TBottom, OBottom : TOpStackLen );
 Var
   o : OpPtr;
   T,T1,T2 : TermPtr;
 Begin
-  PopExprOp(o,OBottom);
+  OpStack_PopOp(o,OBottom);
   CheckCondition(Op_GetArity(o) In [1,2],'ReduceTopExpr: unexpected arity');
   Case Op_GetArity(o) Of
   1:
     Begin
-      PopExprTerm(T1,TBottom);
+      OpStack_PopOperand(T1,TBottom);
       CheckCondition(T1 <> Nil,'ReduceTopExpr: unexpected Nil term');
       T := NewFunc1(P,Op_GetFunction(o),T1,False,True);
     End;
   2:
     Begin
-      PopExprTerm(T2,TBottom);
-      PopExprTerm(T1,TBottom);
+      OpStack_PopOperand(T2,TBottom);
+      OpStack_PopOperand(T1,TBottom);
       CheckCondition((T1<>Nil) And (T2<>Nil),
           'ReduceTopExpr: unexpected Nil terms');
       T := NewFunc2(P,Op_GetFunction(o),T1,T2,False,True)
     End
   End;
-  PushExprTerm(T)
+  OpStack_PushOperand(T)
 End;
 
 { reduce as much as possible the expression stack, e.g
  1*2+3 => mul(1,2)+3 }
-Procedure ReduceExprStack( P : ProgPtr; TBottom, OBottom : TStackLen );
+Procedure ReduceExprStack( P : ProgPtr; TBottom, OBottom : TOpStackLen );
 Var
   T : TermPtr;
-  o : OpPtr;
+  o,o1,o2 : OpPtr;
   Stop : Boolean; { no more reduction }
   pre1,pre2 : TPrecedence;
   typ1 : TOpType;
 Begin
   Repeat
     Stop := True;
-    If (OpStackTop - OBottom) >= 2 Then { at least two operators }
+    If OpStack_OpCount(OBottom) >= 2 Then { at least two operators }
     Begin
-      If (OpStack[OpStackTop] <> Nil) Then { no pending term }
+      o1 := OpStack_TopOp(OBottom);
+      If (o1 <> Nil) Then { no pending term }
       Begin
-        CheckCondition(OpStack[OpStackTop-1] <> Nil,
+        o2 := OpStack_BelowTopOp(OBottom);
+        CheckCondition(o2 <> Nil,
             'ReduceExprStack: unexpected Nil term');
-        pre1 := Op_GetPrecedence(OpStack[OpStackTop]);
-        typ1 := Op_GetType(OpStack[OpStackTop]);
-        pre2 := Op_GetPrecedence(OpStack[OpStackTop-1]);
+        pre1 := Op_GetPrecedence(o1);
+        typ1 := Op_GetType(o1);
+        pre2 := Op_GetPrecedence(o2);
         { priorities allow reduction? }
         If (pre1 > pre2) Or (pre1 = pre2) And (typ1 In [fy,yf,yfx]) Then
         Begin
-          PopExprOp(o,OBottom);
+          OpStack_PopOp(o,OBottom);
           Case Op_GetArity(o) Of
           1:
             Begin
@@ -408,12 +324,12 @@ Begin
             End;
           2:
             Begin
-              PopExprTerm(T,TBottom);
+              OpStack_PopOperand(T,TBottom);
               ReduceTopExpr(P,TBottom,OBottom);
-              PushExprTerm(T)
+              OpStack_PushOperand(T)
             End
           End;
-          PushExprOp(o);
+          OpStack_PushOp(o);
           Stop := False
         End
       End
@@ -424,15 +340,16 @@ End;
 
 { reduce all the expressions remaining in the stack and return the remaining 
  term }
-Function ReduceAllExpr( P : ProgPtr; TBottom, OBottom : TStackLen ) : TermPtr;
+Function ReduceAllExpr( P : ProgPtr; TBottom, OBottom : TOpStackLen ) : TermPtr;
 Var
   T : TermPtr;
 Begin
   ReduceAllExpr := Nil;
-  While OpStackTop > OBottom Do
+  While OpStack_OpCount(OBottom) > 0 Do
     ReduceTopExpr(P,TBottom,OBottom);
-  PopExprTerm(T,TBottom); { final term }
-  CheckCondition(TStackTop=TBottom,'ReduceAllExpr: terms left in the stack');
+  OpStack_PopOperand(T,TBottom); { final term }
+  CheckCondition(OpStack_OperandCount(TBottom)=0,
+      'ReduceAllExpr: operand left in the stack');
   ReduceAllExpr := T
 End;
 
@@ -471,7 +388,7 @@ End;
  TODO: in PII+ eq(x,1 '<' 2 '<' 3) raises a syntax error
  https://www.swi-prolog.org/pldoc/doc_for?object=op/3 }
 Function ReadExpr( f : StreamPtr; P : ProgPtr; Var K : TokenPtr; 
-    TBottom, OBottom : TStackLen; MaxPred : TPrecedence; 
+    TBottom : TOpStackLen; OBottom : TOperandStackLen; MaxPred : TPrecedence; 
     glob : Boolean; Cut : Boolean) : TermPtr;
 Var
   T : TermPtr;
@@ -494,7 +411,7 @@ Begin
       as, e.g, op_add("+",add) ->; As such, this code triggers a syntax error 
       on the right parenthesis }
       o := NextOp(P,K,[fx,fy],MaxPred);
-      If (o <> Nil) And (Not HasTerm(TBottom)) Then 
+      If (o <> Nil) And (Not OpStack_HasOperand(TBottom)) Then 
       Begin
         Pred := Op_GetPrecedence(o);
         K := ReadProgramToken(P,f);
@@ -515,18 +432,18 @@ Begin
             Str_Concat(s,ConstGetStr(ConstPtr(T)));
             T := EmitConst(P,s,ConstTypeToObjectType(ConstType(ConstPtr(T))),True)
           End;
-          PushExprTerm(T)
+          OpStack_PushOperand(T)
         End
         Else
         Begin  
-          PushExprOp(o);
+          OpStack_PushOp(o);
           Case Op_GetType(o) Of
           fx : ArgMaxPred := Pred - 1;
           fy : ArgMaxPred := Pred
           End;
-          T := ReadExpr(f,P,K,TStackTop,OpStackTop,ArgMaxPred,glob,Cut);
+          T := ReadExpr(f,P,K,OpStack_TopOperandIndex,OpStack_TopOpIndex,ArgMaxPred,glob,Cut);
           If Error Then Exit;
-          PushExprTerm(T)
+          OpStack_PushOperand(T)
         End;
         Found := True
       End
@@ -536,20 +453,20 @@ Begin
     If Not Found Then 
     Begin
       o := NextOp(P,K,[xfx,xfy,yfx],MaxPred);
-      If (o <> Nil) And HasTerm(TBottom) And 
+      If (o <> Nil) And OpStack_HasOperand(TBottom) And 
           ((Op_GetType(o) = yfx) Or (Pred < Op_GetPrecedence(o))) Then
       Begin
         Pred := Op_GetPrecedence(o);
         K := ReadProgramToken(P,f);
         If Error Then Exit;
-        PushExprOp(o);
+        OpStack_PushOp(o);
         Case Op_GetType(o) Of
         yfx,xfx : ArgMaxPred := Pred - 1;
         xfy : ArgMaxPred := Pred
         End;
-        T := ReadExpr(f,P,K,TStackTop,OpStackTop,ArgMaxPred,glob,Cut);
+        T := ReadExpr(f,P,K,OpStack_TopOperandIndex,OpStack_TopOpIndex,ArgMaxPred,glob,Cut);
         If Error Then Exit;
-        PushExprTerm(T);
+        OpStack_PushOperand(T);
         Found := True
       End
     End;
@@ -558,13 +475,13 @@ Begin
     If Not Found Then 
     Begin
       o := NextOp(P,K,[xf,yf],MaxPred);
-      If (o <> Nil) And HasTerm(TBottom) And 
+      If (o <> Nil) And OpStack_HasOperand(TBottom) And 
           ((Op_GetType(o) = yf) Or (Pred < Op_GetPrecedence(o))) Then
       Begin
         Pred := Op_GetPrecedence(o);
         K := ReadProgramToken(P,f);
         If Error Then Exit;
-        PushExprOp(o);
+        OpStack_PushOp(o);
         Found := True
       End
     End;
@@ -572,17 +489,17 @@ Begin
     { rules 6.5: pterm }
     If Not Found Then 
     Begin
-      If Not HasTerm(TBottom) Then
+      If Not OpStack_HasOperand(TBottom) Then
       Begin
         Pred := 0;
         T := ReadPTerm(f,P,K,glob,Cut);
         If Error Then Exit;
-        PushExprTerm(T);
+        OpStack_PushOperand(T);
         Found := True
       End
     End;
     
-    Done := Not Found And HasTerm(TBottom);
+    Done := Not Found And OpStack_HasOperand(TBottom);
 
     { reduce the stack as much as possible }
     ReduceExprStack(P,TBottom,OBottom)
@@ -605,7 +522,7 @@ Begin
   If y In [PrologIIv1,PrologIIv2] Then { no expressions in old PrologIIv2 syntax }
     ReadOneExpr := ReadPTerm(f,P,K,glob,Cut)
   Else
-    ReadOneExpr := ReadExpr(f,P,K,TStackTop,OpStackTop,MaxPred,glob,Cut)
+    ReadOneExpr := ReadExpr(f,P,K,OpStack_TopOperandIndex,OpStack_TopOpIndex,MaxPred,glob,Cut)
 End;
 
 {----------------------------------------------------------------------------}
@@ -944,9 +861,9 @@ End;
 Function CompileSystem( f : StreamPtr; P : ProgPtr; Var K : TokenPtr; 
     glob : Boolean ) : EqPtr;
 Begin
-  PrepareExprParsing;
+  OpStack_Prepare;
   CompileSystem := ReadSystem(f,P,K,glob);
-  TerminateExprParsing
+  OpStack_Terminate
 End;
 
 { compile a goal at rule or query level }
@@ -956,10 +873,10 @@ Var
   T : TermPtr;
 Begin
   CompileRuleHead := Nil;
-  PrepareExprParsing;
+  OpStack_Prepare;
   T := ReadTerm(f,P,K,glob,Cut);
   If Error Then Exit;
-  TerminateExprParsing;
+  OpStack_Terminate;
   CompileRuleHead := BTerm_New(T)
 End;
 
@@ -970,10 +887,10 @@ Var
   T : TermPtr;
 Begin
   CompileOneGoal := Nil;
-  PrepareExprParsing;
+  OpStack_Prepare;
   T := ReadTerm(f,P,K,glob,Cut);
   If Error Then Exit;
-  TerminateExprParsing;
+  OpStack_Terminate;
   CompileOneGoal := BTerm_New(T)
 End;
 
@@ -1040,7 +957,7 @@ Begin
   y := GetSyntax(P);
   R := Rule_New(y);
   OpenLocalContextForRule(P,R);
-  PrepareExprParsing;
+  OpStack_Prepare;
 
   If y = Edinburgh Then { rule 3.2 }
   Begin
@@ -1073,7 +990,7 @@ Begin
     If Error Then Exit
   End;
 
-  TerminateExprParsing;
+  OpStack_Terminate;
 
   { no syntax error; rule may be partial when parsing stopped on end-of-input }
   ParseOneRule := R
@@ -1119,7 +1036,7 @@ Begin
   y := GetSyntax(P);
   Q := NewProgramQuery(P);
   OpenLocalContextForQuery(P,Q);
-  PrepareExprParsing;
+  OpStack_Prepare;
 
   If y = Edinburgh Then { rule 2.2 }
   Begin
@@ -1153,7 +1070,7 @@ Begin
     End
   End;
 
-  TerminateExprParsing;
+  OpStack_Terminate;
   CloseLocalContextForQuery(P,Q);
   ParseOneQuery := Q
 End;
@@ -1172,10 +1089,10 @@ Begin
   ParseOneTerm := Nil;
   K := ReadProgramToken(P,f);
   If Error Then Exit;
-  PrepareExprParsing;
+  OpStack_Prepare;
   ParseOneTerm := ReadTerm(f,P,K,False,True);
   If Error Then Exit;
-  TerminateExprParsing;
+  OpStack_Terminate;
   { since K is now the token *following* the compiled term, we must unread it 
    (and all the spaces before) so that in_char will read the first char after 
    the term }

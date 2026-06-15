@@ -43,49 +43,51 @@ Uses
   PObjRule,
   PObjQury,
   PObjProg,
+  PObjOp,
+  ExpStack,
   Tuple,
   Encoding;
 
 { to long strings }
-Function ConstToLongString( enc : TEncoding; y : TSyntax; 
+Function ConstToLongString( enc : TEncoding; P : ProgPtr; 
     C : ConstPtr ) : StrPtr;
-Function IdentifierToLongString( enc : TEncoding; y : TSyntax; 
+Function IdentifierToLongString( enc : TEncoding; P : ProgPtr; 
     I : IdPtr ) : StrPtr;
-Function VarNameToLongString( enc : TEncoding; y : TSyntax; 
+Function VarNameToLongString( enc : TEncoding; P : ProgPtr; 
     V : VarPtr ) : StrPtr;
-Function TermToLongString( enc : TEncoding; y : TSyntax; 
+Function TermToLongString( enc : TEncoding; P : ProgPtr; 
     T : TermPtr ) : StrPtr;
-Function TermUnquotedToLongString( enc : TEncoding; y : TSyntax; 
+Function TermUnquotedToLongString( enc : TEncoding; P : ProgPtr; 
     T : TermPtr ) : StrPtr;
-Function OneEquationToLongString( enc : TEncoding; y : TSyntax; 
+Function OneEquationToLongString( enc : TEncoding; P : ProgPtr; 
     E : EqPtr ) : StrPtr;
-Function QuerySolutionToLongString( enc : TEncoding; y : TSyntax; 
+Function QuerySolutionToLongString( enc : TEncoding; P : ProgPtr; 
     Q : QueryPtr ) : StrPtr;
-Function OneRuleToLongString( enc : TEncoding; y : TSyntax; 
+Function OneRuleToLongString( enc : TEncoding; P : ProgPtr; 
     R : RulePtr ) : StrPtr;
-Function OneQueryToLongString( enc : TEncoding; y : TSyntax; 
+Function OneQueryToLongString( enc : TEncoding; P : ProgPtr; 
     Q : QueryPtr ) : StrPtr;
-Function OneCommentToLongString( enc : TEncoding; y : TSyntax; 
+Function OneCommentToLongString( enc : TEncoding; P : ProgPtr; 
     C : CommPtr ) : StrPtr;
 
 
 { write, ignoring the line width system }
-Procedure PutConst( f : StreamPtr; y : TSyntax; C : ConstPtr );
-Procedure PutIdentifier( f : StreamPtr; y : TSyntax; I : IdPtr );
-Procedure PutVarName( f : StreamPtr; y : TSyntax; V : VarPtr );
-Procedure PutTerm( f : StreamPtr; y : TSyntax; T : TermPtr );
-Procedure PutTermUnquoted( f : StreamPtr; y : TSyntax; T : TermPtr );
-Procedure PutOneEquation( f : StreamPtr; y : TSyntax; E : EqPtr );
-Procedure PutQuerySolution( f : StreamPtr; y : TSyntax; Q : QueryPtr );
-Procedure PutOneRule( f : StreamPtr; y : TSyntax; R : RulePtr );
-Procedure PutOneQuery( f : StreamPtr; y : TSyntax; Q : QueryPtr );
-Procedure PutOneComment( f : StreamPtr; y : TSyntax; C : CommPtr );
-Procedure PutTraceMessage( f : StreamPtr; y : TSyntax; Tag : TString;
-    Depth : PosInt; Branch : PosInt; ClearT : TermPtr );
+Procedure PutConst( f : StreamPtr; P : ProgPtr; C : ConstPtr );
+Procedure PutIdentifier( f : StreamPtr; P : ProgPtr; I : IdPtr );
+Procedure PutVarName( f : StreamPtr; P : ProgPtr; V : VarPtr );
+Procedure PutTerm( f : StreamPtr; P : ProgPtr; T : TermPtr );
+Procedure PutTermUnquoted( f : StreamPtr; P : ProgPtr; T : TermPtr );
+Procedure PutOneEquation( f : StreamPtr; P : ProgPtr; E : EqPtr );
+Procedure PutQuerySolution( f : StreamPtr; P : ProgPtr; Q : QueryPtr );
+Procedure PutOneRule( f : StreamPtr; P : ProgPtr; R : RulePtr );
+Procedure PutOneQuery( f : StreamPtr; P : ProgPtr; Q : QueryPtr );
+Procedure PutOneComment( f : StreamPtr; P : ProgPtr; C : CommPtr );
+Procedure PutTraceMessage( P : ProgPtr; Tag : TString; Depth : PosInt; 
+    Branch : PosInt; ClearT : TermPtr );
 
 { write, using the line width system }
-Procedure OutTerm( f : StreamPtr; y : TSyntax; T : TermPtr );
-Procedure OutTermUnquoted( f : StreamPtr; y : TSyntax; T : TermPtr );
+Procedure OutTerm( f : StreamPtr; P : ProgPtr; T : TermPtr );
+Procedure OutTermUnquoted( f : StreamPtr; P : ProgPtr; T : TermPtr );
 
 { debug }
 Procedure DumpSystemFromDict( DV : DictPtr );
@@ -457,13 +459,15 @@ End;
 { output on a stream a string containing soft marks (e.g. line breaks), 
  and also applying Prolog's formatting rules regarding line width; current 
  cursor position is updated }
-Procedure OutFormatted( f : StreamPtr; y : TSyntax; sf : StrPtr );
+Procedure OutFormatted( f : StreamPtr; P : ProgPtr; sf : StrPtr );
 Var
+  y : TSyntax;
   Iter : StrIter;
   cc : TChar;
   InTopTerm, InAtom : Boolean;
   ToAtomEnd : TSoftMarkPayload; { number of within-atom chars left }
 Begin
+  y := GetSyntax(P);
   { initialize state }
   InTopTerm := False;
   InAtom := False;
@@ -605,50 +609,139 @@ End;
 { Unparse Prolog objects: terms                                         }
 {-----------------------------------------------------------------------}
 
-Procedure UnparseTermBis( y : TSyntax; s : StrPtr; T : TermPtr; 
+Procedure UnparseTermBis( P : ProgPtr; s : StrPtr; T : TermPtr; Var o : OpPtr;
     InList,ArgList,Quotes : Boolean; 
     Reduce : Boolean; g : TSerial; depth : PosInt ); Forward;
 
 { write a non-empty comma-separated list of arguments in tuple U }
-Procedure UnparseArgument( y : TSyntax; s : StrPtr; U : TermPtr; 
+Procedure UnparseArgument( P : ProgPtr; s : StrPtr; U : TermPtr; 
     Quotes : Boolean; Reduce : Boolean; g : TSerial; depth : PosInt );
 Var
   T : TermPtr;
+  o : OpPtr; { unused }
 Begin
   T := ProtectedGetTupleHead(U,Reduce);
-  UnparseTermBis(y,s,T,False,False,Quotes,Reduce,g,depth);
+  UnparseTermBis(P,s,T,o,False,False,Quotes,Reduce,g,depth);
   T := ProtectedGetTupleQueue(U,Reduce);
   If Not IsEmptyTuple(T) Then
   Begin
     UnparseShortString(s,',');
-    UnparseArgument(y,s,T,Quotes,Reduce,g,depth)
+    UnparseArgument(P,s,T,Quotes,Reduce,g,depth)
   End
 End;
 
 { write a non-empty tuple }
-Procedure UnparseTuple( y : TSyntax; s : StrPtr; U : TermPtr; 
+Procedure UnparseTuple( P : ProgPtr; s : StrPtr; U : TermPtr; 
     Quotes : Boolean; Reduce : Boolean; g : TSerial; depth : PosInt );
+Var
+  y : TSyntax;
 Begin
+  y := GetSyntax(P);
   If y = Edinburgh Then
     UnparseShortString(s,'<>(')
   Else
     UnparseShortString(s,'<');
-  UnparseArgument(y,s,U,Quotes,Reduce,g,depth);
+  UnparseArgument(P,s,U,Quotes,Reduce,g,depth);
   If y = Edinburgh Then
     UnparseShortString(s,')')
   Else
     UnparseShortString(s,'>')
 End;
 
-{ write a term, that could be within a list (InList), or an argument of a 
- predicate (ArgList), and, write quoted terms with or without quotes (Quotes);
+{ if Ident is the identifier of an operator and n its arity, return the
+ operator, Nil otherwise }
+Function GetOpToUnparse( P : ProgPtr; Ident : IdPtr; n : TOpArity ) : OpPtr;
+Var
+  o : OpPtr;
+  functor : TString;
+Begin
+  GetOpToUnparse := Nil;
+  functor := IdentifierGetShortString(Ident);
+  o := Op_Lookup(P^.PP_OPER,[OP_FUNCTION,OP_ARITY],'',functor,[],n,0);
+  { not a suitable operator? }
+  If (o = Nil) Or (Op_GetOperator(o) = '') Then
+    Exit;
+  GetOpToUnparse := o
+End;
+
+{ unparse (append) in s an operant T1 of operator o; 1 denotes the operand  }
+Procedure UnparseOperand( P : ProgPtr; s : StrPtr; 
+    T1 : TermPtr; o : OpPtr;
+    Quotes,Reduce : Boolean; g : TSerial; depth : PosInt);
+Var
+  s1 : StrPtr;
+  o1 : OpPtr; { operands may be operator expressions too }
+  pre,pre1 : TPrecedence;
+  typ,typ1 : TOpType;
+  par : Boolean; { parentheses needed? }
+Begin  
+  s1 := Str_New(Str_GetEncodingContext(s));
+  UnparseTermBis(P,s1,T1,o1,False,False,Quotes,Reduce,g,depth);
+  { parentheses around operand needed?}
+  par := False;
+  If o1 <> Nil Then
+  Begin
+    pre := Op_GetPrecedence(o);
+    typ := Op_GetType(o);
+    pre1 := Op_GetPrecedence(o1);
+    typ1 := Op_GetType(o1);
+    par := (pre1 > pre) Or { priority }
+        (pre1 = pre) And ((typ In [fx,xf,xfy]) Or { priority }
+          (typ = typ1) And (typ In [fx,xf,fy,yf])) { esthetic }
+  End;
+  { generate display string }
+  If par Then
+    UnparseShortString(s,'(');
+  UnparseString(s,s1);
+  If par Then
+    UnparseShortString(s,')')
+End;  
+
+{ unparse in s (append to s) an expression T with operator o and operands 
+ in tuple U }
+Procedure UnparseExpression( P : ProgPtr; s : StrPtr; 
+    T : TermPtr; o : OpPtr; U : TermPtr;
+    Quotes,Reduce : Boolean; g : TSerial; depth : PosInt);
+Var
+  Ti : TermPtr; { one operand }
+  oper : TString;
+  space : Boolean; { space around the operator? }
+Begin
+  { first operand, if any }
+  If Op_GetType(o) In [xf,yf,xfx,yfx,xfy] Then
+  Begin
+    Ti := ProtectedGetTupleArg(U,Reduce);
+    UnparseOperand(P,s,Ti,o,Quotes,Reduce,g,depth)
+  End;
+  { operator }
+  oper := Op_GetOperator(o);
+  space := oper[1] In ['a'..'z','A'..'Z','@']; { FIXME: policy + other encodings }
+  If space Then
+    UnparseShortString(s,' ');
+  UnparseShortString(s,oper);
+  If space Then
+    UnparseShortString(s,' ');
+  { second operand, if any }
+  If Op_GetType(o) In [fx,fy,xfx,yfx,xfy] Then
+  Begin
+    Ti := ProtectedGetTupleArg(U,Reduce);
+    UnparseOperand(P,s,Ti,o,Quotes,Reduce,g,depth)
+  End
+End;
+
+{ write in s a string representation of a term T, that could be within a 
+ list (InList), or an argument of a predicate (ArgList), and, write quoted 
+ terms with or without quotes (Quotes);
  detect and break loop, using the *n format;
  if Reduce is True, use the reduced system by "following" representatives of 
- terms instead of writing the terms themselves }
-Procedure UnparseTermBis( y : TSyntax; s : StrPtr; T : TermPtr; 
+ terms instead of writing the terms themselves;
+ if T is an operator / operands construct, set o to the operator, otherwise set
+ o to Nil }
+Procedure UnparseTermBis( P : ProgPtr; s : StrPtr; T : TermPtr; Var o : OpPtr;
     InList,ArgList,Quotes : Boolean; 
     Reduce : Boolean; g : TSerial; depth : PosInt );
 Var
+  y : TSyntax;
   { all casts of T: }
   CT : ConstPtr Absolute T;
   VT : VarPtr Absolute T;
@@ -661,7 +754,12 @@ Var
   Seen : Boolean;
   s2 : StrPtr; { string representation of this term }
   m : PosInt;
+  NoExpr : Boolean; { must not be unparsed as an expression }
+  NbArgs : TTupleArgNumber;
 Begin
+  y := GetSyntax(P);
+  o := Nil;
+
   { already seen? }
   Seen := Term_GetSeen(T,1,g);
 
@@ -704,7 +802,7 @@ Begin
   { is the LHS of an equation: the string representation is that of the RHS }
   Tr := Red(T);
   If Reduce And (Tr <> Nil) Then
-    UnparseTermBis(y,s2,Tr,InList,ArgList,Quotes,Reduce,g,depth)
+    UnparseTermBis(P,s2,Tr,o,InList,ArgList,Quotes,Reduce,g,depth)
   Else
   Case TypeOfTerm(T) Of
   Constant:
@@ -735,11 +833,11 @@ Begin
           UnparseShortString(s2,'(');
         If (y = Edinburgh) And (Not InList) Then
           UnparseShortString(s2,'[');
-        UnparseTermBis(y,s2,T1,False,True,Quotes,Reduce,g,depth+1);
+        UnparseTermBis(P,s2,T1,o,False,True,Quotes,Reduce,g,depth+1);
         If y <> Edinburgh Then { display as dotted list }
         Begin
           UnparseShortString(s2,'.');
-          UnparseTermBis(y,s2,T2,True,False,Quotes,Reduce,g,depth+1)
+          UnparseTermBis(P,s2,T2,o,True,False,Quotes,Reduce,g,depth+1)
         End
         Else If IsNil(T2) Then { t is t1.nil }
         Begin
@@ -748,12 +846,12 @@ Begin
         Else If ProtectedIsList(T2,Reduce) Then { t = t1.t2 where t2 is a list }
         Begin
           UnparseShortString(s2,',');
-          UnparseTermBis(y,s2,T2,True,False,Quotes,Reduce,g,depth+1)
+          UnparseTermBis(P,s2,T2,o,True,False,Quotes,Reduce,g,depth+1)
         End
         Else { t = t1.t2 where t2 is a not list }
         Begin
           UnparseShortString(s2,'|');
-          UnparseTermBis(y,s2,T2,False,False,Quotes,Reduce,g,depth+1);
+          UnparseTermBis(P,s2,T2,o,False,False,Quotes,Reduce,g,depth+1);
           UnparseShortString(s2,']')
         End;
         If ArgList Then 
@@ -766,14 +864,28 @@ Begin
         If Not IsEmptyTuple(Tq) And IsIdentifier(Th) And 
             Not IsNil(Th) Then { <ident,a,b,...> == ident(a,b,...) }
         Begin
-          UnparseIdentifier(s2,ITh,Quotes);
-          UnparseShortString(s2,'(');
-          UnparseArgument(y,s2,Tq,Quotes,Reduce,g,depth+1);
-          UnparseShortString(s2, ')')
+          NoExpr := y In [PrologIIv1,PrologIIv2];
+          If Not NoExpr Then
+          Begin
+            { look for an existing operator having the right number of operands }
+            NbArgs := ProtectedGetTupleArgCount(Tq,Reduce);
+            o := GetOpToUnparse(P,IdPtr(Th),NbArgs);
+            NoExpr := o = Nil
+          End;
+          If Not NoExpr Then
+            UnparseExpression(P,s2,T,o,Tq,Quotes,Reduce,g,depth) { CHECK: depth}
+          Else
+          Begin
+            { regular ident(arg1,arg2...) form }
+            UnparseIdentifier(s2,ITh,Quotes);
+            UnparseShortString(s2,'(');
+            UnparseArgument(P,s2,Tq,Quotes,Reduce,g,depth+1);
+            UnparseShortString(s2, ')')
+          End
         End
         Else { <e> or <a,b,...> where a not an identifier or a is 'nil' }
         Begin
-          UnparseTuple(y,s2,T,Quotes,Reduce,g,depth+1)
+          UnparseTuple(P,s2,T,Quotes,Reduce,g,depth+1)
         End
       End
     End
@@ -791,13 +903,14 @@ End;
  - optionally, write infinite trees using "*n" tags;
  - accumulates watched inequations in the global table }
 
-Procedure UnparseTerm( y : TSyntax; s : StrPtr; T : TermPtr; 
+Procedure UnparseTerm( P : ProgPtr; s : StrPtr; T : TermPtr; 
     InList,ArgList,Quotes : Boolean; Reduce : Boolean );
 Var
   g : TSerial;
+  o : OpPtr;
 Begin
   g := NewSerial;
-  UnparseTermBis(y,s,T,InList,ArgList,Quotes,Reduce,g,1)
+  UnparseTermBis(P,s,T,o,InList,ArgList,Quotes,Reduce,g,1)
 End;
 
 {-----------------------------------------------------------------------}
@@ -805,10 +918,10 @@ End;
 {-----------------------------------------------------------------------}
 
 { Unparse a single equation or inequation }
-Procedure UnparseOneEquation( y : TSyntax; s : StrPtr; E : EqPtr; 
+Procedure UnparseOneEquation( P : ProgPtr; s : StrPtr; E : EqPtr; 
     Reduce : Boolean );
 Begin
-  UnparseTerm(y,s,Eq_GetLhs(E),False,False,True,Reduce);
+  UnparseTerm(P,s,Eq_GetLhs(E),False,False,True,Reduce);
   Case Eq_GetType(E) Of
   REL_EQUA:
     UnparseShortString(s,'=');
@@ -817,12 +930,12 @@ Begin
   REL_FROZ:
     UnparseShortString(s,'?'); { TODO: PII+ displays a list of frozen goals }
   End;
-  UnparseTerm(y,s,Eq_GetRhs(E),False,False,True,Reduce)
+  UnparseTerm(P,s,Eq_GetRhs(E),False,False,True,Reduce)
 End;
 
 { Unparse non-trivial equations and inequations in the list E, starting with a 
  comma if Comma is True }
-Procedure UnparseEquations( y : TSyntax; s : StrPtr; E : EqPtr; 
+Procedure UnparseEquations( P : ProgPtr; s : StrPtr; E : EqPtr; 
     Var Comma : Boolean; Backward : Boolean );
 Begin
   While E <> Nil Do
@@ -832,54 +945,56 @@ Begin
       If Comma Then 
         UnparseShortString(s,', ');
       Comma := True;
-      UnparseOneEquation(y,s,E,False)
+      UnparseOneEquation(P,s,E,False)
     End;
     E := Eqs_Next(E,Backward)
   End
 End;
 
 { Unparse a list of equations or inequations; source code only }
-Procedure UnparseSystem( y : TSyntax; s : StrPtr; E : EqPtr; 
+Procedure UnparseSystem( P : ProgPtr; s : StrPtr; E : EqPtr; 
     Backward : Boolean );
 Var 
   Comma : Boolean;
 Begin
   Comma := False;
   UnparseShortString(s,'{ ');
-  UnparseEquations(y,s,E,Comma,Backward);
+  UnparseEquations(P,s,E,Comma,Backward);
   UnparseShortString(s,' }')
 End;
 
 { Unparse a reduced system for a list of variables DV; if Curl then curly braces 
  are always printed, even if there are no equations or inequations to print }
-Procedure UnparseSolution( y : TSyntax; s : StrPtr; DV : DictPtr );
+Procedure UnparseSolution( P : ProgPtr; s : StrPtr; DV : DictPtr );
 Var
   L : RestPtr;
   E : EqPtr;
 Begin
   L := Nil;
   E := GetSimplifiedSolution(DV,L);
-  UnparseSystem(y,s,E,False);
+  UnparseSystem(P,s,E,False);
   Rest_Restore(L)
 End;
 
 { Unparse BTerm B (as part of a rule's queue or goals), enclosed in soft marks }
-Procedure UnparseOneBTerm( y : TSyntax; s : StrPtr; B : BTermPtr  );
+Procedure UnparseOneBTerm( P : ProgPtr; s : StrPtr; B : BTermPtr  );
 Var
   cc : TChar;
 Begin
   TCharSetSoftMark(cc,SOFT_MARK_TOP_TERM_BEGIN,0);
   Str_AppendChar(s,cc);
-  UnparseTerm(y,s,BTerm_GetTerm(B),False,False,True,False);
+  UnparseTerm(P,s,BTerm_GetTerm(B),False,False,True,False);
   TCharSetSoftMark(cc,SOFT_MARK_TOP_TERM_END,0);
   Str_AppendChar(s,cc)
 End;
 
 { Unparse a list of BTerms (rule's queue or goals) }
-Procedure UnparseTerms( y : TSyntax; s : StrPtr; B : BTermPtr; 
+Procedure UnparseTerms( P : ProgPtr; s : StrPtr; B : BTermPtr; 
     LineBreak : Boolean; sep : TString );
 Var 
+  y : TSyntax;
   First : Boolean;
+
   Procedure DoWriteTerms( B : BTermPtr );
   Begin
     If B <> Nil Then
@@ -892,12 +1007,13 @@ Var
           UnparseLineBreak(s);
         UnparseShortString(s,sep)
       End;
-      UnparseOneBTerm(y,s,B);
+      UnparseOneBTerm(P,s,B);
       First := False;
       DoWriteTerms(BTerms_GetNext(B))
     End
   End;
 Begin
+  y := GetSyntax(P);
   First := True;
   DoWriteTerms(B)
 End;
@@ -905,14 +1021,16 @@ End;
 { Unparse a single rule, using its native Prolog syntax; we use 
  UnparseAtomFromShortString to avoid having a line break between the two 
  characters of an arrow, as the parser would fail to read it back }
-Procedure UnparseOneRule( y : TSyntax; s : StrPtr; R : RulePtr  );
+Procedure UnparseOneRule( P : ProgPtr; s : StrPtr; R : RulePtr  );
 Var 
+  y : TSyntax;
   B : BTermPtr;
   indent : TString;
 Begin
+  y := GetSyntax(P);
   indent := '     ';
   B := Rule_GetHead(R);
-  UnparseOneBTerm(y,s,B);
+  UnparseOneBTerm(P,s,B);
   If Length(OSyntax[y].RuleArrow) > 0 Then
   Begin
     UnparseShortString(s,' ');
@@ -929,17 +1047,17 @@ Begin
     UnparseLineBreak(s);
     UnparseShortString(s,indent)
   End;
-  UnparseTerms(y,s,B,True,indent);
+  UnparseTerms(P,s,B,True,indent);
   If Rule_GetEqs(R) <> Nil Then
   Begin
     UnparseShortString(s,', ');
-    UnparseSystem(y,s,Rule_GetEqs(R),False)
+    UnparseSystem(P,s,Rule_GetEqs(R),False)
   End;
   UnparseShortString(s,OSyntax[y].RuleEnd)
 End;
 
 { Unparse a single comment }
-Procedure UnparseOneComment( y : TSyntax; s : StrPtr; C : CommPtr );
+Procedure UnparseOneComment( P : ProgPtr; s : StrPtr; C : CommPtr );
 Begin
   UnparseConst(s,Comment_GetConst(C),True)
 End;
@@ -947,18 +1065,21 @@ End;
 { Unparse a query; we use UnparseAtomFromShortString to avoid having a line break 
  between the two characters of an arrow, as the parser would fail to read it 
  back }
-Procedure UnparseOneQuery( y : TSyntax; s : StrPtr; Q : QueryPtr );
+Procedure UnparseOneQuery( P : ProgPtr; s : StrPtr; Q : QueryPtr );
+Var
+  y : TSyntax;
 Begin
+  y := GetSyntax(P);
   If Length(OSyntax[y].QueryStart) > 0 Then
   Begin
     UnparseAtomFromShortString(s,OSyntax[y].QueryStart);
     UnparseShortString(s,' ')
   End;
-  UnparseTerms(y,s,Query_GetTerms(Q),False,' ');
+  UnparseTerms(P,s,Query_GetTerms(Q),False,' ');
   If Query_GetSys(Q) <> Nil Then
   Begin
     UnparseShortString(s,' ');
-    UnparseSystem(y,s,Query_GetSys(Q),False)
+    UnparseSystem(P,s,Query_GetSys(Q),False)
   End;
   UnparseShortString(s,OSyntax[y ].QueryEnd)
 End;
@@ -977,7 +1098,7 @@ End;
 {-----------------------------------------------------------------------}
 
 { one constant (debugging) }
-Function ConstToLongString( enc : TEncoding; y : TSyntax; 
+Function ConstToLongString( enc : TEncoding; P : ProgPtr; 
     C : ConstPtr ) : StrPtr;
 Var 
   s : StrPtr;
@@ -988,7 +1109,7 @@ Begin
 End;
 
 { one identifier (debugging) }
-Function IdentifierToLongString( enc : TEncoding; y : TSyntax; 
+Function IdentifierToLongString( enc : TEncoding; P : ProgPtr; 
     I : IdPtr ) : StrPtr;
 Var 
   s : StrPtr;
@@ -999,7 +1120,7 @@ Begin
 End;
 
 { one variable name (debugging) }
-Function VarNameToLongString( enc : TEncoding; y : TSyntax; 
+Function VarNameToLongString( enc : TEncoding; P : ProgPtr; 
     V : VarPtr ) : StrPtr;
 Var 
   s : StrPtr;
@@ -1010,79 +1131,79 @@ Begin
 End;
 
 { a term }
-Function TermToLongString( enc : TEncoding; y : TSyntax; 
+Function TermToLongString( enc : TEncoding; P : ProgPtr; 
     T : TermPtr ) : StrPtr;
 Var 
   s : StrPtr;
 Begin
   s := Str_New(enc);
-  UnparseTerm(y,s,T,False,False,True,True);
+  UnparseTerm(P,s,T,False,False,True,True);
   TermToLongString := s
 End;
 
 { a term, unquoted }
-Function TermUnquotedToLongString( enc : TEncoding; y : TSyntax; 
+Function TermUnquotedToLongString( enc : TEncoding; P : ProgPtr; 
     T : TermPtr ) : StrPtr;
 Var 
   s : StrPtr;
 Begin
   s := Str_New(enc);
-  UnparseTerm(y,s,T,False,False,False,True);
+  UnparseTerm(P,s,T,False,False,False,True);
   TermUnquotedToLongString := s
 End;
 
 { one equation (debugging) }
-Function OneEquationToLongString( enc : TEncoding; y : TSyntax; 
+Function OneEquationToLongString( enc : TEncoding; P : ProgPtr; 
     E : EqPtr ) : StrPtr;
 Var 
   s : StrPtr;
 Begin
   s := Str_New(enc);
-  UnparseOneEquation(y,s,E,False); { source code }
+  UnparseOneEquation(P,s,E,False); { source code }
   OneEquationToLongString := s
 End;
 
 { the reduced system for the variables in the current query (engine) }
-Function QuerySolutionToLongString( enc : TEncoding; y : TSyntax; 
+Function QuerySolutionToLongString( enc : TEncoding; P : ProgPtr; 
     Q : QueryPtr ) : StrPtr;
 Var
   s : StrPtr;
 Begin
   s := Str_New(enc);
-  UnparseSolution(y,s,Query_GetDict(Q));
+  UnparseSolution(P,s,Query_GetDict(Q));
   QuerySolutionToLongString := s
 End;
 
-{ one rule, using its native syntax (list/1) }
-Function OneRuleToLongString( enc : TEncoding; y : TSyntax; 
+{ one rule, using its native syntax (list/1); FIXME: use Rule_GetSyntax(R) }
+Function OneRuleToLongString( enc : TEncoding; P : ProgPtr; 
     R : RulePtr ) : StrPtr;
 Var 
   s : StrPtr;
 Begin
   s := Str_New(enc);
-  UnparseOneRule(Rule_GetSyntax(R),s,R);
+  UnparseOneRule(P,s,R);
   OneRuleToLongString := s
 End;
 
-{ one query, using its native syntax }
-Function OneQueryToLongString( enc : TEncoding; y : TSyntax; 
+{ one query, using its native syntax; FIXME: use Query_GetSyntax(Q) }
+Function OneQueryToLongString( enc : TEncoding; P : ProgPtr; 
     Q : QueryPtr ) : StrPtr;
 Var 
   s : StrPtr;
 Begin
   s := Str_New(enc);
-  UnparseOneQuery(Query_GetSyntax(Q),s,Q);
+  UnparseOneQuery(P,s,Q);
   OneQueryToLongString := s
 End;
 
 { one comment (list/1) }
-Function OneCommentToLongString( enc : TEncoding; y : TSyntax; 
+Function OneCommentToLongString( enc : TEncoding; P : ProgPtr; 
     C : CommPtr ) : StrPtr;
 Var 
   s : StrPtr;
 Begin
   s := Str_New(enc);
-  UnparseOneComment(y,s,C);
+  UnparseOneComment(P,s,C);
   OneCommentToLongString := s
 End;
 
@@ -1095,101 +1216,103 @@ End;
  no requirement to be able to read the output back using in/1 and friends }
 
 { print one constant }
-Procedure PutConst( f : StreamPtr; y : TSyntax; C : ConstPtr );
+Procedure PutConst( f : StreamPtr; P : ProgPtr; C : ConstPtr );
 Var 
   s : StrPtr;
 Begin
-  s := ConstToLongString(Stream_GetEncoding(f),y,C);
+  s := ConstToLongString(Stream_GetEncoding(f),P,C);
   Stream_WriteLongString(f,s)
 End;
 
 { print one identifier }
-Procedure PutIdentifier( f : StreamPtr; y : TSyntax; I : IdPtr );
+Procedure PutIdentifier( f : StreamPtr; P : ProgPtr; I : IdPtr );
 Var 
   s : StrPtr;
 Begin
-  s := IdentifierToLongString(Stream_GetEncoding(f),y,I);
+  s := IdentifierToLongString(Stream_GetEncoding(f),P,I);
   Stream_WriteLongString(f,s)
 End;
 
 { print one variable name }
-Procedure PutVarName( f : StreamPtr; y : TSyntax; V : VarPtr );
+Procedure PutVarName( f : StreamPtr; P : ProgPtr; V : VarPtr );
 Var 
   s : StrPtr;
 Begin
-  s := VarNameToLongString(Stream_GetEncoding(f),y,V);
+  s := VarNameToLongString(Stream_GetEncoding(f),P,V);
   Stream_WriteLongString(f,s)
 End;
 
 { print a term }
-Procedure PutTerm( f : StreamPtr; y : TSyntax; T : TermPtr );
+Procedure PutTerm( f : StreamPtr; P : ProgPtr; T : TermPtr );
 Var 
   s : StrPtr;
 Begin
-  s := TermToLongString(Stream_GetEncoding(f),y,T);
+  s := TermToLongString(Stream_GetEncoding(f),P,T);
   Stream_WriteLongString(f,s)
 End;
 
 { print a term, unquoted }
-Procedure PutTermUnquoted( f : StreamPtr; y : TSyntax; T : TermPtr );
+Procedure PutTermUnquoted( f : StreamPtr; P : ProgPtr; T : TermPtr );
 Var 
   s : StrPtr;
 Begin
-  s := TermUnquotedToLongString(Stream_GetEncoding(f),y,T);
+  s := TermUnquotedToLongString(Stream_GetEncoding(f),P,T);
   Stream_WriteLongString(f,s)
 End;
 
 { print one equation }
-Procedure PutOneEquation( f : StreamPtr; y : TSyntax; E : EqPtr );
+Procedure PutOneEquation( f : StreamPtr; P : ProgPtr; E : EqPtr );
 Var 
   s : StrPtr;
 Begin
-  s := OneEquationToLongString(Stream_GetEncoding(f),y,E);
+  s := OneEquationToLongString(Stream_GetEncoding(f),P,E);
   Stream_WriteLongString(f,s)
 End;
 
 { print the reduced system for the variables in the current query (engine) }
-Procedure PutQuerySolution( f : StreamPtr; y : TSyntax; Q : QueryPtr );
+Procedure PutQuerySolution( f : StreamPtr; P : ProgPtr; Q : QueryPtr );
 Var
   s : StrPtr;
 Begin
-  s := QuerySolutionToLongString(Stream_GetEncoding(f),y,Q);
+  s := QuerySolutionToLongString(Stream_GetEncoding(f),P,Q);
   Stream_WriteLongString(f,s)
 End;
 
 { print one rule, using its native syntax (list/1) }
-Procedure PutOneRule( f : StreamPtr; y : TSyntax; R : RulePtr );
+Procedure PutOneRule( f : StreamPtr; P : ProgPtr; R : RulePtr );
 Var 
   s : StrPtr;
 Begin
-  s := OneRuleToLongString(Stream_GetEncoding(f),y,R);
+  s := OneRuleToLongString(Stream_GetEncoding(f),P,R);
   Stream_WriteLongString(f,s)
 End;
 
 { print one query, using its native syntax }
-Procedure PutOneQuery( f : StreamPtr; y : TSyntax; Q : QueryPtr );
+Procedure PutOneQuery( f : StreamPtr; P : ProgPtr; Q : QueryPtr );
 Var 
   s : StrPtr;
 Begin
-  s := OneQueryToLongString(Stream_GetEncoding(f),y,Q);
+  s := OneQueryToLongString(Stream_GetEncoding(f),P,Q);
   Stream_WriteLongString(f,s)
 End;
 
 { print one comment (list/1) }
-Procedure PutOneComment( f : StreamPtr; y : TSyntax; C : CommPtr );
+Procedure PutOneComment( f : StreamPtr; P : ProgPtr; C : CommPtr );
 Var 
   s : StrPtr;
 Begin
-  s := OneCommentToLongString(Stream_GetEncoding(f),y,C);
+  s := OneCommentToLongString(Stream_GetEncoding(f),P,C);
   Stream_WriteLongString(f,s)
 End;
 
 { print a trace message (engine); FIXME: Depth is actually of type TClock  }
-Procedure PutTraceMessage( f : StreamPtr; y : TSyntax; Tag : TString; 
-    Depth : PosInt; Branch : PosInt; ClearT : TermPtr );
+Procedure PutTraceMessage( P : ProgPtr; Tag : TString; Depth : PosInt; 
+    Branch : PosInt; ClearT : TermPtr );
 Var
+  f : StreamPtr; 
   s : StrPtr;
 Begin
+  f := GetTraceStream(P);
   s := Stream_NewStr(f);
   UnparseShortString(s,Tag);
   UnparseShortString(s,': (');
@@ -1197,7 +1320,7 @@ Begin
   UnparseShortString(s,',');
   UnparseShortString(s,PosIntToShortString(Branch));
   UnparseShortString(s,') ');
-  UnparseTerm(y,s,ClearT,False,False,False,True);
+  UnparseTerm(P,s,ClearT,False,False,False,True);
   Stream_WriteLongString(f,s);
   Stream_LineBreak(f)
 End;
@@ -1207,21 +1330,21 @@ End;
 {-----------------------------------------------------------------------}
 
 { output a term }
-Procedure OutTerm( f : StreamPtr; y : TSyntax; T : TermPtr );
+Procedure OutTerm( f : StreamPtr; P : ProgPtr; T : TermPtr );
 Var
   s : StrPtr;
 Begin
-  s := TermToLongString(Stream_GetEncoding(f),y,T);
-  OutFormatted(f,y,s)
+  s := TermToLongString(Stream_GetEncoding(f),P,T);
+  OutFormatted(f,P,s)
 End;
 
 { output a term without quotes }
-Procedure OutTermUnquoted( f : StreamPtr; y : TSyntax; T : TermPtr );
+Procedure OutTermUnquoted( f : StreamPtr; P : ProgPtr; T : TermPtr );
 Var
   s : StrPtr;
 Begin
-  s := TermUnquotedToLongString(Stream_GetEncoding(f),y,T);
-  OutFormatted(f,y,s)
+  s := TermUnquotedToLongString(Stream_GetEncoding(f),P,T);
+  OutFormatted(f,P,s)
 End;
 
 Begin

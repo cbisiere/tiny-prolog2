@@ -68,6 +68,7 @@ Uses
   PObjProg,
   Tuple,
   Encoding,
+  ExpStack,
   Unparse,
   Reduc,
   Tokenize,

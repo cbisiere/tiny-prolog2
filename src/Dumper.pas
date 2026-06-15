@@ -44,8 +44,8 @@ Uses
   Unparse;
 
 Procedure SetCurrentProgram( P : ProgPtr );
-Procedure DumpExtraData( p : TObjectPtr );
-Procedure DumpBacktrace( Q : QueryPtr );
+Procedure DumpExtraData( obj : TObjectPtr; P : ProgPtr );
+Procedure DumpBacktrace( Q : QueryPtr; P : ProgPtr );
 Procedure CoreDumpProg( P : ProgPtr; Message : TString; 
     WithBackTrace : Boolean );
 Procedure CoreDump( Message : TString; WithBackTrace : Boolean );
@@ -93,92 +93,92 @@ End;
 {----------------------------------------------------------------------------}
 
 { dump one constant }
-Procedure DumpConst( y : TSyntax; C : ConstPtr );
+Procedure DumpConst( P : ProgPtr; C : ConstPtr );
 Var 
   s : StrPtr;
 Begin
-  s := ConstToLongString(TargetEncoding,y,C);
+  s := ConstToLongString(TargetEncoding,P,C);
   WriteLongStringToDumpFile(s)
 End;
 
 { dump one identifier }
-Procedure DumpIdentifier( y : TSyntax; I : IdPtr );
+Procedure DumpIdentifier( P : ProgPtr; I : IdPtr );
 Var 
   s : StrPtr;
 Begin
-  s := IdentifierToLongString(TargetEncoding,y,I);
+  s := IdentifierToLongString(TargetEncoding,P,I);
   WriteLongStringToDumpFile(s)
 End;
 
 { dump one variable name }
-Procedure DumpVarName( y : TSyntax; V : VarPtr );
+Procedure DumpVarName( P : ProgPtr; V : VarPtr );
 Var 
   s : StrPtr;
 Begin
-  s := VarNameToLongString(TargetEncoding,y,V);
+  s := VarNameToLongString(TargetEncoding,P,V);
   WriteLongStringToDumpFile(s)
 End;
 
 { dump a term }
-Procedure DumpTerm( y : TSyntax; T : TermPtr );
+Procedure DumpTerm( P : ProgPtr; T : TermPtr );
 Var 
   s : StrPtr;
 Begin
-  s := TermToLongString(TargetEncoding,y,T);
+  s := TermToLongString(TargetEncoding,P,T);
   WriteLongStringToDumpFile(s)
 End;
 
 { dump a term, unquoted }
-Procedure DumpTermUnquoted( y : TSyntax; T : TermPtr );
+Procedure DumpTermUnquoted( P : ProgPtr; T : TermPtr );
 Var 
   s : StrPtr;
 Begin
-  s := TermUnquotedToLongString(TargetEncoding,y,T);
+  s := TermUnquotedToLongString(TargetEncoding,P,T);
   WriteLongStringToDumpFile(s)
 End;
 
 { dump one equation }
-Procedure DumpOneEquation( y : TSyntax; E : EqPtr );
+Procedure DumpOneEquation( P : ProgPtr; E : EqPtr );
 Var 
   s : StrPtr;
 Begin
-  s := OneEquationToLongString(TargetEncoding,y,E);
+  s := OneEquationToLongString(TargetEncoding,P,E);
   WriteLongStringToDumpFile(s)
 End;
 
 { dump the reduced system for the variables in the current query (engine) }
-Procedure DumpQuerySolution( y : TSyntax; Q : QueryPtr );
+Procedure DumpQuerySolution( P : ProgPtr; Q : QueryPtr );
 Var
   s : StrPtr;
 Begin
-  s := QuerySolutionToLongString(TargetEncoding,y,Q);
+  s := QuerySolutionToLongString(TargetEncoding,P,Q);
   WriteLongStringToDumpFile(s)
 End;
 
 { dump one rule, using its native syntax (list/1) }
-Procedure DumpOneRule( y : TSyntax; R : RulePtr );
+Procedure DumpOneRule( P : ProgPtr; R : RulePtr );
 Var 
   s : StrPtr;
 Begin
-  s := OneRuleToLongString(TargetEncoding,y,R);
+  s := OneRuleToLongString(TargetEncoding,P,R);
   WriteLongStringToDumpFile(s)
 End;
 
 { dump one query, using its native syntax }
-Procedure DumpOneQuery( y : TSyntax; Q : QueryPtr );
+Procedure DumpOneQuery( P : ProgPtr; Q : QueryPtr );
 Var 
   s : StrPtr;
 Begin
-  s := OneQueryToLongString(TargetEncoding,y,Q);
+  s := OneQueryToLongString(TargetEncoding,P,Q);
   WriteLongStringToDumpFile(s)
 End;
 
 { dump one comment (list/1) }
-Procedure DumpOneComment( y : TSyntax; C : CommPtr );
+Procedure DumpOneComment( P : ProgPtr; C : CommPtr );
 Var 
   s : StrPtr;
 Begin
-  s := OneCommentToLongString(TargetEncoding,y,C);
+  s := OneCommentToLongString(TargetEncoding,P,C);
   WriteLongStringToDumpFile(s)
 End;
 
@@ -187,29 +187,29 @@ End;
 {----------------------------------------------------------------------------}
 
 { Write extra data in a Prolog object }
-Procedure DumpExtraData( p : TObjectPtr );
+Procedure DumpExtraData( obj : TObjectPtr; P : ProgPtr );
 Var 
-  PRp : ProgPtr Absolute p;
-  Tp : TermPtr Absolute p;
-  Cp : ConstPtr Absolute p;
-  Vp : VarPtr Absolute p;
-  Ip : IdPtr Absolute p;
-  Fp : FuncPtr Absolute p;
-  Dp : DictPtr Absolute p;
-  E : EqPtr Absolute p;
-  Sda : StrDataPtr Absolute p;
-  S : StrPtr Absolute p;
-  Rp : RestPtr Absolute p;
-  Hp : HeadPtr Absolute p;
-  Bp : BTermPtr Absolute p;
-  Rup : RulePtr Absolute p;
-  Kp : TokenPtr Absolute p;
-  Opp : OpPtr Absolute p;
+  PRp : ProgPtr Absolute obj;
+  Tp : TermPtr Absolute obj;
+  Cp : ConstPtr Absolute obj;
+  Vp : VarPtr Absolute obj;
+  Ip : IdPtr Absolute obj;
+  Fp : FuncPtr Absolute obj;
+  Dp : DictPtr Absolute obj;
+  E : EqPtr Absolute obj;
+  Sda : StrDataPtr Absolute obj;
+  S : StrPtr Absolute obj;
+  Rp : RestPtr Absolute obj;
+  Hp : HeadPtr Absolute obj;
+  Bp : BTermPtr Absolute obj;
+  Rup : RulePtr Absolute obj;
+  Kp : TokenPtr Absolute obj;
+  Opp : OpPtr Absolute obj;
   y : TSyntax;
 Begin
   CheckCondition(CurrentProgram <> Nil,'DumpExtraData: program not set');
-  y := PrologIIv1; { syntax for dump }
-  Case PObjectType(p) Of
+  y := GetSyntax(P);
+  Case PObjectType(obj) Of
   PR:
     Begin
       WriteToDumpFile(IntToShortString(PRp^.PP_LEVL));
@@ -227,7 +227,7 @@ Begin
   RU:
     Begin
       WriteToDumpFile('Head: ');
-      DumpTerm(y,BTerm_GetTerm(Rule_GetHead(Rup)))
+      DumpTerm(P,BTerm_GetTerm(Rule_GetHead(Rup)))
     End;
   QU:
     Begin
@@ -237,40 +237,40 @@ Begin
     End;
   EQ:
     Begin
-      DumpOneEquation(y,E)
+      DumpOneEquation(P,E)
     End;
   BT:
     Begin
-      DumpTerm(y,BTerm_GetTerm(Bp));
+      DumpTerm(P,BTerm_GetTerm(Bp));
     End;
   CO:
     Begin
       WriteToDumpFile('''');
-      DumpConst(y,Cp);
+      DumpConst(P,Cp);
       WriteToDumpFile('''')
     End;
   ID:
     Begin
       WriteToDumpFile(BoolToShortString(Ip^.TI_ASSI));
       WriteToDumpFile(' ');
-      DumpIdentifier(y,Ip)
+      DumpIdentifier(P,Ip)
     End;
   FU:
     Begin
-      DumpTerm(y,Tp);
+      DumpTerm(P,Tp);
       If (FRed(Fp) <> Nil) Then
       Begin
         WriteToDumpFile('==');
-        DumpTerm(y,FRed(Fp))
+        DumpTerm(P,FRed(Fp))
       End
     End;
   VA:
     Begin
-      DumpVarName(y,Vp);
+      DumpVarName(P,Vp);
       If (VRed(Vp) <> Nil) Then
       Begin
         WriteToDumpFile('==');
-        DumpTerm(y,VRed(Vp))
+        DumpTerm(P,VRed(Vp))
       End
     End;
   DE:
@@ -310,16 +310,14 @@ Begin
 End;
 
 { display a Prolog clock header }
-Procedure DumpHeader( H : HeadPtr );
+Procedure DumpHeader( H : HeadPtr; P : ProgPtr );
 Var 
-  y : TSyntax;
   U : RestPtr;
   B : BTermPtr;
   GoalType : TGoalType; 
   Access : IdPtr;
   Arity : TArity;
 Begin
-  y := PrologIIv1; { syntax for header output }
   WritelnToDumpFile('*** Header level ' + LongIntToShortString(Header_GetClock(H)) + ' ***');
 
   B := Header_GetGoalsToClear(H);
@@ -356,7 +354,7 @@ Begin
   WriteToDumpFile('  Terms: -> ');
   While B <> Nil Do
   Begin
-    DumpTerm(y,BTerm_GetTerm(B));
+    DumpTerm(P,BTerm_GetTerm(B));
     If BTerm_GetHeader(B) <> Nil Then
       WriteToDumpFile('[' + LongIntToShortString(Header_GetClock(BTerm_GetHeader(B))) + ']');
     WriteToDumpFile(' -> ');
@@ -393,7 +391,7 @@ Begin
     WritelnToDumpFile('Nil')
   Else
   Begin
-    DumpOneRule(y,Header_GetRule(H));
+    DumpOneRule(P,Header_GetRule(H));
     WriteLineBreakToDumpFile
   End;
 
@@ -409,7 +407,7 @@ Begin
   If Header_GetSideCarTerm(H) <> Nil Then
   Begin
     WriteToDumpFile('  CHOIV: ');
-    DumpTerm(y,Header_GetSideCarTerm(H));
+    DumpTerm(P,Header_GetSideCarTerm(H));
     WriteLineBreakToDumpFile
   End;
 
@@ -429,24 +427,24 @@ Begin
 End;
 
 { display the call stack until header H, included }
-Procedure Backtrace( H : HeadPtr );
+Procedure Backtrace( H : HeadPtr; P : ProgPtr );
 Begin
   WritelnToDumpFile('HEADER DUMP:');
   While H <> Nil Do
   Begin
-    DumpHeader(H);
+    DumpHeader(H,P);
     H := Headers_GetNext(H)
   End
 End;
 
 { display the call stack }
-Procedure DumpBacktrace( Q : QueryPtr );
+Procedure DumpBacktrace( Q : QueryPtr; P : ProgPtr );
 Begin
-  Backtrace(Query_GetHead(Q))
+  Backtrace(Query_GetHead(Q),P)
 End;
 
 { display variable identifiers in a dictionary }
-Procedure DumpDictVar( y : TSyntax; D : DictPtr );
+Procedure DumpDictVar( P : ProgPtr; D : DictPtr );
 Var 
   e : DictPtr;
   V : VarPtr;
@@ -462,16 +460,16 @@ Begin
       WriteToDumpFile('*')
     Else
       WriteToDumpFile(' ');
-    DumpVarName(y,V);
+    DumpVarName(P,V);
     If VRed(V) <> Nil Then
     Begin
       WriteToDumpFile(' = ');
-      DumpTerm(y,VRed(V))
+      DumpTerm(P,VRed(V))
     End;
     If WatchIneq(V) <> Nil Then
     Begin
       WriteToDumpFile(', ');
-      DumpOneEquation(y,WatchIneq(V))
+      DumpOneEquation(P,WatchIneq(V))
     End;
     WriteLineBreakToDumpFile;
     e := Dict_GetNext(e)
@@ -523,7 +521,7 @@ Begin
       DumpDictConst(P^.PP_DCON,'Constants:',False);
       DumpDictConst(P^.PP_DIDE,'Identifiers:',True);
       If WithBackTrace Then
-        Backtrace(Query_GetHead(GetCurrentQuery(P)))
+        Backtrace(Query_GetHead(GetCurrentQuery(P)),P)
     End;
     WritelnToDumpFile('End Code Dump: "' + Message + '"');
     OngoingCoreDump := False
