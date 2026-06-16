@@ -68,6 +68,15 @@ Procedure LoadProgram( P : ProgPtr; s : StrPtr; TryPath : Boolean );
 Implementation
 {-----------------------------------------------------------------------------}
 
+{ frequency of GC, in number of clock ticks }
+{$IFDEF MSDOS}
+Const
+  GC_FREQ = 1000;
+{$ELSE}
+Const
+  GC_FREQ = 100000;
+{$ENDIF}
+
 {----------------------------------------------------------------------------}
 {                                                                            }
 {                  P R E D E F I N E D   P R E D I C A T E S                 }
@@ -749,7 +758,7 @@ Begin { clock }
 
       { trigger GC after a certain number of steps }
       GCCount := GCCount + 1;
-      If GCCount = 100 Then
+      If GCCount = GC_FREQ Then
       Begin
         GarbageCollector;
         GCCount := 0

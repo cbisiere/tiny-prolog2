@@ -33,11 +33,14 @@ Type
     USER_INTERRUPT
   );
 
+{ globally accessible error state [fast] }
+Var
+  Error : Boolean;
+
 Procedure ResetError;
 
 Function GetErrorMessage : TString;
 Procedure SetErrorMessage( msg : TString );
-Function Error : Boolean;
 Function ErrorState : TErrorState;
 Function FatalError : Boolean;
 Function QuitRequested : Boolean;
@@ -69,6 +72,7 @@ Var
 { reset the unit to no error state }
 Procedure ResetError;
 Begin
+  Error := False;
   State := NO_ERROR;
   Quit := False;
   Code := 0;
@@ -85,12 +89,6 @@ End;
 Procedure SetErrorMessage( msg : TString );
 Begin
   Message := msg 
-End;
-
-{ is there an error? }
-Function Error : Boolean;
-Begin
-  Error := State <> NO_ERROR
 End;
 
 { error state }
@@ -111,9 +109,11 @@ Begin
   QuitRequested := Quit
 End;
 
-{ an error occurred; display a message }
+{ an error occurred; display a message; not public so raising NO_ERROR is not
+ possible }
 Procedure RaiseError( t : TErrorState; msg : TString );
 Begin
+  Error := True;
   State := t;
   SetErrorMessage(msg)
 End;

@@ -18,13 +18,18 @@ Unit Memory;
 Interface
 
 Uses
+  DateTime,
   Heap,
   Stack,
   ShortStr,
   Num,
   Serial,
   Errs,
+  Dump,
   CWrites;
+
+Const
+  TRACE_GC = False;
 
 {$IFDEF CPU16}
 { TP4 p212: maximum size of a structured type is 65520 bytes }
@@ -450,26 +455,26 @@ Var
   child : TObjectPtr;
 Begin
   If p = Nil Then
-    CWrite('Nil')
+    WriteToDumpFile('Nil')
   Else
   Begin
-    CWrite(RAlign(PtrToName(p),5) + ' : ');
-    CWrite(RAlign(IntToShortString(ObjectSize(p)),3) + ' ');
+    WriteToDumpFile(RAlign(PtrToName(p),5) + ' : ');
+    WriteToDumpFile(RAlign(IntToShortString(ObjectSize(p)),3) + ' ');
     With p^.PO_META Do
     Begin
-      CWrite(GetObjectName(PO_TYPE) + ' ' + MarkToShortString(PO_MARK) + ' ');
-      CWrite(IntToShortString(PO_NCOP) + ' ');
-      CWrite(RAlign(GuidToShortString(PO_CUID),5))
+      WriteToDumpFile(GetObjectName(PO_TYPE) + ' ' + MarkToShortString(PO_MARK) + ' ');
+      WriteToDumpFile(IntToShortString(PO_NCOP) + ' ');
+      WriteToDumpFile(RAlign(GuidToShortString(PO_CUID),5))
     End;
-    CWrite(' [');
+    WriteToDumpFile(' [');
     For i := 1 To ObjectNbChildren(p) Do
     Begin
       child := ObjectChild(p,i);
-      CWrite('  ' + PtrToName(child))
+      WriteToDumpFile('  ' + PtrToName(child))
     End;
-    CWrite(' ]')
+    WriteToDumpFile(' ]')
   End;
-  CWriteLn
+  WriteLineBreakToDumpFile
 End;
 
 { check a memory location has a chance to be a legit Prolog object }
@@ -905,12 +910,11 @@ Procedure DumpGCRoots;
 Var 
   i : TNbRoots;
 Begin
-  CWrite('GC roots:');
-  CWriteLn;
+  WritelnToDumpFile('GC roots:');
   For i := 1 To NbRoots Do
   Begin
-    CWrite(RAlign(IntToShortString(i),3) + ' ' + RAlign(PtrToName(Roots[i]),5));
-    CWriteLn
+    WritelnToDumpFile(RAlign(IntToShortString(i),3) + ' ' + 
+        RAlign(PtrToName(Roots[i]),5));
   End
 End;
 
@@ -940,10 +944,18 @@ End;
 Procedure GarbageCollector;
 Var 
   i : TNbRoots;
+  StartTime : LongInt;
 Begin
   CheckCondition(Not OngoingGC, 'GC: not reentrant');
   If GC Then
   Begin
+    { trace: start }
+    If TRACE_GC Then
+    Begin
+      WritelnToDumpFile('GS start');
+      StartTime := UnixTime
+    End;
+    { run }
     OngoingGC := True;
     PrepareMark;
     For i := 1 To NbRoots Do
@@ -955,8 +967,14 @@ Begin
       UnMark;
     { when a GC error occurs, GC cannot be used anymore }
     GC := ErrorState <> GC_ERROR; 
-    OngoingGC := False
-  End
+    OngoingGC := False;
+    { trace: end }
+    If TRACE_GC Then
+    Begin
+      WritelnToDumpFile('GS end (' + 
+          LongIntToShortString(UnixTime-StartTime) + ' sec.)')
+    End
+   End
 End;
 
 
