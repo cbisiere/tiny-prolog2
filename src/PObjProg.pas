@@ -78,6 +78,8 @@ Function GetEcho( P : ProgPtr ) : Boolean;
 Procedure SetTrace( P : ProgPtr; state : Boolean );
 Function GetTrace( P : ProgPtr ) : Boolean;
 Function GetTraceStream( P : ProgPtr ) : StreamPtr;
+Procedure SetInfinite( P : ProgPtr; state : Boolean );
+Function GetInfinite( P : ProgPtr ) : Boolean;
 Procedure SetDebug( P : ProgPtr; state : Boolean );
 Function GetDebug( P : ProgPtr ) : Boolean;
 Function GetDebugStream( P : ProgPtr ) : StreamPtr;
@@ -112,7 +114,11 @@ Procedure CloseTopBuffer( P : ProgPtr );
 Procedure ResetIO( P : ProgPtr );
 Procedure DisplayPrompt( P : ProgPtr );
 
+{ operators }
+Function GetOps( P : ProgPtr ) : OpPtr;
+
 { worlds }
+Function GetTopWorld( P : ProgPtr ) : WorldPtr;
 Function GetCurrentWorld( P : ProgPtr ) : WorldPtr;
 Procedure SetCurrentWorld( P : ProgPtr; W : WorldPtr );
 Function CreateNewSubWorld( P : ProgPtr; Name : StrPtr; 
@@ -273,7 +279,8 @@ Begin
     PP_PAPE := GetPaperState;
     PP_ECHO := GetEchoState;
     PP_DEBG := False;
-    PP_TRAC := False
+    PP_TRAC := False;
+    PP_INFI := False
   End;
   Prog_New := P
 End;
@@ -322,6 +329,20 @@ Begin
   Else
     GetTraceStream := Nil
 End;
+
+{ handling of infinite trees (does nothing as we always handle infinite tree) }
+
+Procedure SetInfinite( P : ProgPtr; state : Boolean );
+Begin
+  P^.PP_INFI := state
+End;
+
+Function GetInfinite( P : ProgPtr ) : Boolean;
+Begin
+  GetInfinite := P^.PP_INFI
+End;
+
+{ debug }
 
 Procedure SetDebug( P : ProgPtr; state : Boolean );
 Begin
@@ -502,8 +523,25 @@ End;
 
 
 {-----------------------------------------------------------------------}
+{ operators                                                             }
+{-----------------------------------------------------------------------}
+
+{ return the list of operators of program P }
+Function GetOps( P : ProgPtr ) : OpPtr;
+Begin
+  GetOps := P^.PP_OPER
+End;
+
+
+{-----------------------------------------------------------------------}
 { worlds                                                                }
 {-----------------------------------------------------------------------}
+
+{ return the top world of program P }
+Function GetTopWorld( P : ProgPtr ) : WorldPtr;
+Begin
+  GetTopWorld := P^.PP_WTOP
+End;
 
 { return the current world of program P }
 Function GetCurrentWorld( P : ProgPtr ) : WorldPtr;
@@ -583,10 +621,42 @@ Begin
   EmitVariable := TermPtr(V)
 End;
 
+{ return the directory entry of an identifier (from a string w/o quotes) or Nil }
+Function SearchIdentInScope( P : ProgPtr; s : StrPtr; glob : Boolean ) : DictPtr;
+Var
+  e : DictPtr;
+  W : WorldPtr;
+Begin
+  { 1: as a global identifier }
+  e := LookupIdentifierInDict(P^.PP_DIDE,s,glob);
+  { 2: in the current world; set Dc to the dictionary of the current world }
+  If e = Nil Then
+  Begin
+    W := GetCurrentWorld(P);
+    e := LookupIdentifierInDict(W^.WO_DIDE,s,glob)
+  End;
+  { 3: in parent worlds }
+  If e = Nil Then
+  Begin
+    W := World_GetParent(W);
+    While (W <> Nil) And (e = Nil) Do
+    Begin
+      e := LookupIdentifierInDict(W^.WO_DIDE,s,glob);
+      W := World_GetParent(W)
+    End
+  End;
+  SearchIdentInScope := e
+End;
+
 { return an existing identifier whose string representation is s, or Nil }
 Function GetIdentByString( P : ProgPtr; s : StrPtr ) : TermPtr;
+Var
+  e : DictPtr;
 Begin
-  GetIdentByString := TermPtr(GetInstalledIdentifier(P^.PP_DIDE,s))
+  GetIdentByString := Nil;
+  e := SearchIdentInScope(P,s,False); 
+  If e <> Nil Then
+    GetIdentByString := Dict_GetTerm(e)
 End;
 
 { return a new identifier as a term, from a string (w/o quotes); quote the 
@@ -597,6 +667,8 @@ Function EmitIdent( P : ProgPtr; s : StrPtr; canQuote : Boolean;
     glob : Boolean ) : TermPtr;
 Var
   mustQuote : Boolean;
+  e : DictPtr;
+  W : WorldPtr;
   I : IdPtr;
 Begin
   EmitIdent := Nil;
@@ -604,7 +676,14 @@ Begin
   If mustQuote 
       And (Not canQuote Or Not SupportsQuotedIdentifiers(GetSyntax(P))) Then
     Exit;
-  I := InstallIdentifier(P^.PP_DIDE,s,MustQuote,glob);
+  e := SearchIdentInScope(P,s,glob);
+  If e <> Nil Then { return the identifier we found }
+    I := IdPtr(Dict_GetTerm(e))
+  Else
+  Begin { append the identifier to the current world }
+    W := GetCurrentWorld(P);
+    I := AppendIdentifierToDict(W^.WO_DIDE,s,MustQuote,glob)
+  End;
   EmitIdent := TermPtr(I)
 End;
 
@@ -632,7 +711,7 @@ End;
 Function EmitSpecialIdent( P : ProgPtr; ident : TString; 
     glob : Boolean ) : TermPtr;
 Begin
-  EmitSpecialIdent := TermPtr(InstallIdentifier(P^.PP_DIDE,
+  EmitSpecialIdent := TermPtr(InstallIdentifierInDict(P^.PP_DIDE,
       Str_NewFromShortString(ident),False,glob))
 End;
 

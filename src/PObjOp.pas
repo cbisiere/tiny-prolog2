@@ -109,6 +109,9 @@ Function Op_Append( Var list : OpPtr; code : TOpCode; ope,func : TString;
 
 Procedure Op_Remove( Var list : OpPtr; o : OpPtr );
 
+{ list of operators }
+Function Op_Prev( o : OpPtr ) : OpPtr;
+Function Op_Next( o : OpPtr ) : OpPtr;
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -227,6 +230,18 @@ End;
 Function Op_IsUser( o : OpPtr ) : Boolean;
 Begin
   Op_IsUser := Op_GetCode(o) = OPER_USER
+End;
+
+{ previous op }
+Function Op_Prev( o : OpPtr ) : OpPtr;
+Begin
+  Op_Prev := o^.OP_PREV
+End;
+
+{ next op }
+Function Op_Next( o : OpPtr ) : OpPtr;
+Begin
+  Op_Next := o^.OP_Next
 End;
 
 {-----------------------------------------------------------------------}

@@ -134,6 +134,7 @@ Type
     WO_META : TObjMeta;
     { deep copied: }
     WO_NAME : StrPtr; { name of the world }
+    WO_DIDE : DictPtr; { identifiers defined in this worlds }
     WO_FSTA : StmtPtr; { first statement in this world }
     WO_LSTA : StmtPtr; { last statement in this world }
     WO_CSTA : StmtPtr; { current statement in this world }
@@ -169,7 +170,7 @@ Type
     { not deep copied: }
     PP_FILE : StreamPtr; { top of the stack of streams or Nil }
     PP_DCON : DictPtr; { list of all constants }
-    PP_DIDE : DictPtr; { list of all identifiers (globals, can be assigned, must not backtrack) }
+    PP_DIDE : DictPtr; { globals identifiers: nil, '!', etc. }
     PP_DVAR : DictPtr; { local variables when parsing a rule or a query }
     PP_OPER : OpPtr;   { list of operators }
     PP_PATH : StrPtr; { path (dir) of the file passed as parameter in the CL }
@@ -180,6 +181,7 @@ Type
     PP_PAPE : Boolean; { paper is on/off }
     PP_ECHO : Boolean; { echo is on/off }
     PP_TRAC : Boolean; { trace is on/off }
+    PP_INFI : Boolean; { infinite is on/off (does nothing) }
     PP_DEBG : Boolean  { debug is on/off }
   End;
 

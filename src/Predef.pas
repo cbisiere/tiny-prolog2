@@ -84,6 +84,7 @@ Type
     PP_RETRACT1,
     PP_RETRACT2,
     PP_EXPAND_FILENAME,
+    PP_SAVE_STATE,
     PP_NEW_BUFFER,
     PP_DEL_BUFFER,
     PP_SELECT_INPUT,
@@ -153,7 +154,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 72;
+  NB_PP = 73;
   MAX_PP_LENGTH = 21; { max string length }
 Type
   TPPRec = Record
@@ -193,6 +194,7 @@ Const
     (I:PP_RETRACT1;S:'sysretract1';N:1),
     (I:PP_RETRACT2;S:'sysretract2';N:2),
     (I:PP_EXPAND_FILENAME;S:'sysexpandfilename';N:2),
+    (I:PP_SAVE_STATE;S:'syssavestate';N:1),
     (I:PP_NEW_BUFFER;S:'sysnewbuffer';N:0),
     (I:PP_DEL_BUFFER;S:'sysdelbuffer';N:0),
     (I:PP_SELECT_INPUT;S:'sysselectinput';N:1),
@@ -208,7 +210,7 @@ Const
     (I:PP_FLUSH;S:'sysflush';N:0),
     (I:PP_QUIT;S:'sysquit';N:0),
     (I:PP_INSERT;S:'sysinsert';N:1),
-    (I:PP_LIST;S:'syslist';N:1),
+    (I:PP_LIST;S:'syslist';N:2),
     (I:PP_OUT;S:'sysout';N:1),
     (I:PP_OUTM;S:'sysoutm';N:1),
     (I:PP_LINE;S:'sysline';N:0),
@@ -428,7 +430,13 @@ End;
 
 { on-off states }
 Type
-  TPrologState = (STATE_ECHO,STATE_PAPER,STATE_TRACE,STATE_DEBUG);
+  TPrologState = (
+    STATE_ECHO,
+    STATE_PAPER,
+    STATE_TRACE,
+    STATE_INFINITE,
+    STATE_DEBUG
+  );
 
 { return in Result the state argument passed as an identifier in argument n 
  of a predicate; return false if the argument is not a type identifier }
@@ -452,6 +460,8 @@ Begin
     Result := STATE_PAPER
   Else If s = 'trace' Then
     Result := STATE_TRACE
+  Else If s = 'infinite' Then
+    Result := STATE_INFINITE
   Else If s = 'debug' Then
     Result := STATE_DEBUG
   Else
@@ -914,7 +924,7 @@ Begin
 End;
 
 { new-subworld("Facts") 
- create a new userland subworld}
+ create a new userland subworld and set it as the current world }
 Function ClearNewSubWorld( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   C : ConstPtr;
@@ -1168,6 +1178,8 @@ Function ClearList( P : ProgPtr; T : TermPtr ) : Boolean;
 Var 
   f : StreamPtr;
   n : PosInt;
+  RulesOnly : Boolean;
+  Filter : SetOfTStmt;
   W : WorldPtr;
   S : StmtPtr;
   ListAll : Boolean;
@@ -1175,32 +1187,28 @@ Begin
   { 1: number of statements to list or 0 for all }
   If Not GetPosIntArg(1,T,n) Then
     Exit;
+  { 2: list only rules, ignoring comments? }
+  If Not GetBoolean(2,T,RulesOnly) Then
+    Exit;
+
   W := GetCurrentWorld(P);
   ListAll := n = 0;
+
+  { what to list }
+  Filter := [Rule];
+  If Not RulesOnly Then
+    Filter := Filter + [Comment];
 
   { first statement to print }
   If ListAll Then
     S := World_GetFirstStatement(W)
   Else
     S := World_GetCurrentStatement(W);
-  If Not (Statement_GetType(S) In [Comment,Rule]) Then
-    S := Statement_FindNextOfType(S,[Comment,Rule]);
 
-  { print }
+  { print statements }
   f := CurrentOutput(P);
-  While (S <> Nil) And ((n > 0) Or ListAll) Do
-  Begin
-    Case Statement_GetType(S) Of
-    Comment:
-      PutOneComment(f,P,CommPtr(Statement_GetObject(S)));
-    Rule:
-      PutOneRule(f,P,RulePtr(Statement_GetObject(S)));
-    End;
-    Stream_LineBreak(f);
-    If Not ListAll Then
-      n := n - 1;
-    S := Statement_FindNextOfType(S,[Comment,Rule]);
-  End;
+  PutStatements(f,P,S,n,ListAll,Filter);
+
   ClearList := True
 End;
 
@@ -2119,7 +2127,7 @@ Var
   I2,I3,I4 : IdPtr;
   Id2,Id3,Id4 : TString;
   v : PosInt;
-  o1,o2,o3 : OpPtr;
+  ops,o1,o2,o3 : OpPtr;
   ot : TOpType;
   n : TOpArity;
   op3 : Boolean; { call is op/3? }
@@ -2166,11 +2174,14 @@ Begin
   { compute arity }
   n := TOpTypeToArity(ot);
 
+  { current list of operators }
+  ops := GetOps(P);
+
   { delete }
   If del Then
   Begin
     { exact match? (except precedence, which was given as zero) }
-    o3 := Op_Lookup(P^.PP_OPER,[OP_OPERATOR,OP_FUNCTION,OP_TYPES,
+    o3 := Op_Lookup(ops,[OP_OPERATOR,OP_FUNCTION,OP_TYPES,
         OP_ARITY],Id3,Id4,[ot],n,0);
     If o3 = Nil Then
     Begin
@@ -2190,11 +2201,11 @@ Begin
   Else { create }
   Begin
     { existing function with same name and same number of parameters? }
-    o1 := Op_Lookup(P^.PP_OPER,[OP_OPERATOR,OP_ARITY],'',Id4,[],n,0);
+    o1 := Op_Lookup(ops,[OP_OPERATOR,OP_ARITY],'',Id4,[],n,0);
     { existing operator with same name and same number of parameters? }
-    o2 := Op_Lookup(P^.PP_OPER,[OP_FUNCTION,OP_ARITY],Id3,'',[],n,0);
+    o2 := Op_Lookup(ops,[OP_FUNCTION,OP_ARITY],Id3,'',[],n,0);
     { exact match? }
-    o3 := Op_Lookup(P^.PP_OPER,[OP_OPERATOR,OP_FUNCTION,OP_TYPES,OP_ARITY,
+    o3 := Op_Lookup(ops,[OP_OPERATOR,OP_FUNCTION,OP_TYPES,OP_ARITY,
         OP_PRECEDENCE],Id3,Id4,[ot],n,v);
     { a partial match already exists }
     If (o3 = Nil) And ((o1 <> Nil) Or (o2 <> Nil)) Then
@@ -2270,6 +2281,47 @@ Begin
     FindNext(DirInfo)
   End;
   ClearExpandFileName := ReduceOneEq(L,GetPArg(2,T),P)
+End;
+
+{ PII+: save_state("backup/state.p2");
+ save the state (i.e., assigned identifiers, arrays, rules, various global 
+ states as infinite, trace...) with file of path S }
+Function ClearSaveState( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  f : StreamPtr;
+  Path : TPath;
+Begin
+  ClearSaveState := False;
+
+  { 1: file name }
+  If Not GetShortPathArgAsStr(1,T,Path) Then 
+  Begin
+    CWriteLnWarning('incorrect file path argument');
+    Exit
+  End;
+
+  { create the new user stream }
+  f := CreateNewStream(P,Path,Path,DEV_FILE,MODE_WRITE,False,True);
+  If f = Nil Then
+  Begin
+    CWriteWarning('fail to create file: ''');
+    Str_CWrite(Path);
+    CWrite('''');
+    CWriteLn;
+    Exit
+  End;
+  If Not Stream_IsOpen(f) Then
+  Begin
+    CWriteWarning('fail to open file: ''');
+    Str_CWrite(Path);
+    CWrite('''');
+    CWriteLn;
+    Exit
+  End;
+
+  { print state: }
+  PutUserState(f,P);
+  ClearSaveState := True
 End;
 
 {----------------------------------------------------------------------------}
@@ -2965,6 +3017,10 @@ Begin
    write on console all rule calls }
   STATE_TRACE:
     SetTrace(P,StateValue);
+  { finite, infinite:
+   handle infinite trees }
+  STATE_INFINITE:
+    SetInfinite(P,StateValue);
   { debug, no_trace:
    additional unification info }
   STATE_DEBUG:
@@ -3270,6 +3326,8 @@ Begin
     Ok := ClearRule(P,T,True,True,L,SuccessCount,Choices,More);
   PP_EXPAND_FILENAME:
     Ok := ClearExpandFileName(P,T);
+  PP_SAVE_STATE:
+    Ok := ClearSaveState(P,T);
   PP_NEW_BUFFER:
     Ok := ClearNewBuffer(P);
   PP_DEL_BUFFER:

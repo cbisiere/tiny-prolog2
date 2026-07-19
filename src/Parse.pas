@@ -370,7 +370,7 @@ Begin
         (Token_GetType(K) In [TOKEN_ARROW,TOKEN_COMMA,TOKEN_RIGHT_CHE,TOKEN_LEFT_CHE]) Then
   Begin
     oper := Str_GetShortStringTruncate(Token_GetStr(K));
-    o := Op_Lookup(P^.PP_OPER,[OP_OPERATOR,OP_TYPES,OP_MAX_PRECEDENCE],
+    o := Op_Lookup(GetOps(P),[OP_OPERATOR,OP_TYPES,OP_MAX_PRECEDENCE],
         oper,'',OpTypes,0,MaxPred);
       
     { special case: prefixed unary operator used as ident, e.g. ['-'|aa]. or 

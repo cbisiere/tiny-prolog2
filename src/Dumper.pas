@@ -39,6 +39,7 @@ Uses
   PObjBter,
   PObjQury,
   PObjHead,
+  PObjWrld,
   PObjProg,
   PObjRule,
   Unparse;
@@ -476,14 +477,14 @@ Begin
   End
 End;
 
-{ display the dictionary of constants }
+{ display a dictionary of constants or identifiers }
 Procedure DumpDictConst( e : DictPtr; title : TString; 
     Ident: Boolean );
 Var
   s : StrPtr;
 Begin
   WritelnToDumpFile(title);
-  while (e<>Nil) Do
+  while e <> Nil Do
   Begin
     If Dict_IsGlobal(e) Then
       WriteToDumpFile('*')
@@ -493,9 +494,24 @@ Begin
       s := GetIdentAsStr(IdPtr(Dict_GetTerm(e)),True)
     Else
       s := Dict_GetStr(e);
-    Str_Dump(s);
+    WriteLongStringToDumpFile(s);
     WriteLineBreakToDumpFile;
     e := Dict_GetNext(e)
+  End
+End;
+
+{ display identifiers in world W and all of its subworlds }
+Procedure DumpAllIdentInWorld( W : WorldPtr );
+Begin
+  WriteToDumpFile('World "');
+  WriteLongStringToDumpFile(World_GetName(W));
+  WriteToDumpFile('" ');
+  DumpDictConst(W^.WO_DIDE,'Identifiers:',True);
+  W := World_GetFirstChild(W);
+  While W <> Nil Do
+  Begin
+    DumpAllIdentInWorld(W);
+    W := World_GetNext(W)
   End
 End;
 
@@ -519,7 +535,8 @@ Begin
     If P <> Nil Then
     Begin
       DumpDictConst(P^.PP_DCON,'Constants:',False);
-      DumpDictConst(P^.PP_DIDE,'Identifiers:',True);
+      DumpDictConst(P^.PP_DIDE,'Global identifiers:',True);
+      DumpAllIdentInWorld(GetTopWorld(P));
       If WithBackTrace Then
         Backtrace(Query_GetHead(GetCurrentQuery(P)),P)
     End;

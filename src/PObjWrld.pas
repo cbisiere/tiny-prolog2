@@ -24,6 +24,7 @@ Uses
   Memory,
   PObj,
   PObjStr,
+  PObjDict,
   PObjDef,
   PObjStmt;
 
@@ -35,6 +36,7 @@ Function World_GetPrev( W : WorldPtr ) : WorldPtr;
 Function World_GetParent( W : WorldPtr ) : WorldPtr;
 Function World_GetFirstChild( W : WorldPtr ) : WorldPtr;
 Function World_GetLastChild( W : WorldPtr ) : WorldPtr;
+Function World_GetDict( W : WorldPtr ) : DictPtr;
 Function World_GetFirstStatement( W : WorldPtr ) : StmtPtr;
 Procedure World_SetFirstStatement( W : WorldPtr; S : StmtPtr );
 Function World_GetLastStatement( W : WorldPtr ) : StmtPtr;
@@ -61,10 +63,11 @@ Var
   W : WorldPtr;
   ptr : TObjectPtr Absolute W;
 Begin
-  ptr := NewRegisteredPObject(WO,SizeOf(TObjWorld),8,True,8);
+  ptr := NewRegisteredPObject(WO,SizeOf(TObjWorld),9,True,9);
   With W^ Do
   Begin
     WO_NAME := Name;
+    WO_DIDE := Nil;
     WO_FSTA := Statement_New(StatementStart,Nil);;
     WO_LSTA := Statement_New(StatementEnd,Nil);
     WO_CSTA := WO_LSTA;
@@ -114,6 +117,12 @@ Begin
   World_GetFirstChild := W^.WO_WFCH
 End;
 
+{ world's dictionary of identifiers }
+Function World_GetDict( W : WorldPtr ) : DictPtr;
+Begin
+  World_GetDict := W^.WO_DIDE
+End;
+
 { world's first statement }
 Function World_GetFirstStatement( W : WorldPtr ) : StmtPtr;
 Begin
@@ -154,7 +163,7 @@ End;
 { methods                                                               }
 {-----------------------------------------------------------------------}
 
-{ return the first child of W with name Name of Nil if no children has this 
+{ return the first child of W with name Name or Nil if no children has this 
  name }
 Function World_FindChildByName( W : WorldPtr; Name : StrPtr ) : WorldPtr;
 Var

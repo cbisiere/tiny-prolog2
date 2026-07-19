@@ -73,21 +73,24 @@ End;
 Procedure WriteToDumpFile( s : TString );
 Begin
   LazyOpenDumpFile;
-  WriteToFile(DUMP_FILE,DumpFile,s)
+  If DumpFileIsOpen Then  
+    WriteToFile(DUMP_FILE,DumpFile,s)
 End;
 
 { writeln to the dump file }
 Procedure WritelnToDumpFile( s : TString );
 Begin
   LazyOpenDumpFile;
-  WritelnToFile(DUMP_FILE,DumpFile,s)
+  If DumpFileIsOpen Then  
+    WritelnToFile(DUMP_FILE,DumpFile,s)
 End;
 
 { write a line break to the dump file }
 Procedure WriteLineBreakToDumpFile;
 Begin
   LazyOpenDumpFile;
-  WritelnToFile(DUMP_FILE,DumpFile,'')
+  If DumpFileIsOpen Then  
+    WritelnToFile(DUMP_FILE,DumpFile,'')
 End;
 
 {-----------------------------------------------------------------------}

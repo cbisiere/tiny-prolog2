@@ -33,7 +33,7 @@ Support for Prolog II's predefined predicates is almost complete, and should be 
 The interpreter is able to solve most of the exercises proposed in Kanoui (1982) and Giannesini et al. (1985). In Edinburgh mode, it successfully (but slowly) runs Orbis, a demo program written by Alain Colmeraurer (see [Alain Colmerauer's website](http://alain.colmerauer.free.fr/)).
 
 ## Overview
-Being a simple implementation exercice, the interpreter offers only a few [built-in predicates](PREDEF.md) and no advanced features. 
+Being a simple implementation exercise, the interpreter offers only a few [built-in predicates](PREDEF.md) and no advanced features. 
 
 Nonetheless, the interpreter is fully garbage collected and has almost no hard-coded limits, thanks to its garbage collector and dynamic string manager.
 
@@ -202,7 +202,7 @@ Variables that are both free and frozen are displayed using a special notation s
 
 ### Infinite trees
 
-Infinite trees are not integrated in the unification engine yet, but can be displayed using the `*n` notation:
+Infinite trees are displayed using the `*n` notation:
 
 ```
 -> eq(x,ff(x)) outl(x);
@@ -399,7 +399,7 @@ and `insert(f)` to insert rules and queries from a file with file path `f`.
 
 You can navigate into the history of previous queries using the up and down arrow keys.  
 
-When you are done, use `quit` or hit `Ctrl+C` to quit the interpreter.
+When you are done, use `exit`, `quit` (or, equivalently, hit `Ctrl+C`) to quit the interpreter. `exit` save the state of the interpreter before quitting. To restore the last saved state, launch the interpreter with a `-R` parameter.
 
 ```
 > quit;

@@ -2,6 +2,8 @@
 
 "session"
 
+save_state(S) :- syscall(syssavestate,S).
+exit :- outm("saving... "), save_state("start/saved.p2E"), quit.
 quit :- outml("bye!"), syscall(sysquit).
 
 "rules (pII+ p.219)"
@@ -13,7 +15,7 @@ retract(Rule) :- syscall(sysretract1,Rule).
 
 clause(T,Q) :- syscall(sysrule,T,Q).
 
-list :- syscall(syslist,0).
+list :- syscall(systopstatement), syscall(syslist,0,true).
 insert(F) :- syscall(sysinsert,F).
 
 "is"
@@ -83,8 +85,8 @@ no_trace :- syscall(sysonoff,trace,false).
 debug :- syscall(sysonoff,debug,true).
 no_debug :- syscall(sysonoff,debug,false).
 
-no_infinite.
-infinite.
+infinite :- syscall(sysonoff,infinite,true).
+no_infinite :- syscall(sysonoff,infinite,false).
 
 "in: PII+"
 
@@ -193,3 +195,8 @@ is(X,Y) :- val(Y,X).
 
 bt :- syscall(sysbacktrace).
 dump :- syscall(sysdump).
+
+length([],0).
+length([A|L],M) :-
+    length(L,N),
+    M is N+1.

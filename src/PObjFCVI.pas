@@ -144,6 +144,7 @@ Function ConstTypeToObjectType( typ : TConst ) : TypePrologObj;
 Function ConstType( C : ConstPtr ) : TConst;
 Function ConstGetStr( C : ConstPtr ) : StrPtr;
 Function ConstGetShortString( C : ConstPtr ) : TString;
+Function ConstEqualTo( C : ConstPtr; ps : TString ) : Boolean;
 Function GetConstAsStr( C : ConstPtr; Quotes : Boolean ) : StrPtr;
 
 Function VariableGetName( V : VarPtr ) : StrPtr;
@@ -203,6 +204,8 @@ Function GetArray( I : IdPtr ) : ArrayPtr;
 Procedure SetArray( I : IdPtr; n : TArraySize; A : ArrayPtr );
 Procedure SetArrayElement( I : IdPtr; j : TArrayIndex; T : TermPtr );
 Function GetArraySize( I : IdPtr ) : TArraySize;
+Function GetArrayIndexAsShortString( j : TArrayIndex ) : TString;
+Function GetArraySizeAsShortString( I : IdPtr ) : TString;
 Function IsArray( I : IdPtr ) : Boolean;
 
 Function IsConstant( T : TermPtr ) : Boolean;
@@ -227,8 +230,11 @@ Function InstallConst( Var D : DictPtr; str : StrPtr;
 Function InstallVariable( Var D : DictPtr; str : StrPtr; 
     anonymous : Boolean; glob : Boolean ) : VarPtr;
 
-Function GetInstalledIdentifier( D : DictPtr; str : StrPtr ) : IdPtr;
-Function InstallIdentifier( Var D : DictPtr; str : StrPtr; SingleQuotes : Boolean;
+Function LookupIdentifierInDict( D : DictPtr; str : StrPtr;
+    glob : Boolean  ) : DictPtr;
+Function AppendIdentifierToDict( Var D : DictPtr; str : StrPtr; 
+    SingleQuotes : Boolean; glob : Boolean  ) : IdPtr;
+Function InstallIdentifierInDict( Var D : DictPtr; str : StrPtr; SingleQuotes : Boolean;
     glob : Boolean  ) : IdPtr;
 
 Procedure DumpTermObjects( T : TermPtr; Tag : Char );
@@ -1091,6 +1097,18 @@ Begin
   GetArraySize := I^.TI_SIZE
 End;
 
+{ array index as a short string }
+Function GetArrayIndexAsShortString( j : TArrayIndex ) : TString;
+Begin
+  GetArrayIndexAsShortString := PosIntToShortString(j)
+End;
+
+{ array size as a short string }
+Function GetArraySizeAsShortString( I : IdPtr ) : TString;
+Begin
+  GetArraySizeAsShortString := PosIntToShortString(GetArraySize(I))
+End;
+
 { Is an identifier an array? }
 Function IsArray( I : IdPtr ) : Boolean;
 Begin
@@ -1260,20 +1278,7 @@ Begin
   InstallVariable := V
 End;
 
-{ return an existing identifier whose string representation is str, or Nil }
-Function GetInstalledIdentifier( D : DictPtr; str : StrPtr ) : IdPtr;
-Var
-  I : IdPtr;
-  e : DictPtr;
-Begin
-  I := Nil;
-  e := Dict_Lookup(D,str,[ID],False);
-  If e <> Nil Then
-    I := IdPtr(Dict_GetTerm(e));
-  GetInstalledIdentifier := I
-End;
-
-{ create an identifier if it does not exist in a dictionary; 
+{ append an identifier to a dictionary;
  - an identifier is not deep-copyable; 
  - it is assumed that the identifier in str had its single quotes removed if 
    any, and is already in canonical version, so that e.g. eq('abc',abc) 
@@ -1281,22 +1286,38 @@ End;
  - the fact that the identifier must be quoted to be valid depends on the 
    current syntax; thus, dynamic changes of syntax do not affect this behavior;
    this is fine as long as the is not used as a syntax converter }
-Function InstallIdentifier( Var D : DictPtr; str : StrPtr; SingleQuotes : Boolean;
-    glob : Boolean  ) : IdPtr;
+Function AppendIdentifierToDict( Var D : DictPtr; str : StrPtr; 
+    SingleQuotes : Boolean; glob : Boolean  ) : IdPtr;
 Var
   I : IdPtr;
   e : DictPtr;
 Begin
-  e := Dict_Lookup(D,str,[ID],glob);
+  I := Ident_New(SingleQuotes);
+  e := Dict_Append(D,str,TermPtr(I),ID,glob);
+  I^.TI_DVAR := e;
+  AppendIdentifierToDict := I
+End;
+
+{ lookup an identifier in a dictionary; return Nil when not found }
+Function LookupIdentifierInDict( D : DictPtr; str : StrPtr;
+    glob : Boolean  ) : DictPtr;
+Begin
+  LookupIdentifierInDict := Dict_Lookup(D,str,[ID],glob)
+End;
+
+{ create an identifier if it does not exist in a dictionary }
+Function InstallIdentifierInDict( Var D : DictPtr; str : StrPtr; 
+    SingleQuotes : Boolean; glob : Boolean  ) : IdPtr;
+Var
+  I : IdPtr;
+  e : DictPtr;
+Begin
+  e := LookupIdentifierInDict(D,str,glob);
   If e = Nil Then
-  Begin
-    I := Ident_New(SingleQuotes);
-    e := Dict_Append(D,str,TermPtr(I),ID,glob);
-    I^.TI_DVAR := e
-  End
+    I := AppendIdentifierToDict(D,str,SingleQuotes,glob)
   Else
     I := IdPtr(Dict_GetTerm(e));
-  InstallIdentifier := I
+  InstallIdentifierInDict := I
 End;
 
 {-----------------------------------------------------------------------}

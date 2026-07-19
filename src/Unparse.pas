@@ -41,6 +41,8 @@ Uses
   PObjBter,
   PObjComm,
   PObjRule,
+  PObjStmt,
+  PObjWrld,
   PObjQury,
   PObjProg,
   PObjOp,
@@ -81,6 +83,10 @@ Procedure PutQuerySolution( f : StreamPtr; P : ProgPtr; Q : QueryPtr );
 Procedure PutOneRule( f : StreamPtr; P : ProgPtr; R : RulePtr );
 Procedure PutOneQuery( f : StreamPtr; P : ProgPtr; Q : QueryPtr );
 Procedure PutOneComment( f : StreamPtr; P : ProgPtr; C : CommPtr );
+Procedure PutOneStatement( f : StreamPtr; P : ProgPtr; St : StmtPtr );
+Procedure PutStatements( f : StreamPtr; P : ProgPtr; St : StmtPtr; 
+    n : PosInt; ListAll : Boolean; Filter : SetOfTStmt );
+Procedure PutUserState( f : StreamPtr; P : ProgPtr );
 Procedure PutTraceMessage( P : ProgPtr; Tag : TString; Depth : PosInt; 
     Branch : PosInt; ClearT : TermPtr );
 
@@ -656,7 +662,7 @@ Var
 Begin
   GetOpToUnparse := Nil;
   functor := IdentifierGetShortString(Ident);
-  o := Op_Lookup(P^.PP_OPER,[OP_FUNCTION,OP_ARITY],'',functor,[],n,0);
+  o := Op_Lookup(GetOps(P),[OP_FUNCTION,OP_ARITY],'',functor,[],n,0);
   { not a suitable operator? }
   If (o = Nil) Or (Op_GetOperator(o) = '') Then
     Exit;
@@ -811,10 +817,19 @@ Begin
   Identifier: { isolated identifier, e.g., hello -> world, or nil }
     Begin
       If IsNil(T) Then
+      Begin
         If y = Edinburgh Then
           UnparseShortString(s2,'[]')
         Else
           UnparseAtomFromShortString(s2,'nil')
+      End
+      Else If IdentifierToGoalType(IT) = GOAL_CUT Then
+      Begin
+        If y in [PrologIIv1,PrologIIv2] Then
+          UnparseShortString(s2,'/')
+        Else
+          UnparseShortString(s2,'!')
+      End
       Else
         UnparseIdentifier(s2,IT,Quotes)
     End;
@@ -1303,6 +1318,261 @@ Begin
   s := OneCommentToLongString(Stream_GetEncoding(f),P,C);
   Stream_WriteLongString(f,s)
 End;
+
+{ print one statement }
+Procedure PutOneStatement( f : StreamPtr; P : ProgPtr; St : StmtPtr );
+Begin
+  Case Statement_GetType(St) Of
+  Comment:
+    PutOneComment(f,P,CommPtr(Statement_GetObject(St)));
+  Rule:
+    PutOneRule(f,P,RulePtr(Statement_GetObject(St)))
+  End
+End;
+
+{ print n (or all if ListAll is True) statements, starting at statement St }
+Procedure PutStatements( f : StreamPtr; P : ProgPtr; St : StmtPtr; 
+    n : PosInt; ListAll : Boolean; Filter : SetOfTStmt );
+Begin
+  While (St <> Nil) And ((n > 0) Or ListAll) Do
+  Begin
+    If Statement_GetType(St) In Filter Then
+    Begin
+      PutOneStatement(f,P,St);
+      Stream_LineBreak(f);
+      If Not ListAll Then
+        n := n - 1
+    End;
+    St := Statement_GetNext(St)
+  End
+End;
+
+{------------------------}
+{ saving state to a file }
+{------------------------}
+
+{ print an instruction meant to restore P's state; source must be compatible 
+ with all the supported Prolog's flavours at the same time; so use a single 
+ goal, a single uppercase letter for a variable, no quoted identifiers, etc. }
+Procedure PutOneInstruction( f : StreamPtr; P : ProgPtr; source : StrPtr );
+Var 
+  y : TSyntax;
+  s : StrPtr;
+Begin
+  y := GetSyntax(P);
+  s := Str_New(Stream_GetEncoding(f));
+  Str_Append(s,OSyntax[y].QueryStart);
+  Str_Append(s,' ');
+  Str_Concat(s,source);
+  Str_Append(s,OSyntax[y].QueryEnd);
+  Stream_WriteLongString(f,s);
+  Stream_LineBreak(f)
+End;
+
+{ print a query to restore a global states }
+Procedure PutOneGlobalState( f : StreamPtr; P : ProgPtr; 
+    StateName : TString; StateValue : Boolean );
+Var
+  s : StrPtr;
+Begin
+  s := Str_NewFromShortString('syscall(sysonoff,' + StateName + ',' + 
+      BoolToShortString(StateValue) + ')');
+  PutOneInstruction(f,P,s)
+End;
+
+{ print queries to restore P's global states }
+Procedure PutGlobalStates( f : StreamPtr; P : ProgPtr );
+Begin
+  PutOneGlobalState(f,P,'infinite',GetInfinite(P));
+  PutOneGlobalState(f,P,'paper',GetPaper(P));
+  PutOneGlobalState(f,P,'echo',GetEcho(P));
+  PutOneGlobalState(f,P,'trace',GetTrace(P));
+  PutOneGlobalState(f,P,'debug',GetDebug(P))
+End;
+
+{ print a query to create a subworld W, and go down to it }
+Procedure PutCreateWorldInstruction( f : StreamPtr; P : ProgPtr; W : WorldPtr );
+Var
+  s : StrPtr;
+Begin
+  s := Str_New(Stream_GetEncoding(f));
+  Str_Append(s,'syscall(sysdownworld,"');
+  Str_Concat(s,World_GetName(W));
+  Str_Append(s,'",true)');
+  PutOneInstruction(f,P,s)
+ End;
+
+{ print a query to climb up to world W }
+Procedure PutClimbWorldInstruction( f : StreamPtr; P : ProgPtr; W : WorldPtr );
+Var
+  s : StrPtr;
+Begin
+  s := Str_New(Stream_GetEncoding(f));
+  Str_Append(s,'syscall(sysclimbworld,"');
+  Str_Concat(s,World_GetName(W));
+  Str_Append(s,'")');
+  PutOneInstruction(f,P,s)
+ End;
+
+{ print one array declaration }
+Procedure PutOneArrayDeclaration( f : StreamPtr; P : ProgPtr; I : IdPtr );
+Var
+  enc : TEncoding;
+  s : StrPtr;
+Begin
+  enc := Stream_GetEncoding(f);
+  s := Str_New(enc);
+  Str_Append(s,'syscall(sysdefarray,');
+  Str_Concat(s,IdentifierToLongString(enc,P,I));
+  Str_Append(s,',');
+  Str_Append(s,GetArraySizeAsShortString(I));
+  Str_Append(s,')');
+  PutOneInstruction(f,P,s)
+End;
+
+{ print all array declarations in world W }
+Procedure PutArrays( f : StreamPtr; P : ProgPtr; W : WorldPtr );
+Var
+  e : DictPtr;
+  T : TermPtr;
+Begin
+  e := World_GetDict(W);
+  While e <> Nil Do
+  Begin
+    T := Dict_GetTerm(e);
+    If IsIdentifier(T) And IsArray(IdPtr(T)) Then
+      PutOneArrayDeclaration(f,P,IdPtr(T));
+    e := Dict_GetNext(e);
+  End
+End;
+
+{ print one assignment }
+Procedure PutOneAssignment( f : StreamPtr; P : ProgPtr; I : IdPtr );
+Var
+  enc : TEncoding;
+  s : StrPtr;
+Begin
+  enc := Stream_GetEncoding(f);
+  s := Str_New(enc);
+  Str_Append(s,'syscall(sysassign,');
+  Str_Concat(s,IdentifierToLongString(enc,P,I));
+  Str_Append(s,',');
+  Str_Concat(s,TermToLongString(enc,P,GetValue(I)));
+  Str_Append(s,')');
+  PutOneInstruction(f,P,s)
+End;
+
+{ print one array assignment I(j) = T }
+Procedure PutOneArrayAssignment( f : StreamPtr; P : ProgPtr; I : IdPtr; 
+    j : TArrayIndex; T : TermPtr );
+Var
+  enc : TEncoding;
+  s : StrPtr;
+Begin
+  enc := Stream_GetEncoding(f);
+  s := Str_New(enc);
+  Str_Append(s,'syscall(sysassign,');
+  Str_Concat(s,IdentifierToLongString(enc,P,I));
+  Str_Append(s,'(' + GetArrayIndexAsShortString(j) + ')');
+  Str_Append(s,',');
+  Str_Concat(s,TermToLongString(enc,P,T));
+  Str_Append(s,')');
+  PutOneInstruction(f,P,s)
+End;
+
+{ print assigned elements in array identifier I }
+Procedure PutArrayAssignments( f : StreamPtr; P : ProgPtr; I : IdPtr );
+Var
+  A : ArrayPtr;
+  j : TArrayIndex;
+  T : TermPtr;
+  C : ConstPtr;
+Begin
+  A := GetArray(I);
+  For j := 1 To GetArraySize(I) Do
+  Begin
+    T := Array_GetElement(A,j);
+    C :=  EvaluateToInteger(T);
+    { optimization: emit assignment iif the value is not zero (as zero is the 
+     default, and will be assigned upon array creation) }
+    If (C = Nil) Or (Not ConstEqualTo(C,'0')) Then
+      PutOneArrayAssignment(f,P,I,j,T)
+  End
+End;
+
+{ print all assignments in world W }
+Procedure PutAssignments( f : StreamPtr; P : ProgPtr; W : WorldPtr );
+Var
+  e : DictPtr;
+  T : TermPtr;
+  TI : IdPtr Absolute T;
+Begin
+  e := World_GetDict(W);
+  While e <> Nil Do
+  Begin
+    T := Dict_GetTerm(e);
+    If IsIdentifier(T) And IsAssigned(TI) Then
+    Begin
+      If IsArray(IdPtr(T)) Then
+      Begin
+        PutOneArrayDeclaration(f,P,TI);
+        PutArrayAssignments(f,P,TI)
+      End
+      Else
+        PutOneAssignment(f,P,TI)
+    End;
+    e := Dict_GetNext(e)
+  End
+End;
+
+{ print a word: all statements, array declarations, and assignments }
+Procedure PutOneWorld( f : StreamPtr; P : ProgPtr; W : WorldPtr );
+Begin
+  PutStatements(f,P,World_GetFirstStatement(W),0,True,[Comment,Rule]);
+  PutAssignments(f,P,W)
+End;
+
+{ print queries necessary to recreate and restore all subworlds of world W }
+Procedure PutSubworldsState( f : StreamPtr; P : ProgPtr; W : WorldPtr );
+Var
+  Wc : WorldPtr;
+Begin
+  Wc := World_GetFirstChild(W);
+  { for each child }
+  While Wc <> Nil Do
+  Begin
+    { query to create a subworld and to go down to it }
+    PutCreateWorldInstruction(f,P,Wc);
+    { print all statements }
+    PutOneWorld(f,P,Wc);
+    { print all its own children }
+    PutSubworldsState(f,P,Wc);
+    { query to go up, back to the parent }
+    PutClimbWorldInstruction(f,P,W);
+    { next child }
+    Wc := World_GetNext(Wc)
+  End
+End;
+
+{ print all statements in universe P; 
+ TODO: restore current world; user operators }
+Procedure PutUserState( f : StreamPtr; P : ProgPtr );
+Var
+  y : TSyntax;
+  W : WorldPtr;
+Begin
+  y := GetSyntax(P);
+  { locate the user's top world }
+  W := World_FindChildByName(GetTopWorld(P),
+      Str_NewFromShortString(WorldSetup[y].User));
+  PutOneWorld(f,P,W);
+  PutSubworldsState(f,P,W);
+  PutGlobalStates(f,P)
+End;
+
+{------------------------}
+{ trace                  }
+{------------------------}
 
 { print a trace message (engine); FIXME: Depth is actually of type TClock  }
 Procedure PutTraceMessage( P : ProgPtr; Tag : TString; Depth : PosInt; 

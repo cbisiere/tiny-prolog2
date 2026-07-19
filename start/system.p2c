@@ -29,12 +29,15 @@ inserer(F) -> syscall(sysinsert,F);
 inserer -> syscall(sysinputis,F) syscall(sysinsert,F);
 ajout(<T,Q>) -> syscall(sysassert2,T,Q,true);
 
-lister(N) -> syscall(syslist,N);
+lister(N) -> syscall(syslist,N,false);
 lister -> lister(0);
 
 "session"
 
-adieu -> exm("bye!") ligne syscall(sysquit);
+sauve(S) -> syscall(syssavestate,S);
+sauve -> sauve("start/saved.p2c");
+bonsoir -> exm("sauvegarde... ") sauve adieu;
+adieu -> exml("bye!") syscall(sysquit);
 
 "is"
 
@@ -130,8 +133,8 @@ sourd -> syscall(sysonoff,echo,false);
 
 "infinite"
 
-sans-boucle ->;
-boucle ->;
+boucle -> syscall(sysonoff,infinite,true);
+sans-boucle -> syscall(sysonoff,infinite,false);
 
 "helpers"
 

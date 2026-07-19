@@ -29,13 +29,16 @@ find-rule(I) -> syscall(sysfindrule,I);
 
 insert(F) -> syscall(sysinsert,F);
 insert -> syscall(sysinputis,F) syscall(sysinsert,F);
-assert(T,Q) -> syscall(sysassert2,T,Q,true);
+assert(<T,Q>) -> syscall(sysassert2,T,Q,true);
 
-list(N) -> syscall(syslist,N);
+list(N) -> syscall(syslist,N,false);
 list -> list(0);
 
 "session"
 
+save-state(S) -> syscall(syssavestate,S);
+save-state -> save-state("start/saved.pro");
+exit -> outm("saving... ") save-state quit;
 quit -> outml("bye!") syscall(sysquit);
 
 "is"
@@ -149,8 +152,8 @@ no-echo -> syscall(sysonoff,echo,false);
 
 "infinite"
 
-finite ->;
-infinite ->;
+infinite -> syscall(sysonoff,infinite,true);
+finite -> syscall(sysonoff,infinite,false);
 
 "helpers"
 

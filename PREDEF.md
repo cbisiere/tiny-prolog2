@@ -36,8 +36,8 @@ Predicate | Action | Example
  `lister(N)`, `lister` <br><br> _`list(N)`,`list`_ | display on the current input `N` (or all) rules, starting from the current statement
 `tete(I)` <br><br> _`find-rule(I)`_ | move the index to the first rule with access `I` |
 `inserer(F)`, `inserer` <br><br> _`insert(F)`, `insert`_ | insert statements before the current index, from file with path `F` or from the current input unit, until an empty statement is read, that is `;;` 
-`ajout(<H,Q>)` <br><br> _`assert(H,Q)`_ | insert a new rule with head `H` and queue `Q` at the beginning of the group of rules having the same identifier and arity, or at the end of the current world ; `H`is a predicate or an identifier, `Q` is a list of terms | `> assert(data(1),nil) list;` <br> `data(1) ->;` <br> `{  }`<br> `>`
-`regle(H,Q)` <br><br> _`rule(H,Q)`_ | give all the rules such that `H` and `Q` unify with a rule head and queue (as a list), respectively, at the time the predefined predicate was first cleared | `> assert(data(2),nil);` <br> `{ }` <br> `> assert(data(1),nil);`  <br> `{ }` <br> `> rule(data(n),nil);` <br> `{ n=1 }` <br> `{ n=2 }` <br> `>`
+`ajout(<H,Q>)` <br><br> _`assert(<H,Q>)`_ | insert a new rule with head `H` and queue `Q` at the beginning of the group of rules having the same identifier and arity, or at the end of the current world ; `H`is a predicate or an identifier, `Q` is a list of terms | `> assert(<data(1),nil>) list;` <br> `data(1) ->;` <br> `{  }`<br> `>`
+`regle(H,Q)` <br><br> _`rule(H,Q)`_ | give all the rules such that `H` and `Q` unify with a rule head and queue (as a list), respectively, at the time the predefined predicate was first cleared | `> assert(data(2),nil);` <br> `{ }` <br> `> assert(<data(1),nil)>;`  <br> `{ }` <br> `> rule(data(n),nil);` <br> `{ n=1 }` <br> `{ n=2 }` <br> `>`
 
 ### Input / Output
 
@@ -132,10 +132,12 @@ Predicate | Action | Example
 
 Predicate | Action | Example
 --- | --- | ---
-`adieu` <br><br> _`quit`_ | quit without saving | `> quit;` <br> `bye!` <br> `{  }` <br> `$`
+`adieu` <br><br> _`quit`_ | quit the interpreter without saving | `> quit;` <br> `bye!` <br> `{  }` <br> `$`
+`bonsoir` <br><br> _`exit`_ | save the current state of the interpreter (worlds, rules, arrays, assigned identifiers, trace state, etc.) and then quit; launching the interpreter with the `-R` parameter restore the last saved state | `> exit;` <br> `saving... bye!` <br> `{  }` <br> `$`
 `echo`, `sourd` <br><br> _`echo`, `no-echo`_ | set the echo state on or off; when echo is on, anything read from, or written to disk files or buffers are echoed to the console | 
 `trace`, `sans-trace` <br><br> _`trace`, `no-trace`_ | set the trace state on or off; when trace is on, cleared goals are displayed | 
 `papier`, `sans-papier` <br><br> _`paper`, `no-paper`_ | set the paper state on or off; when paper is on, anything written to the console is also written to a special file (``"imprimante.text"`` / _``"printer.txt"``_)  | 
+`boucle`, `sans-boucle` <br><br> _`infinite`, `finite`_ | set the infinite state on or off; this has no effect, as the interpreter always handles infinite trees | 
 `debug`, `sans-debug` <br><br> _`debug`, `no-debug`_ | set the debug state on or off; when debug is on, unification attempts are displayed; these predicates did not exist in Prolog II version 1 and 2, and have been added for convenience  | 
 
 ### Date and Time

@@ -41,9 +41,9 @@ Implementation
 
 { syntax switches; each switch is also the Filename part of the start program }
 Type 
-  TStartFile = Array[TSyntax] Of String[5];
+  TSyntaxPar = Array[TSyntax] Of String[5];
 Const 
-  StartFile : TStartFile = ('PIIv1','PII','PIIp','E'); { must be ASCII only }
+  SyntaxPar : TSyntaxPar = ('PIIv1','PII','PIIp','E'); { must be ASCII only }
 
 { name of the paper file }
 Type 
@@ -61,9 +61,12 @@ Const
 
 
 { parse the command line parameters }
-Procedure ParseCL( Var CodePage : TCodePage; Var Syntax : TSyntax; 
-    Var SkipStartFile : Boolean; Var HasUserFilePar : Boolean; 
-    Var Filename : TShortPath );
+Procedure ParseCL( 
+    Var LoadSavedState : Boolean; 
+    Var CodePage : TCodePage; 
+    Var Syntax : TSyntax; 
+    Var SkipStartFile : Boolean; 
+    Var HasUserFilePar : Boolean; Var Filename : TShortPath );
 Var  
   code : Integer; { string to number result code }
   y : TSyntax;
@@ -74,6 +77,7 @@ Begin
   CodePage := 0;
   Syntax := DEFAULT_PROLOG_SYNTAX;
   HasSyntaxPar := False;
+  LoadSavedState := False;
   SkipStartFile := False;
   HasUserFilePar := False;
 
@@ -87,7 +91,7 @@ Begin
       { syntax, e.g. '-PII' }
       For y := PrologIIv1 To Edinburgh Do
       Begin
-        If StartFile[y] = par Then
+        If SyntaxPar[y] = par Then
         Begin
           If HasSyntaxPar Then
           Begin
@@ -99,6 +103,13 @@ Begin
           KnownPar := True
         End
       End;
+      { debug, '-R': restore the saved state }
+      If Not KnownPar Then
+        If par = 'R' Then
+        Begin
+          LoadSavedState := True;
+          KnownPar := True
+        End;
       { debug, '-D': do not load the start file }
       If Not KnownPar Then
         If par = 'D' Then
@@ -163,7 +174,7 @@ Var
   os : TObjectPtr Absolute s;
 Begin
   y := GetSyntax(P);
-  s := Str_NewFromShortString('start/' + StartFile[y] + '.' + FileExt[y]);
+  s := Str_NewFromShortString('start/' + 'system' + '.' + FileExt[y]);
   AddGCRoot(os); { protect this string from GC }
   LoadProgram(P,s,False)
 End;
@@ -182,13 +193,15 @@ Var
   CodePage : TCodePage;
   y : TSyntax;
   SkipStartFile : Boolean;
+  LoadSavedState : Boolean;
   HasUserFilePar : Boolean; 
   UserFilename : TShortPath;
   StrUserFilename : TPath;
+  StrSavedStateFilename : TPath;
   DummyOk : Boolean;
   UserWorldName : StrPtr;
 Begin
-  ParseCL(CodePage,y,SkipStartFile,HasUserFilePar,UserFilename);
+  ParseCL(LoadSavedState,CodePage,y,SkipStartFile,HasUserFilePar,UserFilename);
   If CodePage <> 0 Then
     SetCodePage(CodePage);
   SetPaperFilename(PaperFile[y]);
@@ -198,12 +211,19 @@ Begin
   RegisterPredefinedIdentifiers(P);
   RegisterEvaluableFunctions(P);
   RegisterOperators(P);
-  { load the start file }
+  { load the system start file }
   If Not Error And Not SkipStartFile Then
     LoadStartFile(P);
   { create the default user world below the current world and move to it }
   UserWorldName := Str_NewFromShortString(WorldSetup[y].User);
   DummyOk := CreateNewSubWorld(P,UserWorldName,True);
+  { restore the saved state }
+  If Not Error And LoadSavedState Then
+  Begin
+    StrSavedStateFilename := Str_NewFromShortString('start/saved.' + FileExt[y]);
+    AddGCRoot(TObjectPtr(StrSavedStateFilename)); { protect this string from GC }
+    LoadUserFile(P,StrSavedStateFilename)
+  End;
   { load the user file }
   If Not Error And HasUserFilePar Then
   Begin

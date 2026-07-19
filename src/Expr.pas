@@ -879,7 +879,7 @@ Begin
 
   { evaluable function? }
   func := IdentifierGetShortString(IIdent);
-  o := Op_Lookup(P^.PP_OPER,[OP_FUNCTION,OP_ARITY],'',func,[],NbArgs,0);
+  o := Op_Lookup(GetOps(P),[OP_FUNCTION,OP_ARITY],'',func,[],NbArgs,0);
   
   If Fail(o <> Nil,'unknown evaluable function or operator: ' + func) Then
     Exit;

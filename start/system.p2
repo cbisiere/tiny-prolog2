@@ -8,7 +8,7 @@ retract(H,Q) -> syscall(sysretract2,H,Q);
 insert(F) -> syscall(sysinsert,F);
 insert -> syscall(sysinputis,F) syscall(sysinsert,F);
 
-list(N) -> syscall(syslist,N);
+list(N) -> syscall(systopstatement) syscall(syslist,N,true);
 list -> list(0);
 asserta(H,Q) -> syscall(sysassert2,H,Q,true);
 assert(H,Q) -> asserta(H,Q);
@@ -17,6 +17,8 @@ assert''(H,Q) -> assertz(H,Q);
 
 "session"
 
+save_state(S) -> syscall(syssavestate,S);
+exit -> outm("saving... ") save_state("start/saved.p2") quit;
 quit -> outml("bye!") syscall(sysquit);
 
 "is"
@@ -131,8 +133,8 @@ no_echo -> syscall(sysonoff,echo,false);
 
 "infinite"
 
-no_infinite ->;
-infinite ->;
+infinite -> syscall(sysonoff,infinite,true);
+no_infinite -> syscall(sysonoff,infinite,false);
 
 "helpers"
 

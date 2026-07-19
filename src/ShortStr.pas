@@ -119,9 +119,9 @@ Var
   s : TString;
 Begin
   If b Then
-    s := 'TRUE'
+    s := 'true'
   Else
-    s := 'FALSE';
+    s := 'false';
   BoolToShortString := s
 End;
 
