@@ -94,6 +94,7 @@ Function CreateNewStream( P : ProgPtr; Alias : TAlias; Path : TPath;
 
 Function CurrentInput( P : ProgPtr ) : StreamPtr;
 Function CurrentOutput( P : ProgPtr ) : StreamPtr;
+Function InputIsConsole( P : ProgPtr ) : Boolean;
 Function OutputIsConsole( P : ProgPtr ) : Boolean;
 Function GetInputConsole( P : ProgPtr ) : StreamPtr;
 Function GetOutputConsole( P : ProgPtr ) : StreamPtr;
@@ -389,6 +390,12 @@ End;
 Function CurrentOutput( P : ProgPtr ) : StreamPtr;
 Begin
   CurrentOutput := Streams_CurrentOutput(P^.PP_FILE)
+End;
+
+{ return true if the current input is the terminal }
+Function InputIsConsole( P : ProgPtr ) : Boolean;
+Begin
+  InputIsConsole := Stream_IsConsole(CurrentInput(P))
 End;
 
 { return true if the current output is the terminal }
@@ -991,7 +998,7 @@ Begin
   P^.PP_LEVL := P^.PP_LEVL - 1
 End;
 
-{ get the Prolog program's path passed as parameter }
+{ get the Prolog program's path passed as parameter (or Nil if no parm) }
 Function GetProgramPath( P : ProgPtr ) : StrPtr;
 Begin
   GetProgramPath := P^.PP_PATH

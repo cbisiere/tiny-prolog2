@@ -260,6 +260,7 @@ End;
  reading from a file stream, or before reading a line from the keyboard }
 Procedure Stream_ResetInputBuffer( f : StreamPtr );
 Begin
+  CheckCondition(Stream_IsInput(f),'Stream_ResetInputBuffer: not an input file');
   With f^ Do
   Begin
     FI_CHAR := 0;
@@ -551,13 +552,13 @@ End;
  system }
 Function Stream_IsDry( f : StreamPtr ) : Boolean;
 Begin
+  CheckCondition(Stream_IsInput(f),'Stream_IsDry: not an input file');
   With f^ Do
   Begin
     CheckCondition(FI_OPEN,'Stream_IsDry: file is closed');
     Stream_IsDry := (BufNbUnread(FI_IBUF) = 0) And (Length(FI_CBUF) = 0)
   End
 End;
-
 
 {----------------------------------------------------------------------------}
 { close / reset                                                              }

@@ -6,7 +6,7 @@ rule(T,Q) -> syscall(sysrule,T,Q);
 retract(H,Q) -> syscall(sysretract2,H,Q);
 
 insert(F) -> syscall(sysinsert,F);
-insert -> syscall(sysinputis,F) syscall(sysinsert,F);
+insert -> syscall(sysinsert,"");
 
 list(N) -> syscall(systopstatement) syscall(syslist,N,true);
 list -> list(0);

@@ -83,21 +83,31 @@ Const
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-{ insert("file") or insert('file'); 
+Procedure ProcessInsert( f : StreamPtr; P : ProgPtr );
+Forward;
+
+{ insert or insert("file") or insert('file'); 
  this predicate creates a giant dependency / execution loop:
  run -> exec insert -> clock -> exec insert -> run 
  and thus this large Engine unit }
 Function ClearInsert( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   FileNamePtr : StrPtr;
+  f : StreamPtr;
 Begin
   ClearInsert := False;
-  { 1: filename (string or identifier, unquoted) }
+  { 1: filename or "" (string or identifier, unquoted) }
   FileNamePtr := GetAtomArgAsStr(1,T,False);
   If FileNamePtr = Nil Then 
     Exit;
   { execute }
-  LoadProgram(P,FileNamePtr,True);
+  If Str_Length(FileNamePtr) = 0 Then { insert/0 }
+  Begin
+    f := CurrentInput(P);
+    ProcessInsert(f,P)
+  End
+  Else { insert("menu.p2") }
+    LoadProgram(P,FileNamePtr,True);
   If Error Then 
     Exit;
   ClearInsert := True
@@ -963,14 +973,15 @@ End;
 {                                                                            }
 {----------------------------------------------------------------------------}
 
-{ try to set a Prolog file as input, making sure there are no loops }
-Function TryPrologFileForInput( P : ProgPtr; Path : TPath; 
+{ try to set a Prolog file as input in insert mode, making sure there are no 
+ loops }
+Function TryPrologFileForInsert( P : ProgPtr; Path : TPath; 
     RaiseAnError : Boolean ) : StreamPtr;
 Var
   f : StreamPtr;
   ShortPath : TShortPath;
 Begin
-  TryPrologFileForInput := Nil;
+  TryPrologFileForInsert := Nil;
   If Str_Length(Path) > StringMaxSize Then { path too long }
   Begin
     If RaiseAnError Then
@@ -1001,7 +1012,7 @@ Begin
     Exit
   End;
   PushStream(P,f);
-  TryPrologFileForInput := f
+  TryPrologFileForInsert := f
 End;
 
 { return a stream for filename Path in base directory BaseDir, using default 
@@ -1009,14 +1020,14 @@ End;
  it must end with a directory separator;
  NOTE: probably less TOCTOU-prone than looking for the file and then 
  setting it as input }
-Function SetPrologFileForInput( P : ProgPtr; 
+Function SetPrologFileForInsert( P : ProgPtr; 
     BaseDir,Path : StrPtr; RaiseAnError : Boolean ) : StreamPtr;
 Var
   f : StreamPtr;
   y : TSyntax;
   BasePath,OtherPath : StrPtr;
 Begin
-  SetPrologFileForInput := Nil;
+  SetPrologFileForInsert := Nil;
   y := GetSyntax(P);
   { form the most natural filename to look for: dir + path }
   If BaseDir <> Nil Then
@@ -1027,24 +1038,24 @@ Begin
   Else
     BasePath := Str_Clone(Path);
   { try as-is, not raising any error }
-  f := TryPrologFileForInput(P,BasePath,False);
+  f := TryPrologFileForInsert(P,BasePath,False);
   { if not found, try with an extension }
   If (f = Nil) And (y = Edinburgh) Then
   Begin
     OtherPath := Str_Clone(BasePath);
     Str_Append(OtherPath,'.pl');
-    f := TryPrologFileForInput(P,OtherPath,False)
+    f := TryPrologFileForInsert(P,OtherPath,False)
   End;
   If f = Nil Then
   Begin
     OtherPath := Str_Clone(BasePath);
     Str_Append(OtherPath,'.' + FileExt[y]);
-    f := TryPrologFileForInput(P,OtherPath,False)
+    f := TryPrologFileForInsert(P,OtherPath,False)
   End;
   { failure, redo with the base filename so as to raise an error }
   If (f = Nil) And RaiseAnError Then
-    f := TryPrologFileForInput(P,BasePath,True);
-  SetPrologFileForInput := f
+    f := TryPrologFileForInsert(P,BasePath,True);
+  SetPrologFileForInsert := f
 End;
 
 { load rules and execute queries (if any) from a Prolog file or the input 
@@ -1068,21 +1079,24 @@ Begin
   { 2: file in a directory using known Prolog paths }
   If (f = Nil) And TryPath And Not Path_IsAbsolute(s) Then
   Begin
-    { try the directory of the parent Prolog file, if any }
-    BaseDir := Path_ExtractPath(Stream_GetPath(CurrentInput(P)));
-    If Str_Length(BaseDir) > 0 Then
-      f := SetPrologFileForInput(P,BaseDir,s,False);
+    If Not InputIsConsole(P) Then 
+    Begin
+      { try the directory of the parent Prolog file, if any }
+      BaseDir := Path_ExtractPath(Stream_GetPath(CurrentInput(P)));
+      If Str_Length(BaseDir) > 0 Then
+        f := SetPrologFileForInsert(P,BaseDir,s,False)
+    End;
     { try the directory of the Prolog file passed as parameter }
     If f = Nil Then
     Begin
       BaseDir := GetProgramPath(P);
-      If Str_Length(BaseDir) > 0 Then
-        f := SetPrologFileForInput(P,BaseDir,s,False)
+      If (BaseDir <> Nil) And (Str_Length(BaseDir) > 0) Then
+        f := SetPrologFileForInsert(P,BaseDir,s,False)
     End
   End;
   { 3: file in the OS's current directory }
   If f = Nil Then
-    f := SetPrologFileForInput(P,Nil,s,True);
+    f := SetPrologFileForInsert(P,Nil,s,True);
   If Error Then Exit;
   { reading a Prolog file can consume a lot of memory; we clean up before
     starting }
