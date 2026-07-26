@@ -48,6 +48,7 @@ Uses
   PObjQury,
   PObjHead,
   PObjProg,
+  Warning,
   Encoding,
   Tokenize,
   Unparse,
@@ -127,11 +128,13 @@ End;
    choices of a syscall that yields several results, e.g. rule/2; Choices is Nil
    on first call 
  - Predef is set to the predefined syscall
- - syscall set More to True if they want to be called again }
+ - syscall set More to True if they want to be called again
+ - RHead is the BTerm of the head of the rule containing the goal to clear 
+  (useful to print meaningful error or warning messages) }
 Function ExecutionSysCallOk( P : ProgPtr; Q : QueryPtr; T : TermPtr; 
     Var V,G : TermPtr; Var L : RestPtr; 
     SuccessCount : PosInt; Var Choices : Pointer; 
-    Var Predef : TPP; Var More : Boolean ) : Boolean;
+    Var Predef : TPP; Var More : Boolean; RHead : BTermPtr ) : Boolean;
 Var
   Ok : Boolean;
 Begin
@@ -145,7 +148,7 @@ Begin
   If Predef = PP_INSERT Then
     Ok := ClearInsert(P,T)
   Else
-    Ok := ClearPredef(Predef,P,Q,T,V,G,L,SuccessCount,Choices,More);
+    Ok := ClearPredef(Predef,P,Q,T,V,G,L,SuccessCount,Choices,More,RHead);
   ExecutionSysCallOk := Ok
 End;
 
@@ -232,20 +235,9 @@ Var
    break, to preserve the logic of the Prolog program (even if the screen is
    likely to be mangled); FIXME: in PII+, warnings messages are cut and
    line continuation characters are used }
-  Procedure WarningNoRuleToApply( I : IdPtr; a : TArity );
-  Var
-    s : StrPtr;
+  Procedure WarningNoRuleToApply( B : BTermPtr );
   Begin
-    CWriteWarning('no rules to clear goal');
-    If I <> Nil Then
-    Begin
-      s := IdentifierGetStr(I);
-      CWrite(': ');
-      Str_CWrite(s);
-      CWrite('/');
-      CWritePosInt(a)
-    End;
-    CWriteLn
+    ShortWarning(B,'no rules to clear this goal')
   End;
 
   { rule to apply to clear a goal with given ident/arity, starting at rule R;
@@ -273,6 +265,7 @@ Var
    if Silent is True, do not print a warning if the goal is impossible to clear }
   Function FirstCandidate( H : HeadPtr; Silent : Boolean ) : Boolean;
   Var
+    Goal : BTermPtr;
     R : RulePtr;
     GoalType : TGoalType; 
     Access : IdPtr;
@@ -282,14 +275,15 @@ Var
     CheckCondition(Header_GetGoalsToClear(H) <> Nil,'FirstCandidate: Nil');
     If Error Then Exit;
     Header_SetIsDone(H,False);
-    Header_GetGoalMetadata(H,GoalType,Access,Arity);
+    Goal := Header_GetGoalsToClear(H);
+    BTerm_GetMetadata(Goal,GoalType,Access,Arity);
     If GoalType = GOAL_STD Then
     Begin
       R := FindRuleToApply(Access,Arity,FirstRule(P,False));
       If R = Nil Then
       Begin
         If Not Silent Then
-          WarningNoRuleToApply(Access,Arity);
+          WarningNoRuleToApply(Goal);
         Header_SetIsDone(H,True);
         Exit
       End;
@@ -437,6 +431,10 @@ Var
     More : Boolean;
     GoalToClear,B : BTermPtr;
     R : RulePtr;
+    { context used to display meaningful error messages when clearing a syscall }
+    Hp : HeadPtr; { previous header (to get the context rule's head) }
+    Bp : BTermPtr; { rule's head: rule for which we clear this syscall }
+    Rp : RulePtr;
   Begin
     { initialize value to return in cas of block end }
     GoalToClear := Header_GetGoalsToClear(H);
@@ -514,11 +512,22 @@ Var
       End;
     GOAL_SYS: { system call }
       Begin
+        { context: head of the rule whose queue contains this syscall (if any, 
+         as this syscall may be part of a query) }
+        Bp := Nil;
+        Hp := BTerm_GetHeader(GoalToClear);
+        If Hp <> Nil Then
+        Begin
+          Rp := Header_GetRule(Hp);
+          If Rp <> Nil Then
+            Bp := Rule_GetHead(Rp)
+        End;
+
         ZTerm := Nil;
         ZGoal := Nil;
         Cleared := ExecutionSysCallOk(P,Q,Header_GetTermToClear(Hc),
             ZTerm,ZGoal,H^.HH_REST,Header_GetSuccessCount(Hc),
-            Hc^.HH_CHOI,Predef,More);
+            Hc^.HH_CHOI,Predef,More,Bp);
 
         { not whether the syscall asked to be called again }
         Header_SetMore(Hc,More);
@@ -667,8 +676,11 @@ Var
           R := RulePtr(DeepCopy(TObjectPtr(R)));
 
           { [CUT:1] each cut in the queue must point to the header whose rule is 
-           the rule containing these cuts }
-          BTerms_SetCutHeader(Rule_GetQueue(R),Hc);
+           the rule containing these cuts; for convenience, we do it not only 
+           for cuts, but for all the terms in the queue (this will be used to
+           display meaningful warnings for syscalls, including the offending 
+           rule's signature) }
+          BTerms_SetHeader(Rule_GetQueue(R),Hc);
 
           { constraint to reduce: term to clear = rule head }
           Ss := Sys_NewWithEq(BTerm_GetTerm(GoalToClear),BTerm_GetTerm(Rule_GetHead(R)));
@@ -747,8 +759,9 @@ Begin { clock }
     If Not FirstCandidate(QU_HEAD,False) Then
       Exit;
 
-    { [CUT:1] cuts in the query must point back to this header }
-    BTerms_SetCutHeader(B,QU_HEAD);
+    { [CUT:1] cuts in the query must point back to this header; we do it for 
+     all the terms in the query, for convenience (warning system) }
+    BTerms_SetHeader(B,QU_HEAD);
 
     Repeat
       MoveForward(QU_HEAD);

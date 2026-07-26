@@ -50,6 +50,7 @@ Procedure DumpBacktrace( Q : QueryPtr; P : ProgPtr );
 Procedure CoreDumpProg( P : ProgPtr; Message : TString; 
     WithBackTrace : Boolean );
 Procedure CoreDump( Message : TString; WithBackTrace : Boolean );
+Procedure CoreDumpBacktrace( H : HeadPtr );
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -551,6 +552,13 @@ Procedure CoreDump( Message : TString; WithBackTrace : Boolean );
 Begin
   CheckCondition(CurrentProgram <> Nil,'CoreDump: program not set');
   CoreDumpProg(CurrentProgram,Message,WithBackTrace);
+End;
+
+{ core dump the header H }
+Procedure CoreDumpBacktrace( H : HeadPtr );
+Begin
+  CheckCondition(CurrentProgram <> Nil,'CoreDumpBacktrace: program not set');
+  Backtrace(H,CurrentProgram)
 End;
 
 { initialize the unit }

@@ -459,11 +459,11 @@ Begin
   Else
   Begin
     WriteToDumpFile(RAlign(PtrToName(p),5) + ' : ');
-    WriteToDumpFile(RAlign(IntToShortString(ObjectSize(p)),3) + ' ');
+    WriteToDumpFile(RAlign(LongIntToShortString(ObjectSize(p)),3) + ' ');
     With p^.PO_META Do
     Begin
       WriteToDumpFile(GetObjectName(PO_TYPE) + ' ' + MarkToShortString(PO_MARK) + ' ');
-      WriteToDumpFile(IntToShortString(PO_NCOP) + ' ');
+      WriteToDumpFile(LongIntToShortString(PO_NCOP) + ' ');
       WriteToDumpFile(RAlign(GuidToShortString(PO_CUID),5))
     End;
     WriteToDumpFile(' [');

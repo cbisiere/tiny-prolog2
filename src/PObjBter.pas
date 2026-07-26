@@ -43,13 +43,14 @@ Function BTerm_GetAccessTerm( B : BTermPtr ) : IdPtr;
 
 Procedure BTerm_GetMetadata( B : BTermPtr; 
     Var GoalType : TGoalType; Var Access : IdPtr; Var Arity : TArity );
+Function BTerm_GetSignature( B : BTermPtr ) : StrPtr;
 
 
 { list }
 Function BTerms_GetNext( B : BTermPtr ) : BTermPtr;
 Procedure BTerms_SetNext( B : BTermPtr; B1 : BTermPtr );
 Function BTerms_GetLast( B : BTermPtr ) : BTermPtr;
-Procedure BTerms_SetCutHeader( B : BTermPtr; H : HeadPtr );
+Procedure BTerms_SetHeader( B : BTermPtr; H : HeadPtr );
 
 Implementation
 
@@ -140,6 +141,21 @@ Begin
   BTerm_GetAccessTerm := Access
 End;
 
+{ return the signature of B as a new long string (e.g. "insert/1") }
+Function BTerm_GetSignature( B : BTermPtr ) : StrPtr;
+Var 
+  s : StrPtr;
+  GoalType : TGoalType;
+  Access : IdPtr;
+  Arity : TArity;
+Begin
+  BTerm_GetMetadata(B,GoalType,Access,Arity);
+  s := Str_Clone(IdentifierGetStr(Access));
+  Str_Append(s,'/');
+  Str_Append(s,PosIntToShortString(Arity));
+  BTerm_GetSignature := s
+End;
+
 {-----------------------------------------------------------------------}
 { list of BTerms                                                        }
 {-----------------------------------------------------------------------}
@@ -165,13 +181,12 @@ Begin
   BTerms_GetLast := B
 End;
 
-{ make all cut terms in the list B point back to header H }
-Procedure BTerms_SetCutHeader( B : BTermPtr; H : HeadPtr );
+{ make all terms in the list B point back to header H }
+Procedure BTerms_SetHeader( B : BTermPtr; H : HeadPtr );
 Begin
   While B <> Nil Do
   Begin
-    If BTerm_GetType(B) = GOAL_CUT Then
-      BTerm_SetHeader(B,H);
+    BTerm_SetHeader(B,H);
     B := BTerms_GetNext(B)
   End
 End;

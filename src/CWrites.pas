@@ -36,8 +36,6 @@ Procedure CWriteInt( v : Integer );
 Procedure CWritePosInt( v : PosInt );
 Procedure CWriteLongInt( v : LongInt );
 Procedure CWriteBool( b : Boolean );
-Procedure CWriteWarning( s : TString );
-Procedure CWriteLnWarning( s : TString );
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -112,20 +110,6 @@ Begin
     First := False
   End;
   CWrite(']')
-End;
-
-{ write a warning }
-Procedure CWriteWarning( s : TString );
-Begin
-  CWrite('***WARNING: ');
-  CWrite(s);
-End;
-
-{ writeln a warning }
-Procedure CWriteLnWarning( s : TString );
-Begin
-  CWriteWarning(s);
-  CWriteLn
 End;
 
 End.

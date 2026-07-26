@@ -48,7 +48,8 @@ Uses
   PObjHead,
   PObjComm,
   PObjWrld,
-  PObjStmt;
+  PObjStmt,
+  Warning;
 
 { default worlds }
 Type
@@ -122,8 +123,8 @@ Function GetOps( P : ProgPtr ) : OpPtr;
 Function GetTopWorld( P : ProgPtr ) : WorldPtr;
 Function GetCurrentWorld( P : ProgPtr ) : WorldPtr;
 Procedure SetCurrentWorld( P : ProgPtr; W : WorldPtr );
-Function CreateNewSubWorld( P : ProgPtr; Name : StrPtr; 
-    UserLand : Boolean ) : Boolean;
+Function CreateNewSubWorld( P : ProgPtr; B : BTermPtr;
+    WorldName : StrPtr; UserLand : Boolean ) : Boolean;
 
 { statements: iterate }
 Procedure ProgInsertComment( P : ProgPtr; s : StrPtr );
@@ -563,25 +564,22 @@ Begin
 End;
 
 { create a new world with name Name, below the current world of P, and set it
- as the new current world }
-Function CreateNewSubWorld( P : ProgPtr; Name : StrPtr; 
-    UserLand : Boolean ) : Boolean;
+ as the new current world; B is the rule's head who triggered this call }
+Function CreateNewSubWorld( P : ProgPtr; B : BTermPtr;
+    WorldName : StrPtr; UserLand : Boolean ) : Boolean;
 Var
   Wc,W : WorldPtr;
   Ok : Boolean;
 Begin
   Wc := GetCurrentWorld(P);
   CheckCondition(Wc <> Nil,'CreateNewWorldBelow: current world is not set');
-  Ok := World_FindChildByName(Wc,Name) = Nil;
+  Ok := World_FindChildByName(Wc,WorldName) = Nil;
   If Not Ok Then
   Begin
-    CWriteWarning('current world already has a child with name ''');
-    Str_CWrite(Name);
-    CWrite('''');
-    CWriteLn;
+    WarnAbout(B,'current world already has a child with name',WorldName);
     Exit
   End;
-  W := World_New(Name,UserLand);
+  W := World_New(WorldName,UserLand);
   World_AppendChild(Wc,W);
   SetCurrentWorld(P,W);
   CreateNewSubWorld := Ok

@@ -845,7 +845,7 @@ Begin
     Exit;
   If (g <> 0) And Term_GetSeen(T,2,g) Then 
   Begin
-    CWriteWarning('unhandled infinite tree detected!');
+    RuntimeError('unhandled infinite tree detected!');
     Exit;
   End;
   Term_SetSeen(T,2,g);

@@ -216,7 +216,7 @@ Begin
     LoadStartFile(P);
   { create the default user world below the current world and move to it }
   UserWorldName := Str_NewFromShortString(WorldSetup[y].User);
-  DummyOk := CreateNewSubWorld(P,UserWorldName,True);
+  DummyOk := CreateNewSubWorld(P,Nil,UserWorldName,True);
   { restore the saved state }
   If Not Error And LoadSavedState Then
   Begin

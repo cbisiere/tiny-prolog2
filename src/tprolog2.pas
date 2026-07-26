@@ -66,6 +66,7 @@ Uses
   PObjWrld,
   PObjStmt,
   PObjProg,
+  Warning,
   Tuple,
   Encoding,
   ExpStack,

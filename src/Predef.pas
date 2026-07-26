@@ -49,6 +49,7 @@ Uses
   PObjWrld,
   PObjProg,
   PObjRest,
+  Warning,
   Tuple,
   Encoding,
   Unparse,
@@ -144,7 +145,8 @@ Function GetAtomArgAsStr( n : Byte; T : TermPtr;
 Function ClearPredef( Predef : TPP; P : ProgPtr; Q : QueryPtr; 
     T : TermPtr; Var V,G : TermPtr; 
     Var L : RestPtr; SuccessCount : PosInt; Var Choices : Pointer; 
-    Var More : Boolean ) : Boolean;
+    Var More : Boolean;
+    B : BTermPtr ) : Boolean;
 
 Implementation
 {-----------------------------------------------------------------------------}
@@ -378,8 +380,10 @@ End;
 
 { return True if argument n of a predicate can be assigned to Str s; 
  if Quotes is False, identifier is returned unquoted}
-Function GetShortAtomArgAsStr( n : Byte; T : TermPtr; Quotes : Boolean;
-    Var s : StrPtr ) : Boolean;
+Function GetShortAtomArgAsStr( B : BTermPtr;
+    n : Byte; T : TermPtr; Quotes : Boolean; Var s : StrPtr ) : Boolean;
+Var
+  msg : StrPtr;
 Begin
   GetShortAtomArgAsStr := False;
   s := GetAtomArgAsStr(n,T,Quotes);
@@ -387,10 +391,9 @@ Begin
     Exit;
   If Str_Length(s) > StringMaxSize Then
   Begin
-    CWriteWarning('string too long: ');
-    Str_CWrite(s);
-    CWrite('...');
-    CWriteLn;
+    msg := Str_Substring(s,1,StringMaxSize);
+    Str_Append(msg,'...');
+    WarnAbout(B,'string too long',msg);
     Exit
   End;
   GetShortAtomArgAsStr := True
@@ -398,8 +401,8 @@ End;
 
 { return in Result the boolean argument passed as true/false in argument n 
  of a predicate; return false if the argument is not a boolean }
-Function GetBoolean( n : Byte; T : TermPtr; 
-  Var Result : Boolean ) : Boolean;
+Function GetBoolean( B : BTermPtr;
+    n : Byte; T : TermPtr; Var Result : Boolean ) : Boolean;
 Var
   I : IdPtr;
   s : TString;
@@ -408,7 +411,7 @@ Begin
   I := EvalPArgAsIdent(n,T);
   If I = Nil Then
   Begin
-    CWriteLnWarning('incorrect argument: boolean expected');
+    ShortWarning(B,'incorrect argument: boolean expected');
     Exit
   End;
   s := IdentifierGetShortString(I);
@@ -418,10 +421,7 @@ Begin
     Result := False
   Else
   Begin
-    CWriteWarning('invalid boolean argument: ''');
-    CWrite(s);
-    CWrite('''');
-    CWriteLn;
+    ShortWarning(B,'invalid boolean argument: ''' + s + '''');
     Exit
   End;
   GetBoolean := True
@@ -440,8 +440,8 @@ Type
 
 { return in Result the state argument passed as an identifier in argument n 
  of a predicate; return false if the argument is not a type identifier }
-Function GetOnOffStateName( n : Byte; T : TermPtr; 
-  Var Result : TPrologState ) : Boolean;
+Function GetOnOffStateName( B : BTermPtr;
+    n : Byte; T : TermPtr; Var Result : TPrologState ) : Boolean;
 Var
   I : IdPtr;
   s : TString;
@@ -450,7 +450,7 @@ Begin
   I := EvalPArgAsIdent(n,T);
   If I = Nil Then
   Begin
-    CWriteLnWarning('incorrect argument: on/off state expected');
+    ShortWarning(B,'incorrect argument: on/off state expected');
     Exit
   End;
   s := IdentifierGetShortString(I);
@@ -466,10 +466,7 @@ Begin
     Result := STATE_DEBUG
   Else
   Begin
-    CWriteWarning('invalid on/off state argument: ''');
-    CWrite(s);
-    CWrite('''');
-    CWriteLn;
+    ShortWarning(B,'invalid on/off state argument: ''' + s  + '''');
     Exit
   End;
   GetOnOffStateName := True
@@ -483,8 +480,8 @@ Type
 
 { return in Result the type argument passed as an identifier in argument n 
  of a predicate; return false if the argument is not a type identifier }
-Function GetType( n : Byte; T : TermPtr; 
-  Var Result : TPrologDataType ) : Boolean;
+Function GetType( B : BTermPtr;
+    n : Byte; T : TermPtr; Var Result : TPrologDataType ) : Boolean;
 Var
   I : IdPtr;
   s : TString;
@@ -493,7 +490,7 @@ Begin
   I := EvalPArgAsIdent(n,T);
   If I = Nil Then
   Begin
-    CWriteLnWarning('incorrect argument: type expected');
+    ShortWarning(B,'incorrect argument: type expected');
     Exit
   End;
   s := IdentifierGetShortString(I);
@@ -521,10 +518,7 @@ Begin
     Result := TYPE_SENTENCE
   Else
   Begin
-    CWriteWarning('invalid type argument: ''');
-    CWrite(s);
-    CWrite('''');
-    CWriteLn;
+    ShortWarning(B,'invalid type argument: ''' + s + '''');
     Exit
   End;
   GetType := True
@@ -535,8 +529,8 @@ Type
 
 { return in Result the time type argument passed as an identifier in argument n 
  of a predicate; return false if the argument is not a type identifier }
-Function GetTimeType( n : Byte; T : TermPtr; 
-  Var Result : TTimeType ) : Boolean;
+Function GetTimeType( B : BTermPtr;
+    n : Byte; T : TermPtr; Var Result : TTimeType ) : Boolean;
 Var
   I : IdPtr;
   s : TString;
@@ -545,7 +539,7 @@ Begin
   I := EvalPArgAsIdent(n,T);
   If I = Nil Then
   Begin
-    CWriteLnWarning('incorrect argument: type expected');
+    ShortWarning(B,'incorrect argument: type expected');
     Exit
   End;
   s := IdentifierGetShortString(I);
@@ -555,20 +549,17 @@ Begin
     Result := TIME_TYPE_EPOCH
   Else
   Begin
-    CWriteWarning('invalid time type argument: ''');
-    CWrite(s);
-    CWrite('''');
-    CWriteLn;
+    ShortWarning(B,'invalid time type argument: ''' + s + '''');
     Exit
   End;
   GetTimeType := True
 End;
 
 { return True if argument n of a predicate can be path  }
-Function GetShortPathArgAsStr( n : Byte; T : TermPtr; 
-    Var s : StrPtr ) : Boolean;
+Function GetShortPathArgAsStr( B : BTermPtr;
+    n : Byte; T : TermPtr; Var s : StrPtr ) : Boolean;
 Begin
-  GetShortPathArgAsStr := GetShortAtomArgAsStr(n,T,False,s)
+  GetShortPathArgAsStr := GetShortAtomArgAsStr(B,n,T,False,s)
 End;
 
 { get a positive integer argument n }
@@ -607,8 +598,8 @@ End;
 
 { get a stream from argument n, or Nil; if Mode is not MODE_ANY, then search
  only for streams in mode Mode }
-Function GetStreamArg( P : ProgPtr; n : Byte; T : TermPtr; 
-    Mode : TStreamMode ) : StreamPtr;
+Function GetStreamArg( P : ProgPtr; B : BTermPtr;
+    n : Byte; T : TermPtr; Mode : TStreamMode ) : StreamPtr;
 Var
   f : StreamPtr;
   Alias : TAlias;
@@ -618,7 +609,7 @@ Begin
   If GetPosIntArg(n,T,Desc) Then { case 1: file descriptor }
     f := GetStreamByDescriptorAndMode(P,Desc,Mode)
   Else { case 2: alias; leave quotes if any }
-    If GetShortAtomArgAsStr(n,T,True,Alias) Then 
+    If GetShortAtomArgAsStr(B,n,T,True,Alias) Then 
       f := GetStreamByAliasAndMode(P,Alias,Mode);
   GetStreamArg := f
 End;
@@ -686,7 +677,8 @@ End;
 {----------------------------------------------------------------------------}
 
 { free(x), bound(y) }
-Function ClearIsFree( T : TermPtr ) : Boolean;
+Function ClearIsFree( B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var
   T1 : TermPtr;
   Free : Boolean;
@@ -695,13 +687,14 @@ Begin
   { 1: term }
   T1 := GetPArg(1,T);
   { 2: true/false }
-  If Not GetBoolean(2,T,Free) Then
+  If Not GetBoolean(B,2,T,Free) Then
     Exit;
   ClearIsFree := Free And IsFree(T1) Or Not Free And IsBound(T1)
 End;
 
 { ident(T), integer(T), string(T), real(T), dot(T), tuple(T) }
-Function ClearIsType( T : TermPtr ) : Boolean;
+Function ClearIsType( B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var
   T1 : TermPtr;
   What : TPrologDataType;
@@ -711,7 +704,7 @@ Begin
   { 1: variable; should be a get as ident() is special in terms of rep }
   T1 := GetPArg(1,T);
   { 2: type of data to check for }
-  If Not GetType(2,T,What) Then
+  If Not GetType(B,2,T,What) Then
     Exit;
   { check }
   Case What Of
@@ -735,7 +728,7 @@ Begin
     End;
   Else
     Begin
-      CWriteLnWarning('unsupported check data type');
+      ShortWarning(B,'unsupported check data type');
       Exit
     End
   End;
@@ -747,7 +740,8 @@ End;
 {----------------------------------------------------------------------------}
 
 { char-code(c,12) }
-Function ClearCharCode( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearCharCode( P : ProgPtr; B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var
   y : TSyntax;
   T1,T2 : TermPtr;
@@ -782,12 +776,12 @@ Begin
   Begin
     If (Str_Length(s) <> 1) Or Not Str_FirstChar(s,cc) Then
     Begin
-      CWriteLnWarning('exactly one character is expected');
+      ShortWarning(B,'exactly one character is expected');
       Exit
     End;
     If Not TCharToCodePoint(cc,cp) Then
     Begin
-      CWriteLnWarning('invalid codepoint');
+      ShortWarning(B,'invalid codepoint');
       Exit
     End;
     Tn := EmitConst(P,Str_NewFromShortString(CodePointToShortString(cp)),CI,False);
@@ -805,7 +799,7 @@ Begin
   Enc := Stream_GetEncoding(CurrentOutput(P));
   If Not TCharSetFromCodePoint(cc,cp,Enc) Then
   Begin
-    CWriteLnWarning('invalid codepoint');
+    ShortWarning(B,'invalid codepoint');
     Exit
   End;
   { create a constant from this TChar }
@@ -925,10 +919,11 @@ End;
 
 { new-subworld("Facts") 
  create a new userland subworld and set it as the current world }
-Function ClearNewSubWorld( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearNewSubWorld( P : ProgPtr; B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var
   C : ConstPtr;
-  Name : StrPtr;
+  WorldName : StrPtr;
   W : WorldPtr;
 Begin
   ClearNewSubWorld := False;
@@ -936,23 +931,24 @@ Begin
   C := EvalPArgAsString(1,T);
   If C = Nil Then
     Exit;
-  Name := ConstGetStr(C);
+  WorldName := ConstGetStr(C);
   { create the world if it is not a subworld of the current world }
-  W := World_FindChildByName(GetCurrentWorld(P),Name);
+  W := World_FindChildByName(GetCurrentWorld(P),WorldName);
   If W <> Nil Then
   Begin
     SetCurrentWorld(P,W);
     ClearNewSubWorld := True
   End
   Else
-    ClearNewSubWorld := CreateNewSubWorld(P,Name,True) { OPT: par to check for dup }
+    ClearNewSubWorld := CreateNewSubWorld(P,B,WorldName,True) { OPT: par to check for dup }
 End;
 
 { kill-subworld("Facts"), purge("Facts") }
-Function ClearKillSubWorld( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearKillSubWorld( P : ProgPtr; B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var
   C : ConstPtr;
-  Name : StrPtr;
+  WorldName : StrPtr;
   W : WorldPtr;
   CheckLeaf : Boolean;
 Begin
@@ -961,26 +957,20 @@ Begin
   C := EvalPArgAsString(1,T);
   If C = Nil Then
     Exit;
-  Name := ConstGetStr(C);
-  W := World_FindChildByName(GetCurrentWorld(P),Name);
+  WorldName := ConstGetStr(C);
+  W := World_FindChildByName(GetCurrentWorld(P),WorldName);
   If W = Nil Then
   Begin
-    CWriteWarning('no subworld with name "');
-    Str_CWrite(Name);
-    CWrite('"');
-    CWriteLn;
+    WarnAbout(B,'no subworld with name',WorldName);
     Exit
   End;
   { 2: should we test for the subworld being a leaf? }
-  If Not GetBoolean(2,T,CheckLeaf) Then
+  If Not GetBoolean(B,2,T,CheckLeaf) Then
     Exit;
   { when requested, check the subworld is a leaf }
   If CheckLeaf And (World_GetFirstChild(W) <> Nil) then
   Begin
-    CWriteWarning('cannot kill subworld "');
-    Str_CWrite(Name);
-    CWrite('", as it has itself one or more subworlds');
-    CWriteLn;
+    WarnAbout(B,'cannot kill subworld having subworlds',WorldName);
     Exit
   End;
   World_SuppressChild(GetCurrentWorld(P),W);
@@ -1011,10 +1001,11 @@ Begin
 End;
 
 { down("Facts"); optionally create the subworld if it does not exist }
-Function ClearDownWorld( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearDownWorld( P : ProgPtr; B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var
   C : ConstPtr;
-  Name : StrPtr;
+  WorldName : StrPtr;
   W : WorldPtr;
   Create : Boolean;
 Begin
@@ -1023,28 +1014,22 @@ Begin
   C := EvalPArgAsString(1,T);
   If C = Nil Then
     Exit;
-  Name := ConstGetStr(C);
+  WorldName := ConstGetStr(C);
   { 2: should we create it if it does not exist? }
-  If Not GetBoolean(2,T,Create) Then
+  If Not GetBoolean(B,2,T,Create) Then
     Exit;
-  W := World_FindChildByName(GetCurrentWorld(P),Name);
+  W := World_FindChildByName(GetCurrentWorld(P),WorldName);
   If W <> Nil Then { this subworld exists }
     SetCurrentWorld(P,W)
   Else If Not Create Then 
   Begin
-    CWriteWarning('no subworld with name "');
-    Str_CWrite(Name);
-    CWrite('"');
-    CWriteLn;
+    WarnAbout(B,'no subworld',WorldName);
     Exit
   End
   Else { create this subworld }
-    If Not CreateNewSubWorld(P,Name,True) Then
+    If Not CreateNewSubWorld(P,B,WorldName,True) Then
     Begin
-      CWriteWarning('fails to create subworld with name "');
-      Str_CWrite(Name);
-      CWrite('"');
-      CWriteLn;
+      WarnAbout(B,'fails to create subworld',WorldName);
       Exit
     End;
   ClearDownWorld := True
@@ -1174,7 +1159,8 @@ End;
 
 { list(10) or list; note: we do not update cursor position or use line 
  continuation character (TODO: to be tested on PII+) }
-Function ClearList( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearList( P : ProgPtr; B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var 
   f : StreamPtr;
   n : PosInt;
@@ -1188,7 +1174,7 @@ Begin
   If Not GetPosIntArg(1,T,n) Then
     Exit;
   { 2: list only rules, ignoring comments? }
-  If Not GetBoolean(2,T,RulesOnly) Then
+  If Not GetBoolean(B,2,T,RulesOnly) Then
     Exit;
 
   W := GetCurrentWorld(P);
@@ -1312,12 +1298,13 @@ End;
  succeeds for each rule matching a head and a queue (queue can be an anonymous 
  variable), at the time of first call (logical update view); if Retract is True, 
  suppress the rule upon success }
-Function ClearRule( P : ProgPtr; T : TermPtr; TwoParam : Boolean; 
+Function ClearRule( P : ProgPtr; B : BTermPtr;
+    T : TermPtr; TwoParam : Boolean; 
     Retract : Boolean; Var L : RestPtr; SuccessCount : PosInt; 
     Var Choices : Pointer; Var More : Boolean ) : Boolean;
 Var
   T1,T2 : TermPtr;
-  B,B2,Bq : BTermPtr;
+  Bs,B2,Bq : BTermPtr;
   R,Rc : RulePtr;
   St : StmtPtr;
 Begin
@@ -1328,7 +1315,7 @@ Begin
   T1 := GetGoal(1,T,False);
   If T1 = Nil Then
   Begin
-    CWriteLnWarning('cannot unify with rule: invalid rule head');
+    ShortWarning(B,'cannot unify with rule: invalid rule head');
     Exit
   End;
 
@@ -1338,41 +1325,41 @@ Begin
     T2 := GetList(2,T,True);
     If (T2 = Nil) Or (IsVariable(T2) And Not IsAnonymous(VarPtr(T2))) Then
     Begin
-      CWriteLnWarning('cannot unify with rule: invalid rule queue');
+      ShortWarning(B,'cannot unify with rule: invalid rule queue');
       Exit
     End;
     { create a list of BTerms representing the rule }
-    B := BTerm_New(T1);
+    Bs := BTerm_New(T1);
     Bq := ListToBTerms(P,T2);
-    BTerms_SetNext(B,Bq);
+    BTerms_SetNext(Bs,Bq);
   End
   Else
   Begin
     { create the list of BTerms }
-    B := RuleExpToBTerms(P,T1);
-    If B = Nil Then
+    Bs := RuleExpToBTerms(P,T1);
+    If Bs = Nil Then
     Begin
-      CWriteLnWarning('invalid rule');
+      ShortWarning(B,'invalid rule');
       Exit
     End;
     { retract((T:-true)) is equivalent to retract(T) }
-    If (BTerms_GetNext(B) <> Nil) Then
+    If (BTerms_GetNext(Bs) <> Nil) Then
     Begin 
-      B2 := BTerms_GetNext(B);
+      B2 := BTerms_GetNext(Bs);
       If (BTerms_GetNext(B2) = Nil) And 
           (BTerm_GetAccessTerm(B2) <> Nil) And
           IdentifierEqualToShortString(BTerm_GetAccessTerm(B2),'true') Then
-        BTerms_SetNext(B,Nil)
+        BTerms_SetNext(Bs,Nil)
     End
   End;
 
   { create the rule from the list of BTerms }
   R := Rule_New(GetSyntax(P));
-  Rule_SetHeadAndQueue(R,B);
+  Rule_SetHeadAndQueue(R,Bs);
 
   If Not Rule_HeadIsValid(R) Then
   Begin
-    CWriteLnWarning('invalid rule head');
+    ShortWarning(B,'invalid rule head');
     Exit
   End;
 
@@ -1398,7 +1385,7 @@ Begin
    backtracking }
   If Not UnifyRules(P,Rc,R,True,L) Then
   Begin
-    CWriteLnWarning('cannot enforce logical update view');
+    ShortWarning(B,'cannot enforce logical update view');
     Exit
   End;
 
@@ -1476,11 +1463,12 @@ Begin
 End;
 
 { asserta(H), asserta((H :- Q1,Q2)), assertz(H), assertz((H :- Q1,Q2)) }
-Function ClearAssert1( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearAssert1( P : ProgPtr; B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var
   T1 : TermPtr;
   First : Boolean;
-  B : BTermPtr;
+  Bs : BTermPtr;
   R : RulePtr;
 Begin
   ClearAssert1 := False;
@@ -1488,27 +1476,27 @@ Begin
   T1 := GetGoal(1,T,False);
   If T1 = Nil Then
   Begin
-    CWriteLnWarning('cannot create rule: invalid rule expression');
+    ShortWarning(B,'cannot create rule: invalid rule expression');
     Exit
   End;
   { 2: insert at the beginning of the group of rules having the same access and
    arity? }
-  If Not GetBoolean(2,T,First) Then
+  If Not GetBoolean(B,2,T,First) Then
     Exit;
 
   { make a copy to isolate the rule from further bindings }
   T1 := CopyTerm(T1,False);
 
   { create the list of BTerms }
-  B := RuleExpToBTerms(P,T1);
+  Bs := RuleExpToBTerms(P,T1);
 
   { create the rule from the list of BTerms }
   R := Rule_New(GetSyntax(P));
-  Rule_SetHeadAndQueue(R,B);
+  Rule_SetHeadAndQueue(R,Bs);
 
   If Not Rule_HeadIsValid(R) Then
   Begin
-    CWriteLnWarning('cannot create rule: invalid rule head');
+    ShortWarning(B,'cannot create rule: invalid rule head');
     Exit
   End;
 
@@ -1517,11 +1505,12 @@ Begin
 End;
 
 { asserta(T,Q), assertz(T,Q) }
-Function ClearAssert2( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearAssert2( P : ProgPtr; B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var
   T1,T2 : TermPtr;
   First : Boolean;
-  B,Bq : BTermPtr;
+  Bs,Bq : BTermPtr;
   R : RulePtr;
 Begin
   ClearAssert2 := False;
@@ -1529,19 +1518,19 @@ Begin
   T1 := GetGoal(1,T,False);
   If T1 = Nil Then
   Begin
-    CWriteLnWarning('cannot create rule: invalid rule head');
+    ShortWarning(B,'cannot create rule: invalid rule head');
     Exit
   End;
   { 2: the queue (list); cannot be a variable, even anonymous }
   T2 := GetList(2,T,False);
   If T2 = Nil Then
   Begin
-    CWriteLnWarning('cannot create rule: invalid rule queue');
+    ShortWarning(B,'cannot create rule: invalid rule queue');
     Exit
   End;
   { 3: insert at the beginning of the group of rules having the same access and
    arity? }
-  If Not GetBoolean(3,T,First) Then
+  If Not GetBoolean(B,3,T,First) Then
     Exit;
 
   { make a copy to isolate the rule from further bindings }
@@ -1549,17 +1538,17 @@ Begin
   T2 := CopyTerm(T2,False);
 
   { create a list of BTerms representing the rule }
-  B := BTerm_New(T1);
+  Bs := BTerm_New(T1);
   Bq := ListToBTerms(P,T2);
-  BTerms_SetNext(B,Bq);
+  BTerms_SetNext(Bs,Bq);
 
   { create the rule from the list of BTerms }
   R := Rule_New(GetSyntax(P));
-  Rule_SetHeadAndQueue(R,B);
+  Rule_SetHeadAndQueue(R,Bs);
 
   If Not Rule_HeadIsValid(R) Then
   Begin
-    CWriteLnWarning('cannot create rule: invalid rule head');
+    ShortWarning(B,'cannot create rule: invalid rule head');
     Exit
   End;
 
@@ -1587,7 +1576,8 @@ End;
 {----------------------------------------------------------------------------}
 
 { def_array(stack,100) }
-Function ClearDefArray( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearDefArray( P : ProgPtr; B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var
   T1 : TermPtr;
   I : IdPtr;
@@ -1604,25 +1594,23 @@ Begin
   { 2: size (positive integer) }
   If Not GetPosIntArg(2,T,n) Then
   Begin
-    CWriteWarning('array size must be a positive integer');
-    CWriteLn;
+    ShortWarning(B,'array size must be a positive integer');
     Exit
   End;
   If n > MaxPrologArraySize Then
   Begin
-    CWriteWarning('array too large: maximum number of elements is ');
-    CWrite(PosIntToShortString(MaxPrologArraySize));
-    CWriteLn;
+    ShortWarning(B,'array too large: maximum number of elements is ' +
+        PosIntToShortString(MaxPrologArraySize));
     Exit
   End;
   If IsAssigned(I) And Not IsArray(I) Then
   Begin
-    CWriteLnWarning('identifier already assigned');
+    ShortWarning(B,'identifier already assigned');
     Exit
   End;
   If IsArray(I) And (GetArraySize(I) <> n) Then
   Begin
-    CWriteLnWarning('array already exists but has a different size');
+    ShortWarning(B,'array already exists but has a different size');
     Exit
   End;
   { If an array with the same name already exists and the arrays have the same 
@@ -1646,7 +1634,8 @@ End;
  note: re-assignments are tricky to handle, as the reduced system, after
  e.g. "assign(test,1)", contains i=1 (w/o any remaining reference to the 
  identifier) }
-Function ClearAssign( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearAssign( P : ProgPtr; B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var
   T1,T2 : TermPtr;
   I : IdPtr;
@@ -1658,7 +1647,7 @@ Begin
   T1 := GetGoal(1,T,False);
   If T1 = Nil Then
   Begin
-    CWriteLnWarning('identifier or array element expected');
+    ShortWarning(B,'identifier or array element expected');
     Exit
   End;
   { 2: assigned value (term) }
@@ -1672,26 +1661,26 @@ Begin
     ProtectedGetTupleMetaData(T1,I,A);
     If (I = Nil) Or (Not IsArray(I)) Then
     Begin
-      CWriteLnWarning('not an array');
+      ShortWarning(B,'not an array');
       Exit
     End;
     If A <> 1 Then
     Begin
-      CWriteLnWarning('arrays have only one dimension');
+      ShortWarning(B,'arrays have only one dimension');
       Exit
     End;
     T1 := ProtectedGetTupleArgN(2,T1,True);
     If (Not IsConstant(T1)) Or 
         (ConstType(ConstPtr(T1)) <> IntegerNumber) Then
     Begin
-      CWriteLnWarning('array index is not an integer');
+      ShortWarning(B,'array index is not an integer');
       Exit
     End;
     ArrIndex := ShortStringToPosInt(ConstGetShortString(ConstPtr(T1)),code);
     If (code <> 0) Or (ArrIndex < 1) Or 
         (ArrIndex > GetArraySize(I)) Then
     Begin
-      CWriteLnWarning('incorrect array index');
+      ShortWarning(B,'incorrect array index');
       Exit
     End;
     { do the assignment }
@@ -1702,7 +1691,7 @@ Begin
     T1 := TermPtr(EvaluateToIdentifier(T1));
     If T1 = Nil Then
     Begin
-      CWriteLnWarning('identifier expected');
+      ShortWarning(B,'identifier expected');
       Exit
     End;
     SetAsAssigned(IdPtr(T1));
@@ -1713,7 +1702,8 @@ Begin
 End;
 
 { val(100,x) }
-Function ClearEval( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearEval( P : ProgPtr; B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var
   T1,T2 : TermPtr;
 Begin
@@ -1728,7 +1718,7 @@ Begin
   { if there was an eval error, display the message, clear the error, and fail }
   If ErrorState = EVAL_ERROR Then
   Begin
-    CWriteLnWarning(GetErrorMessage);
+    ShortWarning(B,GetErrorMessage);
     ResetError;
     Exit
   End;
@@ -1781,7 +1771,8 @@ End;
 
 { '=..'(foo(a,b),[foo,a,b]) }
 { FIXME: check the logic when both arguments are set }
-Function ClearUniv( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearUniv( P : ProgPtr; B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var
   T1,T2 : TermPtr;
   L : TermPtr;
@@ -1795,13 +1786,13 @@ Begin
   T2 := GetList(2,T,True);
   If T2 = Nil Then
   Begin
-    CWritelnWarning('univ: second argument must be a list or a variable');
+    ShortWarning(B,'second argument must be a list or a variable');
     Exit
   End;
 
   If IsVariable(T1) And IsVariable(T2) Then
   Begin
-    CWritelnWarning('univ: insufficiently instantiated arguments');
+    ShortWarning(B,'insufficiently instantiated arguments');
     Exit
   End;
 
@@ -1811,7 +1802,7 @@ Begin
       Not (ProtectedGetList(T2,Th,Tq,True) And IsAtomic(Th) And 
         ProtectedIsListOfKnownSize(T2,True,n)) Then
   Begin
-    CWritelnWarning('univ: second argument must be a list whose first argument is atomic');
+    ShortWarning(B,'second argument must be a list whose first argument is atomic');
     Exit
   End;
 
@@ -1835,7 +1826,8 @@ End;
 { boum(hello,"hello"), string_ident("hello",hello)
  Tested on PII+: the identifier in the string must use the simplified syntax, 
  even when quoted, e.g. "aaa", "'aaa'" are valid, "123", "'123'" are not }
-Function ClearStringIdent( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearStringIdent( P : ProgPtr; B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var
   T1,T2 : TermPtr;
 Begin
@@ -1845,7 +1837,7 @@ Begin
   { check at least one argument is bound }
   If IsVariable(T1) And IsVariable(T2) Then
   Begin
-    CWritelnWarning('at least one argument must be instantiated');
+    ShortWarning(B,'at least one argument must be instantiated');
     Exit
   End;
   { T1 is a string }
@@ -1854,7 +1846,7 @@ Begin
     T1 := StringToIdentifier(P,ConstPtr(T1));
     If T1 = Nil Then { fails to create an identifier from the string }
     Begin
-      CWritelnWarning('the string cannot be converted to an identifier');
+      ShortWarning(B,'the string cannot be converted to an identifier');
       Exit
     End;
     ClearStringIdent := ReduceOneEq(T1,T2,P);
@@ -1961,7 +1953,8 @@ Begin
 End;
 
 { atom_length('hello',5) }
-Function ClearAtomLength( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearAtomLength( P : ProgPtr; B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var
   s : StrPtr;
   T1,T2 : TermPtr;
@@ -1972,7 +1965,7 @@ Begin
   s := GetAtomArgAsStr(1,T,False);
   If s = Nil Then
   Begin
-    CWriteLnWarning('first argument must be an atom');
+    ShortWarning(B,'first argument must be an atom');
     Exit
   End;
 
@@ -1980,7 +1973,7 @@ Begin
   T2 := EvalPArg(2,T);
   If Not (IsFree(T2) Or IsInteger(T2)) Then
   Begin
-    CWriteLnWarning('when bound, second argument must be an integer');
+    ShortWarning(B,'when bound, second argument must be an integer');
     Exit
   End;
 
@@ -2028,7 +2021,8 @@ End;
 
  cf.: PIIv1: p12, book PIIv2: p148, PII+: p117 (Marseille) and p222 (Edinburgh)
 }
-Function ClearArg( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearArg( P : ProgPtr; B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var
   T2,T3,TH,TQ,R : TermPtr;
   n,m : PosInt;
@@ -2039,16 +2033,14 @@ Begin
   { 1: 0 or index }
   If Not GetPosIntArg(1,T,n) Then
   Begin
-    CWriteWarning('Arg: first argument must be an integer');
-    CWriteLn;
+    ShortWarning(B,'first argument must be an integer');
     Exit
   End;
   { 2: term }
   T2 := EvalPArg(2,T);
   If Not IsBound(T2) Then
   Begin
-    CWriteWarning('Arg: second argument must be bounded');
-    CWriteLn;
+    ShortWarning(B,'second argument must be bounded');
     Exit
   End;
   { 3: result }
@@ -2121,7 +2113,8 @@ End;
 { op(700,xfx,"<",inf) } 
 { TODO: implement full specs PII+ p137: 3rd par as a list, op/3 as a directive,  
  free variables }
-Function ClearOp( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearOp( P : ProgPtr; B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var
   C3 : ConstPtr;
   I2,I3,I4 : IdPtr;
@@ -2185,13 +2178,13 @@ Begin
         OP_ARITY],Id3,Id4,[ot],n,0);
     If o3 = Nil Then
     Begin
-      CWriteLnWarning('no operator ' + Id4 + '/' + PosIntToShortString(n) + 
+      ShortWarning(B,'no operator ' + Id4 + '/' + PosIntToShortString(n) + 
           ' of type ' + Id2 + ' to delete');
       Exit
     End;
     If (o3 <> Nil) And (Not Op_IsUser(o3)) Then
     Begin
-      CWriteLnWarning('cannot delete predefined operator' + Id4 + '/' + 
+      ShortWarning(B,'cannot delete predefined operator' + Id4 + '/' + 
           PosIntToShortString(n));
       Exit
     End;
@@ -2210,7 +2203,7 @@ Begin
     { a partial match already exists }
     If (o3 = Nil) And ((o1 <> Nil) Or (o2 <> Nil)) Then
     Begin
-      CWriteLnWarning('a function or operator ' + Id4 + '/' + 
+      ShortWarning(B,'a function or operator ' + Id4 + '/' + 
           PosIntToShortString(n) + ' already exists');
       Exit
     End;
@@ -2240,7 +2233,8 @@ End;
 { expand_file_name("~/*.¨", L). 
  https://www.swi-prolog.org/pldoc/doc_for?object=expand_file_name/2 
  Note: only handles ~ (home) and DOS-style wildcards (e.g., *.*) }
-Function ClearExpandFileName( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearExpandFileName( P : ProgPtr; B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var
   T1 : TermPtr;
   Path,Pattern : TPath;
@@ -2252,7 +2246,7 @@ Var
 Begin
   ClearExpandFileName := False;
   { 1: pattern to expand }
-  If Not GetShortPathArgAsStr(1,T,Pattern) Then 
+  If Not GetShortPathArgAsStr(B,1,T,Pattern) Then 
     Exit;
   { extract path part }
   ShortPat := Str_AsShortString(Pattern);
@@ -2286,7 +2280,8 @@ End;
 { PII+: save_state("backup/state.p2");
  save the state (i.e., assigned identifiers, arrays, rules, various global 
  states as infinite, trace...) with file of path S }
-Function ClearSaveState( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearSaveState( P : ProgPtr; B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var
   f : StreamPtr;
   Path : TPath;
@@ -2294,9 +2289,9 @@ Begin
   ClearSaveState := False;
 
   { 1: file name }
-  If Not GetShortPathArgAsStr(1,T,Path) Then 
+  If Not GetShortPathArgAsStr(B,1,T,Path) Then 
   Begin
-    CWriteLnWarning('incorrect file path argument');
+    ShortWarning(B,'incorrect file path argument');
     Exit
   End;
 
@@ -2304,18 +2299,12 @@ Begin
   f := CreateNewStream(P,Path,Path,DEV_FILE,MODE_WRITE,False,True);
   If f = Nil Then
   Begin
-    CWriteWarning('fail to create file: ''');
-    Str_CWrite(Path);
-    CWrite('''');
-    CWriteLn;
+    WarnAbout(B,'file to create file',Path);
     Exit
   End;
   If Not Stream_IsOpen(f) Then
   Begin
-    CWriteWarning('fail to open file: ''');
-    Str_CWrite(Path);
-    CWrite('''');
-    CWriteLn;
+    WarnAbout(B,'file to open file',Path);
     Exit
   End;
 
@@ -2330,7 +2319,7 @@ End;
 
 { to implement new-buffer(T); this buffer is put on top but has no mode so it 
  should not interfere with primitives working on default i or o streams }
-Function ClearNewBuffer( P : ProgPtr ) : Boolean;
+Function ClearNewBuffer( P : ProgPtr; B : BTermPtr ) : Boolean;
 Var
   f : StreamPtr;
   y : TSyntax;
@@ -2339,13 +2328,13 @@ Begin
   y := GetSyntax(P);
   If y = Edinburgh Then
   Begin
-    CWriteLnWarning('not supported in Edinburgh mode');
+    ShortWarning(B,'not supported in Edinburgh mode');
     Exit
   End;
   f := Stream_NewBuffer(BufferAlias(y),LineContinuation(y),DefaultLineWidth(y));
   If f = Nil Then
   Begin
-    CWriteLnWarning('fail to create a new buffer');
+    ShortWarning(B,'fail to create a new buffer');
     Exit
   End;
   PushStream(P,f);
@@ -2353,12 +2342,12 @@ Begin
 End;
 
 { delete the top buffer }
-Function ClearDelBuffer( P : ProgPtr ) : Boolean;
+Function ClearDelBuffer( P : ProgPtr; B : BTermPtr ) : Boolean;
 Begin
   ClearDelBuffer := False;
   If GetSyntax(P) = Edinburgh Then
   Begin
-    CWriteLnWarning('not supported in Edinburgh mode');
+    ShortWarning(B,'not supported in Edinburgh mode');
     Exit
   End;
   CloseTopBuffer(P);
@@ -2373,23 +2362,23 @@ End;
  used to implement input/output("data.txt"); silently fails when the stream 
  does not exist; when it exists and has a mode different from Mode, switch the
  stream to the new mode without changing its position in the stack of streams }
-Function ClearSelectStream( P : ProgPtr; T : TermPtr; 
-    Mode : TStreamMode ) : Boolean;
+Function ClearSelectStream( P : ProgPtr; B : BTermPtr;
+    T : TermPtr; Mode : TStreamMode ) : Boolean;
 Var
   f : StreamPtr;
 Begin
   ClearSelectStream := False;
   If GetSyntax(P) = Edinburgh Then
   Begin
-    CWriteLnWarning('not supported in Edinburgh mode');
+    ShortWarning(B,'not supported in Edinburgh mode');
     Exit
   End;
   { first chance: steam already having the target mode (so we always catch the 
    correct console when the stream is a console) }
-  f := GetStreamArg(P,1,T,Mode);
+  f := GetStreamArg(P,B,1,T,Mode);
   { second chance for files or buffers: mode switching }
   If f = Nil Then
-    f := GetStreamArg(P,1,T,MODE_ANY);
+    f := GetStreamArg(P,B,1,T,MODE_ANY);
   If f = Nil Then
     Exit;
   { if target mode is different from the file's current mode, switch it }
@@ -2399,10 +2388,7 @@ Begin
     { is closing allowed? No if it is a Prolog program }
     If Stream_IsLocked(f) Then
     Begin
-      CWriteWarning('file to select already in use: ''');
-      Str_CWrite(Stream_GetAlias(f));
-      CWrite('''');
-      CWriteLn;
+      WarnAbout(B,'file to select already in use',Stream_GetAlias(f));
       Exit
     End;
     { switch mode }
@@ -2417,16 +2403,16 @@ End;
  cannot be opened in more than one mode, only one syscall is needed; do nothing
  if it is a terminal (PII+ p.130: "unless it is the console or a window");
  FIXME: PII: can we close a buffer? }
-Function ClearCloseUserFile( P : ProgPtr; T : TermPtr; 
-    Mode : TStreamMode ) : Boolean;
+Function ClearCloseUserFile( P : ProgPtr; B : BTermPtr;
+    T : TermPtr; Mode : TStreamMode ) : Boolean;
 Var
   f : StreamPtr;
 Begin
   ClearCloseUserFile := False;
-  f := GetStreamArg(P,1,T,Mode);
+  f := GetStreamArg(P,B,1,T,Mode);
   If f = Nil Then
   Begin
-    CWriteLnWarning('unknown file');
+    ShortWarning(B,'unknown file');
     Exit
   End;
   { close user files; do nothing for consoles and buffers }
@@ -2434,10 +2420,7 @@ Begin
   Begin
     If Stream_IsLocked(f) Then
     Begin
-      CWriteWarning('file to close already in use: ''');
-      Str_CWrite(Stream_GetAlias(f));
-      CWrite('''');
-      CWriteLn;
+      WarnAbout(B,'file to close already in use',Stream_GetAlias(f));
       Exit
     End;
     CloseStream(P,f)
@@ -2452,7 +2435,8 @@ End;
  - input/output("data.txt") 
  see 
  https://www.swi-prolog.org/pldoc/man?predicate=open/4 }
-Function ClearOpenNewUserStream( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearOpenNewUserStream( P : ProgPtr; B : BTermPtr; 
+    T : TermPtr ) : Boolean;
 Var
   f : StreamPtr;
   Path : TPath;
@@ -2462,20 +2446,21 @@ Var
   T3,T4,Td,Ta : TermPtr;
   P1,P2 : TermPtr;
   I2,I : IdPtr;
+
 Begin
   ClearOpenNewUserStream := False;
   
   { 1: file name }
-  If Not GetShortPathArgAsStr(1,T,Path) Then 
+  If Not GetShortPathArgAsStr(B,1,T,Path) Then 
   Begin
-    CWriteLnWarning('incorrect file path argument');
+    ShortWarning(B,'incorrect file path argument');
     Exit
   End;
   { 2: mode (read/write) }
   I2 := EvalPArgAsIdent(2,T);
   If I2 = Nil Then
   Begin
-    CWriteLnWarning('incorrect file mode argument');
+    ShortWarning(B,'incorrect file mode argument');
     Exit
   End;
   OpenMode := IdentifierGetShortString(I2);
@@ -2485,17 +2470,14 @@ Begin
     Mode := MODE_WRITE
   Else
   Begin
-    CWriteWarning('unsupported file mode: ''');
-    CWrite(OpenMode);
-    CWrite('''');
-    CWriteLn;
+    ShortWarning(B,'unsupported file mode: ''' + OpenMode + '''');
     Exit
   End;
   { 3: file descriptor; must be a free variable }
   T3 := GetPArg(3,T);
   If Not IsFree(T3) Then
   Begin
-    CWriteLnWarning('file descriptor argument must be a free variable');
+    ShortWarning(B,'file descriptor argument must be a free variable');
     Exit
   End;
   { 4: list of options; for now, only [alias(ident)] is supported }
@@ -2505,23 +2487,23 @@ Begin
   Begin
     If Not ProtectedGetList(T4,P1,P2,True) Then
     Begin
-      CWriteLnWarning('file option must be a list');
+      ShortWarning(B,'file option must be a list');
       Exit
     End;
     If Not IsNil(P2) Then { only one option is allowed, for now }
     Begin
-      CWriteLnWarning('two many options, as only ''alias'' is supported');
+      ShortWarning(B,'two many options, as only ''alias'' is supported');
       Exit
     End;
     If Not ProtectedGetFunc1(P1,'alias',Ta,True) Then
     Begin
-      CWriteLnWarning('''alias'' is the only supported option');
+      ShortWarning(B,'''alias'' is the only supported option');
       Exit
     End;
     I := EvaluateToIdentifier(Ta);
     If I = Nil Then
     Begin
-      CWriteLnWarning('alias must be an identifier');
+      ShortWarning(B,'alias must be an identifier');
       Exit
     End;
     Alias := IdentifierGetStr(IdPtr(Ta))
@@ -2532,20 +2514,14 @@ Begin
   { warn and fail: a stream with the same path exists }
   If GetStreamByPath(P,Path) <> Nil Then
   Begin
-    CWriteWarning('a stream with that path already exist: ''');
-    Str_CWrite(Path);
-    CWrite('''');
-    CWriteLn;
+    WarnAbout(B,'a stream with that path already exist',Path);
     Exit
   End;
   { warn and fail: a stream with the same alias exists; this also prevents
    PII/PII+ users from fiddling with consoles or buffers }
   If GetStreamByAlias(P,Alias) <> Nil Then
   Begin
-    CWriteWarning('a stream with that name already exist: ''');
-    Str_CWrite(Alias);
-    CWrite('''');
-    CWriteLn;
+    WarnAbout(B,'a stream with that name already exist',Alias);
     Exit
   End;
 
@@ -2553,18 +2529,12 @@ Begin
   f := CreateNewStream(P,Alias,Path,DEV_FILE,Mode,False,True);
   If f = Nil Then
   Begin
-    CWriteWarning('fail to create stream: ''');
-    Str_CWrite(Alias);
-    CWrite('''');
-    CWriteLn;
+    WarnAbout(B,'fail to create stream',Alias);
     Exit
   End;
   If Not Stream_IsOpen(f) Then
   Begin
-    CWriteWarning('fail to open: ''');
-    Str_CWrite(Alias);
-    CWrite('''');
-    CWriteLn;
+    WarnAbout(B,'fail to open',Alias);
     Exit
   End;
 
@@ -2572,10 +2542,7 @@ Begin
   Td := EmitConst(P,Str_NewFromShortString(PosIntToShortString(Stream_GetDescriptor(f))),CI,True);
   If Not ReduceOneEq(T3,Td,P) Then
   Begin
-    CWriteWarning('failed to bind the file descriptor: ''');
-    Str_CWrite(Alias);
-    CWrite('''');
-    CWriteLn;
+    WarnAbout(B,'failed to bind the file descriptor',Alias);
     Exit
   End;
 
@@ -2705,7 +2672,7 @@ End;
    demanding Prolog version, PII: 3-space left margin, truncations of 
    identifiers, identifiers starting with two letters vs. variable names;
  - PIIv2: not documented, not even sure set-line-width/1 exists }
-Function ClearSetLineWidth( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearSetLineWidth( P : ProgPtr; B : BTermPtr; T : TermPtr ) : Boolean;
 Const
   PROLOG_MIN_LINE_WIDTH = 5;
 Var
@@ -2718,11 +2685,9 @@ Begin
   MaxWidth := MaximumLineWidth(GetSyntax(P));
   If Not GetPosIntArgIn(1,T,PROLOG_MIN_LINE_WIDTH,MaxWidth,v) Then
   Begin
-    CWriteWarning('argument must be an integer value between ');
-    CWrite(PosIntToShortString(PROLOG_MIN_LINE_WIDTH));
-    CWrite(' and ');
-    CWrite(PosIntToShortString(MaxWidth));
-    CWriteLn;
+    ShortWarning(B,'argument must be an integer value between ' +
+        PosIntToShortString(PROLOG_MIN_LINE_WIDTH) + ' and ' + 
+        PosIntToShortString(MaxWidth));
     Exit
   End;
   { set the line width of the current output stream }
@@ -2736,7 +2701,8 @@ End;
  - FIXME: PIIv2: no doc, not even sure set-line-cursor/1 exists 
  - we assumes it applies to the current output unit, whatever its type (console, 
  file...) }
-Function ClearSetLineCursor( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearSetLineCursor( P : ProgPtr; B : BTermPtr; 
+    T : TermPtr ) : Boolean;
 Var
   f : StreamPtr;
   v : PosInt;
@@ -2752,11 +2718,8 @@ Begin
   { 1: new position on the current line }
   If Not GetPosIntArgIn(1,T,Pos,Width,v) Then
   Begin
-    CWriteWarning('argument must be an integer value between ');
-    CWrite(PosIntToShortString(Pos));
-    CWrite(' and ');
-    CWrite(PosIntToShortString(Width));
-    CWriteLn;
+    ShortWarning(B,'argument must be an integer value between ' +
+        PosIntToShortString(Pos) + ' and ' + PosIntToShortString(Width));
     Exit
   End;
   { write blank spaces if any (no spaces to write is still a success) }
@@ -2786,7 +2749,7 @@ End;
    We interpret this as: substitute EOL by c only when clearing in-char/1 and
    friends (i.e. in-char'/0, car-apres/0, car-apres'/0)
  }
-Function ClearSubEOL( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearSubEOL( P : ProgPtr; B : BTermPtr; T : TermPtr ) : Boolean;
 Var
   C : ConstPtr;
   s : StrPtr;
@@ -2797,13 +2760,13 @@ Begin
   C := EvalPArgAsString(1,T);
   If C = Nil Then
   Begin
-    CWritelnWarning('EOL substitution must be a character');
+    ShortWarning(B,'EOL substitution must be a character');
     Exit
   End;
   s := ConstGetStr(C);
   If Str_Length(s) <> 1 Then
   Begin
-    CWritelnWarning('EOL substitution must be exactly one character');
+    ShortWarning(B,'EOL substitution must be exactly one character');
     Exit
   End;
   If Not Str_FirstChar(s,cc) Then { note: this call must never return False }
@@ -2815,7 +2778,8 @@ End;
 
 { read_term(Stream,T), get_char(Stream,C), next_char(Stream,C)...; 
  note: silently fails if Stream exists but is not an input stream }
-Function ClearIn( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearIn( P : ProgPtr; B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var
   T1,T2,R1,R2 : TermPtr;
   What : TPrologDataType;
@@ -2837,7 +2801,7 @@ Begin
   R1 := Nil; { to be bound to T1 }
   R2 := Nil; { if not nil, will be bound to T2 }
   { 1: input stream }
-  f := GetStreamArg(P,1,T,MODE_READ);
+  f := GetStreamArg(P,B,1,T,MODE_READ);
   If f = Nil Then
     Exit;
   { 2: variable }
@@ -2845,13 +2809,13 @@ Begin
   { 3: extra variable (in_word/2, in_sentence/2) }
   T2 := GetPArg(3,T);
   { 4: what type of data to read }
-  If Not GetType(4,T,What) Then
+  If Not GetType(B,4,T,What) Then
     Exit;
   { 5: skip spaces? (true/false) }
-  If Not GetBoolean(5,T,SkipSpaces) Then
+  If Not GetBoolean(B,5,T,SkipSpaces) Then
     Exit;
   { 6: push back all the characters read? (true/false) }
-  If Not GetBoolean(6,T,LookAhead) Then
+  If Not GetBoolean(B,6,T,LookAhead) Then
     Exit;
 
   y := GetSyntax(P);
@@ -2966,7 +2930,7 @@ Begin
     End
   Else
     Begin
-      CWriteLnWarning('unsupported read data type');
+      ShortWarning(B,'unsupported read data type');
       InOk := False
     End
   End;
@@ -2991,17 +2955,18 @@ End;
 {----------------------------------------------------------------------------}
 
 { switch a global on/off state }
-Function ClearOnOffState( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearOnOffState( P : ProgPtr; B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var
   StateName : TPrologState;
   StateValue : Boolean;
 Begin
   ClearOnOffState := False;
   { 1: state name }
-  If Not GetOnOffStateName(1,T,StateName) Then
+  If Not GetOnOffStateName(B,1,T,StateName) Then
     Exit;
   { 2: state value: true/false }
-  If Not GetBoolean(2,T,StateValue) Then
+  If Not GetBoolean(B,2,T,StateValue) Then
     Exit;
   { set the on/off state }
   Case StateName Of
@@ -3052,7 +3017,8 @@ End;
 {----------------------------------------------------------------------------}
 
 { freeze(x,goal) }
-Function ClearFreeze( P : ProgPtr; T : TermPtr; 
+Function ClearFreeze( P : ProgPtr; B : BTermPtr;
+    T : TermPtr; 
     Var V,G : TermPtr ) : Boolean;
 Var
   T1,T2 : TermPtr;
@@ -3066,7 +3032,7 @@ Begin
   T2 := GetGoal(2,T,False);
   If T2 = Nil Then
   Begin
-    CWritelnWarning('freeze: second argument must be a goal');
+    ShortWarning(B,'freeze: second argument must be a goal');
     Exit
   End;
   { returned values }
@@ -3087,7 +3053,8 @@ End;
  2) on second call
    - convert Choices to a Prolog list and unify it with the "l" argument 
   }
-Function ClearFindAll( P : ProgPtr; T : TermPtr; 
+Function ClearFindAll( P : ProgPtr; B : BTermPtr;
+    T : TermPtr; 
     Var V,G : TermPtr; SuccessCount : PosInt; 
     Var Choices : Pointer; Var More : Boolean ) : Boolean;
 Var
@@ -3106,14 +3073,14 @@ Begin
   T2 := GetGoal(2,T,False);
   If T2 = Nil Then
   Begin
-    CWritelnWarning('findall: second argument must be a goal');
+    ShortWarning(B,'second argument must be a goal');
     Exit
   End;
   { 3: list }
   T3 := GetList(3,T,True);
   If T3 = Nil Then
   Begin
-    CWritelnWarning('findall: third argument is not a list');
+    ShortWarning(B,'third argument is not a list');
     Exit
   End;
 
@@ -3143,7 +3110,8 @@ Begin
 End;
 
 { [BLOCK:1] block(T,G) }
-Function ClearBlock( P : ProgPtr; T : TermPtr; Var V,G : TermPtr ) : Boolean;
+Function ClearBlock( P : ProgPtr; B : BTermPtr;
+    T : TermPtr; Var V,G : TermPtr ) : Boolean;
 Var
   T1,T2 : TermPtr;
 Begin
@@ -3154,7 +3122,7 @@ Begin
   T2 := GetGoal(2,T,False);
   If T2 = Nil Then
   Begin
-    CWritelnWarning('block: second argument must be a goal');
+    ShortWarning(B,'second argument must be a goal');
     Exit
   End;
   { return V, G }
@@ -3177,7 +3145,8 @@ Begin
 End;
 
 { (time(V), get_time(V) }
-Function ClearTime( P : ProgPtr; T : TermPtr ) : Boolean;
+Function ClearTime( P : ProgPtr; B : BTermPtr;
+    T : TermPtr ) : Boolean;
 Var
   T1,Tr : TermPtr;
   TimeRef : TTimeType;
@@ -3189,24 +3158,24 @@ Begin
   { 1: time variable (or value, but then likely to fail) }
   T1 := EvalPArg(1,T);
   { 2: time reference ('startofday' or 'epoch') }
-  If Not GetTimeType(2,T,TimeRef) Then
+  If Not GetTimeType(B,2,T,TimeRef) Then
   Begin
-    CWritelnWarning('invalid reference time argument');
+    ShortWarning(B,'invalid reference time argument');
     Exit
   End;
   { 3: type of result ('integer' or 'real')}
-  If Not GetType(3,T,What) Then
+  If Not GetType(B,3,T,What) Then
     Exit;
   If Not (What In [TYPE_INTEGER,TYPE_REAL]) Then
   Begin
-    CWritelnWarning('invalid type argument');
+    ShortWarning(B,'invalid type argument');
     Exit
   End;
   { check T1 is not bound to an non numerical value }
   If IsBound(T1) And Not (((What = TYPE_INTEGER) And IsInteger(T1)) Or 
       ((What = TYPE_REAL) And IsReal(T1))) Then
   Begin
-    CWritelnWarning('time argument is bounded to a value with incorrect type');
+    ShortWarning(B,'time argument is bounded to a value with incorrect type');
     Exit
   End;
   { compute the number of seconds since the reference time }
@@ -3237,21 +3206,23 @@ End;
 {----------------------------------------------------------------------------}
 
 { clear a predefined predicate syscall(Code,Arg1,...ArgN), meaning 
- Code(Arg1,...,ArgN), except insert; G returns the new goal to freeze or clear }
+ Code(Arg1,...,ArgN), except insert; G returns the new goal to freeze or clear;
+ B is the rule's head whose queue contains the goal to clear }
 Function ClearPredef( Predef : TPP; P : ProgPtr; Q : QueryPtr; 
     T : TermPtr; Var V,G : TermPtr; 
     Var L : RestPtr; SuccessCount : PosInt; Var Choices : Pointer; 
-    Var More : Boolean ) : Boolean;
+    Var More : Boolean;
+    B : BTermPtr ) : Boolean;
 Var
   Ok : Boolean;
 Begin
   Case Predef Of
   PP_IS_FREE:
-    Ok := ClearIsFree(T);
+    Ok := ClearIsFree(B,T);
   PP_IS_TYPE:
-    Ok := ClearIsType(T);
+    Ok := ClearIsType(B,T);
   PP_CHAR_CODE:
-    Ok := ClearCharCode(P,T);
+    Ok := ClearCharCode(P,B,T);
   PP_SUBSTRING:
     Ok := ClearSubstring(P,T);
   PP_FIND_PATTERN:
@@ -3259,17 +3230,17 @@ Begin
   PP_DIF:
     Ok := ClearDif(P,T);
   PP_ASSIGN:
-    Ok := ClearAssign(P,T);
+    Ok := ClearAssign(P,B,T);
   PP_RENAME:
     Ok := ClearRename(P,T);
   PP_DEF_ARRAY:
-    Ok := ClearDefArray(P,T);
+    Ok := ClearDefArray(P,B,T);
   PP_EVAL:
-    Ok := ClearEval(P,T);
+    Ok := ClearEval(P,B,T);
   PP_UNIV:
-    Ok := ClearUniv(P,T);
+    Ok := ClearUniv(P,B,T);
   PP_STRING_IDENT:
-    Ok := ClearStringIdent(P,T);
+    Ok := ClearStringIdent(P,B,T);
   PP_LIST_STRING:
     Ok := ClearListString(P,T);
   PP_LIST_TUPLE:
@@ -3279,13 +3250,13 @@ Begin
   PP_ATOM_CHARS:
     Ok := ClearAtomChars(P,T);
   PP_ATOM_LENGTH:
-    Ok := ClearAtomLength(P,T);
+    Ok := ClearAtomLength(P,B,T);
   PP_NUMBER_CHARS:
     Ok := ClearNumberChars(P,T);
   PP_ARG:
-    Ok := ClearArg(P,T);
+    Ok := ClearArg(P,B,T);
   PP_OP:
-    Ok := ClearOp(P,T);
+    Ok := ClearOp(P,B,T);
   PP_QUIT:
     Ok := ClearQuit;
   PP_WORLD:
@@ -3293,13 +3264,13 @@ Begin
   PP_PARENT_WORLD:
     Ok := ClearParentWorld(P,T);
   PP_NEW_SUBWORLD:
-    Ok := ClearNewSubWorld(P,T);
+    Ok := ClearNewSubWorld(P,B,T);
   PP_KILL_SUBWORLD:
-    Ok := ClearKillSubWorld(P,T);
+    Ok := ClearKillSubWorld(P,B,T);
   PP_CLIMB_WORLD:
     Ok := ClearClimbWorld(P,T);
   PP_DOWN_WORLD:
-    Ok := ClearDownWorld(P,T);
+    Ok := ClearDownWorld(P,B,T);
   PP_TOP_STATEMENT:
     Ok := ClearTopStatement(P);
   PP_BOTTOM_STATEMENT:
@@ -3313,45 +3284,45 @@ Begin
   PP_FIND_RULE:
     Ok := ClearFindRule(P,T);
   PP_ASSERT1:
-    Ok := ClearAssert1(P,T);
+    Ok := ClearAssert1(P,B,T);
   PP_ASSERT2:
-    Ok := ClearAssert2(P,T);
+    Ok := ClearAssert2(P,B,T);
   PP_SUPPRESS:
     Ok := ClearSuppress(P,T);
   PP_RULE:
-    Ok := ClearRule(P,T,True,False,L,SuccessCount,Choices,More);
+    Ok := ClearRule(P,B,T,True,False,L,SuccessCount,Choices,More);
   PP_RETRACT1:
-    Ok := ClearRule(P,T,False,True,L,SuccessCount,Choices,More);
+    Ok := ClearRule(P,B,T,False,True,L,SuccessCount,Choices,More);
   PP_RETRACT2:
-    Ok := ClearRule(P,T,True,True,L,SuccessCount,Choices,More);
+    Ok := ClearRule(P,B,T,True,True,L,SuccessCount,Choices,More);
   PP_EXPAND_FILENAME:
-    Ok := ClearExpandFileName(P,T);
+    Ok := ClearExpandFileName(P,B,T);
   PP_SAVE_STATE:
-    Ok := ClearSaveState(P,T);
+    Ok := ClearSaveState(P,B,T);
   PP_NEW_BUFFER:
-    Ok := ClearNewBuffer(P);
+    Ok := ClearNewBuffer(P,B);
   PP_DEL_BUFFER:
-    Ok := ClearDelBuffer(P);
+    Ok := ClearDelBuffer(P,B);
   PP_SELECT_INPUT:
-    Ok := ClearSelectStream(P,T,MODE_READ);
+    Ok := ClearSelectStream(P,B,T,MODE_READ);
   PP_SELECT_OUTPUT:
-    Ok := ClearSelectStream(P,T,MODE_WRITE);
+    Ok := ClearSelectStream(P,B,T,MODE_WRITE);
   PP_OPEN:
-    Ok := ClearOpenNewUserStream(P,T);
+    Ok := ClearOpenNewUserStream(P,B,T);
   PP_INPUT_IS:
     Ok := ClearStreamIs(P,T,MODE_READ);
   PP_CLOSE_INPUT: 
-    Ok := ClearCloseUserFile(P,T,MODE_READ);
+    Ok := ClearCloseUserFile(P,B,T,MODE_READ);
   PP_CLEAR_INPUT: 
     Ok := ClearClearInput(P);
   PP_OUTPUT_IS: 
     Ok := ClearStreamIs(P,T,MODE_WRITE);
   PP_CLOSE_OUTPUT:
-    Ok := ClearCloseUserFile(P,T,MODE_WRITE);
+    Ok := ClearCloseUserFile(P,B,T,MODE_WRITE);
   PP_FLUSH:
     Ok := ClearFlush(P);
   PP_LIST:
-    Ok := ClearList(P,T);
+    Ok := ClearList(P,B,T);
   PP_OUT:
     Ok := ClearOut(P,T);
   PP_OUTM:
@@ -3363,31 +3334,31 @@ Begin
   PP_GET_LINE_WIDTH:
     Ok := ClearGetLineWidth(P,T);
   PP_SET_LINE_WIDTH:
-    Ok := ClearSetLineWidth(P,T);
+    Ok := ClearSetLineWidth(P,B,T);
   PP_SET_LINE_CURSOR:
-    Ok := ClearSetLineCursor(P,T);
+    Ok := ClearSetLineCursor(P,B,T);
   PP_CLRSRC:
     Ok := ClearClrScr(P);
   PP_IN:
-    Ok := ClearIn(P,T);
+    Ok := ClearIn(P,B,T);
   PP_SUB_EOL:
-    Ok := ClearSubEOL(P,T);
+    Ok := ClearSubEOL(P,B,T);
   PP_SET_STATE:
-    Ok := ClearOnOffState(P,T);
+    Ok := ClearOnOffState(P,B,T);
   PP_BACKTRACE:
     Ok := ClearBacktrace(P,Q);
   PP_DUMP:
     Ok := ClearDump(P);
   PP_FREEZE:
-    Ok := ClearFreeze(P,T,V,G);
+    Ok := ClearFreeze(P,B,T,V,G);
   PP_FIND_ALL:
-    Ok := ClearFindAll(P,T,V,G,SuccessCount,Choices,More);
+    Ok := ClearFindAll(P,B,T,V,G,SuccessCount,Choices,More);
   PP_BLOCK:
-    Ok := ClearBlock(P,T,V,G);
+    Ok := ClearBlock(P,B,T,V,G);
   PP_BLOCK_EXIT:
     Ok := ClearBlockExit(P,T,V);
   PP_TIME:
-    Ok := ClearTime(P,T);
+    Ok := ClearTime(P,B,T);
   PP_FAIL:
     Ok := False
   End;
