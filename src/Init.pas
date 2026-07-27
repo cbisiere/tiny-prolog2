@@ -44,6 +44,11 @@ Type
   TSyntaxPar = Array[TSyntax] Of String[5];
 Const 
   SyntaxPar : TSyntaxPar = ('PIIv1','PII','PIIp','E'); { must be ASCII only }
+  PARA_SYNTAX = 's';
+  PARA_INSERT = 'f';
+  PARA_CODEPAGE = 'c';
+  PARA_RESTORE = 'r';
+  PARA_DEBUG = 'd';
 
 { name of the paper file }
 Type 
@@ -71,8 +76,25 @@ Var
   code : Integer; { string to number result code }
   y : TSyntax;
   i : Byte;
+  V : TString;
+  HasSyntaxPar : Boolean;
   par : TString;
-  KnownPar, HasSyntaxPar : Boolean;
+
+  { return the value of parameter -par; i is the current index in ParamStr, and
+   is increased by 1 if a value is found; 
+   raise an error and return '' if no value can be found }
+  Function GetParValue( par : TString; Var i : Byte ) : TString;
+  Begin
+    GetParValue := '';
+    If (i = ParamCount) Or (ParamStr(i+1)[1] = '-') Then
+    Begin
+      ParameterError(par,'value expected');
+      Exit;
+    End;
+    i := i + 1;
+    GetParValue := ParamStr(i)
+  End;
+
 Begin
   CodePage := 0;
   Syntax := DEFAULT_PROLOG_SYNTAX;
@@ -81,76 +103,94 @@ Begin
   SkipStartFile := False;
   HasUserFilePar := False;
 
-  For i := 1 To ParamCount Do
+  i := 0;
+  While i < ParamCount Do
   Begin
+    i := i + 1;
     par := ParamStr(i);
-    If par[1] = '-' Then
+    { syntax, e.g. '-s PIIv1' }
+    If par = '-' + PARA_SYNTAX Then
     Begin
-      KnownPar := False;
-      Delete(par,1,1);
-      { syntax, e.g. '-PII' }
+      If HasSyntaxPar Then
+      Begin
+        ParameterError(PARA_SYNTAX,'can only be used once');
+        Exit
+      End;
+      V := GetParValue(PARA_SYNTAX,i);
+      If Error Then Exit;
       For y := PrologIIv1 To Edinburgh Do
       Begin
-        If SyntaxPar[y] = par Then
+        If SyntaxPar[y] = V Then
         Begin
-          If HasSyntaxPar Then
-          Begin
-            ParameterError('Syntax parameter cannot be used more than once');
-            Exit
-          End;
           Syntax := y;
-          HasSyntaxPar := True;
-          KnownPar := True
+          HasSyntaxPar := True
         End
       End;
-      { debug, '-R': restore the saved state }
-      If Not KnownPar Then
-        If par = 'R' Then
-        Begin
-          LoadSavedState := True;
-          KnownPar := True
-        End;
-      { debug, '-D': do not load the start file }
-      If Not KnownPar Then
-        If par = 'D' Then
-        Begin
-          SkipStartFile := True;
-          KnownPar := True
-        End;
-      { codepage, e.g. '-C850'; 0 means not set }
-      If Not KnownPar Then
-        If par[1] = 'C' Then
-        Begin
-          Delete(par,1,1);
-          If Length(par) = 0 Then
-          Begin
-            ParameterError('Missing codepage');
-            Exit
-          End;
-          CodePage := ShortStringToPosInt(par,code);
-          If code <> 0 Then
-          Begin
-            ParameterError('Invalid codepage: ''' + par + '''');
-            Exit
-          End;
-          KnownPar := True
-        End;
-      If Not KnownPar Then
+      If Not HasSyntaxPar Then
       Begin
-        ParameterError('Unknown option');
+        ParameterError(PARA_SYNTAX,'incorrect value: ' + V);
         Exit
       End
     End
-    Else
+    { insert user file, e.g. '-i "./tests/file.pro" }
+    Else If par = '-' + PARA_INSERT Then
     Begin
-      { user file }
       If HasUserFilePar Then
       Begin
-        ParameterError('File already set');
+        ParameterError(PARA_INSERT,'can only be used once');
         Exit
       End;
-      HasUserFilePar := True;
-      Filename := par
+      Filename := GetParValue(PARA_INSERT,i);
+      If Error Then Exit;
+      HasUserFilePar := True
+    End
+    { debug, '-r': restore the last saved state }
+    Else If par = '-' + PARA_RESTORE Then
+    Begin
+      If LoadSavedState Then
+      Begin
+        ParameterError(PARA_RESTORE,'can only be used once');
+        Exit
+      End;
+      LoadSavedState := True
+    End
+    { debug, '-d': do not load the start file }
+    Else If par = '-' + PARA_DEBUG Then
+    Begin
+      If SkipStartFile Then
+      Begin
+        ParameterError(PARA_DEBUG,'can only be used once');
+        Exit
+      End;
+      SkipStartFile := True
+    End
+    { codepage, e.g. '-c 850'; 0 means not set }
+    Else If par = '-' + PARA_CODEPAGE Then
+    Begin
+      If CodePage <> 0 Then
+      Begin
+        ParameterError(PARA_CODEPAGE,'cannot be set more than once');
+        Exit
+      End;
+      V := GetParValue(PARA_CODEPAGE,i);      
+      If Error Then Exit;
+      CodePage := ShortStringToPosInt(V,code);
+      If code <> 0 Then
+      Begin
+        ParameterError(PARA_CODEPAGE,'invalid codepage: ''' + V + '''');
+        Exit
+      End;
+    End
+    Else
+    Begin
+      If (par[1] = '-') And (Length(Par) > 1) Then
+      Begin
+        Delete(par,1,1);
+        ParameterError(par,'unknown parameter')
+      End
+      Else
+        CommandLineError('unexpected value: ''' + par + '''');
+      Exit
     End
   End;
 

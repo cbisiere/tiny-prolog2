@@ -52,7 +52,8 @@ Procedure SyntaxError( msg : TString );
 Procedure RuntimeError( msg : TString );
 Procedure GarbageCollectorError( msg : TString );
 Procedure EvaluationError( msg : TString );
-Procedure ParameterError( msg : TString );
+Procedure CommandLineError( msg : TString );
+Procedure ParameterError( para, msg : TString );
 Procedure EncodingError( msg : TString );
 Procedure EolStyleError( msg : TString );
 Procedure UserInterrupt;
@@ -155,11 +156,17 @@ Begin
   RaiseError(EVAL_ERROR,msg)
 End;
 
-{ a parameter (command line) error occurred; display a message }
-Procedure ParameterError( msg : TString );
+{ a error on the command line occurred; display a message }
+Procedure CommandLineError( msg : TString );
 Begin
   RaiseError(PARAMETER_ERROR,'Command line error: ' + msg);
   SetQuitOn(1)
+End;
+
+{ a parameter error occurred on parameter para; display a message }
+Procedure ParameterError( para, msg : TString );
+Begin
+  CommandLineError('parameter -' + para + ': ' + msg)
 End;
 
 { broken encoding; display a message }

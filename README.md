@@ -294,13 +294,13 @@ C:\src> TPC /B /$N+ tprolog2
 ```
 The `/$N+` directive specifies that a 8087 maths coprocessor is present and must be used. 
 
-When running `tprolog2` on DOS, you may have to use the codepage parameter `-C`, as e.g. `-C850` for latin codepage:
+When running `tprolog2` on DOS, you may have to use the codepage parameter `-c`, as e.g. `-C 850` for latin codepage:
 
 ```
 C:\SRC\chcp
 The current codepage is 858.
 The system codepage (properly) is: 437.
-C:\SRC\tprolog2 -C8S8
+C:\SRC\tprolog2 -c 8S8
 >
 ```
 
@@ -344,7 +344,7 @@ insertion(e,f.x,f.y) -> insertion(e,x,y);
 ```
 (Note the `nil` has no special meaning in Prolog II. In this example, `nil` is just an identifier used as an end-of-list mark.)
 
-To execute a program stored in a file `$file` use the command line `tprolog2 -$syntax $file` where `$syntax` is one of the four supported language flavours. When the `$syntax` parameter is omitted, the syntax is inferred from the file extension.  
+To execute a program stored in a file `$file` use the command line `tprolog2 -s $syntax -f $file` where `$syntax` is one of the four supported language flavours. When the `$syntax` parameter is omitted, the syntax is inferred from the file extension.  
 
 Value of `$syntax` | File extension | Prompt | Prolog flavour (and main changes from earlier versions)
 --- | --- | --- | ---
@@ -399,7 +399,7 @@ and `insert(f)` to insert rules and queries from a file with file path `f`.
 
 You can navigate into the history of previous queries using the up and down arrow keys.  
 
-When you are done, use `exit`, `quit` (or, equivalently, hit `Ctrl+C`) to quit the interpreter. `exit` save the state of the interpreter before quitting. To restore the last saved state, launch the interpreter with a `-R` parameter.
+When you are done, use `exit`, `quit` (or, equivalently, hit `Ctrl+C`) to quit the interpreter. `exit` save the state of the interpreter before quitting. To restore the last saved state, launch the interpreter with a `-r` parameter.
 
 ```
 > quit;
