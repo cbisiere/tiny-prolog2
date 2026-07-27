@@ -142,7 +142,7 @@ Begin
 
   More := False; { by default, syscall are only called once }
 
-  If Not PredefCallIsOk(P,T,Predef) Then
+  If Not PredefCallIsOk(P,RHead,T,Predef) Then
     Exit;
 
   If Predef = PP_INSERT Then

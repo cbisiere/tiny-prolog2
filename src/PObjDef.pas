@@ -45,6 +45,11 @@ Type
     PrologIIp,   { Prolog II+ Marseille syntax }
     Edinburgh    { Prolog II+ Edinburgh syntax }
   );
+  { supported syntaxes, as short strings}
+  TSyntaxPar = Array[TSyntax] Of String[5];
+
+Const 
+  SyntaxPar : TSyntaxPar = ('PIIv1','PII','PIIp','E'); { must be ASCII only }
 
 Type 
   BTermPtr = ^TObjBTerm;

@@ -39,11 +39,7 @@ Function CreateProgram : ProgPtr;
 Implementation
 {-----------------------------------------------------------------------------}
 
-{ syntax switches; each switch is also the Filename part of the start program }
-Type 
-  TSyntaxPar = Array[TSyntax] Of String[5];
-Const 
-  SyntaxPar : TSyntaxPar = ('PIIv1','PII','PIIp','E'); { must be ASCII only }
+Const
   PARA_SYNTAX = 's';
   PARA_INSERT = 'f';
   PARA_CODEPAGE = 'c';

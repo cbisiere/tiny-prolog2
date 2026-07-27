@@ -61,6 +61,7 @@ Uses
 
 Type
   TPP = (
+    PP_PROLOG_SYNTAX,
     PP_IS_FREE,
     PP_IS_TYPE,
     PP_CHAR_CODE,
@@ -137,7 +138,8 @@ Type
   );
 
 Procedure RegisterPredefinedIdentifiers( P : ProgPtr );
-Function PredefCallIsOk( P : ProgPtr; T : TermPtr; Var Predef : TPP ) : Boolean;
+Function PredefCallIsOk( P : ProgPtr; B : BTermPtr;
+    T : TermPtr; Var Predef : TPP ) : Boolean;
 
 Function GetAtomArgAsStr( n : Byte; T : TermPtr; 
     Quotes : Boolean ) : StrPtr;
@@ -156,7 +158,7 @@ Implementation
 {----------------------------------------------------------------------------}
 
 Const
-  NB_PP = 73;
+  NB_PP = 74;
   MAX_PP_LENGTH = 21; { max string length }
 Type
   TPPRec = Record
@@ -172,6 +174,7 @@ Type
 
 Const 
   PPArray : TPPArray = (
+    (I:PP_PROLOG_SYNTAX;S:'syssyntax';N:1),
     (I:PP_IS_FREE;S:'sysfree';N:2),
     (I:PP_IS_TYPE;S:'sysis';N:2),
     (I:PP_CHAR_CODE;S:'syscharcode';N:2),
@@ -616,7 +619,8 @@ End;
 
 { call to predefined T = syscall(Code,Arg1,...ArgN), meaning Code(Arg1,...,ArgN) 
  is well-formed; set Predef to the predefined predicate identified }
-Function PredefCallIsOk( P : ProgPtr; T : TermPtr; Var Predef : TPP ) : Boolean;
+Function PredefCallIsOk( P : ProgPtr; B : BTermPtr;
+    T : TermPtr; Var Predef : TPP ) : Boolean;
 Var
   Ident : StrPtr;
   NbArgs : Integer;
@@ -628,8 +632,11 @@ Begin
   PredefCallIsOk := False; { default is to fail }
 
   { coded as a functional symbol }
-  CheckCondition(TypeOfTerm(T) = FuncSymbol,
-      'PredefCallIsOk: functional symbol expected');
+  If TypeOfTerm(T) <> FuncSymbol Then
+  Begin
+    ShortWarning(B,'syscall: malformed');
+    Exit
+  End;
   
   { first parameter is syscall }
   T1 := TupleArgN(1,T);
@@ -642,24 +649,41 @@ Begin
   { there are at least two arguments: 'syscall' and the identifier }
   NbArgs := TupleArgCount(T);
   If NbArgs < 2 Then 
-    Exit;  
+  Begin
+    ShortWarning(B,'syscall: no arguments');
+    Exit
+  End;
 
   { get the identifier }
   T2 := TupleArgN(2,T);
+  If Not IsIdentifier(T2) Then
+  Begin
+    ShortWarning(B,'syscall: identifier expected');
+    Exit
+  End;
   Ident := IdentifierGetStr(IdPtr(T2));
 
   { predicate identifier is not too long }
   If Str_Length(Ident) > MAX_PP_LENGTH Then
-    Exit;
+  Begin
+    ShortWarning(B,'syscall: identifier is too long');
+    Exit
+  End;
 
   { predicate is known }
   str := Str_AsShortString(Ident);
   If Not LookupPP(str,rec) Then
-    Exit;
+  Begin
+    ShortWarning(B,'syscall: unknown identifier');
+    Exit
+  End;
 
   { predicate has the correct number of parameters }
   If NbArgs - 2 <> rec.N Then
-    Exit;
+  Begin
+    ShortWarning(B,'syscall: incorrect number of arguments');
+    Exit
+  End;
 
   Predef := rec.I;
   PredefCallIsOk := True
@@ -671,6 +695,25 @@ End;
 { clear predefined predicates (except insert)                                }
 {                                                                            }
 {----------------------------------------------------------------------------}
+
+{----------------------------------------------------------------------------}
+{ Prolog syntax                                                              }
+{----------------------------------------------------------------------------}
+
+{ syscall(syssyntax,S) 
+ => S = "PIIv1","PII","PIIp", or "E" }
+Function ClearPrologSyntax( P : ProgPtr; T : TermPtr ) : Boolean;
+Var
+  T1,T2 : TermPtr;
+Begin
+  ClearPrologSyntax := False;
+  { 1: the current syntax }
+  T1 := GetPArg(1,T);
+  { create a constant string from the string representation of the current 
+   syntax }
+  T2 := EmitConst(P,Str_NewFromShortString(SyntaxPar[GetSyntax(P)]),CS,False);
+  ClearPrologSyntax := ReduceOneEq(T1,T2,P)
+End;
 
 {----------------------------------------------------------------------------}
 { terms                                                                      }
@@ -3217,6 +3260,8 @@ Var
   Ok : Boolean;
 Begin
   Case Predef Of
+  PP_PROLOG_SYNTAX:
+    Ok := ClearPrologSyntax(P,T);
   PP_IS_FREE:
     Ok := ClearIsFree(B,T);
   PP_IS_TYPE:
