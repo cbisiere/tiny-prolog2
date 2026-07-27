@@ -891,6 +891,7 @@ Var
   n,m : TStrLength;
   cc : TIChar; { initial lookup and undo point }
   GraphicChars : CharSet;
+  Stop : Boolean;
 Begin 
   ReadVariableOrIdentifier := Nil;
   { char lookup; also serve as an undo point in case we find a variable and 
@@ -950,24 +951,35 @@ Begin
           Repeat
             Stream_NextChar(f,e);
             If Error Then Exit;
-            If TICharIs(e,'-') Then { "-"<word> continuation }
+            Stop := False;
+            If TICharIs(e,'-') Then { "-"<word> continuation? }
             Begin
-              Stream_GetChars(f,e); { accept the '-'}
+              Stream_NextNextChar(f,e1);
               If Error Then Exit;
-              Str_AppendIChar(TK_STRI,e)
+              Stop := TICharIs(e1,'>'); { no: it was an arrow }
+              If Not Stop Then
+              Begin
+                Stream_GetChars(f,e); { accept the '-'}
+                If Error Then Exit;
+                Str_AppendIChar(TK_STRI,e)
+              End
             End;
-            n := GrabLetters(f,TK_STRI);
-            If Error Then Exit;
-            m := GetCharWhile(f,TK_STRI,Digits);
-            If Error Then Exit;
-            m := GetCharWhile(f,TK_STRI,['''']);
-            If Error Then Exit;
-            If TICharIs(e,'-') And (n = 0) Then
-              SyntaxError('dash must be followed by a letter');
-            If Error Then Exit;
-            Stream_NextChar(f,e1);
-            If Error Then Exit
-          Until (Not TICharIs(e1,'-')) Or Error;
+            If Not Stop Then
+            Begin
+              n := GrabLetters(f,TK_STRI);
+              If Error Then Exit;
+              m := GetCharWhile(f,TK_STRI,Digits);
+              If Error Then Exit;
+              m := GetCharWhile(f,TK_STRI,['''']);
+              If Error Then Exit;
+              If TICharIs(e,'-') And (n = 0) Then
+                SyntaxError('dash must be followed by a letter');
+              If Error Then Exit;
+              Stream_NextChar(f,e1);
+              If Error Then Exit;
+              Stop := Not TICharIs(e1,'-')
+            End
+          Until Stop Or Error;
         End
         Else { PrologII+ and Edinburgh extended syntax }
         Begin
