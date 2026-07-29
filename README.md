@@ -3,24 +3,35 @@ A simple Prolog II interpreter written in Pascal
 
 ## What?
 
-This is a simple Prolog II interpreter, for Linux, macOS, and Windows. It compiles under Turbo Pascal 4 and Free Pascal.
+This is a simple Prolog II interpreter, for Linux, macOS, and Windows. It compiles under Turbo Pascal 4 (yes, no OOP) and Free Pascal. 
 
-Regarding syntax, it (almost fully) supports the following flavours of the language: Prolog II (version 1 and version 2), Prolog II+ and Prolog Edinburgh.
+Its first aim is to be used as a drop-in replacement for the Prolog II interpreter developed in the eighties within the Groupe de recherche en Intelligence Artificielle (GIA) in Marseille.
 
-Regarding predefined predicates, it covers (almost) all the predicates defined in Prolog II, plus a subset of the PrologII+ (Marseille and Edinburgh) predicates.
+Regarding syntax, it fully supports the syntax of Prolog II (version 1 and version 2), and almost fully supports the syntax of Prolog II+ (Marseille and Edinburgh).[^1]
 
-This whole programme started as an academic exercice, without any consideration for efficiency. In particular, memory consumption is high. Nonetheless, the interpreter is able to solve the "send more money" classical exercice in a low-end computer.
+Regarding predefined predicates, it covers (almost) all the predicates defined in Prolog II,[^2] plus a subset of the PrologII+ (Marseille and Edinburgh) predicates.
+
+This whole programme started as an academic exercise, without any consideration for efficiency. In particular, memory consumption is high. Nonetheless, the interpreter is able to solve the "send more money" classical exercise in a low-end computer.
+
+[^1]: Currently missing in Prolog II+ syntax: directives (e.g. `module("Interface");`), qualification of identifiers with module names (e.g. `lexicon:name`), array elements using brackets instead of parentheses (e.g. `table[10]`).
+
+[^2]: Missing Prolog II predicates include: `to-day`, `date`, `pointers`, `statistics?`, `unif-nb`.
 
 ## Why?
+
 2022 was [the 50th anniversary of Prolog](http://prologyear.logicprogramming.org/). As a modest tribute for this anniversary, I decided to dig up a Prolog interpreter I wrote almost 35 years ago, clean it a bit, add a few missing features (e.g., cut, freeze, garbage collection), and push it online. As this program remains a toy program, this serves no real purpose other than to celebrate this anniversary. 
 
 Nonetheless, if you are old enough to have some old Prolog II programs stored in an old backup unit, you may use the interpreter to run them. Please report a bug if something does not work.  
 
-I wrote this interpreter as a course assignment, back in 1988, when I was a student at the University of Aix-Marseille II, pursuing a MSc in Computer Science and Mathematics ("Diplôme d'Études Approfondies en Informatique et Mathématique"). The course, entitled "Prolog II", was taught by the late [Alain Colmerauer](https://en.wikipedia.org/wiki/Alain_Colmerauer), creator of the Prolog language. The assignment was to create a Prolog II interpreter, without any predefined predicates, but capable of running some basic Prolog programs such as repetition, permutation, as well as the traditional "menu" or "send more money" examples.
+I wrote this interpreter as a course assignment, back in 1988, when I was a student at the University of Aix-Marseille II, pursuing a MSc in Computer Science and Mathematics ("Diplôme d'Études Approfondies en Informatique et Mathématique"). The course, entitled "Prolog II", was taught by the late [Alain Colmerauer](https://en.wikipedia.org/wiki/Alain_Colmerauer), creator of the Prolog language. The assignment was to create a simple Prolog II interpreter, without any predefined predicates, but capable of running some basic Prolog programs such as repetition, permutation, as well as the traditional "menu" or "send more money" examples.
 
 One of the courses I also took in this MSc was Henri Méloni's course on speech recognition. As my Prolog II interpreter gained additional features, executing the Prolog II programs I wrote for this course is now possible. Ditto for a Prolog program to query a database of Nobel Prize winners.
 
 ## Status
+
+*As of August 2026:*
+
+Making good progress. However, at this point I really need to get a legacy Prolog II interpreter (yes, from the eighties) to make sure I implemented the predefined predicates correctly. For now I only used the manual by Van Caneghem (1982) for Prolog II v1, and the book by Giannesini et al (1985) for Prolog II v2. These documentations are somewhat incomplete. If you have a legacy Prolog II interpreter, please let me know.
 
 *As of August 2024:*
 
@@ -37,7 +48,7 @@ Being a simple implementation exercise, the interpreter offers only a few [built
 
 Nonetheless, the interpreter is fully garbage collected and has almost no hard-coded limits, thanks to its garbage collector and dynamic string manager.
 
-The source code contains detailed comments about the implementation (parsing and execution).
+The source code contains detailed comments about the implementation (parsing and execution). No LLMs have been used to code this interpreter.
 
 ### Lists
 In Marseille syntax, a dot `.` is used to separate items in a list. For instance, the rules defining the insertion of an element before any item in a list could be written as:
@@ -348,15 +359,15 @@ To execute a program stored in a file `$file` use the command line `tprolog2 -s 
 
 Value of `$syntax` | File extension | Prompt | Prolog flavour (and main changes from earlier versions)
 --- | --- | --- | ---
-`PIIv1` | `.p2c` | `c>` | Prolog II version 1: old Marseille syntax with dashes in identifiers and `/` as cut symbol; identifiers of built-in predicates are written in French; rules with an optional constraint part
-`PII`  | `.pro` | `>` | Prolog II version 2: identifiers of built-in predicates are written in English; a few more built-in predicates; this is the default syntax of our interpreter
+`PIIv1` | `.p2c` | `c>` | Prolog II version 1: old Marseille syntax with dashes in identifiers and `/` as cut symbol; when using `-l fr` parameter on the command line, identifiers of built-in predicates are available in French; rules with an optional constraint part
+`PII`  | `.pro` | `>` | Prolog II version 2: a few more built-in predicates; no more optional constraint part; this is the default syntax of our interpreter
 `PIIp` | `.p2` | `+>` | Prolog II+: no more dashes in identifiers; operators
 `E` | `.p2E`, `.pl` | `?-` | Prolog II+: Edinburgh syntax; Marseille-style lists still supported
 
 For instance, to run the Prolog programme `permu.pro`, just do:
 
 ```
-$ ./tprolog2 examples/ProII/permu.pro
+$ ./tprolog2 -f examples/ProII/permu.pro
 -> permutation(1.2.3.nil,x);
 { x=1.2.3.nil }
 { x=2.1.3.nil }
@@ -441,11 +452,11 @@ constant = identifier | integer | real-number | string ;
 ```
 Notes:
 1. According to these definitions, using an explicit exponent symbol for real numbers is mandatory. This is needed to avoid ambiguities with dotted lists, so `1.2` will be treated as a dotted list, not as a real number. For convenience, the exponent part will be considered as optional in Edinburgh syntax.
-1. In Prolog II+, `D` and `d` can also be used as exponent symbols, in addition to `E` and `e`. Moreover, digits after the exponent symbol is not mandatory, so `1e` is a valid real number in Prolog II+  
+1. In Prolog II+, `D` and `d` can also be used as exponent symbols, in addition to `E` and `e`. Moreover, digits after the exponent symbol is not mandatory, so `1e` is a valid real number in Prolog II+.  
 
 ### Marseille syntax
 
-Both Prolog II and Prolog II+ are based on the so-called "Marseille syntax", featuring the famous `->` symbol for rules, dotted lists, and tuples. Expressions in syntaxes without operators (i.e., Prolog II), as shown below, is just a term.
+Both Prolog II and Prolog II+ are based on the so-called Marseille syntax, featuring the famous `->` symbol for rules, dotted lists, and tuples. Expressions in syntaxes without operators (i.e., Prolog II), as shown below, is just a term.
 
 ```
 term = pterm, [".", term] ;
@@ -481,7 +492,7 @@ cut = "/" ;
 
 Unsurprisingly, this possibility had to be reversed in a later version, called Prolog II+, to allows for arithmetic expressions. For instance, `x1-y2` is a valid name for a _single_ variable in Prolog II, which would create ambiguities if arithmetic expressions were to be allowed. 
 
-During my graduation year, in 1988, I believe I did all my Prolog programming homework using workstations that were available in a lab at the Groupe d'Intelligence Artificielle (G.I.A.), the research group that ran the graduation program. Some SunOS workstations, maybe.
+During my graduation year, in 1988, I believe I did all my Prolog programming homework using workstations that were available in a lab at the Groupe de recherche en Intelligence Artificielle, the research group that ran the graduation program. Some SunOS workstations, maybe.
 
 To be able to run the Prolog programs I wrote during the academic year, the Tiny Prolog interpreter must fully support the Prolog II syntax.
 
@@ -651,7 +662,7 @@ Here are two additional interesting papers:
 
 #### Prolog II (version 1)
 
-Prolog II version 1 ran on Apple II. The complete documentation is made of three documents below. Note that while the three documents above are supposed to describe the same version of Prolog II, that is, version 1, the syntax described in Colmerauer (1982) allows for explicit constraints at the end of rules. This is not the case in Van Caneghem (1982) and Kanoui (1982). If you know more about this, please let me know.
+Prolog II version 1 ran on Apple II. The complete documentation is made of three documents below. Note that while these three documents are supposed to describe the same version of Prolog II, that is, version 1, the syntax described in Colmerauer (1982) allows for explicit constraints at the end of rules. This is not the case in Van Caneghem (1982) and Kanoui (1982). If you know more about this, please let me know.
 
 * Alain Colmerauer (1982). [Prolog II: Manuel de référence et modèle théorique.](https://mirrors.apple2.org.za/ftp.apple.asimov.net/documentation/non_english/french/cnrs_prologii_manueldereference_ocr.pdf) Rapport Interne. Groupe d'Intelligence Artificielle. Université d'Aix-Marseille II. Mars. 
 
@@ -666,7 +677,7 @@ The Prolog II version 2 syntax is described in these two books (still on my book
 
 * Francis Giannesini, Henry Kanoui, Robert Pasero, and Michel Van Caneghem (1985). _Prolog_, InterÉditions. 
 
-* Michel Van Caneghem (1866). _L'Anatomie de Prolog_, InterÉditions. 
+* Michel Van Caneghem (1986). _L'Anatomie de Prolog_, InterÉditions. 
 
 #### Prolog II+
 

@@ -1,42 +1,44 @@
-"Prolog II version 1 (1982) predefined rules"
+"Prolog II predefined rules common to version 1 and version 2"
+"French predicates"
 
 "worlds"
 
 monde(W) -> syscall(sysworld,W);
-tuer-monde(W) -> syscall(syskillworld,W,true);
-purger(W) -> syscall(syskillworld,W,false);
-monter(W) -> syscall(sysclimbworld,W);
-monter -> syscall(sysparentworld,W) syscall(sysclimbworld,W);
-descendre(W) -> chaine(W) syscall(sysdownworld,W,true);
 sous-mondes(W) -> syscall(syssubworlds,W);
+tuer-monde(W) -> syscall(syskillworld,W,true);
 
 "statements"
 
-descendre(N) -> entier(N) syscall(sysdownstatement,N);
-descendre -> descendre(1);
-monter(N) -> entier(N) syscall(sysupstatement,N);
+lister(N) -> syscall(syslist,N,false);
+lister -> lister(0);
 haut -> syscall(systopstatement);
 bas -> syscall(sysbottomstatement);
 supprimer(N) -> syscall(syssuppress,N);
 
+"worlds and statements"
+
+monter(N) -> entier(N) syscall(sysupstatement,N);
+monter(W) -> syscall(sysclimbworld,W);
+monter -> syscall(sysparentworld,W) syscall(sysclimbworld,W);
+
+descendre(W) -> chaine(W) syscall(syssyntax,"PIIv1") syscall(sysdownworld,W,true);
+descendre(W) -> chaine(W) syscall(syssyntax,"PII") syscall(sysdownworld,W,false);
+descendre(N) -> entier(N) syscall(sysdownstatement,N);
+descendre -> descendre(1);
+
 "rules"
 
-regle(T,Q) -> syscall(sysrule,T,Q);
-
 tete(I) -> syscall(sysfindrule,I);
-
 inserer(F) -> syscall(sysinsert,F);
 inserer -> syscall(sysinsert,"");
 ajout(<T,Q>) -> syscall(sysassert2,T,Q,true);
 
-lister(N) -> syscall(syslist,N,false);
-lister -> lister(0);
-
 "session"
 
-sauve(S) -> syscall(syssavestate,S);
-sauve -> sauve("start/saved.p2c");
-bonsoir -> exm("sauvegarde... ") sauve adieu;
+bonsoir -> 
+    exm("sauvegarde... ") 
+    syscall(syseval,sysbackupfile,F)
+    syscall(syssavestate,F) adieu;
 adieu -> exml("bye!") syscall(sysquit);
 
 "is"
@@ -44,8 +46,6 @@ adieu -> exml("bye!") syscall(sysquit);
 ident(T) -> syscall(sysis,T,ident);
 entier(T) -> syscall(sysis,T,integer);
 chaine(T) -> syscall(sysis,T,string);
-dot(T) -> syscall(sysis,T,dot);
-tuple(T) -> syscall(sysis,T,tuple);
 
 libre(T) -> syscall(sysfree,T,true);
 pris(T) -> syscall(sysfree,T,false);
@@ -53,7 +53,6 @@ pris(T) -> syscall(sysfree,T,false);
 "char, string, list, tuple"
 
 no-car(C,N) -> syscall(syscharcode,C,N);
-boum(I,S) -> syscall(sysstringident,S,I);
 arg(N,T1,T2) -> syscall(sysarg,N,T1,T2);
 
 "array"
@@ -89,7 +88,6 @@ in(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,term,true,false);
 in-entier(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,integer,true,false);
 in-ident(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,ident,true,false);
 in-chaine(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,string,true,false);
-in-ph(T) -> syscall(sysinputis,S) syscall(sysin,S,X,T,sentence,true,false);
 
 "out"
 
@@ -106,7 +104,6 @@ pos(N) -> syscall(syssetlinecursor,N);
 "assign and eval"
 
 affecter(I,T) -> syscall(sysassign,I,T);
-renommer(S1,S2) -> syscall(sysrename,S1,S2);
 val(T1,T2) -> syscall(syseval,T1,T2);
 
 "control"
@@ -149,6 +146,3 @@ sans-debug -> syscall(sysonoff,debug,false);
 
 bt -> syscall(sysbacktrace);
 dump -> syscall(sysdump);
-
-"neutralize an undocumented predicate called by the supervisor:"
-fi-sortie("") ->;

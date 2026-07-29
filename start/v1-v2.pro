@@ -1,54 +1,51 @@
-"Prolog II version 2 (1982) predefined rules"
+"Prolog II predefined rules common to version 1 and version 2"
+"English predicates"
 
 "worlds"
 
 world(W) -> syscall(sysworld,W);
-new-subworld(W) -> syscall(sysnewworld,W);
+subworlds(W) -> syscall(syssubworlds,W); "TODO: name? check doc"
 kill-subworld(W) -> syscall(syskillworld,W,true);
-purge(W) -> syscall(syskillworld,W,false);
 climb(W) -> syscall(sysclimbworld,W);
 climb -> syscall(sysparentworld,W) syscall(sysclimbworld,W);
-down(W) -> string(W) syscall(sysdownworld,W,false);
-subworlds(W) -> syscall(syssubworlds,W); "TODO: name? check doc"
 
 "statements"
 
-down(N) -> integer(N) syscall(sysdownstatement,N);
-down -> down(1);
-up(N) -> integer(N) syscall(sysupstatement,N);
-up -> up(1);
+list(N) -> syscall(syslist,N,false);
+list -> list(0);
 top -> syscall(systopstatement);
 bottom -> syscall(sysbottomstatement);
+up(N) -> integer(N) syscall(sysupstatement,N);
+up -> up(1);
 suppress(N) -> syscall(syssuppress,N);
+
+"worlds and statements"
+
+down(W) -> string(W) syscall(syssyntax,"PIIv1") syscall(sysdownworld,W,true);
+down(W) -> string(W) syscall(syssyntax,"PII") syscall(sysdownworld,W,false);
+down(N) -> integer(N) syscall(sysdownstatement,N);
+down -> down(1);
 
 "rules"
 
-rule(T,Q) -> syscall(sysrule,T,Q);
-
 find-rule(I) -> syscall(sysfindrule,I);
-
 insert(F) -> syscall(sysinsert,F);
 insert -> syscall(sysinsert,"");
 assert(<T,Q>) -> syscall(sysassert2,T,Q,true);
 
-list(N) -> syscall(syslist,N,false);
-list -> list(0);
-
 "session"
 
-save-state(S) -> syscall(syssavestate,S);
-save-state -> save-state("start/saved.pro");
-exit -> outm("saving... ") save-state quit;
+exit ->
+    exm("saving... ") 
+    syscall(syseval,sysbackupfile,F)
+    syscall(syssavestate,F) quit;
 quit -> outml("bye!") syscall(sysquit);
 
 "is"
 
 ident(T) -> syscall(sysis,T,ident);
 integer(T) -> syscall(sysis,T,integer);
-real(T) -> syscall(sysis,T,real);
 string(T) -> syscall(sysis,T,string);
-dot(T) -> syscall(sysis,T,dot);
-tuple(T) -> syscall(sysis,T,tuple);
 
 free(T) -> syscall(sysfree,T,true);
 bound(T) -> syscall(sysfree,T,false);
@@ -56,12 +53,6 @@ bound(T) -> syscall(sysfree,T,false);
 "char, string, list, tuple"
 
 char-code(C,N) -> syscall(syscharcode,C,N);
-substring(S1,N1,N2,S2) -> syscall(syssubstring,S1,N1,N2,S2);
-find-pattern(S1,S2,N) -> syscall(sysfindpattern,S1,S2,N);
-string-ident(S,I) -> syscall(sysstringident,S,I);
-list-string(L,S) -> syscall(sysliststring,L,S);
-list-tuple(L,T) -> syscall(syslisttuple,L,T);
-split(T,L) -> syscall(syssplit,T,L);
 arg(N,T1,T2) -> syscall(sysarg,N,T1,T2);
 
 "array"
@@ -100,8 +91,6 @@ in(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,term,true,false);
 in-integer(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,integer,true,false);
 in-ident(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,ident,true,false);
 in-string(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,string,true,false);
-in-real(T) -> syscall(sysinputis,S) syscall(sysin,S,T,X,real,true,false);
-in-sentence(T1,T2) -> syscall(sysinputis,S) syscall(sysin,S,T1,T2,sentence,true,false);
 
 "out"
 

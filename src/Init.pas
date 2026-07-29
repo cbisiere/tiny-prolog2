@@ -40,15 +40,20 @@ Implementation
 {-----------------------------------------------------------------------------}
 
 Const
+  { parameter with an argument }
   PARA_SYNTAX = 's';
   PARA_INSERT = 'f';
   PARA_CODEPAGE = 'c';
+  PARA_LANG = 'l'; { 'en' (default) or 'fr' (PIIv1 and PIIv2 only) }
+  { switches }
   PARA_RESTORE = 'r';
   PARA_DEBUG = 'd';
 
-{ name of the paper file }
+
 Type 
-  TPaperFile = Array[TSyntax] Of String[15];
+  TLanguage = String[2]; { language code: 'en', 'fr' }
+  TPaperFile = Array[TSyntax] Of String[15]; { name of the paper file }
+
 Const  
   PaperFile : TPaperFile = (
     'imprimante.text',
@@ -63,10 +68,10 @@ Const
 
 { parse the command line parameters }
 Procedure ParseCL( 
-    Var LoadSavedState : Boolean; 
-    Var CodePage : TCodePage; 
-    Var Syntax : TSyntax; 
-    Var SkipStartFile : Boolean; 
+    Var LoadSavedState : Boolean;
+    Var CodePage : TCodePage;
+    Var Syntax : TSyntax; Var Language : TLanguage;
+    Var SkipStartFile : Boolean;
     Var HasUserFilePar : Boolean; Var Filename : TShortPath );
 Var  
   code : Integer; { string to number result code }
@@ -74,6 +79,7 @@ Var
   i : Byte;
   V : TString;
   HasSyntaxPar : Boolean;
+  HasLanguagePar : Boolean;
   par : TString;
 
   { return the value of parameter -par; i is the current index in ParamStr, and
@@ -94,6 +100,8 @@ Var
 Begin
   CodePage := 0;
   Syntax := DEFAULT_PROLOG_SYNTAX;
+  HasLanguagePar := False;
+  Language := 'en';
   HasSyntaxPar := False;
   LoadSavedState := False;
   SkipStartFile := False;
@@ -127,6 +135,24 @@ Begin
         ParameterError(PARA_SYNTAX,'incorrect value: ' + V);
         Exit
       End
+    End
+    { Language, '-l': language of the predefined predicates }
+    Else If par = '-' + PARA_LANG Then
+    Begin
+      If HasLanguagePar Then
+      Begin
+        ParameterError(PARA_LANG,'can only be used once');
+        Exit
+      End;
+      V := GetParValue(PARA_LANG,i);
+      If Error Then Exit;
+      If (V <> 'en') And (V <> 'fr') Then
+      Begin
+        ParameterError(PARA_LANG,'unknown language code: ''' + V + '''');
+        Exit
+      End;
+      HasLanguagePar := True;
+      Language := V
     End
     { insert user file, e.g. '-i "./tests/file.pro" }
     Else If par = '-' + PARA_INSERT Then
@@ -199,18 +225,29 @@ Begin
     For y := PrologIIv1 To Edinburgh Do
       If EndsWith(Filename,'.' + FileExt[y]) Then
         Syntax := y
+  End;
+
+  { check Language switch is use with an adequate syntax }
+  If (Language = 'fr') And Not (Syntax In [PrologIIv1,PrologIIv2]) Then
+  Begin
+    ParameterError(PARA_LANG,
+        '''fr'' language code can only be used with Prolog II v1 and v2');
+    Exit
   End
+
 End;
 
 { load the startup file into the current world }
-Procedure LoadStartFile( P : ProgPtr );
-Var  
+Procedure LoadStartFile( P : ProgPtr; Language : TLanguage );
+Var
   y : TSyntax;
   s : StrPtr;
   os : TObjectPtr Absolute s;
+  Filename : TString;
 Begin
   y := GetSyntax(P);
-  s := Str_NewFromShortString('start/' + 'system' + '.' + FileExt[y]);
+  Filename := 'start/' + 'init-' + Language + '.' + FileExt[y];
+  s := Str_NewFromShortString(Filename);
   AddGCRoot(os); { protect this string from GC }
   LoadProgram(P,s,False)
 End;
@@ -228,6 +265,7 @@ Var
   P : ProgPtr;
   CodePage : TCodePage;
   y : TSyntax;
+  Language : TLanguage;
   SkipStartFile : Boolean;
   LoadSavedState : Boolean;
   HasUserFilePar : Boolean; 
@@ -237,7 +275,8 @@ Var
   DummyOk : Boolean;
   UserWorldName : StrPtr;
 Begin
-  ParseCL(LoadSavedState,CodePage,y,SkipStartFile,HasUserFilePar,UserFilename);
+  ParseCL(LoadSavedState,CodePage,y,Language,SkipStartFile,HasUserFilePar,
+      UserFilename);
   If CodePage <> 0 Then
     SetCodePage(CodePage);
   SetPaperFilename(PaperFile[y]);
@@ -249,7 +288,7 @@ Begin
   RegisterOperators(P);
   { load the system start file }
   If Not Error And Not SkipStartFile Then
-    LoadStartFile(P);
+    LoadStartFile(P,Language);
   { create the default user world below the current world and move to it }
   UserWorldName := Str_NewFromShortString(WorldSetup[y].User);
   DummyOk := CreateNewSubWorld(P,Nil,UserWorldName,True);

@@ -2,27 +2,40 @@
 
 This page lists the predefined predicates implemented so far in the supported flavours of Prolog.
 
-## Prolog II
+## Prolog II v1 and v2
 
-In each row of the tables below, the first column lists Version 1 (in French) and _Version 2_ (in English) of the predefined predicates described in the row.
+In each row of the tables below, the first column lists the French and the _English_ identifiers of the predefined predicates described in the row. Note that while we are not aware of any Prolog II v1 interpreter supporting English predefined predicate, we support it using v2 English identifiers as a basis, and by translating v1-only identifiers.
 
 ### Worlds
+<!-- French names of these primitives are not mentioned in Giannesini et al. book; to check -->
+
+#### Prolog v1 only:
+Predicate | Action | Example
+--- | --- | ---
+`purger(W)` <br><br> _`purge(W)`_ | delete subworld `W`, even if it has subworlds | 
+
+#### Prolog v1 and v2:
 Predicate | Action | Example
 --- | --- | ---
 `monde(W)` <br><br> _`world(W)`_ | unify `W` with the name of the current world | `> world(W);` <br> `{ W="Normal" }` <br> `>`
-_`new-subworld(W)`_ | create a new subworld below the current world, and go down to it | `> new-subworld("Facts");` <br> `{  }` <br> `> world(W);` <br> `{ W="Facts" }` <br> `>`
-`tuer-monde(W)` <br><br> _`kill-subworld(W)`_ | delete subworld `W` only if it has no subworlds itself | `> world(W);` <br> `{ W="Facts" }` <br> `> climb;` <br> `> kill-subworld("Facts");` <br> `{  }` <br> `>`
-`purger(W)` <br><br> _`purge(W)`_ | same as above, but delete inconditionally    | 
-`monter(W)`, `monter`<br><br> _`climb(W)`, `climb`_ | go up the parent word; fail if `W` is not the parent world |
-`descendre(W)` <br><br> _`down(W)`_ | go down to subword `W` of the current word; creates subworld `W` if it does not exist (French v1 only)
 `sous-mondes(L)` <br><br> _`subworlds(L)`_ | unify `L` with the list of all the subwordls of the current world | `> new-subworld("World 1") climb;`<br> `{  }` <br> `> new-subworld("World 2") climb;`<br> `{  }` <br> `> subworlds(l);` <br> `{ l="World 1"."World 2".nil }` <br> `>`
+`tuer-monde(W)` <br><br> _`kill-subworld(W)`_ | delete subworld `W` only if it has no subworlds itself | `> world(W);` <br> `{ W="Facts" }` <br> `> climb;` <br> `> kill-subworld("Facts");` <br> `{  }` <br> `>`
+`monter(W)`, `monter`<br><br> _`climb(W)`, `climb`_ | go up the parent word; fail if `W` is not the parent world |
+`descendre(W)` <br><br> _`down(W)`_ | go down to subword `W` of the current word; creates subworld `W` if it does not exist (v1 only)
+
+#### Prolog v2 only:
+Predicate | Action | Example
+--- | --- | ---
+`creer-monde(W)` <br><br> _`new-subworld(W)`_ | create a new subworld below the current world, and go down to it | `> new-subworld("Facts");` <br> `{  }` <br> `> world(W);` <br> `{ W="Facts" }` <br> `>`
+
 
 ### Statements
 
-Worlds are populated with statements, that is, comments and rules. In each world, an index defines the _current statement_. The current statement is where statement are inserted or deleted. The following predicates set the current statement of the current world.
+Worlds are populated with statements, that is, comments and rules. In each world, an index defines the _current statement_. The current statement is where statement are inserted or deleted. 
 
 Predicate | Action | Example
 --- | --- | ---
+`lister(N)`, `lister` <br><br> _`list(N)`,`list`_ | display on the current input `N` (or all) statements, starting from the current statement
 `descendre(N)`,`descendre` <br><br> _`down(N)`,`down`_ | move the index downward by `N` or by 1 | 
 `monter(N)` <br><br> _`up(N)`_ | move the index upward by `N` | 
 `haut` <br><br> _`top`_ | move the index up to the first statement | 
@@ -31,18 +44,23 @@ Predicate | Action | Example
 
 ### Rules
 
+#### Prolog v1 and v2:
 Predicate | Action | Example
 --- | --- | ---
- `lister(N)`, `lister` <br><br> _`list(N)`,`list`_ | display on the current input `N` (or all) rules, starting from the current statement
 `tete(I)` <br><br> _`find-rule(I)`_ | move the index to the first rule with access `I` |
-`inserer(F)`, `inserer` <br><br> _`insert(F)`, `insert`_ | insert statements before the current index, from file with path `F` or from the current input unit, until an empty statement is read, that is `;;` 
+`inserer(F)`, `inserer` <br><br> _`insert(F)`, `insert`_ | insert statements before the current index, from file with path `F` or from the current input unit, until an empty statement is read, that is `;;`, or until the end of the file 
 `ajout(<H,Q>)` <br><br> _`assert(<H,Q>)`_ | insert a new rule with head `H` and queue `Q` at the beginning of the group of rules having the same identifier and arity, or at the end of the current world ; `H`is a predicate or an identifier, `Q` is a list of terms | `> assert(<data(1),nil>) list;` <br> `data(1) ->;` <br> `{  }`<br> `>`
+
+#### Prolog v2 only:
+Predicate | Action | Example
+--- | --- | ---
 `regle(H,Q)` <br><br> _`rule(H,Q)`_ | give all the rules such that `H` and `Q` unify with a rule head and queue (as a list), respectively, at the time the predefined predicate was first cleared | `> assert(data(2),nil);` <br> `{ }` <br> `> assert(<data(1),nil)>;`  <br> `{ }` <br> `> rule(data(n),nil);` <br> `{ n=1 }` <br> `{ n=2 }` <br> `>`
 
 ### Input / Output
 
 Prolog II uses a system of stacked input and output units. 
 
+<!-- input-is/1, close-input/1, output-is/1, close-output/1 not mentioned in Giannesini et al. book; to check -->
 Predicate | Action | Example
 --- | --- | ---
 `entree(F)`, `sortie(F)` <br><br> _`input-is(F)`, `output-is(F)`_ | unify `F` with the current input (output) unit | `> input-is(f);` <br> `{ f="console" }` <br> `>`
@@ -58,32 +76,48 @@ Predicate | Action | Example
 Predicate | Action | Example
 --- | --- | ---
 `ident(I)` <br><br> _`ident(I)`_ | succeed if `I` is an ident | `> ident(yellow);` <br> `{  }` <br> `>`
+`chaine(I)` <br><br> _`string(I)`_ | succeed if `I` is a string | `> string("Hello, world!");` <br> `{  }` <br> `>`
 `entier(N)` <br><br> _`integer(N)`_ | succeed if `N` is an integer | `> integer(1);` <br> `{  }` <br> `>`
-`dot(L)` <br><br> _`dot(L)`_ | succeed if `L` is a list | `> dot(1.nil);` <br> `{  }` <br> `>`
-`tuple(U)` <br><br> _`tuple(U)`_ | succeed if `U` is a tuple | `> tuple(<x,y>);` <br> `{  }` <br> `>`
+`reel(N)` <br><br> _`real(N)`_ | succeed if `N` is a real value | `> real(1.2e+3);` <br> `{  }` <br> `>`
+`liste(L)` <br><br> _`dot(L)`_ | succeed if `L` is a list | `> dot(1.nil);` <br> `{  }` <br> `>`
+`nuplet(U)` <br><br> _`tuple(U)`_ | succeed if `U` is a tuple | `> tuple(<x,y>);` <br> `{  }` <br> `>`
 `libre(T)` <br><br> _`free(T)`_ | succeed if `T` is free | `> free(x);` <br> `{  }` <br> `>`
 `pris(T)` <br><br> _`bound(T)`_ | succeed if `T` is bound | `> eq(x,1) bound(x);` <br> `{ x=1 }` <br> `>`
 
 ### Terms: read and write
 
+#### Prolog v1 and v2:
 Predicate | Action | Example
 --- | --- | ---
-`in-car(C)`, `in-car'(C)`, `car-apres(C)`, `car-apres'(C)`, `in(T)`, `in-entier(N)`, `in-ident(I)`, `in-chaine(S)` <br><br> _`in-char(C)`, `in-char'(C)`, `next-char(C)`, `next-char'(C)`, `in(T)`, `in-integer(N)`, `in-ident(I)`, `in-string(S)`, `in-real(R)`_ | read (or lookup) a character `C`, read a term `T`, an integer `N`, an identifier `I`, a string `S` or a real number `R`; non-primed predicates reading a character do not skip leading spaces; all the others do skip spaces | `> in-char(c);` <br> `{ c="\n" }` <br> `> in-char'(c);` <br> `a` <br> `{ c="a" }` <br> `>` <br>
+`in-car(C)`, `in-car'(C)`, `car-apres(C)`, `car-apres'(C)`, `in(T)`, `in-entier(N)`, `in-ident(I)`, `in-chaine(S)` <br><br> _`in-char(C)`, `in-char'(C)`, `next-char(C)`, `next-char'(C)`, `in(T)`, `in-integer(N)`, `in-ident(I)`, `in-string(S)`_ | read (or lookup) a character `C`, read a term `T`, an integer `N`, an identifier `I`, a string `S` or a real number `R`; non-primed predicates reading a character do not skip leading spaces; all the others do skip spaces | `> in-char(c);` <br> `{ c="\n" }` <br> `> in-char'(c);` <br> `a` <br> `{ c="a" }` <br> `>` <br>
 `ex(T)`, `exl(T)`, `exm(S)`, `exml(S)` <br><br> _`out(T)`, `outl(T)`,`outm(S)`, `outml(S)`_ | write term `T`, without or with a newline, or a string `S` without double-quotes, without or with a new line | `> outml("Hello, world!");` <br> `Hello, world!` <br> `{  }` <br> `>`
 `ligne`, `page` <br><br> _`line`, `page`_ | write a new line, or clear the screen |
 `en-xy(X,Y)` <br><br> _`set-cursor(X,Y)`_ | move the text cursor to (0-based) column `X` and row `Y` |
 
-### Sentences: read
+<!-- in-real/1 is not mentioned in Giannesini et al. book; to check -->
+#### Prolog v2 only:
 Predicate | Action | Example
 --- | --- | ---
-`in-ph(L2)` <br><br> _`in-sentence(L1,L2)`_ | read all blank characters, and then read a series of words terminated by `.`, `!` or `?`; a word is a run of letters, a run of digits, or a non-blank character <br><br> unify `L1` with the list of words (as strings), and `L2` with a transformation of `L1`, as follows: non-blank characters are kept as-is, runs of digits are transformed into integer values, and runs of letters are transformed into identifiers in a way which depends on the Prolog II version <br><br> in version 1, identifiers are prepended with `at-`; in version 2, only runs of letters matching existing identifiers are transformed, while non-existing are matched to `nil` (that is, no identifiers are created)  | _PII version 1:_ <br><br> `c> in-ph(t);` <br> `Please, insert this!` <br> `{ t=at-Please.",".at-insert.at-this."!".nil }` <br> `c>` <br><br><br> _PII version 2:_ <br><br> `> in-sentence(t1,t2);` <br> `Please, insert this!` <br> `{ t1="Please".","."insert"."this"."!".nil, t2=nil.",".insert.nil."!".nil }` <br> `>`
+`in-reel(R)` <br><br> _`in-real(R)`_ | read a real number `R` | `> in-real(v);` <br> `1.2e+3` <br> `{ v=1.2e+3 }` <br> `>` <br>
+
+### Sentences
+
+#### Prolog v1 only:
+Predicate | Action | Example
+--- | --- | ---
+`in-ph(L)` <br><br> _`in-sentence(L)`_ | read all blank characters, and then read a series of words terminated by `.`, `!` or `?`; a word is a run of letters, a run of digits, or a non-blank character; unify `L` with the list of elements, one for each word, as follows: non-blank characters are kept as-is, runs of digits are transformed into integer values, and runs of letters are transformed into identifiers prepended with `at-` | `c> in-ph(t);` <br> `Please, insert this!` <br> `{ t=at-Please.",".at-insert.at-this."!".nil }` <br> `c>`
+
+#### Prolog v2 only:
+Predicate | Action | Example
+--- | --- | ---
+`in-ph(L1,L2)` <br><br> _`in-sentence(L1,L2)`_ | read all blank characters, and then read a series of words terminated by `.`, `!` or `?`; a word is a run of letters, a run of digits, or a non-blank character; unify `L1` with the list of words (as strings), and `L2` with a transformation of `L1`, as follows: non-blank characters are kept as-is, runs of digits are transformed into integer values, and runs of letters are transformed into identifiers; only runs of letters matching existing identifiers are transformed, while non-existing are matched to `nil` (that is, no identifiers are created)  | `> in-sentence(t1,t2);` <br> `Please, insert this!` <br> `{ t1="Please".","."insert"."this"."!".nil, t2=nil.",".insert.nil."!".nil }` <br> `>`
+
 
 ### Evaluation
 
 Predicate | Action | Example
 --- | --- | ---
 `affecter(I,T)` <br><br> _`assign(I,T)`_ | assign value `T` to identifier `I`; the identifier becomes a global, persistent variable whose value is `T` | `> assign(greetings,"hello");` <br> `{  }` <br> `> outml(greetings);` <br> `hello` <br> `{  }` <br> `>`
-`renommer(S1,S2)` | rename to `S2` the identifier whose name corresponds to the string `S1`, provided no identifiers having name `S2` already exist | `c> renommer("eg","egal");` <br> `{  }` <br> `c> egal(x,1);` <br> `{ x=1 }` <br> `c>`
 `val(E,V)` <br><br> _`val(E,V)`_ | evaluate expression `E` and unify the result with `V` | `> val(add(5,mul(3,2)),x);` <br> `{ x=11 }` <br> `>` 
 `eg(X,Y)`, `dif(X,Y)` <br><br> _`eq(X,Y)`, `dif(X,Y)`_ | term `X` is equal to (or different from) term `Y` | `> dif(x,1);` <br> `{ x#1 }` <br> `>`
 
@@ -106,18 +140,31 @@ Predicate | Action | Example
 --- | --- | ---
 `def-tab(I,N)` <br><br> _`def-array(I,N)`_ | define an array `I` of size `N`; array's index ranges from `1` to `N`; all elements are initialized to `0` | `> def-array(stack,100);` <br> `{ }` <br> `> assign(stack(1),hello);` <br> `{ }` <br> `> val(stack(1),v);` <br> `{ v=hello }` <br> `>`
 
-### Strings, lists and tuples
+### Characters, strings, lists and tuples
 
+#### Prolog v1 only:
+Predicate | Action | Example
+--- | --- | ---
+`boum(I,S)` <br><br> _`boom(I,S)`_ | match identifier `I` and string `S`; either `I` or `S` must be bound | `> boom(abc,s);` <br> `{ s="abc" }` `-> boom(i,"abc");` <br> `{ i=abc }` <br> `>`
+`renommer(S1,S2)` <br><br> _`rename(S1,S2)`_ | rename to `S2` the identifier whose name corresponds to the string `S1`, provided no identifiers having name `S2` already exist | `c> renommer("eg","egal");` <br> `{  }` <br> `c> egal(x,1);` <br> `{ x=1 }` <br> `c>`
+
+
+#### Prolog v1 and v2:
 Predicate | Action | Example
 --- | --- | ---
 `no-car(C,N)` <br><br> _`char-code(C,N)`_ | match character `C` and code `N`; either `C` or `N` must be bound | `> char-code("A",n);` <br> `{ n=65 }` <br> `>`
-_`substring(S1,N1,N2,S2)`_ | set `S2` as the substring of `S1` starting at character `N1` and of length `N2` | `> substring("hello",1,4,x);` <br> `{ x="hell" }` <br> `>`
-_`find-pattern(S1,S2,N)`_ | set `N` at the index of pattern string `S2` into string `S1` | `find_pattern("hello","hell",x);` <br> `{ x=1 }` <br> `>`
-`boum(I,S)` <br><br> _`string-ident(S,I)`_ | match identifier `I` and string `S`; either `I` or `S` must be bound | `> boum(abc,s);` <br> `{ s="abc" }` `-> boum(i,"abc");` <br> `{ i=abc }` <br> `>`
-_`list-string(L,S)`_ | build a string `S` from the list of characters `L` | `> list-string("a"."b".nil,s);` <br> `{ s="ab" }` <br> `>`
-_`list-tuple(L,T)`_ | build a tuple `T` from the list of terms `L` | `> list-tuple("abc".123.aa(bb).nil,t);` <br> `{ t=<"abc",123,aa(bb)> }` <br> `>`
-_`split(T,L)`_ | build a list `L` of all the elements in a string or tuple `T` | `> split("ab",l);` <br> `{ l="a"."b".nil }` <br> `> split(<"abc",123,aa(bb)>,l);` <br> `{ l="abc".123.aa(bb).nil }` <br> `>`
 `arg(N,T,R)` <br><br> _`arg(N,T,R)`_ | if `T` is a tuple or a string, set result `R` as the length (if `N` is zero) or as the `N`-th element of `T`; if `T` is a list, set `R` as `T`'s head if `N` equals 1, and as `T`'s queue if `N` equals 2  | `> arg(0,"hello",x);` <br> `{ x=5 }` <br> `> arg(2,"hello",x);` <br> `{ x="e" }` <br> `> arg(2,aa.bb.nil,n);` <br> `{ n=bb.nil }` <br> `>`
+
+#### Prolog v2 only:
+Predicate | Action | Example
+--- | --- | ---
+`dans-chaine(S1,N1,N2,S2)` <br><br> _`substring(S1,N1,N2,S2)`_ | set `S2` as the substring of `S1` starting at character `N1` and of length `N2` | `> substring("hello",1,4,x);` <br> `{ x="hell" }` <br> `>`
+`sous-chaine(S1,S2,N)` <br><br> _`find-pattern(S1,S2,N)`_ | set `N` at the index of pattern string `S2` into string `S1` | `find_pattern("hello","hell",x);` <br> `{ x=1 }` <br> `>`
+`chaine-ident(I,S)` <br><br> _`string-ident(S,I)`_ | match identifier `I` and string `S`; either `I` or `S` must be bound | `> string-ident(s,abc);` <br> `{ s="abc" }` `-> string-ident("abc",i);` <br> `{ i=abc }` <br> `>`
+`liste-chaine(L,S)` <br><br> _`list-string(L,S)`_ | build a string `S` from the list of characters `L` | `> list-string("a"."b".nil,s);` <br> `{ s="ab" }` <br> `>`
+`liste-nuplet(L,T)` <br><br> _`list-tuple(L,T)`_ | build a tuple `T` from the list of terms `L` | `> list-tuple("abc".123.aa(bb).nil,t);` <br> `{ t=<"abc",123,aa(bb)> }` <br> `>`
+`decompose(T,L)` <br><br> _`split(T,L)`_ | build a list `L` of all the elements in a string or tuple `T` | `> split("ab",l);` <br> `{ l="a"."b".nil }` <br> `> split(<"abc",123,aa(bb)>,l);` <br> `{ l="abc".123.aa(bb).nil }` <br> `>`
+
 
 ### Control
 
@@ -133,19 +180,24 @@ Predicate | Action | Example
 Predicate | Action | Example
 --- | --- | ---
 `adieu` <br><br> _`quit`_ | quit the interpreter without saving | `> quit;` <br> `bye!` <br> `{  }` <br> `$`
-`bonsoir` <br><br> _`exit`_ | save the current state of the interpreter (worlds, rules, arrays, assigned identifiers, trace state, etc.) and then quit; launching the interpreter with the `-R` parameter restore the last saved state | `> exit;` <br> `saving... bye!` <br> `{  }` <br> `$`
+`bonsoir` <br><br> _`exit`_ | save the current state of the interpreter (worlds, rules, arrays, assigned identifiers, trace state, etc.) and then quit; launching the interpreter with the `-r` parameter restore the last saved state | `> exit;` <br> `saving... bye!` <br> `{  }` <br> `$`
 `echo`, `sourd` <br><br> _`echo`, `no-echo`_ | set the echo state on or off; when echo is on, anything read from, or written to disk files or buffers are echoed to the console | 
 `trace`, `sans-trace` <br><br> _`trace`, `no-trace`_ | set the trace state on or off; when trace is on, cleared goals are displayed | 
 `papier`, `sans-papier` <br><br> _`paper`, `no-paper`_ | set the paper state on or off; when paper is on, anything written to the console is also written to a special file (``"imprimante.text"`` / _``"printer.txt"``_)  | 
 `boucle`, `sans-boucle` <br><br> _`infinite`, `finite`_ | set the infinite state on or off; this has no effect, as the interpreter always handles infinite trees | 
 `debug`, `sans-debug` <br><br> _`debug`, `no-debug`_ | set the debug state on or off; when debug is on, unification attempts are displayed; these predicates did not exist in Prolog II version 1 and 2, and have been added for convenience  | 
 
+**_TODO_:** `pointers/0`, `statistics/?`, `unif-nb/?`
+
 ### Date and Time
 
+<!-- French names for time/1 not mentioned in Giannesini et al. book; to check -->
+#### Prolog v2 only:
 Predicate | Action | Example
 --- | --- | ---
-_`time(V)`_ | unify `V` with the number of seconds elapsed since the beginning of the day, as an integer value | `> time(V);` <br> `{ v=34084 }` <br> `$`
+`time(V)` <br><br> _`time(V)`_ | unify `V` with the number of seconds elapsed since the beginning of the day, as an integer value | `> time(V);` <br> `{ v=34084 }` <br> `$`
 
+**_TODO_:** `to-day/0`, `date/3`, `cpu-time/1`
 
 ## Prolog II+, Marseille syntax
 
