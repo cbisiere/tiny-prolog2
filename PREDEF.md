@@ -73,16 +73,21 @@ Predicate | Action | Example
 
 ### Terms: tests
 
+#### Prolog v1 and v2:
 Predicate | Action | Example
 --- | --- | ---
 `ident(I)` <br><br> _`ident(I)`_ | succeed if `I` is an ident | `> ident(yellow);` <br> `{  }` <br> `>`
 `chaine(I)` <br><br> _`string(I)`_ | succeed if `I` is a string | `> string("Hello, world!");` <br> `{  }` <br> `>`
 `entier(N)` <br><br> _`integer(N)`_ | succeed if `N` is an integer | `> integer(1);` <br> `{  }` <br> `>`
-`reel(N)` <br><br> _`real(N)`_ | succeed if `N` is a real value | `> real(1.2e+3);` <br> `{  }` <br> `>`
-`liste(L)` <br><br> _`dot(L)`_ | succeed if `L` is a list | `> dot(1.nil);` <br> `{  }` <br> `>`
-`nuplet(U)` <br><br> _`tuple(U)`_ | succeed if `U` is a tuple | `> tuple(<x,y>);` <br> `{  }` <br> `>`
 `libre(T)` <br><br> _`free(T)`_ | succeed if `T` is free | `> free(x);` <br> `{  }` <br> `>`
 `pris(T)` <br><br> _`bound(T)`_ | succeed if `T` is bound | `> eq(x,1) bound(x);` <br> `{ x=1 }` <br> `>`
+
+#### Prolog v2 only:
+Predicate | Action | Example
+--- | --- | ---
+`liste(L)` <br><br> _`dot(L)`_ | succeed if `L` is a list | `> dot(1.nil);` <br> `{  }` <br> `>`
+`nuplet(U)` <br><br> _`tuple(U)`_ | succeed if `U` is a tuple | `> tuple(<x,y>);` <br> `{  }` <br> `>`
+`reel(N)` <br><br> _`real(N)`_ | succeed if `N` is a real value | `> real(1.2e+3);` <br> `{  }` <br> `>`
 
 ### Terms: read and write
 
@@ -123,15 +128,21 @@ Predicate | Action | Example
 
 ### Evaluable functions
 
+#### Prolog v1 and v2:
 Function | Example
 --- | ---
 `inf`<br> _`inf`_ | `> val(inf(10,11),v);` <br> `{ v=1 }`
 `eq` <br> _`eql`_ | `> val(eql(10,11),v);` <br> `{ v=0 }` 
 `add`,`sub` <br> _`add`,`sub`_ | `> val(add(10,11),v);` <br> `{ v=21 }` 
 `mul`,`div`  <br> _`mul`,`div`_ | `> val(mul(10,11),v);` <br> `{ v=110 }`  
-_`sub`_ | `> val(sub(10),v);` <br> `{ v=-10 }` 
 `mod` <br> _`mod`_ | `> val(mod(11,3),v);` <br> `{ v=2 }` 
 `si` <br> _`if`_ | `> val(if(eql(10,11),1,2),v);` <br> `{ v=2 }` 
+
+<!-- sub/1 is not mentioned in Giannesini et al. book; to check -->
+#### Prolog v2 only:
+Function | Example
+--- | ---
+`sub` <br> _`sub`_ | `> val(sub(10),v);` <br> `{ v=-10 }` 
 
 
 ### Arrays

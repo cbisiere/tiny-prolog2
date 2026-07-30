@@ -5,7 +5,7 @@ A simple Prolog II interpreter written in Pascal
 
 This is a simple Prolog II interpreter, for Linux, macOS, and Windows. It compiles under Turbo Pascal 4 (yes, no OOP) and Free Pascal. 
 
-Its first aim is to be used as a drop-in replacement for the Prolog II interpreter developed in the eighties within the Groupe de recherche en Intelligence Artificielle (GIA) in Marseille.
+Its first aim is to be used as a drop-in replacement for the Prolog II interpreter developed in the eighties within the Groupe de recherche en Intelligence Artificielle (G.I.A.) in Marseille.
 
 Regarding syntax, it fully supports the syntax of Prolog II (version 1 and version 2), and almost fully supports the syntax of Prolog II+ (Marseille and Edinburgh).[^1]
 
@@ -21,7 +21,15 @@ This whole programme started as an academic exercise, without any consideration 
 
 2022 was [the 50th anniversary of Prolog](http://prologyear.logicprogramming.org/). As a modest tribute for this anniversary, I decided to dig up a Prolog interpreter I wrote almost 35 years ago, clean it a bit, add a few missing features (e.g., cut, freeze, garbage collection), and push it online. As this program remains a toy program, this serves no real purpose other than to celebrate this anniversary. 
 
-Nonetheless, if you are old enough to have some old Prolog II programs stored in an old backup unit, you may use the interpreter to run them. Please report a bug if something does not work.  
+Nonetheless, if you are old enough to have some old Prolog II programs stored in an old backup unit somewhere, you may want to use the interpreter to run them. To execute a Prolog II program `myfile.pro`, just clone the repo, `cd` to it and then type:
+
+```bash
+$ fpc -Mtp -FE. src/tprolog2.pas
+$ ./tprolog2 -f path/to/myfile.pro
+```
+If you use the French predefined predicates, add `-l fr` to the latter command. If you want to compile the interpreter with Turbo Pascal instead of Free Pascal, see the [dedicated section](#turbo-pascal).
+
+Please report a bug if something does not work. 
 
 I wrote this interpreter as a course assignment, back in 1988, when I was a student at the University of Aix-Marseille II, pursuing a MSc in Computer Science and Mathematics ("Diplôme d'Études Approfondies en Informatique et Mathématique"). The course, entitled "Prolog II", was taught by the late [Alain Colmerauer](https://en.wikipedia.org/wiki/Alain_Colmerauer), creator of the Prolog language. The assignment was to create a simple Prolog II interpreter, without any predefined predicates, but capable of running some basic Prolog programs such as repetition, permutation, as well as the traditional "menu" or "send more money" examples.
 
@@ -305,7 +313,7 @@ C:\src> TPC /B /$N+ tprolog2
 ```
 The `/$N+` directive specifies that a 8087 maths coprocessor is present and must be used. 
 
-When running `tprolog2` on DOS, you may have to use the codepage parameter `-c`, as e.g. `-C 850` for latin codepage:
+When running `tprolog2` on DOS, you may have to use the codepage parameter `-c`, as e.g. `-c 850` for latin codepage:
 
 ```
 C:\SRC\chcp
@@ -361,7 +369,7 @@ Value of `$syntax` | File extension | Prompt | Prolog flavour (and main changes 
 --- | --- | --- | ---
 `PIIv1` | `.p2c` | `c>` | Prolog II version 1: old Marseille syntax with dashes in identifiers and `/` as cut symbol; when using `-l fr` parameter on the command line, identifiers of built-in predicates are available in French; rules with an optional constraint part
 `PII`  | `.pro` | `>` | Prolog II version 2: a few more built-in predicates; no more optional constraint part; this is the default syntax of our interpreter
-`PIIp` | `.p2` | `+>` | Prolog II+: no more dashes in identifiers; operators
+`PIIp` | `.p2` | `+>` | Prolog II+: no more dashes in identifiers; operators; no support for predefined predicates in French 
 `E` | `.p2E`, `.pl` | `?-` | Prolog II+: Edinburgh syntax; Marseille-style lists still supported
 
 For instance, to run the Prolog programme `permu.pro`, just do:
