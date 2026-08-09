@@ -37,6 +37,7 @@ Uses
   CLI,
   Paper,
   Echo,
+  Mute,
   CWrites,
   Common,
   IChar,

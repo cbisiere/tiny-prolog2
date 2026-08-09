@@ -93,6 +93,8 @@ Function Str_GetEncodingContext( s : StrPtr ) : TEncoding;
 Function Str_GetEncoding( s : StrPtr ) : TEncoding;
 
 Function Str_GetShortStringTruncate(s: StrPtr): TString;
+Function Str_FitToShortString( prompt : TString; 
+    s : StrPtr ) : TString;
 Function Str_AsShortString( s: StrPtr ): TString;
 Procedure Str_Append( s : StrPtr; ps : TString );
 Procedure Str_AppendChar( s : StrPtr; cc : TChar );
@@ -110,13 +112,16 @@ Function Str_Char( s : StrPtr; n : TStrLength; Var cc : TChar ) : Boolean;
 Function Str_FirstChar( s : StrPtr; Var cc : TChar ) : Boolean;
 Function Str_LastChar( s : StrPtr; Var cc : TChar ) : Boolean;
 Function Str_StartsWith(s: StrPtr; E: CharSet): boolean;
+Function Str_StartsWithSpace( s : StrPtr ) : Boolean;
 Function Str_EndsWith(s: StrPtr; E: CharSet): boolean;
+Function Str_EndsWithSpace( s : StrPtr ) : Boolean;
 Procedure Str_DeleteLastChars( s : StrPtr; n : TStrLength );
 Procedure Str_DeleteLastChar( s : StrPtr );
 Procedure Str_DeleteLastCharUntil( s : StrPtr; StopChars : CharSet );
 Function Str_Substring( s : StrPtr; n,m : PosInt ) : StrPtr;
 Function Str_FindPattern( s,pat : StrPtr; Var n : TStrLength ) : Boolean;
 Function Str_StartsWithN( s : StrPtr; E : CharSet ) : TStrLength;
+Function Str_ContainsOnly( s : StrPtr; E : CharSet ) : Boolean;
 Function Str_Trim( s : StrPtr; E : CharSet ) : StrPtr;
 Function Str_NormalizePositiveInteger( s : StrPtr ) : StrPtr;
 
@@ -413,6 +418,17 @@ Begin
   Str_StartsWith := TCharIsIn(cc,E)
 End;
 
+{ string starts with a space }
+Function Str_StartsWithSpace( s : StrPtr ) : Boolean;
+Var 
+  cc : TChar;
+Begin
+  Str_StartsWithSpace := False;
+  If Not Str_FirstChar(s,cc) Then
+    Exit;
+  Str_StartsWithSpace := TCharIsSpace(cc)
+End;
+
 { string ends with a char in a set of 1-byte chars }
 Function Str_EndsWith( s : StrPtr; E : CharSet ) : Boolean;
 Var 
@@ -422,6 +438,17 @@ Begin
   If Not Str_LastChar(s,cc) Then
     Exit;
   Str_EndsWith := TCharIsIn(cc,E)
+End;
+
+{ string ends with a space }
+Function Str_EndsWithSpace( s : StrPtr ) : Boolean;
+Var 
+  cc : TChar;
+Begin
+  Str_EndsWithSpace := False;
+  If Not Str_LastChar(s,cc) Then
+    Exit;
+  Str_EndsWithSpace := TCharIsSpace(cc)
 End;
 
 { return the (possibly truncated) value of a Str as a Pascal string }
@@ -437,6 +464,39 @@ Begin
       (Length(ps) + TCharGetLength(cc) <= StringMaxSize) Do
     ps := ps + TCharGetBytes(cc);
   Str_GetShortStringTruncate := ps
+End;
+
+{ return the (possibly truncated, with an elision mark) value of a Str as a 
+ Pascal string, preceded with a prompt }
+Function Str_FitToShortString( prompt : TString; 
+    s : StrPtr ) : TString;
+Const
+  ELISION = '...';
+Var
+  l : Byte;
+  ps : TString;
+  Iter : StrIter;
+  cc,cc2 : TChar;
+Begin
+  l := Length(ELISION);
+  ps := prompt;
+  { blank space }
+  If Length(ps) < StringMaxSize Then
+    ps := ps + ' ';
+  { shorten the prompt to have enough space for the elision mark }
+  Delete(ps,StringMaxSize - l,l);
+  { append the long string, bytes by bytes, leaving enough room an elision }
+  StrIter_ToStart(Iter,s);
+  While StrIter_NextChar(Iter,cc) And 
+      (Length(ps) + TCharGetLength(cc) <= StringMaxSize - l) Do
+    ps := ps + TCharGetBytes(cc);
+  { corner case: the last char in s has exactly l bytes}
+  If StrIter_NextChar(Iter,cc) And (TCharGetLength(cc) = l) And 
+      Not StrIter_NextChar(Iter,cc2) Then { the last char exactly fits }
+    ps := ps + TCharGetBytes(cc)
+  Else If StrIter_NextChar(Iter,cc2) Then { at least a char did not fit }
+    ps := ps + ELISION;
+  Str_FitToShortString := ps
 End;
 
 { return the value of a Str as a Pascal string, raising an error if it does not
@@ -663,9 +723,9 @@ Begin
     End
     Else If TCharIsEol(cc) Then { FIXME: use the output CRLF mode? }
       Str_Append(s,'\n')
-    Else If TCharIs(cc,#$08) Then
+    Else If TCharIsBackspace(cc) Then
       Str_Append(s,'\b')
-    Else If TCharIs(cc,#$09) Then
+    Else If TCharIsTab(cc) Then
       Str_Append(s,'\t')
     Else
       Str_AppendChar(s,cc)
@@ -867,6 +927,20 @@ Begin
   Str_StartsWithN := n
 End;
 
+{ return True if a string contains only characters in set E }
+Function Str_ContainsOnly( s : StrPtr; E : CharSet ) : Boolean;
+Var
+  Iter : StrIter;
+  cc : TChar;
+Begin
+  Str_ContainsOnly := False;
+  StrIter_ToStart(Iter,s);
+  While StrIter_NextChar(Iter,cc) Do 
+    If Not TCharIsIn(cc,E) Then
+      Exit;
+  Str_ContainsOnly := True
+End;
+
 { return a trimmed version of s in which all the starting characters in E are
  removed; create a copy only when necessary }
 Function Str_Trim( s : StrPtr; E : CharSet ) : StrPtr;
@@ -880,7 +954,8 @@ Begin
 End;
 
 { normalize a string containing only digits, trimming leading zeros, 
- but leaving a zero when necessary }
+ but leaving a zero when necessary; note: the function does not check whether 
+ the string only contains digits }
 Function Str_NormalizePositiveInteger( s : StrPtr ) : StrPtr;
 Var
   n : TStrLength;

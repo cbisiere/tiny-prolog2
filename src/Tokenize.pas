@@ -53,6 +53,7 @@ Uses
 Procedure SkipLine( f : StreamPtr );
 Procedure SkipUntil( f : StreamPtr; EE : CharSet );
 
+Function IsGraphicChars( s : StrPtr; y : TSyntax ) : Boolean;
 Function IsLetter( e : TIChar ) : Boolean;
 
 Function GrabLetters( f : StreamPtr; Var Ch : StrPtr ) : TStrLength;
@@ -227,13 +228,96 @@ assumptions and detection policy regarding encoding:
     #$C6,#$C7,#$D0..#$D4,#$D6..#$D8,#$DE,#$E0..#$E5,#$E7..#$ED];
   CP437_Letters : CharSet = ['a'..'z','A'..'Z',
     #$80..#$99,#$A0..#$A5,#$E1];
-  { identifiers can be unquoted graphic chars; PII+ p48-49 }
-  PROLOG_Graphic : CharSet = ['#','$','&','*','+','-','/',':','=','?','\',
-    '@','^','~',#$A0..#$BF,#$D7,#$F7];
-  EDINBURGH_Graphic: CharSet = ['.','<','>',
-    '#','$','&','*','+','-','/',':','=','?', '\','@','^','~',
-    #$A0..#$BF,#$D7,#$F7];
 
+{ is TChar cc is a graphic char in 7-bit Ascii? }
+Function IsASCIIGraphicChar( cc : TChar; y : TSyntax ) : Boolean;
+Const
+  { Rule C8.2 p49: 7-bit Ascii graphic chars in Marseille syntax }
+  BaseGc : CharSet = ['#','$','&','*','+','-','/',':','=','?','\','@','^','~'];
+  { Rule C8.1 p49: additional 7-bit Ascii graphic chars in Edinburgh syntax }
+  ExtraGc : CharSet = [';','<','>'];
+Begin
+  Case y of
+  PrologIIp:
+    IsASCIIGraphicChar := TCharIsIn(cc,BaseGc);
+  Edinburgh:
+    IsASCIIGraphicChar := TCharIsIn(cc,BaseGc + ExtraGc);
+  Else
+    IsASCIIGraphicChar := False
+  End
+End;
+
+{ is TChar e a graphic char in syntax y?
+ This implements rules C8.1 and C8.2. TODO: rule C8.3, however what is a 
+ "host_graphic_char"? }
+Function IsGraphicChar( cc : TChar; y : TSyntax ) : Boolean;
+Var
+  cp : TCodePoint;
+Begin
+  { syntax not supporting graphic chars }
+  If Not (y in [PrologIIp,Edinburgh]) Then
+  Begin
+    IsGraphicChar := False;
+    Exit
+  End;
+  { simple case: 7-bit ASCII where graphic chars are identical (same code point) 
+   in all supported encodings }
+  If TCharIsAscii(cc) Then
+  Begin
+    IsGraphicChar := IsASCIIGraphicChar(cc,y);
+    Exit
+  End;
+  { otherwise: use the code points of the non-ascii chars listed in rule C8.2 }
+  cp := BytesToCodePoint(TCharGetBytes(cc));
+  Case TCharGetEncoding(cc) Of 
+  { https://fr.wikipedia.org/wiki/ISO/CEI_8859-1 
+   two entire Ax and Bx rows (32 chars), plus multiplication and division sign }
+  ENC_ISO8859:
+    IsGraphicChar := cp In [$A0..$BF,$D7,$F7];
+  { https://www.charset.org/utf-8
+   nicely aligned with ISO-8859 }
+  ENC_UTF8:
+    IsGraphicChar := (cp >= 160) And (cp <= 191) Or (cp = 215) Or (cp = 247);
+  { https://en.wikipedia.org/wiki/Code_page_850#Character_set
+   built as a char-by-char mapping with ISO-8859 }
+  ENC_CP850:
+    IsGraphicChar := cp In [
+        $FF,$AD,$BD,$9C,$CF,$BE,$DD,$F5,$F9,$B8,$A6,$AE,$AA,$F0,$A9,$EE, 
+        $F8,$F1,$FD,$FC,$EF,$E6,$F4,$FA,$F7,$FB,$A7,$AF,$AC,$AB,$F3,$A8,
+        $9E,$F6
+    ];
+  { https://en.wikipedia.org/wiki/Code_page_437#Characters
+   built as a char-by-char mapping with ISO-8859; holes means no mapping }
+  ENC_CP437:
+    IsGraphicChar := cp In [
+        $FF,$AD,$9B,$9C,    $9D,    $15,        $A6,$AE,$AA,            
+        $F8,$F1,$FD,        $E6,$14,$FA,        $A7,$AF,$AC,$AB,    $A8,
+            $F6
+    ];
+  Else
+    IsGraphicChar := False
+  End
+End;
+
+{ is TIChar e a graphic char in syntax y? }
+Function IsGraphicIChar( e : TIChar; y : TSyntax ) : Boolean;
+Begin
+  IsGraphicIChar := IsGraphicChar(e.Val,y)
+End;
+
+{ is s a string of graphic chars in syntax y? }
+Function IsGraphicChars( s : StrPtr; y : TSyntax ) : Boolean;
+Var
+  Iter : StrIter;
+  cc : TChar;
+Begin
+  IsGraphicChars := False;
+  StrIter_ToStart(Iter,s);
+  While StrIter_NextChar(Iter,cc) Do 
+    If Not IsGraphicChar(cc,y) Then
+      Exit;
+  IsGraphicChars := True
+End;
 
 { is TChar cc is a letter in UTF8? }
 Function IsUTF8Letter( e : TIChar ) : Boolean;
@@ -314,6 +398,32 @@ End;
 {----------------------------------------------------------------------------}
 { grabbing characters of different classes                                   }
 {----------------------------------------------------------------------------}
+
+{ append characters to a string while they are graphic chars in syntax y; return 
+ the number of characters appended (which could be zero) }
+Function GrabGraphicChars( f : StreamPtr; Ch : StrPtr; 
+    y : TSyntax ) : TStrLength;
+Var 
+  e : TIChar;
+  n : TStrLength;
+  InSet : Boolean;
+Begin
+  GrabGraphicChars := 0;
+  n := 0;
+  Repeat
+    Stream_GetChar(f,e);
+    If Error Then Exit;
+    InSet := IsGraphicIChar(e,y);
+    If Not InSet Then
+      Stream_UngetChars(f,e)
+    Else
+    Begin
+      Str_AppendIChar(Ch,e);
+      n := n + 1
+    End
+  Until Not InSet Or Error;
+  GrabGraphicChars := n
+End;
 
 { grab one letter from stream f, and, if any, detect uppercase; also, try to 
  set the stream encoding if it is not set yet }
@@ -744,8 +854,7 @@ Begin
   GrabToken := K
 End;
 
-{ return True if string s is a valid (unquoted) identifier in syntax y;
- TODO: what about identifiers made of graphic chars }
+{ return True if string s is a valid (unquoted) identifier in syntax y }
 Function IsValidUnquotedIdentifier( s : StrPtr; y : TSyntax ) : Boolean;
 Var 
   State : Byte;
@@ -772,10 +881,20 @@ Begin
           State := 1;
           Valid := True
         End
+        Else If IsGraphicIChar(e,y) Then
+        Begin
+          State := 2;
+          Valid := True
+        End
         Else
           Exit;
       1: { one small letter }
         If IsAlpha(e) Then
+          Pass
+        Else
+          Exit;
+      2: { one graphic char }
+        If IsGraphicIChar(e,y) Then
           Pass
         Else
           Exit
@@ -890,7 +1009,6 @@ Var
   IsUpper : Boolean;
   n,m : TStrLength;
   cc : TIChar; { initial lookup and undo point }
-  GraphicChars : CharSet;
   Stop : Boolean;
 Begin 
   ReadVariableOrIdentifier := Nil;
@@ -910,19 +1028,14 @@ Begin
     With K^ Do
     Begin
       TK_STRI := Stream_NewStr(f);
-      { identifiers made of graphic chars }
-      If TICharIsIn(cc,PROLOG_Graphic) And (y = PrologIIp) Or 
-          TICharIsIn(cc,EDINBURGH_Graphic) And (y = Edinburgh) Then
+      { unquoted identifiers made of graphic chars are allowed in Edinburgh:
+       rule L2.4 p48 }
+      If (y = Edinburgh) And (GrabGraphicChars(f,TK_STRI,y) > 0) Then
       Begin
-        TK_TYPE := TOKEN_IDENT;
-        If y = PrologIIp Then
-          GraphicChars := PROLOG_Graphic
-        Else
-          GraphicChars := EDINBURGH_Graphic;
-        n := GetCharWhile(f,TK_STRI,GraphicChars)
+        TK_TYPE := TOKEN_IDENT
       End
       Else
-      { regular identifier or variable }
+      { regular (unquoted) identifier or variable }
       If GrabOneLetter(f,TK_STRI,IsUpper) Then
       Begin
         { Edinburgh variables start with a "big letter"; Marseille variables 
@@ -1039,7 +1152,21 @@ Begin
       If y = Edinburgh Then
         K^.TK_STRI := Str_NewFromShortString(':-')
     End
-    Else Case TICharGetByte(e1,1) Of
+    Else If (y = PrologIIp) And IsGraphicIChar(e1,y) Then
+    Begin
+      { in PII+, an unquoted run of graphic chars could be parsed as an 
+      operator; 
+      In Edinburgh, it is directly considered as an identifier, and thus 
+      tokenized as such after the Case below }
+      K := Token_New(TOKEN_GRAPHIC_CHARS);
+      With K^ Do
+      Begin
+        TK_STRI := Stream_NewStr(f);
+        n := GrabGraphicChars(f,TK_STRI,y)
+      End
+    End
+    Else 
+    Case TICharGetByte(e1,1) Of
     '0'..'9':
       Begin
         K := ReadNumber(f,y,False);

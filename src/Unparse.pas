@@ -107,14 +107,15 @@ Type
     GoalArrow: String[3]; { rule arrow when goals are present }
     RuleEnd: Char;
     QueryStart: String[2];
-    QueryEnd: Char
+    QueryEnd: Char;
+    PTermSep: String[2] { separator between PTerms in a query or rule queue }
   End;
 Const
   OSyntax : TOSyntaxElement = (
-    (RuleArrow:'->';GoalArrow:'';RuleEnd:';';QueryStart:'->';QueryEnd:';'),
-    (RuleArrow:'->';GoalArrow:'';RuleEnd:';';QueryStart:'->';QueryEnd:';'),
-    (RuleArrow:'->';GoalArrow:'';RuleEnd:';';QueryStart:'->';QueryEnd:';'),
-    (RuleArrow:'';GoalArrow:':-';RuleEnd:'.';QueryStart:':-';QueryEnd:'.')
+    (RuleArrow:'->';GoalArrow:'';RuleEnd:';';QueryStart:'->';QueryEnd:';';PTermSep:' '),
+    (RuleArrow:'->';GoalArrow:'';RuleEnd:';';QueryStart:'->';QueryEnd:';';PTermSep:' '),
+    (RuleArrow:'->';GoalArrow:'';RuleEnd:';';QueryStart:'->';QueryEnd:';';PTermSep:' '),
+    (RuleArrow:'';GoalArrow:':-';RuleEnd:'.';QueryStart:':-';QueryEnd:'.';PTermSep:', ')
   );
 
 Var
@@ -658,13 +659,11 @@ End;
 Function GetOpToUnparse( P : ProgPtr; Ident : IdPtr; n : TOpArity ) : OpPtr;
 Var
   o : OpPtr;
-  functor : TString;
 Begin
   GetOpToUnparse := Nil;
-  functor := IdentifierGetShortString(Ident);
-  o := Op_Lookup(GetOps(P),[OP_FUNCTION,OP_ARITY],'',functor,[],n,0);
+  o := Op_Lookup(GetOps(P),[OP_FUNCTION,OP_ARITY],Nil,Nil,Ident,[],n,0);
   { not a suitable operator? }
-  If (o = Nil) Or (Op_GetOperator(o) = '') Then
+  If (o = Nil) Or (Op_GetOperator(o) = Nil) Then
     Exit;
   GetOpToUnparse := o
 End;
@@ -709,7 +708,7 @@ Procedure UnparseExpression( P : ProgPtr; s : StrPtr;
     Quotes,Reduce : Boolean; g : TSerial; depth : PosInt);
 Var
   Ti : TermPtr; { one operand }
-  oper : TString;
+  oper : StrPtr;
   space : Boolean; { space around the operator? }
 Begin
   { first operand, if any }
@@ -719,11 +718,13 @@ Begin
     UnparseOperand(P,s,Ti,o,Quotes,Reduce,g,depth)
   End;
   { operator }
-  oper := Op_GetOperator(o);
-  space := oper[1] In ['a'..'z','A'..'Z','@']; { FIXME: policy + other encodings }
-  If space Then
+  oper := Op_GetOperatorForDisplay(o);
+  { is blank spacing needed around the operator? }
+  space := Str_StartsWith(oper,['a'..'z','A'..'Z','@']); { FIXME: policy + other encodings }
+  { leading space if not beginning of line or already has space }
+  If space And (Str_Length(s) > 0) And Not Str_EndsWithSpace(s) Then
     UnparseShortString(s,' ');
-  UnparseShortString(s,oper);
+  UnparseString(s,oper);
   If space Then
     UnparseShortString(s,' ');
   { second operand, if any }
@@ -1352,9 +1353,12 @@ End;
 {------------------------}
 
 { print an instruction meant to restore P's state; source must be compatible 
- with all the supported Prolog's flavours at the same time; so use a single 
- goal, a single uppercase letter for a variable, no quoted identifiers, etc. }
-Procedure PutOneInstruction( f : StreamPtr; P : ProgPtr; source : StrPtr );
+ with all the supported Prolog's flavours (either Marseille or Edinburgh, tough) 
+ at the same time; so use a single goal, a single uppercase letter for a 
+ variable, no quoted identifiers, etc. 
+ Append an instruction to fail if Fail is True (meant to not print success) }
+Procedure PutOneInstruction( f : StreamPtr; P : ProgPtr; source : StrPtr;
+    Fail : Boolean );
 Var 
   y : TSyntax;
   s : StrPtr;
@@ -1364,6 +1368,11 @@ Begin
   Str_Append(s,OSyntax[y].QueryStart);
   Str_Append(s,' ');
   Str_Concat(s,source);
+  If Fail Then
+  Begin
+    Str_Append(s,OSyntax[y].PTermSep);
+    Str_Append(s,'syscall(sysfail)')
+  End;
   Str_Append(s,OSyntax[y].QueryEnd);
   Stream_WriteLongString(f,s);
   Stream_LineBreak(f)
@@ -1377,17 +1386,48 @@ Var
 Begin
   s := Str_NewFromShortString('syscall(sysonoff,' + StateName + ',' + 
       BoolToShortString(StateValue) + ')');
-  PutOneInstruction(f,P,s)
+  PutOneInstruction(f,P,s,True)
+End;
+
+Type
+  TGlobalState = Record
+    Infinite,Paper,Echo,Debug,Trace : Boolean
+  End;
+
+{ save P's current state }
+Procedure GetGlobalStates( P : ProgPtr; Var State : TGlobalState );
+Begin
+  With State Do
+  Begin
+    Infinite := GetInfinite(P);
+    Paper := GetPaper(P);
+    Echo := GetEcho(P);
+    Debug := GetDebug(P);
+    Trace := GetTrace(P)
+  End
+End;
+
+{ set all P's state to False }
+Procedure ResetGlobalStates( P : ProgPtr );
+Begin
+  SetInfinite(P,False);
+  SetPaper(P,False);
+  SetEcho(P,False);
+  SetDebug(P,False);
+  SetTrace(P,False)
 End;
 
 { print queries to restore P's global states }
-Procedure PutGlobalStates( f : StreamPtr; P : ProgPtr );
+Procedure PutGlobalStates( f : StreamPtr; P : ProgPtr; State : TGlobalState );
 Begin
-  PutOneGlobalState(f,P,'infinite',GetInfinite(P));
-  PutOneGlobalState(f,P,'paper',GetPaper(P));
-  PutOneGlobalState(f,P,'echo',GetEcho(P));
-  PutOneGlobalState(f,P,'trace',GetTrace(P));
-  PutOneGlobalState(f,P,'debug',GetDebug(P))
+  With State Do
+  Begin
+    PutOneGlobalState(f,P,'infinite',Infinite);
+    PutOneGlobalState(f,P,'paper',Paper);
+    PutOneGlobalState(f,P,'echo',Echo);
+    PutOneGlobalState(f,P,'debug',Debug);
+    PutOneGlobalState(f,P,'trace',Trace)
+  End
 End;
 
 { print a query to create a subworld W, and go down to it }
@@ -1399,7 +1439,7 @@ Begin
   Str_Append(s,'syscall(sysdownworld,"');
   Str_Concat(s,World_GetName(W));
   Str_Append(s,'",true)');
-  PutOneInstruction(f,P,s)
+  PutOneInstruction(f,P,s,True)
  End;
 
 { print a query to climb up to world W }
@@ -1411,8 +1451,46 @@ Begin
   Str_Append(s,'syscall(sysclimbworld,"');
   Str_Concat(s,World_GetName(W));
   Str_Append(s,'")');
-  PutOneInstruction(f,P,s)
+  PutOneInstruction(f,P,s,True)
  End;
+
+{ print one user operator declaration }
+Procedure PutOneOpDeclaration( f : StreamPtr; P : ProgPtr; o : OpPtr );
+Var
+  enc : TEncoding;
+  s : StrPtr;
+Begin
+  enc := Stream_GetEncoding(f);
+  s := Str_New(enc);
+  Str_Append(s,'syscall(sysop,');
+  { 1: precedence }
+  Str_Append(s,PosIntToShortString(Op_GetPrecedence(o)));
+  Str_Append(s,',');
+  { 2: type }
+  Str_Append(s,OpTypeToString(Op_GetType(o)));
+  Str_Append(s,',');
+  { 3: operator }
+  Str_Concat(s,Op_GetOperatorForOpParameter(o));
+  Str_Append(s,',');
+  { 4: functor }
+  Str_Concat(s,Op_GetFunctionForOpParameter(o));
+  Str_Append(s,')');
+  PutOneInstruction(f,P,s,True)
+End;
+
+{ print all user operator declarations }
+Procedure PutOpDeclaration( f : StreamPtr; P : ProgPtr );
+Var
+  o : OpPtr;
+Begin
+  o := GetOps(P);
+  While o <> Nil Do
+  Begin
+    If Op_IsUser(o) Then
+      PutOneOpDeclaration(f,P,o);
+    o := Op_Next(o)
+  End
+End;
 
 { print one array declaration }
 Procedure PutOneArrayDeclaration( f : StreamPtr; P : ProgPtr; I : IdPtr );
@@ -1427,7 +1505,7 @@ Begin
   Str_Append(s,',');
   Str_Append(s,GetArraySizeAsShortString(I));
   Str_Append(s,')');
-  PutOneInstruction(f,P,s)
+  PutOneInstruction(f,P,s,True)
 End;
 
 { print all array declarations in world W }
@@ -1459,7 +1537,7 @@ Begin
   Str_Append(s,',');
   Str_Concat(s,TermToLongString(enc,P,GetValue(I)));
   Str_Append(s,')');
-  PutOneInstruction(f,P,s)
+  PutOneInstruction(f,P,s,True)
 End;
 
 { print one array assignment I(j) = T }
@@ -1477,7 +1555,7 @@ Begin
   Str_Append(s,',');
   Str_Concat(s,TermToLongString(enc,P,T));
   Str_Append(s,')');
-  PutOneInstruction(f,P,s)
+  PutOneInstruction(f,P,s,True)
 End;
 
 { print assigned elements in array identifier I }
@@ -1555,19 +1633,31 @@ Begin
 End;
 
 { print all statements in universe P; 
- TODO: restore current world; user operators }
+ TODO: restore current world, statement index }
 Procedure PutUserState( f : StreamPtr; P : ProgPtr );
 Var
   y : TSyntax;
+  State : TGlobalState;
   W : WorldPtr;
 Begin
+  { backup the global states so as to proceed in "quiet" mode }
+  GetGlobalStates(P,State);
+  ResetGlobalStates(P);
+  { instruction to mute echo }
+  PutOneGlobalState(f,P,'mute',True);
+  { operators }
+  PutOpDeclaration(f,P);
+  { worlds }
   y := GetSyntax(P);
   { locate the user's top world }
   W := World_FindChildByName(GetTopWorld(P),
       Str_NewFromShortString(WorldSetup[y].User));
   PutOneWorld(f,P,W);
   PutSubworldsState(f,P,W);
-  PutGlobalStates(f,P)
+  { global states }
+  PutGlobalStates(f,P,State);
+  { unmute }
+  PutOneGlobalState(f,P,'mute',False)
 End;
 
 {------------------------}

@@ -281,7 +281,8 @@ Var
       CEditInsert(Ed,CC_BLANK_SPACE)
   End;
 
-  { process the input buffer R, executing actions }
+  { process the input buffer R, executing actions;
+   FIXME: what happens when codepage is non-Ascii }
   Procedure ProcessInputBuffer( Var R : TBuf; Var Stop : Boolean );
   Var
     cc,cc2 : TChar;
@@ -313,13 +314,14 @@ Var
         B := Ed.Buf;
         Exit
       End
-      Else If TCharIs(cc,#08) Then { Backspace }
+      Else If TCharIsBackspace(cc) Then { Backspace }
         CEditDelete(Ed)
-      Else If TCharIs(cc,#09) Then { tab }
+      Else If TCharIsTab(cc) Then { tab }
         Tab
       Else If (TCharIs(cc,#00)) 
           And (BufNbUnread(R) > 0) Then { extended or func. key }
       Begin { command history }
+        { Extended Key Codes: see TP4 doc p.582, Table E.2 }
         BufGetRead(e2,R,1);
         cc2 := e2.Val;
         If TCharIs(cc2,#72) Then

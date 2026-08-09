@@ -302,9 +302,9 @@ Begin
     End;
   OP:
     Begin
-      WriteToDumpFile('"' + Op_GetOperator(Opp) + '"');
+      WriteLongStringToDumpFile(Op_GetOperatorForDisplay(Opp));
       WriteToDumpFile(' ');
-      WriteToDumpFile('"' + Op_GetFunction(Opp) + '"')
+      WriteLongStringToDumpFile(Op_GetFunctionForDisplay(Opp));
     End;
   TK:
     Token_Dump(Kp)

@@ -844,17 +844,16 @@ Begin
   End
 End;
 
-{ execute a query }
+{ execute a query read from stream f }
 Procedure ExecQuery( f : StreamPtr; P : ProgPtr; Q : QueryPtr; K : TokenPtr );
 Var
   EchoQuery : Boolean;
 Begin
-  { even when echo is false, echo when the goal is read from a user file, 
+  { even when echo is false, echo the goal when it is read from a file, 
    otherwise we cannot interpret the displayed solutions;
    FIXME: also echo when the goal was not the first on the line read from
-   the console, e.g. bb in "+> aa; bb;" }
-  EchoQuery := Not Stream_IsConsole(f) And Not GetEchoState 
-      And World_IsUserLand(GetCurrentWorld(P));
+   the console, e.g. bb in "+> aa; bb;"; }
+  EchoQuery := Not GetEcho(P) And Not GetMute(P) And Not Stream_IsConsole(f);
   { clear the goals in the query; since the solver starts with GC, we must
    protect local objects }
   StackToken(P,K);
@@ -998,8 +997,7 @@ Begin
   If Str_Length(Path) > StringMaxSize Then { path too long }
   Begin
     If RaiseAnError Then
-      RuntimeError('path is too long: ''' + 
-          Str_GetShortStringTruncate(Path) + '...''');
+      RuntimeError(Str_FitToShortString('path is too long:',Path));
     Exit
   End;
   ShortPath := Str_AsShortString(Path);

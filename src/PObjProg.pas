@@ -25,6 +25,7 @@ Uses
   Chars,
   Paper,
   Echo,
+  Mute,
   Dump,
   CLI,
   CWrites,
@@ -84,6 +85,8 @@ Function GetInfinite( P : ProgPtr ) : Boolean;
 Procedure SetDebug( P : ProgPtr; state : Boolean );
 Function GetDebug( P : ProgPtr ) : Boolean;
 Function GetDebugStream( P : ProgPtr ) : StreamPtr;
+Procedure SetMute( P : ProgPtr; state : Boolean );
+Function GetMute( P : ProgPtr ) : Boolean;
 
 Function BufferAlias( y : TSyntax ) : TAlias;
 Function ConsoleAlias( y : TSyntax ) : TAlias;
@@ -282,7 +285,8 @@ Begin
     PP_ECHO := GetEchoState;
     PP_DEBG := False;
     PP_TRAC := False;
-    PP_INFI := False
+    PP_INFI := False;
+    PP_MUTE := False
   End;
   Prog_New := P
 End;
@@ -363,6 +367,19 @@ Begin
     GetDebugStream := GetOutputConsole(P)
   Else
     GetDebugStream := Nil
+End;
+
+{ mute }
+
+Procedure SetMute( P : ProgPtr; state : Boolean );
+Begin
+  SetMuteState(state);
+  P^.PP_MUTE := GetMuteState
+End;
+
+Function GetMute( P : ProgPtr ) : Boolean;
+Begin
+  GetMute := GetMuteState
 End;
 
 {-----------------------------------------------------------------------}
@@ -609,7 +626,7 @@ Var
 Begin
   EmitPositiveInteger := Nil;
   s := Str_NewFromShortString(PosIntToShortString(n));
-  If Not NormalizeConstant(s,IntegerNumber) Then { FIXME }
+  If Not NormalizePositiveInteger(s) Then { FIXME }
     Bug('atom_length: fail to normalize length');
   If Error Then Exit;
   EmitPositiveInteger := EmitConst(P,s,CI,False)
@@ -693,8 +710,8 @@ Begin
 End;
 
 { create an identifier (as a term) from a string constant; the string is first 
- unquoted, as only simplified ident syntax is allowed: "abc" and "'abc'" are 
- allowed but "123" and "'123'" are not. return Nil if the unquoted string is 
+ unquoted, as in PII+ only simplified ident syntax is allowed: "abc" and "'abc'" 
+ are allowed but "123" and "'123'" are not. return Nil if the unquoted string is 
  not a valid, simplified syntax identifier }
 Function EmitIdentFromString( P : ProgPtr; C : ConstPtr;
     glob : Boolean ) : TermPtr;

@@ -39,6 +39,7 @@ Uses
   Chars,
   Files,
   Echo,
+  Mute,
   Dump,
   Crt2,
   CLI,
@@ -812,7 +813,7 @@ Begin
           cc := CC_END_OF_INPUT;
           If Length(FI_CBUF) > 0 Then
             If TCharGetOne(FI_CBUF,cc,FI_ENCO,FI_EOLS) Then { get a char }
-              If GetEchoState Then
+              If GetEchoState And Not GetMuteState Then
               Begin
                 { spec. of echo/0 is: : write on console what is read or 
                  written to disk files or buffers }
@@ -956,7 +957,7 @@ Begin
         CWriteRegularChar(cc);
       DEV_FILE,DEV_BUFFER:
         Begin
-          If GetEchoState Then
+          If GetEchoState And Not GetMuteState Then
             CWriteRegularChar(cc);
           WriteToFile(Stream_GetShortPath(f),FI_OFIL,TCharGetBytes(cc))
         End
@@ -972,7 +973,7 @@ Begin
         CWriteLn;
       DEV_FILE,DEV_BUFFER:
         Begin
-          If GetEchoState Then
+          If GetEchoState And Not GetMuteState Then
             CWriteLn;
           WritelnToFile(Stream_GetShortPath(f),FI_OFIL,'')
         End

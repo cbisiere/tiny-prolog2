@@ -49,9 +49,16 @@ Uses
 Type
   TTupleArgNumber = PosInt; { tuple argument index or count }
 
+{ constructors: tuples }
 Function NewEmptyTuple : TermPtr;
 Function NewTuple1( T : TermPtr ) : TermPtr;
+Function NewTuple2( T1,T2 : TermPtr ) : TermPtr;
+Function NewTuple3( T1,T2,T3 : TermPtr ) : TermPtr;
 Function NewTuple( T,U : TermPtr ) : TermPtr;
+
+{ constructors: predicates }
+Function NewFunc1( Id : IdPtr; T : TermPtr ) : TermPtr;
+Function NewFunc2( Id : IdPtr; T1,T2 : TermPtr ) : TermPtr;
 
 { methods 1 }
 Function IsTuple( T : TermPtr ) : Boolean;
@@ -92,7 +99,7 @@ Implementation
 {-----------------------------------------------------------------------------}
 
 {----------------------------------------------------------------------------}
-{ constructors                                                               }
+{ constructors: tuples                                                       }
 {----------------------------------------------------------------------------}
 
 { create the empty tuple: <> }
@@ -107,10 +114,47 @@ Begin
   NewTuple1 := NewTuple(T,NewEmptyTuple)
 End;
 
+{ create a new tuple containing two terms T1,T2: <a,b> }
+Function NewTuple2( T1,T2 : TermPtr ) : TermPtr;
+Begin
+  NewTuple2 := NewTuple(T1,NewTuple1(T2))
+End;
+
+{ create a new tuple containing three terms T1,T2,T3: <a,b,c> }
+Function NewTuple3( T1,T2,T3 : TermPtr ) : TermPtr;
+Var
+  T,Q : TermPtr;
+Begin
+  T := NewTuple2(T1,T2); { T is <T1,T2> }
+  Q := TupleQueue(T); { Q is <T2> }
+  SetTupleQueue(Q,NewTuple1(T3)); { T is <T1,T2,T3> }
+  NewTuple3 := T
+End;
+
 { create a new tuple from a head term T and a queue tuple U }
 Function NewTuple( T,U : TermPtr ) : TermPtr;
 Begin
   NewTuple := Func_NewAsTerm(T,U)
+End;
+
+{----------------------------------------------------------------------------}
+{ constructors: predicates                                                   }
+{----------------------------------------------------------------------------}
+
+{ predicates (a.k.a. functions) are encoded as tuples }
+
+{ return a new 1-argument predicate with identifier Id and argument T: Id(T) 
+ (that is, tuple <Id,T>) }
+Function NewFunc1( Id : IdPtr; T : TermPtr ) : TermPtr;
+Begin
+  NewFunc1 := NewTuple2(TermPtr(Id),T);
+End;
+
+{ return a new 2-argument predicate with identifier Id and arguments T1,T2: 
+ Id(T1,T2) (that is, tuple <Id,T1,T2>) }
+Function NewFunc2( Id : IdPtr; T1,T2 : TermPtr ) : TermPtr;
+Begin
+  NewFunc2 := NewTuple3(TermPtr(Id),T1,T2)
 End;
 
 {----------------------------------------------------------------------------}

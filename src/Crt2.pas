@@ -547,7 +547,7 @@ End;
  taking a single screen "column" }
 Function CrtCharWrapSize( cc : TChar ) : Byte;
 Begin
-  If TCharIs(cc,#09) Then
+  If TCharIsTab(cc) Then
     CrtCharWrapSize := CrtTabSize + 1 { weird, but this is what I observe }
   Else
     CrtCharWrapSize := TCharGetLength(cc)
@@ -556,7 +556,7 @@ End;
 { number of columns the char takes on the screen }
 Function CrtCharWidthOnScreen( cc : TChar ) : Byte;
 Begin
-  If TCharIs(cc,#09) Then
+  If TCharIsTab(cc) Then
     CrtCharWidthOnScreen := CrtTabSize + 1 { weird, see above }
   Else
     CrtCharWidthOnScreen := 1

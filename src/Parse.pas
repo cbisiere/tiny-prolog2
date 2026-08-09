@@ -199,7 +199,7 @@ Begin
   Else If GrabDigits(f,s) > 0 Then { case 2: digits }
   Begin
     T1 := EmitConst(P,s,CS,False);
-    If Not NormalizeConstant(s,IntegerNumber) Then
+    If Not NormalizePositiveInteger(s) Then
     Begin
       { FIXME: for now, we silently fail if the integer cannot be normalized }
       Stream_UngetChars(f,e);
@@ -276,15 +276,15 @@ Begin
     Begin
       OpStack_PopOperand(T1,TBottom);
       CheckCondition(T1 <> Nil,'ReduceTopExpr: unexpected Nil term');
-      T := NewFunc1(P,Op_GetFunction(o),T1,False,True);
+      T := NewFunc1(Op_GetFunction(o),T1);
     End;
   2:
     Begin
       OpStack_PopOperand(T2,TBottom);
       OpStack_PopOperand(T1,TBottom);
-      CheckCondition((T1<>Nil) And (T2<>Nil),
+      CheckCondition((T1 <> Nil) And (T2 <> Nil),
           'ReduceTopExpr: unexpected Nil terms');
-      T := NewFunc2(P,Op_GetFunction(o),T1,T2,False,True)
+      T := NewFunc2(Op_GetFunction(o),T1,T2)
     End
   End;
   OpStack_PushOperand(T)
@@ -361,18 +361,19 @@ Function NextOp( P : ProgPtr; Var K : TokenPtr; OpTypes : TOpTypes;
     MaxPred : TPrecedence ) : OpPtr;
 Var
   o : OpPtr;
-  oper : TString;
 Begin
   o := Nil;
   { recognized tokens that can be operators (or start of operators) }
-  If (Token_GetType(K) = TOKEN_IDENT) Or 
+  If (Token_GetType(K) In [TOKEN_IDENT,TOKEN_GRAPHIC_CHARS]) Or 
       (GetSyntax(P) = Edinburgh) And 
         (Token_GetType(K) In [TOKEN_ARROW,TOKEN_COMMA,TOKEN_RIGHT_CHE,TOKEN_LEFT_CHE]) Then
   Begin
-    oper := Str_GetShortStringTruncate(Token_GetStr(K));
-    o := Op_Lookup(GetOps(P),[OP_OPERATOR,OP_TYPES,OP_MAX_PRECEDENCE],
-        oper,'',OpTypes,0,MaxPred);
-      
+    { FIXME: how to parse Edinburgh's unquoted operator as <<, which could also 
+     be the beginning of nested tuples?? }
+    { search operator by string to avoid creating spurious new identifiers }
+    o := Op_Lookup(GetOps(P),[OP_OPERATOR_STRING,OP_TYPES,OP_MAX_PRECEDENCE],
+        Token_GetStr(K),Nil,Nil,OpTypes,0,MaxPred);
+
     { special case: prefixed unary operator used as ident, e.g. ['-'|aa]. or 
      aa('-'); it is assumed that a quoted unary operator is actually a quoted 
      identifier, not an operator, so one cannot write 1 '-' 2 }
@@ -396,6 +397,7 @@ Var
   o : OpPtr;
   Found : Boolean; { case identified and treated }
   Done : Boolean; { are we done parsing the expression? }
+  opCode : TOpCode;
   Pred : TPrecedence; { precedence of the current expression }
   ArgMaxPred : TPrecedence;
   s : StrPtr;
@@ -421,13 +423,14 @@ Begin
         PII+ p.48: "The trees corresponding to the unary operators + and - are  
         evaluated when analyzed if their argument is an integer constant." 
         Note: I see not reason not to do that for real numbers as well }
-        If (Op_GetType(o) = fx) And ((Op_GetOperator(o) = '+') 
-            Or (Op_GetOperator(o) = '-')) 
-            And (Token_GetType(K) In [TOKEN_INTEGER,TOKEN_REAL]) Then
+        opCode := Op_GetCode(o);
+        If (Op_GetType(o) = fx) And (opCode In [OPER_ADD_1,OPER_SUB_1]) And 
+            (Token_GetType(K) In [TOKEN_INTEGER,TOKEN_REAL]) Then
         Begin
           T := ReadPTerm(f,P,K,glob,Cut); { read the numerical constant }
           If Error Then Exit;
-          If Op_GetOperator(o) = '-' Then
+          { remove '+', move '-' to the constant }
+          If opCode = OPER_SUB_1 Then
           Begin
             s := Str_NewFromShortString('-');
             Str_Concat(s,ConstGetStr(ConstPtr(T)));
@@ -678,7 +681,7 @@ Begin
   Case Token_GetType(K) Of
   TOKEN_INTEGER: { rule 7.7 }
     Begin
-      If Not NormalizeConstant(K^.TK_STRI,ObjectTypeToConstType(CI)) Then
+      If Not NormalizePositiveInteger(K^.TK_STRI) Then
         SyntaxError('invalid integer constant');
       If Error Then Exit;
       T := EmitConst(P,Token_GetStr(K),CI,glob);
@@ -686,7 +689,7 @@ Begin
     End;
   TOKEN_REAL: { rule 7.7 }
     Begin
-      If Not NormalizeConstant(K^.TK_STRI,ObjectTypeToConstType(CR)) Then
+      If Not NormalizeReal(K^.TK_STRI) Then
         SyntaxError('invalid real constant');
       If Error Then Exit;
       T := EmitConst(P,Token_GetStr(K),CR,glob);

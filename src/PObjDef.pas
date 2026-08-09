@@ -187,7 +187,8 @@ Type
     PP_ECHO : Boolean; { echo is on/off }
     PP_TRAC : Boolean; { trace is on/off }
     PP_INFI : Boolean; { infinite is on/off (does nothing) }
-    PP_DEBG : Boolean  { debug is on/off }
+    PP_DEBG : Boolean; { debug is on/off }
+    PP_MUTE : Boolean  { no echo, even when echo is on }
   End;
 
 Function Statement_GetWorld( S : StmtPtr ) : WorldPtr;

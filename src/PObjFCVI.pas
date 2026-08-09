@@ -155,6 +155,7 @@ Procedure SetFrozenTermsWithUndo( V : VarPtr; M : TermsPtr; Undo : Boolean;
 Procedure AddFrozenTermsWithUndo( V : VarPtr; M : TermsPtr; Undo : Boolean; 
     Var L : RestPtr );
 
+Function IdentifierMustBeQuoted( I : IdPtr ) : Boolean;
 Function IdentifierGetStr( I : IdPtr ) : StrPtr;
 Procedure IdentifierSetStr( I : IdPtr; s : StrPtr);
 Function IdentifierGetShortString( I : IdPtr ) : TString;
@@ -223,7 +224,8 @@ Function IsVariable( T : TermPtr ) : Boolean;
 Procedure TrackAssignment( T1,T2: TermPtr );
 
 Procedure OrderTerms( Var T1,T2: TermPtr );
-Function NormalizeConstant( Var s : StrPtr; typ : TConst ) : Boolean;
+Function NormalizeReal( Var s : StrPtr ) : Boolean;
+Function NormalizePositiveInteger( Var s : StrPtr ) : Boolean;
 
 Function InstallConst( Var D : DictPtr; str : StrPtr; 
     ty : TypePrologObj; glob : Boolean ) : ConstPtr;
@@ -299,7 +301,7 @@ End;
 
 { create a (potentially) assignable identifier; an identifier must remain 
  unique, and thus cannot be copied }
-Function Ident_New( SingleQuotes : Boolean) : IdPtr;
+Function Ident_New( SingleQuotes : Boolean ) : IdPtr;
 Var 
   I : IdPtr;
 Begin
@@ -311,7 +313,7 @@ Begin
     TI_VALU := Nil;
     TI_DVAR := Nil;
     TI_SIZE := 0;
-    TI_QUOT := SingleQuotes; { must be quoted when printed }
+    TI_QUOT := SingleQuotes; { must be quoted to be valid in its native syntax }
     TI_ASSI := False
   End;
   Ident_New := I
@@ -1199,29 +1201,45 @@ End;
 { methods: install                                                      }
 {-----------------------------------------------------------------------}
 
-{ replace a constant string with its canonical form, depending on its type;
- return false if the canonical form cannot be computed }
-Function NormalizeConstant( Var s : StrPtr; typ : TConst ) : Boolean;
+{ replace a constant string containing a real value with its canonical form;
+ return false if the canonical form cannot be computed; we do try to correct 
+ rounding errors as s is a user-originated values (values in source code, read 
+ from files, or typed in by the user) }
+Function NormalizeReal( Var s : StrPtr ) : Boolean;
 Var
   r : LongReal;
   code : Integer;
+  ss : TString;
 Begin
-  NormalizeConstant := False;
-  CheckCondition(s <> Nil,'cannot normalize a nul string');
-  Case typ Of
-  IntegerNumber:
-    s := Str_NormalizePositiveInteger(s);
-  RealNumber:
-    Begin
-      If Str_Length(s) > StringMaxSize Then
-        Exit;
-      r := ShortStringToLongReal(Str_AsShortString(s), code);
-      If code <> 0 Then
-        Exit;
-      s := Str_NewFromShortString(LongRealToShortString(r));
-    End
-  End;
-  NormalizeConstant := True
+  NormalizeReal := False;
+  CheckCondition(s <> Nil,'NormalizeReal: cannot normalize a null string');
+  { too large to handle }
+  If Str_Length(s) > StringMaxSize Then
+    Exit;
+  { no fancy characters; FIXME: syntax with D?? spaces?? }
+  If Not Str_ContainsOnly(s,['-','+','D','d','E','e','.','0'..'9']) Then
+    Exit;
+  { short version, safe to convert }
+  ss := Str_AsShortString(s);
+  { check that Pascal can convert the string to a real }
+  ss := ReplaceAll(ss,['D','d','e'],'E');
+  r := ShortStringToLongReal(ss,code);
+  If code <> 0 Then
+    Exit;
+  { clean the string itself, not rounding as the string is a user input value }
+  s := Str_NewFromShortString(FormatRealInShortString(ss,False));
+  NormalizeReal := True
+End;
+
+{ replace a constant string containing an integer value with its canonical form; 
+ return false if the canonical form cannot be computed }
+Function NormalizePositiveInteger( Var s : StrPtr ) : Boolean;
+Begin
+  CheckCondition(s <> Nil,'cannot normalize a null string');
+  If Not Str_ContainsOnly(s,['0'..'9']) Then
+    Exit;
+  s := Str_NormalizePositiveInteger(s);
+  NormalizePositiveInteger := True
 End;
 
 { create a new constant if it does not exist in a list; 

@@ -286,6 +286,8 @@ Begin
   RegisterPredefinedIdentifiers(P);
   RegisterEvaluableFunctions(P);
   RegisterOperators(P);
+  { mute all output for now }
+  SetMute(P,True);
   { load the system start file }
   If Not Error And Not SkipStartFile Then
     LoadStartFile(P,Language);
@@ -299,6 +301,8 @@ Begin
     AddGCRoot(TObjectPtr(StrSavedStateFilename)); { protect this string from GC }
     LoadUserFile(P,StrSavedStateFilename)
   End;
+  { system part is done, now unmute }
+  SetMute(P,False);
   { load the user file }
   If Not Error And HasUserFilePar Then
   Begin

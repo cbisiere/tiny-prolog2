@@ -438,7 +438,8 @@ Type
     STATE_PAPER,
     STATE_TRACE,
     STATE_INFINITE,
-    STATE_DEBUG
+    STATE_DEBUG,
+    STATE_MUTE
   );
 
 { return in Result the state argument passed as an identifier in argument n 
@@ -467,6 +468,8 @@ Begin
     Result := STATE_INFINITE
   Else If s = 'debug' Then
     Result := STATE_DEBUG
+  Else If s = 'mute' Then
+    Result := STATE_MUTE
   Else
   Begin
     ShortWarning(B,'invalid on/off state argument: ''' + s  + '''');
@@ -565,7 +568,7 @@ Begin
   GetShortPathArgAsStr := GetShortAtomArgAsStr(B,n,T,False,s)
 End;
 
-{ get a positive integer argument n }
+{ get a positive integer argument n [BIGNUM] }
 Function GetPosIntArg( n : Byte; T : TermPtr; Var v : PosInt ) : Boolean;
 Var
   C : ConstPtr;
@@ -845,17 +848,10 @@ Begin
     ShortWarning(B,'invalid codepoint');
     Exit
   End;
-  { create a constant from this TChar }
+  { create a constant string from this TChar }
   s := Str_New(Enc);
   Str_AppendChar(s,cc);
-  If y = Edinburgh Then
-  Begin
-    Tc := EmitIdent(P,s,True,False);
-    CheckCondition(Tc <> Nil,
-        'ClearCharCode: unable to create an identifier from a char')
-  End
-  Else
-    Tc := EmitConst(P,s,CS,False);
+  Tc := EmitConst(P,s,CS,False);
   { unify the term c with this constant }
   ClearCharCode := ReduceOneEq(T1,Tc,P)
 End;
@@ -1676,7 +1672,7 @@ End;
 { assign(file_name, "myfile.txt"), assign(stack(i),v))
  note: re-assignments are tricky to handle, as the reduced system, after
  e.g. "assign(test,1)", contains i=1 (w/o any remaining reference to the 
- identifier) }
+ identifier) [BIGNUM] }
 Function ClearAssign( P : ProgPtr; B : BTermPtr;
     T : TermPtr ) : Boolean;
 Var
@@ -2027,7 +2023,11 @@ Begin
   ClearAtomLength := ReduceOneEq(T1,T2,P)
 End;
 
-{ number_chars(123,['1','2','3']) }
+{ number_chars(123,['1','2','3']);
+ TODO: test 'd' in PII+;
+  number_chars(v,['1','.','2','d','3'])
+  number_chars(1.2d3,s)
+  }
 Function ClearNumberChars( P : ProgPtr; T : TermPtr ) : Boolean;
 Var
   T1,T2 : TermPtr;
@@ -2159,17 +2159,21 @@ End;
 Function ClearOp( P : ProgPtr; B : BTermPtr;
     T : TermPtr ) : Boolean;
 Var
+  y : TSyntax;
   C3 : ConstPtr;
   I2,I3,I4 : IdPtr;
-  Id2,Id3,Id4 : TString;
+  Id2 : TString;
+  Id3,Id4 : StrPtr;
   v : PosInt;
   ops,o1,o2,o3 : OpPtr;
   ot : TOpType;
   n : TOpArity;
   op3 : Boolean; { call is op/3? }
   del : Boolean; { request to delete an operator? }
+  OpIsId : Boolean;
 Begin
   ClearOp := False;
+  y := GetSyntax(P);
   { 1: precedence (integer value between 0 and 1200, O means delete the op when
    called as op/3) }
   If Not GetPosIntArgIn(1,T,0,1200,v) Then
@@ -2181,34 +2185,45 @@ Begin
   Id2 := IdentifierGetShortString(I2);
   If Not IsOpTypeString(Id2) Then
     Exit;
-  ot := PStrToOpType(Id2);
-  { 3: operator (string or identifier) }
+  ot := StringToOpType(Id2);
+  { 3: operator (identifier or string representing a graphic symbol) }
+  OpIsId := True;
   I3 := EvalPArgAsIdent(3,T);
-  If I3 <> Nil Then
-    Id3 := IdentifierGetShortString(I3)
-  Else
+  If I3 = Nil Then
   Begin
     C3 := EvalPArgAsString(3,T);
     If C3 = Nil Then
       Exit;
-    Id3 := ConstGetShortString(C3) { limits to StringMaxSize chars }
+    Id3 := ConstGetStr(C3);
+    If Not IsGraphicChars(Id3,y) Then
+      Exit;
+    { PII+ only: promote the graphic symbol as a quotable (and thus quoted) 
+     global identifier; FIXME: when this op/* fail, is this ident spurious? }
+    OpIsId := False;
+    I3 := IdPtr(EmitIdent(P,Id3,True,True))
   End;
-  { 4: functional symbol (identifier) }
+  { 4: functional symbol (identifier), possibly 'nil' }
   I4 := EvalPArgAsIdent(4,T);
   If I4 = Nil Then
     Exit;
-  Id4 := IdentifierGetShortString(I4);
+  Id4 := IdentifierGetStr(I4);
 
   { called as op/3? 
    Dirty trick until we implement arg spec such with variable nb of parameters }
-  op3 := Id4 = 'nil';
-  { functor }
-  { TODO: 1) check on PII+; 2) TString overflow? }
+  op3 := Str_EqualToShortString(Id4,'nil');
+  { functor of op/3 }
+  If op3 Then
+  Begin
+    I4 := I3;
+    Id4 := Id3
+  End;
+
+  { TODO: check on PII+ }
   { is it a delete request? French doc p142 reads that it only applies to op/3 
    but I guess this is a typo (TODO: test it) }
   del := (v = 0);
   { compute arity }
-  n := TOpTypeToArity(ot);
+  n := OpTypeToArity(ot);
 
   { current list of operators }
   ops := GetOps(P);
@@ -2218,17 +2233,17 @@ Begin
   Begin
     { exact match? (except precedence, which was given as zero) }
     o3 := Op_Lookup(ops,[OP_OPERATOR,OP_FUNCTION,OP_TYPES,
-        OP_ARITY],Id3,Id4,[ot],n,0);
+        OP_ARITY],Nil,I3,I4,[ot],n,0);
     If o3 = Nil Then
     Begin
-      ShortWarning(B,'no operator ' + Id4 + '/' + PosIntToShortString(n) + 
-          ' of type ' + Id2 + ' to delete');
+      WarnAbout(B,'no operator of type ' + Id2 + ' and arity ' + 
+          PosIntToShortString(n) + ' to delete:',Id4);
       Exit
     End;
     If (o3 <> Nil) And (Not Op_IsUser(o3)) Then
     Begin
-      ShortWarning(B,'cannot delete predefined operator' + Id4 + '/' + 
-          PosIntToShortString(n));
+      WarnAbout(B,'cannot delete predefined operator of arity ' + 
+          PosIntToShortString(n) + ':',Id4);
       Exit
     End;
     { execute }
@@ -2237,22 +2252,22 @@ Begin
   Else { create }
   Begin
     { existing function with same name and same number of parameters? }
-    o1 := Op_Lookup(ops,[OP_OPERATOR,OP_ARITY],'',Id4,[],n,0);
+    o1 := Op_Lookup(ops,[OP_OPERATOR,OP_ARITY],Nil,I3,Nil,[],n,0);
     { existing operator with same name and same number of parameters? }
-    o2 := Op_Lookup(ops,[OP_FUNCTION,OP_ARITY],Id3,'',[],n,0);
+    o2 := Op_Lookup(ops,[OP_FUNCTION,OP_ARITY],Nil,Nil,I4,[],n,0);
     { exact match? }
     o3 := Op_Lookup(ops,[OP_OPERATOR,OP_FUNCTION,OP_TYPES,OP_ARITY,
-        OP_PRECEDENCE],Id3,Id4,[ot],n,v);
+        OP_PRECEDENCE],Nil,I3,I4,[ot],n,v);
     { a partial match already exists }
     If (o3 = Nil) And ((o1 <> Nil) Or (o2 <> Nil)) Then
     Begin
-      ShortWarning(B,'a function or operator ' + Id4 + '/' + 
-          PosIntToShortString(n) + ' already exists');
+      WarnAbout(B,'a function or operator of arity ' + 
+          PosIntToShortString(n) + ' already exists:',Id4);
       Exit
     End;
     { execute, silently succeeding if there was an exact match }
     If o3 = Nil Then
-      o3 := Op_Append(P^.PP_OPER,OPER_USER,Id3,Id4,n,ot,v)
+      o3 := Op_Append(P^.PP_OPER,OPER_USER,OpIsId,I3,I4,n,ot,v)
   End;
 
   ClearOp := True
@@ -2702,7 +2717,7 @@ Begin
   Width := Stream_GetLineWidth(f);
   { create a constant from the line width }
   s := Str_NewFromShortString(LongIntToShortString(Width));
-  If Not NormalizeConstant(s,IntegerNumber) Then
+  If Not NormalizePositiveInteger(s) Then
     Exit;
   T2 := EmitConst(P,s,CI,False);
   ClearGetLineWidth := ReduceOneEq(T1,T2,P)
@@ -2928,7 +2943,7 @@ Begin
       Sign := Not (y In [PrologIIv1,PrologIIv2]);
       K := ReadInteger(f,Sign);
       InOk := (Not Error) And (K <> Nil) And 
-          NormalizeConstant(K^.TK_STRI,ObjectTypeToConstType(CI));
+          NormalizePositiveInteger(K^.TK_STRI);
       If InOk Then
         R1 := EmitConst(P,Token_GetStr(K),CI,False)
     End;
@@ -2937,7 +2952,7 @@ Begin
       K := ReadNumber(f,GetSyntax(P),True);
       InOk := (Not Error) And (K <> Nil) And 
           (Token_GetType(K) = TOKEN_REAL) And 
-          NormalizeConstant(K^.TK_STRI,ObjectTypeToConstType(CR));
+          NormalizeReal(K^.TK_STRI);
       If InOk Then
         R1 := EmitConst(P,Token_GetStr(K),CR,False)
     End;
@@ -3033,6 +3048,10 @@ Begin
    additional unification info }
   STATE_DEBUG:
     SetDebug(P,StateValue);
+  { mute output:
+   do not echo queries read from files, even if echo is on }
+  STATE_MUTE:
+    SetMute(P,StateValue);
   End;
   ClearOnOffState := True
 End;
@@ -3196,6 +3215,7 @@ Var
   What : TPrologDataType;
   V : PosInt;
   s : StrPtr;
+  ss : TString;
 Begin
   ClearTime := False;
   { 1: time variable (or value, but then likely to fail) }
@@ -3237,7 +3257,9 @@ Begin
     End;
   TYPE_REAL:
     Begin
-      s := Str_NewFromShortString(LongRealToShortString(V));
+      ss := LongRealToShortString(V);
+      ss := FormatRealInShortString(ss,False);
+      s := Str_NewFromShortString(ss);
       Tr := EmitConst(P,s,CR,False)
     End
   End;

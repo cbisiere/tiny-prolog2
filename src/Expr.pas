@@ -49,14 +49,18 @@ Implementation
 {----------------------------------------------------------------------------}
 
 { declare an evaluable function (that has *no* corresponding operator) }
-Procedure DeclareEvaluableFunction( code : TOpCode; func : TString; 
+Procedure DeclareEvaluableFunction( code : TOpCode; func : IdPtr; 
     arity : TOpArity; P : ProgPtr );
 Var
   o : OpPtr;
   ot : TOpType;
+  OpIsId : Boolean;
 Begin
-  ot := fx; { fake, unused }
-  o := Op_Append(P^.PP_OPER,code,'',func,arity,ot,0)
+  { fake, unused fields }
+  ot := fx;
+  OpIsId := True;
+  { create }
+  o := Op_Append(P^.PP_OPER,code,OpIsId,Nil,func,arity,ot,0)
 End;
 
 Const
@@ -67,7 +71,7 @@ Type
     Record
       C : TOpCode;
       QF : Boolean; { is name quoted in PII doc p.110+? }
-      F : String[8]; { name }
+      F : String[8]; { name as Pascal string }
       A : TOpArity; { arity }
       S : Set Of TSyntax { Prolog syntaxes in which the function is available }
     End;
@@ -126,7 +130,9 @@ Begin
   For i := 1 To NbFunctions Do
     With EvaluableFunctions[i] Do
       If y In S Then
-        DeclareEvaluableFunction(C,F,A,P)
+      Begin
+        DeclareEvaluableFunction(C,IdPtr(EmitShortIdent(P,F,True)),A,P)
+      End
 End;
 
 {----------------------------------------------------------------------------}
@@ -141,9 +147,9 @@ Type
     Record
       C : TOpCode;
       QN : Boolean; { is name quoted in PII doc p. 216? }
-      N : String[5]; { operator }
+      N : String[5]; { operator, as a Pascal string }
       QF : Boolean; { is functor quoted in PII doc p. 216? }
-      F : String[5]; { functor }
+      F : String[5]; { functor, as a Pascal string }
       T : TOpType;
       R : TPrecedence;
       S : Set Of TSyntax { Prolog syntaxes in which the operator is available }
@@ -167,7 +173,8 @@ Const
     (C:OPER_REM;      QN:False; N:'rem'; QF:False; F:'rem';  T:yfx; R:400;  S:[PrologIIp, Edinburgh]),
     (C:NA;            QN:True;  N:'<<';  QF:True;  F:'<<';   T:yfx; R:400;  S:[PrologIIp]),
     (C:NA;            QN:True;  N:'>>';  QF:True;  F:'>>';   T:yfx; R:400;  S:[PrologIIp]),
-    (C:OPER_POWER;    QN:False; N:'^';   QF:True;  F:'^';    T:xfy; R:200;  S:[PrologIIp, Edinburgh]),
+    (C:OPER_POW;      QN:False; N:'^';   QF:True;  F:'^';    T:xfy; R:200;  S:[PrologIIp, Edinburgh]),
+    (C:OPER_POW_REAL; QN:False; N:'**';  QF:True;  F:'**';   T:xfx; R:200;  S:[PrologIIp, Edinburgh]),
     (C:OPER_ADD_1;    QN:False; N:'+';   QF:False; F:'add';  T:fx;  R:200;  S:[PrologIIp]),
     (C:OPER_SUB_1;    QN:False; N:'-';   QF:False; F:'sub';  T:fx;  R:200;  S:[PrologIIp]),
     (C:NA;            QN:False; N:':-';  QF:True;  F:':-';   T:xfx; R:1200; S:[           Edinburgh]),
@@ -204,7 +211,6 @@ Const
     (C:NA;            QN:False; N:'>>';  QF:True;  F:'>>';   T:yfx; R:400;  S:[           Edinburgh]),
     (C:OPER_DIV_INT;  QN:False; N:'//';  QF:True;  F:'//';   T:yfx; R:400;  S:[           Edinburgh]),
     (C:NA;            QN:False; N:'\';   QF:True;  F:'\';    T:fy;  R:200;  S:[           Edinburgh]),
-    (C:OPER_POWER;    QN:False; N:'**';  QF:True;  F:'**';   T:xfx; R:200;  S:[           Edinburgh]),
     (C:OPER_ADD_1;    QN:False; N:'+';   QF:True;  F:'+';    T:fy;  R:200;  S:[           Edinburgh]),
     (C:OPER_SUB_1;    QN:False; N:'-';   QF:True;  F:'-';    T:fy;  R:200;  S:[           Edinburgh])
 );
@@ -220,7 +226,8 @@ Begin
   For i := 1 To NbOperators Do
     With Operators[i] Do
       If y In S Then
-        o := Op_Append(P^.PP_OPER,C,N,F,TOpTypeToArity(T),T,R)
+        o := Op_Append(P^.PP_OPER,C,QN,IdPtr(EmitShortIdent(P,N,True)),
+            IdPtr(EmitShortIdent(P,F,True)),OpTypeToArity(T),T,R)
 End;
 
 {----------------------------------------------------------------------------}
@@ -275,7 +282,7 @@ Begin
   CompInt := Cmp
 End;
 
-{ compare two integer constants }
+{ compare two integer constants [BIGNUM] }
 Function CompIntConst( C1,C2 : ConstPtr ) : TComp;
 Var
   Val1,Val2 : LongInt;
@@ -291,7 +298,7 @@ Begin
   CompIntConst := CompInt(Val1,Val2)
 End;
 
-{ compare two real constants }
+{ compare two real constants [BIGNUM] }
 Function CompRealConst( C1,C2 : ConstPtr ) : TComp;
 Var
   Val1,Val2 : LongReal;
@@ -464,6 +471,14 @@ Begin
   Fail := Not Condition
 End;
 
+{ check a condition is met, otherwise set an error message made of a short 
+ string and a long string }
+Function Fail2( Condition : Boolean; prompt : TString; s : StrPtr ) : Boolean;
+Begin
+  If Not Condition Then
+    EvaluationError(Str_FitToShortString(prompt,s));
+  Fail2 := Not Condition
+End;
 
 {----------------------------------------------------------------------------}
 { eval: tuple                                                                }
@@ -508,7 +523,7 @@ End;
 { eval: array                                                                }
 {----------------------------------------------------------------------------}
 
-{ evaluate an array T ident(args) }
+{ evaluate an array T ident(args) [BIGNUM] }
 Function EvaluateArray( Ident,Args : TermPtr; NbArgs : TTupleArgNumber;
     P : ProgPtr; g : TSerial ) : TermPtr;
 Var
@@ -548,12 +563,12 @@ End;
 { eval: @-comparisons                                                        }
 {----------------------------------------------------------------------------}
 
-{ evaluate a @-comparison (OpCade), with ident(args) }
+{ evaluate a @-comparison (OpCode), with ident(args) }
 Function EvaluateOrderExp( o : OpPtr; Ident,Args : TermPtr; 
     NbArgs : TTupleArgNumber; P : ProgPtr; g : TSerial ) : TermPtr;
 Var
   OpCode : TOpCode; 
-  func : TString;
+  func : StrPtr;
   U,T1,T2 : TermPtr;
   Cmp : TComp;
   Ok : Boolean;
@@ -561,9 +576,10 @@ Begin
   EvaluateOrderExp := Nil;
 
   OpCode := Op_GetCode(o);
-  func := Op_GetFunction(o);
+  func := Op_GetFunctionForDisplay(o);
 
-  If Fail(NbArgs = 2, func + ' requires two parameters') Then
+  If Fail2(NbArgs = 2,
+      'this function requires two parameters:',func) Then
     Exit;
   { get arguments }
   { FIXME: this passes through user variables }
@@ -572,7 +588,8 @@ Begin
   T2 := ProtectedGetTupleArg(U,True);
   Cmp := StandardOrderOfTerms(T1,T2);
 
-  If Fail(Cmp <> CompUndefined,'operands of ' + func + ' not comparable') Then
+  If Fail2(Cmp <> CompUndefined,
+      'operands of this function are not comparable:',func) Then
     Exit;
 
   Ok := (Cmp = CompEqual) 
@@ -590,7 +607,7 @@ End;
 { eval: numerical expressions                                                }
 {----------------------------------------------------------------------------}
 
-{ evaluate a numerical expression: ident(args) }
+{ evaluate a numerical expression: ident(args) [BIGNUM] }
 Function EvaluateNumExp( o : OpPtr; Ident,Args : TermPtr; 
     NbArgs : TTupleArgNumber; P : ProgPtr; g : TSerial ) : TermPtr;
 { data structure for high precision arithmetic }
@@ -608,7 +625,7 @@ Var
   CT1 : ConstPtr Absolute T1;
   code : Integer;
   OpCode : TOpCode; 
-  func : TString;
+  func : StrPtr;
   rs : TString;
   s : StrPtr;
   ParVal : TParArray;
@@ -620,17 +637,17 @@ Begin
   EvaluateNumExp := Nil;
 
   OpCode := Op_GetCode(o);
-  func := Op_GetFunction(o);
+  func := GetIdentAsStr(Op_GetFunction(o),True);
 
   U := EvaluateTuple(Args,P,g);
   { extract numerical values from the arguments }
   For i := 1 to NbArgs Do
   Begin
     T1 := TupleArg(U);
-    If Fail(IsConstant(T1) And 
+    If Fail2(IsConstant(T1) And 
         (ConstType(CT1) In [IntegerNumber,RealNumber]),
-        'operand ' + PosIntToShortString(i) + ' of ' + func + 
-        ' does not evaluate to a numerical value') Then
+        'an operand of this function does not evaluate to a numerical value:',
+        func) Then
       Exit;
     With ParVal[i] Do
     Begin
@@ -717,8 +734,16 @@ Begin
           r := r + ParVal[2].Val
       End
     End;
-  OPER_POWER:
+  OPER_POW,
+  OPER_POW_REAL:
     Begin
+      { ^ requires integer arguments }
+      If (OpCode = OPER_POW) Then
+        If Fail(IsInt,'arguments must be integer values') Then
+          Exit;
+      { ** always gives a real result, cf. PII+ doc p.112 }
+      IsInt := OpCode <> OPER_POW_REAL;
+      { calculate }
       If ParVal[2].Val = 0 Then { x^0 = 1 }
         r := 1
       Else If ParVal[1].Val = 1 Then { 1^y = 1 }
@@ -821,9 +846,8 @@ Begin
     End;
   NA:
     Begin
-      If Fail(False,
-        'operator or function not implemented yet: ''' + func + 
-            '''') Then
+      If Fail2(False,
+          'operator or function not implemented yet:',func) Then
         Exit
     End;
   Else
@@ -842,7 +866,9 @@ Begin
   End
   Else
   Begin
+    { convert to string, trying to compensate for rounding errors }
     rs := LongRealToShortString(r);
+    rs := FormatRealInShortString(rs,True);
     cot := CR
   End;
   s := Str_NewFromShortString(rs); { TODO: UTF-8 user ops }
@@ -861,7 +887,6 @@ Var
   IIdent : IdPtr Absolute Ident;
   Args : TermPtr;
   NbArgs : TTupleArgNumber;
-  func : TString;
   o : OpPtr;
   OpCode : TOpCode;
 Begin
@@ -878,10 +903,10 @@ Begin
   End;
 
   { evaluable function? }
-  func := IdentifierGetShortString(IIdent);
-  o := Op_Lookup(GetOps(P),[OP_FUNCTION,OP_ARITY],'',func,[],NbArgs,0);
+  o := Op_Lookup(GetOps(P),[OP_FUNCTION,OP_ARITY],Nil,Nil,IIdent,[],NbArgs,0);
   
-  If Fail(o <> Nil,'unknown evaluable function or operator: ' + func) Then
+  If Fail2(o <> Nil,
+      'unknown evaluable function:',GetIdentAsStr(IIdent,True)) Then
     Exit;
 
   OpCode := Op_GetCode(o);

@@ -137,6 +137,7 @@ Procedure TCharSet( Var cc : TChar; b : TCharBytes; Enc : TEncoding );
 Procedure TCharSetFromAscii( Var cc : TChar; c : Char );
 
 { TChar: regular characters }
+Function TCharIsAscii( cc : TChar ) : Boolean;
 Function TCharGetEncoding( cc : TChar ) : TEncoding;
 Function TCharGetBytes( cc : TChar ) : TCharBytes;
 Function TCharGetLength( cc : TChar ) : TCharByteIndex;
@@ -153,6 +154,9 @@ Procedure TCharSetToEol( Var cc : TChar );
 Function TCharIsMultibyte( cc : TChar ) : Boolean;
 Function TCharIsIn( cc : TChar; E : CharSet ) : Boolean;
 Function TCharIs( cc : TChar; b : TCharBytes ) : Boolean;
+Function TCharIsAsciiChar( cc : TChar; c : Char ) : Boolean;
+Function TCharIsTab( cc : TChar ) : Boolean;
+Function TCharIsBackspace( cc : TChar ) : Boolean;
 Function TCharIsSpace( cc : TChar ) : Boolean;
 Function TCharIsPrintable( cc : TChar ) : Boolean;
 
@@ -161,10 +165,13 @@ Function GetSystemEolStyle : TEolStyle;
 Procedure SetCodePage( c : TCodePage );
 Function UpdatableEncoding( Cont,Enc : TEncoding ) : Boolean;
 Function GetSystemEncoding : TEncoding;
+
+Function BytesToCodePoint( b : TCharBytes ) : TCodePoint;
 Function CodePointToShortString( v : TCodePoint ) : TString;
 Function TCharToCodePoint( cc : TChar; Var cp : TCodePoint ) : Boolean;
 Function TCharSetFromCodePoint( Var cc : TChar; cp : TCodePoint; 
     Enc : TEncoding ) : Boolean;
+
 Function TCharGetOne( Var s : TString; Var cc : TChar; 
     Var Enc : TEncoding; Var Style : TEolStyle ) : Boolean;
 
@@ -311,6 +318,16 @@ Begin
 End;
 
 {----------------------------------------------------------------------------}
+{ Char                                                                       }
+{----------------------------------------------------------------------------}
+
+{ is Char c a 7-bit Ascii char? }
+Function CharIsAscii( c : Char ) : Boolean;
+Begin
+  CharIsAscii := Ord(c) < $80
+End;
+
+{----------------------------------------------------------------------------}
 { TChar                                                                      }
 {----------------------------------------------------------------------------}
 
@@ -385,7 +402,7 @@ End;
 Procedure TCharSetFromAscii( Var cc : TChar; c : Char );
 Begin
   TCharSetAsSoftMark(cc,False);
-  CheckCondition(Ord(c) < $80,'TCharSetFromAscii: not 7-bit ASCII');
+  CheckCondition(CharIsAscii(c),'TCharSetFromAscii: not 7-bit ASCII');
   TCharSetBytes(cc,c);
   TCharSetEncoding(cc,ENC_ASCII)
 End;
@@ -395,6 +412,13 @@ End;
 {-----------------------------------------------------------------------}
 
 { these functions bug on soft marks }
+
+{ is TChar cc a 7-bit Ascii char? }
+Function TCharIsAscii( cc : TChar ) : Boolean;
+Begin
+  CheckCondition(Not TCharIsSoftMark(cc),'TCharIsAscii: soft mark');
+  TCharIsAscii := (TCharGetLength(cc) = 1) And CharIsAscii(TCharGetByte(cc,1))
+End;
 
 { return the encoding of cc }
 Function TCharGetEncoding( cc : TChar ) : TEncoding;
@@ -496,12 +520,73 @@ Begin
   TCharIs := Not TCharIsSoftMark(cc) And (TCharGetBytes(cc) = b)
 End;
 
-{ is TChar cc a space character? TODO: other UTF8 space-like characters? }
-Function TCharIsSpace( cc : TChar ) : Boolean;
+{ is TChar cc a particular Ascii char c ? 
+ NOTE: 
+  - ISO-8859-1 standard states that positions $00 to $1F are not used; 
+    however, in practice, they can be interpreted as ASCII-7;
+  - CP437,CP850: as noted in Wikipedia, some APIs will not print codes
+    in [0-31,127], and interpret them as control characters; 
+    FIXME: we may opt for this and adapt the code for TCharIsTab, etc.; I guess
+    that would be coherent as we already interpret CR and LF codes as such }
+Function TCharIsAsciiChar( cc : TChar; c : Char ) : Boolean;
 Begin
-  TCharIsSpace := TCharIsIn(cc,[' ',#9])
+  TCharIsAsciiChar := (Not TCharIsSoftMark(cc)) And 
+      (TCharGetEncoding(cc) In [ENC_ASCII,ENC_UTF8,ENC_ISO8859]) And
+      TCharIs(cc,c)
 End;
 
+{ is TChar cc a tab? }
+Function TCharIsTab( cc : TChar ) : Boolean;
+Begin
+  TCharIsTab := TCharIsAsciiChar(cc,#09)
+End;
+
+{ is TChar cc a backspace? }
+Function TCharIsBackspace( cc : TChar ) : Boolean;
+Begin
+  TCharIsBackspace := TCharIsAsciiChar(cc,#08)
+End;
+
+{ is TChar cc a space? }
+Function TCharIsSpace( cc : TChar ) : Boolean;
+Const
+  { ascii spaces-like characters }
+  EXTRA_ASCII_SPACES = [#09,#10,#13]; { TAB, LF, CR }
+Begin
+  { case 1: soft EOL }
+  If TCharIsEol(cc) Then
+  Begin
+    TCharIsSpace := True;
+    Exit
+  End;
+  { case 2: other soft marks (failure) }
+  If TCharIsSoftMark(cc) Then
+  Begin
+    TCharIsSpace := False;
+    Exit
+  End;
+  { case 3: blank space (same code #$20 in all encodings) }
+  If TCharIs(cc,' ') Then
+  Begin
+    TCharIsSpace := True;
+    Exit
+  End;
+  { case 4: other spaces (encoding-dependent logic) }
+  Case TCharGetEncoding(cc) Of
+    ENC_ASCII:
+      TCharIsSpace := TCharIsIn(cc,EXTRA_ASCII_SPACES);
+    ENC_ISO8859:
+      TCharIsSpace := TCharIsIn(cc,EXTRA_ASCII_SPACES + [#$A0]); { NBSP }
+    ENC_UTF8:
+      TCharIsSpace := TCharIsIn(cc,EXTRA_ASCII_SPACES) 
+          Or TCharIs(cc,#$C2#$A0); { NBSP }
+    ENC_CP437,
+    ENC_CP850:
+      TCharIsSpace := TCharIsIn(cc,[#$FF]); { NBSP }
+    Else
+      TCharIsSpace := False
+  End
+End;
 
 { is TChar cc a printable character; this exclude control characters (including
  backspace, line break, etc.) }
@@ -540,6 +625,32 @@ End;
 { Code points                                                                }
 {----------------------------------------------------------------------------}
 
+{ return the codepoint of a sequence of bytes; works for all supported 
+ encodings; see technical details about multibyte UT8 in 
+ https://en.wikipedia.org/wiki/UTF-8 }
+Function BytesToCodePoint( b : TCharBytes ) : TCodePoint;
+Var
+  cp : TCodePoint;
+Begin
+  Case Length(b) Of
+  1: { works for all encoding; should not be > 127 in UTF8 }
+    cp := Byte(b[1]);
+  2:
+    cp := (((Byte(b[1]) And $1F) Shl 8) Shr 2) Or 
+      (Byte(b[2]) And $3F);
+  3:
+    cp := (((Byte(b[1]) And $0F) Shl 8) Shl 4) Or 
+      (((Byte(b[2]) And $3F) Shl 8) Shr 2) Or 
+      (Byte(b[3]) And $3F);
+  4:
+    cp := (((Byte(b[1]) And $07) Shl 16) Shl 2) Or 
+      (((Byte(b[2]) And $3F) Shl 8) Shl 4) Or 
+      (((Byte(b[3]) And $3F) Shl 8) Shr 2) Or 
+      (Byte(b[4]) And $3F);
+  End;
+  BytesToCodePoint := cp
+End;
+
 { return a string representation of a codepoint }
 Function CodePointToShortString( v : TCodePoint ) : TString;
 Begin
@@ -547,8 +658,7 @@ Begin
 End;
 
 { return True if cc is a valid TChar, and if so set cp to its codepoint; 
- do not throw errors (TODO: Why??)
- see https://en.wikipedia.org/wiki/UTF-8 }
+ do not throw errors (TODO: Why??) }
 Function TCharToCodePoint( cc : TChar; Var cp : TCodePoint ) : Boolean;
 Begin
   TCharToCodePoint := False;
@@ -569,22 +679,8 @@ Begin
     Exit;
   
   { regular character, possibly multibyte }
-  Case TCharGetLength(cc) Of
-  1: { works for all encoding }
-    cp := Byte(TCharGetByte(cc,1)); {// And $EF;}
-  2:
-    cp := (((Byte(TCharGetByte(cc,1)) And $1F) Shl 8) Shr 2) Or 
-      (Byte(TCharGetByte(cc,2)) And $3F);
-  3:
-    cp := (((Byte(TCharGetByte(cc,1)) And $0F) Shl 8) Shl 4) Or 
-      (((Byte(TCharGetByte(cc,2)) And $3F) Shl 8) Shr 2) Or 
-      (Byte(TCharGetByte(cc,3)) And $3F);
-  4:
-    cp := (((Byte(TCharGetByte(cc,1)) And $07) Shl 16) Shl 2) Or 
-      (((Byte(TCharGetByte(cc,2)) And $3F) Shl 8) Shl 4) Or 
-      (((Byte(TCharGetByte(cc,3)) And $3F) Shl 8) Shr 2) Or 
-      (Byte(TCharGetByte(cc,4)) And $3F);
-  End;
+  cp := BytesToCodePoint(TCharGetBytes(cc));
+
   TCharToCodePoint := True
 End;
 

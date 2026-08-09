@@ -34,6 +34,7 @@ Type
 Function DuplicateString( s : TString; n : TStringSize ) : TString;
 Function TrimLeftSpaces( s : TString ) : TString;
 Function RAlign( s : TString; width : TStringSize ) : TString;
+Function ReplaceAll( s : TString; E : Charset; c : Char ) : TString;
 Function IntToShortString( v : Integer ) : TString;
 Function BoolToShortString( b : Boolean ) : TString;
 Function StartsWith( s,b : TString ) : Boolean;
@@ -102,6 +103,17 @@ Begin
     For i := 1 to width - Length(s) Do
       rs := rs + ' ';
   RAlign := rs + s
+End;
+
+{ replace with c all occurrences of chars in E in string s }
+Function ReplaceAll( s : TString; E : Charset; c : Char ) : TString;
+Var
+  i : TStringSize;
+Begin
+  For i := 1 to Length(s) Do
+    If s[i] In E Then
+      s[i] := c;
+  ReplaceAll := s
 End;
 
 { convert a byte or an integer to a string }

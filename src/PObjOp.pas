@@ -21,7 +21,10 @@ Uses
   ShortStr,
   Errs,
   Memory,
-  PObj;
+  PObj,
+  PObjStr,
+  PObjTerm,
+  PObjFCVI;
 
 Type
   TOpCode = (
@@ -32,7 +35,8 @@ Type
     OPER_SUB_2, { 1 - 1 }
     OPER_MUL, { 1 * 1}
     OPER_DIV, { 3 / 2 }
-    OPER_POWER, { 2^3  => 8 }
+    OPER_POW, { 2^3  => 8 }
+    OPER_POW_REAL, { 2^3  => 8.0 }
     OPER_DIV_INT, { 3 // 2 }
     OPER_MOD, { -21 mod 4  => 3 }
     OPER_REM, { -21 rem 4  => -1 }
@@ -67,10 +71,11 @@ Type
     { not deep copied: }
     OP_PREV : OpPtr;
     OP_NEXT : OpPtr;
+    OP_OPER : IdPtr;  { when used as an operator }
+    OP_FUNC : IdPtr;  { when used as a function }
     { extra data: }
+    OP_ISID : Boolean; { PII+: False if OP_OPER represents a graphic symbol }
     OP_CODE : TOpCode;  { code, OPER_USER for user defined (can be deleted) }
-    OP_OPER : TString;  { when used as an operator }
-    OP_FUNC : TString;  { when used as a function }
     OP_TYPE : TOpType;
     OP_NPAR : TOpArity; { Number of parameters: 1, 2 }
     OP_PRED : TPrecedence;
@@ -78,14 +83,24 @@ Type
 
 
 Function IsOpTypeString( s : TString ) : Boolean;
-Function PStrToOpType( s : TString ) : TOpType;
-Function TOpTypeToArity( ot : TOpType ) : TOpArity;
+Function StringToOpType( s : TString ) : TOpType;
+Function OpTypeToString( ot : TOpType ) : TString;
+Function OpTypeToArity( ot : TOpType ) : TOpArity;
 
 Function Op_GetCode( o : OpPtr ) : TOpCode;
 Function Op_GetType( o : OpPtr ) : TOpType;
 Function Op_GetArity( o : OpPtr ) : TOpArity;
-Function Op_GetOperator( o : OpPtr ) : TString;
-Function Op_GetFunction( o : OpPtr ) : TString;
+Function Op_IsId( o : OpPtr ) : Boolean;
+Function Op_GetOperator( o : OpPtr ) : IdPtr;
+Function Op_GetOperatorAsQuotedString( o : OpPtr ) : StrPtr;
+Function Op_GetOperatorAsUnquotedString( o : OpPtr ) : StrPtr;
+Function Op_GetOperatorForDisplay( o : OpPtr ) : StrPtr;
+Function Op_GetOperatorForOpParameter( o : OpPtr ) : StrPtr;
+Function Op_GetFunction( o : OpPtr ) : IdPtr;
+Function Op_GetFunctionAsQuotedString( o : OpPtr ) : StrPtr;
+Function Op_GetFunctionAsUnquotedString( o : OpPtr ) : StrPtr;
+Function Op_GetFunctionForDisplay( o : OpPtr ) : StrPtr;
+Function Op_GetFunctionForOpParameter( o : OpPtr ) : StrPtr;
 Function Op_GetPrecedence( o : OpPtr ) : TPrecedence;
 Function Op_IsUser( o : OpPtr ) : Boolean;
 
@@ -93,6 +108,7 @@ Function Op_IsUser( o : OpPtr ) : Boolean;
 Type
   TOpField = (
     OP_OPERATOR,
+    OP_OPERATOR_STRING, { to search for an operator w/o creating an identifier }
     OP_FUNCTION,
     OP_TYPES,
     OP_ARITY,
@@ -101,11 +117,13 @@ Type
   );
   TSetOfOpField = Set Of TOpField;
 
-Function Op_Lookup( start : OpPtr; Fields : TSetOfOpField; ope,func : TString; 
-    OpTypes : TOpTypes; Arity: Byte; Pred : TPrecedence ) : OpPtr;
+Function Op_Lookup( start : OpPtr; Fields : TSetOfOpField; opStr : StrPtr;
+    ope,func : IdPtr; OpTypes : TOpTypes; Arity: Byte; 
+    Pred : TPrecedence ) : OpPtr;
 
-Function Op_Append( Var list : OpPtr; code : TOpCode; ope,func : TString; 
-    arity : TOpArity; ot : TOpType; pred : TPrecedence ) : OpPtr;
+Function Op_Append( Var list : OpPtr; code : TOpCode; OpIsId : Boolean; 
+    ope,func : IdPtr; arity : TOpArity; ot : TOpType; 
+    pred : TPrecedence ) : OpPtr;
 
 Procedure Op_Remove( Var list : OpPtr; o : OpPtr );
 
@@ -128,7 +146,7 @@ Begin
 End;
 
 { Pascal string to operator type }
-Function PStrToOpType( s : TString ) : TOpType;
+Function StringToOpType( s : TString ) : TOpType;
 Var 
   ot : TOpType;
 Begin
@@ -148,37 +166,57 @@ Begin
     ot := yfx
   Else
     Bug('unknown operator type: ' + s);
-  PStrToOpType := ot
+  StringToOpType := ot
+End;
+
+{ Pascal string to operator type }
+Function OpTypeToString( ot : TOpType ) : TString;
+Var 
+  s : TString;
+Begin
+  Case ot Of
+  fx: s := 'fx';
+  fy: s := 'fy';
+  xf: s := 'xf';
+  yf: s := 'yf';
+  xfx: s := 'xfx';
+  xfy: s := 'xfy';
+  yfx: s := 'yfx'
+  End;
+  OpTypeToString := s
 End;
 
 { number of parameters of an operator of a certain type }
-Function TOpTypeToArity( ot : TOpType ) : TOpArity;
+Function OpTypeToArity( ot : TOpType ) : TOpArity;
 Begin
   If ot In [fx,fy,xf,yf] Then
-    TOpTypeToArity := 1
+    OpTypeToArity := 1
   Else
-    TOpTypeToArity := 2
+    OpTypeToArity := 2
 End;
 
 {-----------------------------------------------------------------------}
 { constructors                                                          }
 {-----------------------------------------------------------------------}
 
-{ create a new operator object }
-Function Op_New( code : TOpCode; ope,func : TString; arity : TOpArity; 
-    ot : TOpType; pred : TPrecedence ) : OpPtr;
+{ create a new operator object; In PII+, OpIsId tracks the true nature of ope,
+ which can be either a true identifier (e.g., abs, '/\'...) or a graphic symbol
+ promoted as an identifier (e.g. +, =:=, ...) for convenience }
+Function Op_New( code : TOpCode; OpIsId : Boolean; ope,func : IdPtr; 
+    arity : TOpArity; ot : TOpType; pred : TPrecedence ) : OpPtr;
 Var 
   o : OpPtr;
   ptr : TObjectPtr Absolute o;
 Begin
-  ptr := NewRegisteredPObject(OP,SizeOf(TObjOp),2,False,0);
+  ptr := NewRegisteredPObject(OP,SizeOf(TObjOp),4,False,0);
   With o^ Do
   Begin
     OP_PREV := Nil;
     OP_NEXT := Nil;
-    OP_CODE := code;
     OP_OPER := ope;
     OP_FUNC := func;
+    OP_ISID := OpIsId;
+    OP_CODE := code;
     OP_TYPE := ot;
     OP_NPAR := arity;
     OP_PRED := pred
@@ -208,16 +246,89 @@ Begin
   Op_GetArity := o^.OP_NPAR
 End;
 
+{ was this operator a true identifier (as opposed to a PII+ unquoted graphic 
+ symbol (stored in an identifier object, for convenience)? 
+ Reminder: in Edinburgh syntax, an unquoted graphic symbol is an identifier }
+Function Op_IsId( o : OpPtr ) : Boolean;
+Begin
+  Op_IsId := o^.OP_ISID
+End;
+
 { name when used as an operator }
-Function Op_GetOperator( o : OpPtr ) : TString;
+Function Op_GetOperator( o : OpPtr ) : IdPtr;
 Begin
   Op_GetOperator := o^.OP_OPER
 End;
 
+{ operator as an quoted string (single quotes are added only when necessary, 
+ though); if o is a PII+ graphic symbol, this will return a single quoted 
+ identifier) }
+Function Op_GetOperatorAsQuotedString( o : OpPtr ) : StrPtr;
+Begin
+  Op_GetOperatorAsQuotedString := GetIdentAsStr(Op_GetOperator(o),True)
+End;
+
+{ operator as an unquoted string }
+Function Op_GetOperatorAsUnquotedString( o : OpPtr ) : StrPtr;
+Begin
+  Op_GetOperatorAsUnquotedString := GetIdentAsStr(Op_GetOperator(o),False)
+End;
+
+{ operator in a format suitable for reading back; in PII+, graphic symbols
+ (e.g. +) must not be quoted (as they are not true identifiers) }
+Function Op_GetOperatorForDisplay( o : OpPtr ) : StrPtr;
+Begin
+  Op_GetOperatorForDisplay := GetIdentAsStr(Op_GetOperator(o),Op_IsId(o))
+End;
+
+{ operator in a format suitable for reading back as the third parameter of op/3 
+ and op/4: identifier or string containing a graphic symbol (the latter being
+ used only in PII+)}
+Function Op_GetOperatorForOpParameter( o : OpPtr ) : StrPtr;
+Var
+  s : StrPtr;
+Begin
+  If Op_IsId(o) Then
+  Begin
+    s := Op_GetOperatorForDisplay(o) { single quoted only when necessary }
+  End
+  Else { PII+ op w/ graphic symbol only }
+  Begin
+    s := Op_GetOperatorAsUnquotedString(o); { no quotes }
+    Str_DoubleQuoteAndEscape(s) { double quoting }
+  End;
+  Op_GetOperatorForOpParameter := s
+End;
+
 { name when used as a function }
-Function Op_GetFunction( o : OpPtr ) : TString;
+Function Op_GetFunction( o : OpPtr ) : IdPtr;
 Begin
   Op_GetFunction := o^.OP_FUNC
+End;
+
+{ function as a quoted string (single quotes are added only when necessary) }
+Function Op_GetFunctionAsQuotedString( o : OpPtr ) : StrPtr;
+Begin
+  Op_GetFunctionAsQuotedString := GetIdentAsStr(Op_GetFunction(o),True)
+End;
+
+{ function as an unquoted string }
+Function Op_GetFunctionAsUnquotedString( o : OpPtr ) : StrPtr;
+Begin
+  Op_GetFunctionAsUnquotedString := GetIdentAsStr(Op_GetFunction(o),False)
+End;
+
+{ function in a format suitable for reading back }
+Function Op_GetFunctionForDisplay( o : OpPtr ) : StrPtr;
+Begin
+  Op_GetFunctionForDisplay := Op_GetFunctionAsQuotedString(o)
+End;
+
+{ function in a format suitable for reading back as the fourth parameter of 
+ op/4: identifier (quoted when necessary) }
+Function Op_GetFunctionForOpParameter( o : OpPtr ) : StrPtr;
+Begin
+  Op_GetFunctionForOpParameter := Op_GetFunctionForDisplay(o)
 End;
 
 { precedence }
@@ -251,20 +362,30 @@ End;
 { look up an operator object by operator, function, type, arity, precedence or
  max precedence; return a pointer to the operator object found, or Nil if not 
  found }
-Function Op_Lookup( start : OpPtr; Fields : TSetOfOpField; ope,func : TString; 
-    OpTypes : TOpTypes; Arity: Byte; Pred : TPrecedence ) : OpPtr;
+Function Op_Lookup( start : OpPtr; Fields : TSetOfOpField; opStr : StrPtr;
+    ope,func : IdPtr; OpTypes : TOpTypes; Arity: Byte; 
+    Pred : TPrecedence ) : OpPtr;
 Var
   o : OpPtr;
   Found : Boolean;
 Begin
   o := start;
   Found := False;
-  While (o<>Nil) And Not Found Do
+  While (o <> Nil) And Not Found Do
   Begin
-    If ((Not (OP_OPERATOR In Fields)) Or (Op_GetOperator(o) = ope))
-        And ((Not (OP_FUNCTION In Fields)) Or (Op_GetFunction(o) = func)) 
-        And ((Not (OP_TYPES In Fields)) Or (Op_GetType(o) In OpTypes)) 
-        And ((Not (OP_ARITY In Fields)) Or (Op_GetArity(o) = Arity))
+    If ((Not (OP_OPERATOR_STRING In Fields)) 
+          Or (Op_GetOperator(o) <> Nil) And 
+            Str_Equal(Op_GetOperatorAsUnquotedString(o),opStr))
+        And ((Not (OP_OPERATOR In Fields)) 
+          Or (Op_GetOperator(o) <> Nil) And 
+            Term_SameAs(TermPtr(Op_GetOperator(o)),TermPtr(ope)))
+        And ((Not (OP_FUNCTION In Fields)) 
+          Or (Op_GetFunction(o) <> Nil) And 
+            Term_SameAs(TermPtr(Op_GetFunction(o)),TermPtr(func))) 
+        And ((Not (OP_TYPES In Fields)) 
+          Or (Op_GetType(o) In OpTypes)) 
+        And ((Not (OP_ARITY In Fields)) 
+          Or (Op_GetArity(o) = Arity))
         And ((Not (OP_PRECEDENCE In Fields)) 
           Or (Op_GetPrecedence(o) = Pred))
         And ((Not (OP_MAX_PRECEDENCE In Fields)) 
@@ -279,12 +400,13 @@ Begin
 End;
 
 { append an operator to a list of operators }
-Function Op_Append( Var list : OpPtr; code : TOpCode; ope,func : TString; 
-    arity : TOpArity; ot : TOpType; pred : TPrecedence ) : OpPtr;
+Function Op_Append( Var list : OpPtr; code : TOpCode; OpIsId : Boolean; 
+    ope,func : IdPtr; arity : TOpArity; ot : TOpType; 
+    pred : TPrecedence ) : OpPtr;
 Var 
   o : OpPtr;
 Begin
-  o := Op_New(code,ope,func,arity,ot,pred);
+  o := Op_New(code,OpIsId,ope,func,arity,ot,pred);
   { insert }
   If list <> Nil Then
     list^.OP_PREV := o;

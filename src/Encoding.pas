@@ -60,11 +60,6 @@ Uses
 Type
   TListArgNumber = PosInt; { list element index or count }
 
-Function NewFunc1( P : ProgPtr; ident : TString; T : TermPtr; 
-    special,glob : Boolean ) : TermPtr;
-Function NewFunc2( P : ProgPtr; ident : TString; T1,T2 : TermPtr; 
-    special,glob : Boolean ) : TermPtr;
-
 Function NilTerm( P : ProgPtr ) : TermPtr;
 Function IsNil( T : TermPtr ) : Boolean;
 
@@ -106,42 +101,6 @@ Function ProtectedIsListOfKnownSize( T : TermPtr; Reduce : Boolean;
 
 Implementation
 {-----------------------------------------------------------------------------}
-
-{----------------------------------------------------------------------------}
-{ functions                                                                  }
-{----------------------------------------------------------------------------}
-
-{ return a new 1-argument predicate with identifier given as a Pascal 
- string made of 1-byte TChar: ident(T1) (that is, tuple <ident,T1>);
- this function is used to create evaluable unary expressions }
-Function NewFunc1( P : ProgPtr; ident : TString; T : TermPtr; 
-    special,glob : Boolean ) : TermPtr;
-Var
-  T1 : TermPtr;
-Begin
-  CheckCondition(T <> Nil,'NewFunc1: first argument is Nil');
-  If special Then
-    T1 := EmitSpecialIdent(P,ident,glob)
-  Else
-    T1 := EmitShortIdent(P,ident,glob);
-  NewFunc1 := NewTuple(T1,NewTuple1(T));
-End;
-
-{ return 2-argument predicate with identifier given as a Pascal 
- string made of 1-byte TChar: ident(T1,T2) (that is, tuple <ident,T1,T2>);
- this function is used to create evaluable binary expressions and lists }
-Function NewFunc2( P : ProgPtr; ident : TString; T1,T2 : TermPtr; 
-    special,glob : Boolean ) : TermPtr;
-Var
-  T,Q : TermPtr;
-Begin
-  T := NewFunc1(P,ident,T1,special,glob); { <ident,T1> }
-  { append argument T2 }
-  Q := TupleQueue(T); { <T1> }
-  SetTupleQueue(Q,NewTuple1(T2)); { <ident,T1,T2> }
-  NewFunc2 := T
-End;
-
 
 {----------------------------------------------------------------------------}
 { lists                                                                      }
@@ -211,8 +170,11 @@ End;
 { return a list "a.b", viewed as '.'(a,b)" (equivalent to <'.',a,b>), where b
  can be 'nil' or another list }
 Function NewList2( P : ProgPtr; T1,T2 : TermPtr ) : TermPtr;
+Var
+  Ti : TermPtr;
 Begin
-  NewList2 := NewFunc2(P,'.',T1,T2,True,True)
+  Ti := EmitSpecialIdent(P,'.',True);
+  NewList2 := NewFunc2(IdPtr(Ti),T1,T2)
 End;
 
 { return the N-th element of a list T, assumed to be at least of size N }
@@ -385,9 +347,9 @@ Begin
   s := ListToStr(P,T);
   If s = Nil Then
     Exit;
-  If NormalizeConstant(s,IntegerNumber) Then
+  If NormalizePositiveInteger(s) Then
     ListToNum := ConstPtr(EmitConst(P,s,CI,False))
-  Else If NormalizeConstant(s,RealNumber) Then
+  Else If NormalizeReal(s) Then
     ListToNum := ConstPtr(EmitConst(P,s,CR,False))
 End;
 

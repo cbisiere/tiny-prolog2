@@ -50,8 +50,10 @@ Type
     Pos : TCharPos { position in the current line }
   End;
 
+Function TICharIsAscii( e : TIChar ) : Boolean;
 Function TICharGetEncoding( e : TIChar ) : TEncoding;
 Function TICharGetByte( e : TIChar; i : TCharByteIndex ) : Char;
+Function TICharGetBytes( e : TIChar ) : TCharBytes;
 Function TICharGetLength( e : TIChar ) : TCharByteIndex;
 Function TICharIs( e : TIChar; b : TCharBytes ) : Boolean;
 Function TICharIsSoftMark( e : TIChar ) : Boolean;
@@ -81,6 +83,12 @@ Implementation
 { get/test                                                                   }
 {----------------------------------------------------------------------------}
 
+{ 7-bit Ascii? }
+Function TICharIsAscii( e : TIChar ) : Boolean;
+Begin
+  TICharIsAscii := TCharIsAscii(e.Val)
+End;
+
 { get encoding }
 Function TICharGetEncoding( e : TIChar ) : TEncoding;
 Begin
@@ -91,6 +99,12 @@ End;
 Function TICharGetByte( e : TIChar; i : TCharByteIndex ) : Char;
 Begin
   TICharGetByte := TCharGetByte(e.Val,i)
+End;
+
+{ get bytes}
+Function TICharGetBytes( e : TIChar ) : TCharBytes;
+Begin
+  TICharGetBytes := TCharGetBytes(e.Val)
 End;
 
 { number of bytes in a character }
@@ -117,10 +131,10 @@ Begin
   TICharIsIn := TCharIsIn(e.Val,EE)
 End;
 
-{ true if character e is a tab }
+{ true if character e is a tab (ASCII-7) }
 Function TICharIsTab( e : TIChar ) : Boolean;
 Begin
-  TICharIsTab := TCharIs(e.Val,#09)
+  TICharIsTab := TCharIsTab(e.Val)
 End;
 
 { true if character e is an end of input mark }

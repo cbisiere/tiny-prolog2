@@ -24,6 +24,7 @@ Uses
 Const
   MaxWord = 65535; { 2^16 - 1 }
   MaxPosInt = 2147483647; { 2^31 - 1 }
+  LongRealPrecision = 20; { max number of significant digits; TP4 p.40 }
 Type 
   { Word is too small on MSDOS, e.g. to store UTF-8 codepoints; so we use 4-byte
    signed integer instead }
@@ -36,6 +37,7 @@ Const
   MaxWord = 65535; { 2^16 - 1 }
   MaxPosInt = 4294967295; { 2^32 - 1 }
   MaxLongInt = 1e+24;
+  LongRealPrecision = 20; { https://www.freepascal.org/docs-html/ref/refsu5.html }
  Type
   PosInt = UInt32; { 4-byte unsigned integer }
   LongLongInt = Extended; { simulate a very long integer }
@@ -50,6 +52,7 @@ Function LongRealToLongInt( v : LongReal ) : LongInt;
 Function LongIntToShortString( v : LongInt ) : TString;
 Function LongLongIntToShortString( v : LongLongInt ) : TString;
 Function LongRealToShortString( v : LongReal ) : TString;
+Function FormatRealInShortString( s : TString; Round : Boolean ) : TString;
 Function ShortStringToLongInt( s : TString; Var code : Integer ) : LongInt;
 Function ShortStringToLongLongInt( s : TString; 
     Var code : Integer ) : LongLongInt;
@@ -126,50 +129,134 @@ Begin
   LongLongIntToShortString := TrimLeftSpaces(s)
 End;
 
-{ format a LongReal for display; makes it look nice, and like a Prolog real 
- constant; '1.20000000000000000004E+0002' => '1.2e+2' }
+{ convert a LongReal to a short string (Pascal format) }
 Function LongRealToShortString( v : LongReal ) : TString;
 Var 
   s : TString;
-  man, exp : TString; { mantissa, exponent }
-  e,dot,i : Byte;
 Begin
   Str(v,s);
+  LongRealToShortString := s
+ End;
+
+
+{ remove useless leading zeros from a number in s, leaving one zero if needed; 
+ s may start with a sign, and my contain a fractional part, which are preserved; 
+ if s is malformed, just return the original string }
+Function CleanLeadingZeros( s : TString ) : TString;
+Var
+  sign,frac : TString;
+  dot : TStringSize;
+Begin
+  CleanLeadingZeros := s;
+  If Length(s) = 0 Then
+    Exit;
+  sign := '';
+  If s[1] In ['+','-'] Then
+  Begin
+    sign := s[1];
+    Delete(s,1,1)
+  End;
+  If Length(s) = 0 Then
+    Exit;
+  frac := '';
+  dot := Pos('.',s);
+  If dot > 0 Then
+  Begin
+    frac := Copy(s,dot,Length(s));
+    Delete(s,dot,Length(s))
+  End;
+  If Length(s) = 0 Then
+    Exit;
+  While (Length(s) > 1) And (s[1] = '0') Do
+    Delete(s,1,1);
+  CleanLeadingZeros := sign + s + frac
+End;
+
+ { format a string containing a real value for display; makes it look nice, 
+  and like a Prolog real constant; '1.20000000000000000004E+0002' => 
+  '1.2e+2', optionally rounding for errors (e.g., when the real value results 
+  from an operation on real values) }
+Function FormatRealInShortString( s : TString; Round : Boolean ) : TString;
+Var 
+  man, exp : TString; { mantissa, exponent }
+  e,dot,i : TStringSize;
+  Done : Boolean;
+Begin
   s := TrimLeftSpaces(s);
   e := Pos('E',s);
   If e > 0 Then
   Begin
+    { extract mantissa and exponent, including signs if any }
     man := Copy(s,1,e-1);
     exp := Copy(s,e+1,Length(s));
+    { remove leading zeros from the exponent }
+    exp := CleanLeadingZeros(exp);
+    { remove useless leading zeros from the mantissa }
+    man := CleanLeadingZeros(man);
     { remove useless trailing digit from the mantissa, keeping one zero after 
      the dot }
     dot := Pos('.',man);
     If dot > 0 Then
     Begin
       { remove the last two digits, which are often a rounding error }
-      If Length(man) > dot+2 Then
+      If Round And (Length(man) > dot+2) Then
         Delete(man,Length(man)-1,2);
       { removes all trailing zeros but one }
       While (Length(man) > dot+1) And (man[Length(man)] = '0') Do
         Delete(man,Length(man),1);
-      { round long sequences of 9: 22.001999999 => 22.002 }
-      i := Length(man);
-      While (i > dot+1) And (man[i] = '9') Do
-        i := i - 1;
-      If (i < Length(man)) And (man[i] <> '9') Then
+      If Round Then
       Begin
-        Delete(man,i+1,Length(man));
-        man[i] := Chr(Ord(man[i])+1)
+        { round "long" trailing sequence of 9: "22.001999999" => "22.002" }
+        i := Length(man);
+        While (i >= dot) And (man[i] = '9') Do
+          i := i - 1;
+        { at this point, i is the index of the character before the trailing 
+        sequence of 9s if any, so len-i is the number of trailing 9s; if fixing
+        floating point rounding errors is requested, consider such sequence as
+        long when its length is at least half of the LongReal precision, that is
+        about 10 digits }
+        If (Length(man)-i) >= (LongRealPrecision Div 2) Then
+        Begin
+          Case man[i] Of 
+          '0'..'8': { stop on a non-9 after the dot, e.g. "1" in "22.001999999" }
+            Begin
+              Delete(man,i+1,Length(man)); { drop the trailing 9s }
+              man[i] := Chr(Ord(man[i])+1) { replace "1" with "2" }
+            End;
+          '.': { the frac part is only made of 9s, e.g. "19.9999999999" }
+            Begin
+              { drop the frac part, including the dot: "19.9999999999" => "19" }
+              Delete(man,i,Length(man));
+              { add 1: "19" => "20" }
+              i := Length(man);
+              Done := False;
+              While (i >= 1) And (Not Done) Do
+              Begin
+                Case man[i] Of
+                '0'..'8':
+                  Begin
+                    man[i] := Chr(Ord(man[i])+1);
+                    Done := True;
+                  End;
+                '9':
+                  Begin
+                    man[i] := '0' { not done yat, as wa have a carry of 1 }
+                  End;
+                End;
+                i := i - 1
+              End;
+              If Not Done Then
+                man := '1' + man;
+              man := man + '.0'
+            End
+          End
+        End
       End
     End;
-    { remove leading zeros from the exponent }
-    If (Length(exp) > 0) And (exp[1] In ['+','-']) Then
-      While (Length(exp) > 2) And (exp[2] = '0') Do
-        Delete(exp,2,1);
     { reconstruct the string representation }
     s := man + 'e' + exp
   End;
-  LongRealToShortString := s
+  FormatRealInShortString := s
 End;
 
 { convert a Pascal string to a LongInt; code is 0 if the operation succeeds,

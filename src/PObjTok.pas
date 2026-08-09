@@ -36,6 +36,7 @@ Type
     TOKEN_INTEGER,
     TOKEN_REAL,
     TOKEN_IDENT,       { atom }
+    TOKEN_GRAPHIC_CHARS, { PII+: an unquoted run of graphic chars }
     TOKEN_VARIABLE,
     TOKEN_ARROW,       { :- or -> }
     TOKEN_CUT,         { cut ! or / }
@@ -66,6 +67,7 @@ Const TokenStr : TypeTokenStr = (
     'integer number',
     'real number',
     'identifier',
+    'graphic chars',
     'variable',
     'arrow',
     'cut',
