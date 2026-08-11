@@ -18,6 +18,7 @@ Unit Engine;
 Interface
 
 Uses
+  TPointer,
   ShortStr,
   Num,
   DateTime,
@@ -500,8 +501,8 @@ Var
         LTerm := List_New(TObjectPtr(CopyTerm(Header_GetSideCarTerm(Hz),False)));
         { append it to the target list, just below }
         Hz := Headers_GetNext(Hz);
-        List_Chain(Header_GetSideCarObject(Hz),LTerm);
-        Header_SetSideCarObject(Hz,LTerm);
+        List_Chain(ListPtr(Header_GetSideCarObject(Hz)),LTerm);
+        Header_SetSideCarObject(Hz,Pointer(LTerm));
         { make it a fail to look for the next solution }
         Cleared := False
       End;

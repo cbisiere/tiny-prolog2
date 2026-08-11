@@ -21,6 +21,7 @@ Unit PObjDef;
 Interface
 
 Uses
+  TPointer,
   Num,
   ShortStr,
   Chars,

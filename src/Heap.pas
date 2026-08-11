@@ -17,6 +17,9 @@ Unit Heap;
 
 Interface
 
+Uses
+  TPointer;
+
 { maximum size in bytes of a single heap allocation }
 {$IFDEF CPU16}
 Const
@@ -30,8 +33,8 @@ Type
   TSizeOnHeap = PtrUInt;
 {$ENDIF}
 
-Procedure GetMemOnHeap( Var p : Pointer; Size: TSizeOnHeap);
-Procedure FreeMemOnHeap( Var p : Pointer; Size: TSizeOnHeap);
+Procedure GetMemOnHeap( pp : PointerPtr; Size: TSizeOnHeap);
+Procedure FreeMemOnHeap( pp : PointerPtr; Size: TSizeOnHeap);
 
 Implementation
 
@@ -39,7 +42,7 @@ Implementation
 { TP4/FPC compatibility code to ensure failed heap allocations return Nil }
 
 {$IFDEF TPC}
-{$F+} Function HeapFunc( Size : Word) : Integer; {$F-} 
+{$F+} Function HeapFunc( Size : Word ) : Integer; {$F-} 
 Begin
   HeapFunc := 1
 End;
@@ -54,15 +57,15 @@ End;
 
 {-----------------------------------------------------------------------------}
 
-Procedure GetMemOnHeap( Var p : Pointer; Size: TSizeOnHeap);
+Procedure GetMemOnHeap( pp : PointerPtr; Size: TSizeOnHeap );
 Begin
-  GetMem(p,Size)
+  GetMem(pp^,Size)
 End;
 
-Procedure FreeMemOnHeap( Var p : Pointer; Size: TSizeOnHeap);
+Procedure FreeMemOnHeap( pp : PointerPtr; Size: TSizeOnHeap );
 Begin
-  FreeMem(p,Size);
-  p := Nil
+  FreeMem(pp^,Size);
+  pp^ := Nil
 End;
 
 Begin

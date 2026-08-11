@@ -18,6 +18,7 @@ Unit PObjHead;
 Interface
 
 Uses
+  TPointer,
   Errs,
   Memory,
   PObj,

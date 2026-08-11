@@ -20,6 +20,7 @@ Unit Stack;
 Interface
 
 Uses
+  TPointer,
   Heap;
 
 {$IFDEF CPU16}
@@ -54,7 +55,7 @@ Implementation
 { new stack with a single stack chunk }
 Procedure Stack_New( Var s : TStackPtr );
 Begin
-  GetMemOnHeap(Pointer(s),TSizeOnHeap(SizeOf(TStack)));
+  GetMemOnHeap(Addr(s),TSizeOnHeap(SizeOf(TStack)));
   s^.Top := 0;
   s^.Next := Nil
 End;
@@ -62,7 +63,7 @@ End;
 { free a single chunk }
 Procedure Stack_Free( Var s : TStackPtr );
 Begin
-  FreeMemOnHeap(Pointer(s),TSizeOnHeap(SizeOf(TStack)))
+  FreeMemOnHeap(Addr(s),TSizeOnHeap(SizeOf(TStack)))
 End;
 
 { kill a stack }

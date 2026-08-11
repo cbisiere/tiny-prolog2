@@ -18,6 +18,7 @@ Unit Num;
 Interface
 
 Uses
+  TPointer,
   ShortStr;
 
 {$IFDEF TPC}
@@ -31,7 +32,6 @@ Type
   PosInt = LongInt; 
   LongLongInt = Extended; { simulate a very long integer }
   LongReal = Extended; { high precision real }
-  Pointer = ^Integer; { generic pointer }
 {$ELSE}
 Const
   MaxWord = 65535; { 2^16 - 1 }

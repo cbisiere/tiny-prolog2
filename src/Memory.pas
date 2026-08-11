@@ -18,6 +18,7 @@ Unit Memory;
 Interface
 
 Uses
+  TPointer,
   DateTime,
   Heap,
   Stack,
@@ -593,7 +594,7 @@ Var
   p : TObjectPtr;
 Begin
   CheckCondition(b <= MaxSizeOnHeap,'Cannot allocate an object of this size');
-  GetMemOnHeap(Pointer(p),TSizeOnHeap(b));
+  GetMemOnHeap(Addr(p),TSizeOnHeap(b));
   { cannot GC here, so in case of OOM we just abort }
   If p = Nil Then
   Begin
@@ -609,7 +610,7 @@ End;
 
 Procedure FreeMemOfObject( Var p : TObjectPtr );
 Begin
-  FreeMemOnHeap(Pointer(p),TSizeOnHeap(ObjectSize(p)))
+  FreeMemOnHeap(Addr(p),TSizeOnHeap(ObjectSize(p)))
 End;
 
 { allocate memory on the heap for an object of type t and size b in bytes; 
@@ -852,13 +853,13 @@ End;
 
 Procedure PushMark( p : TObjectPtr );
 Begin
-  Stack_Push(MarkStack,p);
+  Stack_Push(MarkStack,Pointer(p));
   MarkDepth := MarkDepth + 1
 End;
 
 Function PopMark : TObjectPtr;
 Begin
-  PopMark := Stack_Pop(MarkStack);
+  PopMark := TObjectPtr(Stack_Pop(MarkStack));
   MarkDepth := MarkDepth - 1
 End;
 

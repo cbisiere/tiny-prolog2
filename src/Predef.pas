@@ -18,6 +18,7 @@ Unit Predef;
 Interface
 
 Uses
+  TPointer,
   Dos,
   ShortStr,
   Num,

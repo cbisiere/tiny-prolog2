@@ -22,6 +22,7 @@
 Program TProlog2;
 
 Uses 
+  TPointer,
   Crt,
   Dos,
   ShortStr,
