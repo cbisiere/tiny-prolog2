@@ -54,7 +54,7 @@ Implementation
 { new stack with a single stack chunk }
 Procedure Stack_New( Var s : TStackPtr );
 Begin
-  GetMemOnHeap(s,SizeOf(TStack));
+  GetMemOnHeap(Pointer(s),TSizeOnHeap(SizeOf(TStack)));
   s^.Top := 0;
   s^.Next := Nil
 End;
@@ -62,7 +62,7 @@ End;
 { free a single chunk }
 Procedure Stack_Free( Var s : TStackPtr );
 Begin
-  FreeMemOnHeap(s,SizeOf(TStack))
+  FreeMemOnHeap(Pointer(s),TSizeOnHeap(SizeOf(TStack)))
 End;
 
 { kill a stack }

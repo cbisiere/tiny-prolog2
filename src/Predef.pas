@@ -2913,7 +2913,7 @@ Begin
             Begin
               { PII: substitute EOL }
               If (y in [PrologIIv1,PrologIIv2]) And (TICharIsEol(e1)) Then
-                e1.val := GetSubChar(P);
+                GetSubChar(P,e1.val);
               Str_AppendChar(s,e1.Val);
               R1 := EmitConst(P,s,CS,False)
             End

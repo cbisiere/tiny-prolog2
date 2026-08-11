@@ -593,7 +593,7 @@ Var
   p : TObjectPtr;
 Begin
   CheckCondition(b <= MaxSizeOnHeap,'Cannot allocate an object of this size');
-  GetMemOnHeap(p,b);
+  GetMemOnHeap(Pointer(p),TSizeOnHeap(b));
   { cannot GC here, so in case of OOM we just abort }
   If p = Nil Then
   Begin
@@ -609,7 +609,7 @@ End;
 
 Procedure FreeMemOfObject( Var p : TObjectPtr );
 Begin
-  FreeMemOnHeap(p,ObjectSize(p))
+  FreeMemOnHeap(Pointer(p),TSizeOnHeap(ObjectSize(p)))
 End;
 
 { allocate memory on the heap for an object of type t and size b in bytes; 

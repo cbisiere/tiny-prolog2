@@ -551,7 +551,7 @@ End;
 Function TCharIsSpace( cc : TChar ) : Boolean;
 Const
   { ascii spaces-like characters }
-  EXTRA_ASCII_SPACES = [#09,#10,#13]; { TAB, LF, CR }
+  EXTRA_ASCII_SPACES : CharSet = [#09,#10,#13]; { TAB, LF, CR }
 Begin
   { case 1: soft EOL }
   If TCharIsEol(cc) Then

@@ -176,7 +176,7 @@ Function GetProgramPath( P : ProgPtr ) : StrPtr;
 Procedure SetProgramPath( P : ProgPtr; path : StrPtr );
 Function GetSyntax( P : ProgPtr ) : TSyntax;
 Procedure SetSyntax( P : ProgPtr; y : TSyntax );
-Function GetSubChar( P : ProgPtr ) : TChar;
+Procedure GetSubChar( P : ProgPtr; Var cc : TChar);
 Procedure SetSubChar( P : ProgPtr; cc : TChar );
 
 Implementation
@@ -1038,9 +1038,9 @@ Begin
 End;
 
 { get the current substitution character for line breaks (PII only) }
-Function GetSubChar( P : ProgPtr ) : TChar;
+Procedure GetSubChar( P : ProgPtr; Var cc : TChar);
 Begin
-  GetSubChar := P^.PP_CHAR
+  cc := P^.PP_CHAR
 End;
 
 { set the current substitution character for line breaks (PII only) }

@@ -86,9 +86,14 @@ Var
    is increased by 1 if a value is found; 
    raise an error and return '' if no value can be found }
   Function GetParValue( par : TString; Var i : Byte ) : TString;
+  Var
+    PValue : TString;
   Begin
     GetParValue := '';
-    If (i = ParamCount) Or (ParamStr(i+1)[1] = '-') Then
+    PValue := '';
+    If i < ParamCount Then 
+      PValue := ParamStr(i+1);
+    If (i = ParamCount) Or (Length(PValue) >= 1) And (PValue[1] = '-') Then
     Begin
       ParameterError(par,'value expected');
       Exit;
